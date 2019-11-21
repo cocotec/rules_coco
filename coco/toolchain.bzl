@@ -1,0 +1,51 @@
+# Copyright 2019 Cocotec Limited
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+def _coco_toolchain_impl(ctx):
+    toolchain = platform_common.ToolchainInfo(
+        coco = ctx.file.coco,
+        cocotec_licensing_server = ctx.file.cocotec_licensing_server,
+        crashpad_handler = ctx.file.crashpad_handler,
+        # license_file = ctx.file.license_file,
+    )
+    make_variables = platform_common.TemplateVariableInfo({
+        "COCOTEC_LICENSING_SERVER": ctx.file.cocotec_licensing_server.path,
+    })
+    return [toolchain, make_variables]
+
+coco_toolchain = rule(
+    _coco_toolchain_impl,
+    attrs = {
+        "coco": attr.label(
+            doc = "The location of the `coco` binary. Can be a direct source or a filegroup containing one item.",
+            allow_single_file = True,
+            mandatory = True,
+        ),
+        "cocotec_licensing_server": attr.label(
+            doc = "The location of the `cocotec-licensing-server` binary. Can be a direct source or a filegroup containing one item.",
+            allow_single_file = True,
+            mandatory = True,
+        ),
+        "crashpad_handler": attr.label(
+            doc = "The location of the `crashpad-handler` binary. Can be a direct source or a filegroup containing one item.",
+            allow_single_file = True,
+            mandatory = True,
+        ),
+        # "license_file": attr.label(
+        #     doc = "The location of the cached license. Can be a direct source or a filegroup containing one item.",
+        #     allow_single_file = True,
+        #     mandatory = True,
+        # ),
+    },
+)

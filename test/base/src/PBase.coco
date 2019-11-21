@@ -1,0 +1,13 @@
+port PBase {
+  function start() : Nil
+  function stop() : Nil
+  machine M {
+    state Stopped {
+      start() = setNextState(Started)
+    }
+
+    state Started {
+      stop() = setNextState(Stopped)
+    }
+  }
+}
