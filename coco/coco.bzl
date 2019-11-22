@@ -194,6 +194,7 @@ def _coco_package_generate_impl(ctx):
         "generate-%s" % ctx.attr.language,
         "--output",
         paths.join(ctx.genfiles_dir.path, package_dir, root_output_dir),
+        "--output-empty-files",
     ]
     if ctx.attr.mocks:
         arguments += ["--mocks=" + ctx.attr.mocks]

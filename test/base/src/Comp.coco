@@ -1,0 +1,14 @@
+import unqualified PBase
+
+component Comp {
+  client : Provided<PBase>;
+  machine M {
+    state Stopped {
+      client.start() = setNextState(Started)
+    }
+
+    state Started {
+      client.stop() = setNextState(Stopped)
+    }
+  }
+}
