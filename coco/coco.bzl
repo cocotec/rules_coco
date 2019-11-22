@@ -198,6 +198,12 @@ def _coco_package_generate_impl(ctx):
     ]
     if ctx.attr.mocks:
         arguments += ["--mocks=" + ctx.attr.mocks]
+    if ctx.attr.language == "cpp":
+        # Make all include paths absolute within the workspace to avoid the need for includes
+        arguments += [
+            "--include-prefix",
+            paths.join(package_dir, root_output_dir),
+        ]
 
     _run_coco(
         ctx = ctx,
