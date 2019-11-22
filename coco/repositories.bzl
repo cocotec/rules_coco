@@ -87,7 +87,7 @@ def _coco_toolchain_repository_impl(ctx):
     """The implementation of the coco toolchain repository rule."""
 
     # Download the compiler
-    platform = ctx.attr.name.split("_")[1]
+    platform = ctx.attr.name.split("_")[-1]
     file_name = "coco-{platform}".format(
         platform = platform,
     )
