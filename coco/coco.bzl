@@ -29,7 +29,7 @@ def _coco_startup_args(ctx, package):
     arguments = [
         "--no-license-server",
         "--package",
-        package[CocoInfo].package_file.path,
+        package[CocoInfo].package_file.dirname,
     ]
     for package_file in package[CocoInfo].dep_package_files.to_list():
         arguments += ["--import-path", package_file.dirname]
