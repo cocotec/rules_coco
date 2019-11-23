@@ -12,7 +12,7 @@ using ::testing::Return;
 using ::testing::WithArg;
 
 TEST(MockTest, Main) {
-  PBaseMock mock;
+  PBaseProvidedMock mock;
   EXPECT_CALL(mock, start()).Times(Exactly(1));
   EXPECT_CALL(mock, stop()).Times(Exactly(1));
 
