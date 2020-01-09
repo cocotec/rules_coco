@@ -28,6 +28,7 @@ COCO_TOOLCHAIN_TYPE = "@io_cocotec_rules_coco//coco:toolchain_type"
 def _coco_startup_args(ctx, package):
     arguments = [
         "--no-license-server",
+        "--override-preferences=\"%s\"" % ctx.toolchains[COCO_TOOLCHAIN_TYPE].preferences_file.path,
         "--package",
         package[CocoInfo].package_file.dirname,
     ]
@@ -46,6 +47,7 @@ def _run_coco(ctx, package, verb, arguments, outputs):
         inputs = depset(
             direct = [
                 package[CocoInfo].package_file,
+                ctx.toolchains[COCO_TOOLCHAIN_TYPE].preferences_file,
             ],
             transitive = [
                 package[CocoInfo].srcs,
@@ -111,6 +113,7 @@ def _coco_package_verify(ctx):
         direct = [
             ctx.attr.package[CocoInfo].package_file,
             ctx.toolchains[COCO_TOOLCHAIN_TYPE].coco,
+            ctx.toolchains[COCO_TOOLCHAIN_TYPE].preferences_file,
             ctx.toolchains[COCO_TOOLCHAIN_TYPE].crashpad_handler,
         ],
         transitive = [

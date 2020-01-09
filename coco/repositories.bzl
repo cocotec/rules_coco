@@ -15,6 +15,17 @@
 load(":known_shas.bzl", "FILE_KEY_TO_SHA")
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
+def _preferences_file_text(remote_verification_mode, verification_server):
+    lines = [
+        "[verification]",
+        'remote = "%s"' % remote_verification_mode,
+    ]
+    if verification_server:
+        lines += [
+            'server = "%s"' % verification_server,
+        ]
+    return "\n".join(lines)
+
 def BUILD_for_toolchain(name, parent_workspace_name, constraints):
     return """
 toolchain(
@@ -168,7 +179,33 @@ _coco_license_repository = repository_rule(
     implementation = _coco_license_repository_impl,
 )
 
-def _coco_deps(runtime_version):
+def _coco_preferences_repository_impl(ctx):
+    """Creates a repository to allow users to easily acquire new licenses"""
+    ctx.file("preferences.toml", _preferences_file_text(
+        remote_verification_mode = ctx.attr.remote_verification_mode,
+        verification_server = ctx.attr.verification_server,
+    ))
+    ctx.file("WORKSPACE", "")
+    ctx.file("BUILD", """
+filegroup(
+    name = "preferences",
+    srcs = ["preferences.toml"],
+    visibility = ["//visibility:public"],
+)
+""")
+
+_coco_preferences_repository = repository_rule(
+    attrs = {
+        "verification_server": attr.bool(),
+        "remote_verification_mode": attr.string(
+            default = "disabled",
+            values = ["disabled", "enabled", "preferLocal", "preferRemote", "only"],
+        ),
+    },
+    implementation = _coco_preferences_repository_impl,
+)
+
+def _coco_deps(runtime_version, **kwargs):
     if not "bazel_skylib" in native.existing_rules():
         http_archive(
             name = "bazel_skylib",
@@ -194,12 +231,20 @@ cc_library(
 """,
     )
 
+    _coco_preferences_repository(
+        name = "io_cocotec_coco_preferences",
+        **kwargs
+    )
+
     _coco_license_repository(
         name = "io_cocotec_licensing",
     )
 
-def coco_repositories(version = "stable"):
-    _coco_deps(runtime_version = version)
+def coco_repositories(version = "stable", **kwargs):
+    _coco_deps(
+        runtime_version = version,
+        **kwargs
+    )
 
     coco_repository_set(
         name = "io_cocotec_coco_mac",
@@ -250,8 +295,11 @@ def coco_local_repository_set(name, path):
         name = name,
     ))
 
-def coco_local_repositories(path):
-    _coco_deps(runtime_version = "stable")
+def coco_local_repositories(path, **kwargs):
+    _coco_deps(
+        runtime_version = "stable",
+        **kwargs
+    )
     coco_local_repository_set(
         name = "coco_local",
         path = path,

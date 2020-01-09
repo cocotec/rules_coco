@@ -17,6 +17,7 @@ def _coco_toolchain_impl(ctx):
         coco = ctx.file.coco,
         cocotec_licensing_server = ctx.file.cocotec_licensing_server,
         crashpad_handler = ctx.file.crashpad_handler,
+        preferences_file = ctx.file.preferences_file,
         # license_file = ctx.file.license_file,
     )
     make_variables = platform_common.TemplateVariableInfo({
@@ -42,10 +43,10 @@ coco_toolchain = rule(
             allow_single_file = True,
             mandatory = True,
         ),
-        # "license_file": attr.label(
-        #     doc = "The location of the cached license. Can be a direct source or a filegroup containing one item.",
-        #     allow_single_file = True,
-        #     mandatory = True,
-        # ),
+        "preferences_file": attr.label(
+            doc = "The location of the Coco Platform `preferences.toml` file. Can be a direct source or a filegroup containing one item.",
+            allow_single_file = True,
+            default = "@io_cocotec_coco_preferences//:preferences",
+        ),
     },
 )
