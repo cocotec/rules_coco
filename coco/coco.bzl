@@ -28,6 +28,7 @@ COCO_TOOLCHAIN_TYPE = "@io_cocotec_rules_coco//coco:toolchain_type"
 def _coco_startup_args(ctx, package):
     arguments = [
         "--no-license-server",
+        "--no-crash-reporter",
         "--override-preferences=\"%s\"" % ctx.toolchains[COCO_TOOLCHAIN_TYPE].preferences_file.path,
         "--package",
         package[CocoInfo].package_file.dirname,
