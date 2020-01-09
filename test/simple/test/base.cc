@@ -1,8 +1,8 @@
 #include "gtest/gtest.h"
 
 #include "coco/stream_logger.h"
-#include "test/base/src/PBase.h"
-#include "test/base/src/PBaseMock.h"
+#include "test/simple/src/PBase.h"
+#include "test/simple/src/PBaseMock.h"
 
 using ::testing::_;
 using ::testing::AtLeast;

@@ -181,10 +181,9 @@ def _coco_package_generate_impl(ctx):
     outputs = []
     root_output_dir = None
     for src in srcs.to_list():
-        relative_to_package = paths.relativize(src.dirname, package_dir)
+        relative_to_package = paths.relativize(src.path, package_dir)
         if not root_output_dir or len(relative_to_package) < len(root_output_dir):
-            root_output_dir = relative_to_package
-
+            root_output_dir = paths.dirname(relative_to_package)
         files = []
         if ctx.attr.language == "cpp":
             if ctx.attr.mocks:
