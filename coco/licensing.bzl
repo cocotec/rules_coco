@@ -29,7 +29,7 @@ def _run_cocotec_license_server_impl(ctx):
         wrapper_script = ctx.actions.declare_file(ctx.label.name + "-cmd.bat")
         ctx.actions.write(
             output = wrapper_script,
-            content = "%s %*\r\n" % " ".join(arguments),
+            content = "%s \\%*\r\n" % " ".join(arguments),
             is_executable = True,
         )
     else:
