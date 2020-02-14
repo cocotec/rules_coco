@@ -108,6 +108,7 @@ def _coco_package_verify(ctx):
     ] + _coco_startup_args(ctx, ctx.attr.package) + [
         "verify",
         "--format=junit",
+        ctx.attr.verification_backend,
     ]
 
     runfiles = depset(
@@ -150,6 +151,7 @@ _coco_package_verify_test = rule(
             mandatory = True,
         ),
         "is_windows": attr.bool(mandatory = True),
+        "verification_backend": attr.string(values = ["", "--backend=remote"]),
     },
     test = True,
     toolchains = [
@@ -170,7 +172,11 @@ def coco_package(name, tags = [], **kwargs):
             "@bazel_tools//src/conditions:host_windows": True,
             "//conditions:default": False,
         }),
-        tags = ["no-remote-exec"],
+        verification_backend = select({
+            "@io_cocotec_rules_coco//coco:remote_verification": "--backend=remote",
+            "//conditions:default": "",
+        }),
+        tags = ["no-remote-exec", "requires-network"],
     )
 
 def _coco_package_generate_impl(ctx):

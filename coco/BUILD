@@ -15,3 +15,8 @@
 package(default_visibility = ["//visibility:public"])
 
 toolchain_type(name = "toolchain_type")
+
+config_setting(
+    name = "remote_verification",
+    values = {"define": "coco_verification=remote"},
+)
