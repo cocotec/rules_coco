@@ -111,9 +111,13 @@ _coco_package = rule(
 )
 
 def _coco_package_verify(ctx):
+    coco_path = ctx.toolchains[COCO_TOOLCHAIN_TYPE].coco.short_path
+    if ctx.attr.is_windows:
+        coco_path = coco_path.replace("/", "\\")
+
     # Create the wrapper script to invoke Coco. We try and avoid using bash on Windows.
     arguments = [
-        ctx.toolchains[COCO_TOOLCHAIN_TYPE].coco.path,
+        coco_path,
     ] + _coco_startup_args(ctx, ctx.attr.package, True) + [
         "verify",
         "--format=junit",
@@ -140,7 +144,7 @@ def _coco_package_verify(ctx):
         wrapper_script = ctx.actions.declare_file(ctx.label.name + "-cmd.sh")
     ctx.actions.write(
         output = wrapper_script,
-        content = "%s > $XML_OUTPUT_FILE" % " ".join(arguments),
+        content = "%s > %%XML_OUTPUT_FILE%%" % " ".join(arguments),
         is_executable = True,
     )
     return DefaultInfo(
