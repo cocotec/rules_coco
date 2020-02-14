@@ -14,53 +14,48 @@
 
 load(":coco.bzl", "COCO_TOOLCHAIN_TYPE")
 
-def _run_cocotec_license_server_impl(ctx):
+def _fetch_license_impl(ctx):
     # Create the wrapper script to invoke Coco. We try and avoid using bash on Windows.
+    output = ctx.actions.declare_file("licenses.lic")
     arguments = [
-        ctx.toolchains[COCO_TOOLCHAIN_TYPE].cocotec_licensing_server.path,
+        "--machine-auth-token",
+        ctx.file.auth_token.path,
+        "--license-file",
+        output.path,
+        "--acquire",
+        ctx.attr.product,
     ]
-    runfiles = depset(
-        direct = [
-            ctx.toolchains[COCO_TOOLCHAIN_TYPE].cocotec_licensing_server,
-        ],
+
+    ctx.actions.run(
+        executable = ctx.toolchains[COCO_TOOLCHAIN_TYPE].cocotec_licensing_server,
+        arguments = arguments,
+        tools = [ctx.toolchains[COCO_TOOLCHAIN_TYPE].cocotec_licensing_server],
+        inputs = [ctx.file.auth_token],
+        outputs = [output],
     )
 
-    if ctx.attr.is_windows:
-        wrapper_script = ctx.actions.declare_file(ctx.label.name + "-cmd.bat")
-        ctx.actions.write(
-            output = wrapper_script,
-            content = "%s \\%*\r\n" % " ".join(arguments),
-            is_executable = True,
-        )
-    else:
-        wrapper_script = ctx.actions.declare_file(ctx.label.name + "-cmd.sh")
-        ctx.actions.write(
-            output = wrapper_script,
-            content = "%s $@\n" % " ".join(arguments),
-            is_executable = True,
-        )
     return DefaultInfo(
-        executable = wrapper_script,
-        runfiles = ctx.runfiles(transitive_files = runfiles),
+        files = depset([output]),
     )
 
-_run_cocotec_license_server = rule(
+_fetch_license = rule(
     attrs = {
+        "auth_token": attr.label(allow_single_file = True),
         "is_windows": attr.bool(mandatory = True),
+        "product": attr.string(),
     },
-    implementation = _run_cocotec_license_server_impl,
+    implementation = _fetch_license_impl,
     toolchains = [
         COCO_TOOLCHAIN_TYPE,
     ],
-    executable = True,
 )
 
-def run_cocotec_license_server(tags = [], **kwargs):
-    _run_cocotec_license_server(
+def fetch_license(tags = [], **kwargs):
+    _fetch_license(
         is_windows = select({
             "@bazel_tools//src/conditions:host_windows": True,
             "//conditions:default": False,
         }),
-        tags = ["no-remote-exec"] + tags,
+        tags = ["no-remote-exec", "no-remote-cache", "requires-network"] + tags,
         **kwargs
     )

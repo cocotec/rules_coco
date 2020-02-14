@@ -49,6 +49,7 @@ def _run_coco(ctx, package, verb, arguments, outputs):
             direct = [
                 package[CocoInfo].package_file,
                 ctx.toolchains[COCO_TOOLCHAIN_TYPE].preferences_file,
+                ctx.file._license_file,
             ],
             transitive = [
                 package[CocoInfo].srcs,
@@ -95,6 +96,7 @@ _coco_package = rule(
             allow_single_file = [".toml"],
         ),
         "deps": attr.label_list(providers = [CocoInfo]),
+        "_license_file": attr.label(default = "@io_cocotec_licensing//:licenses", allow_single_file = True),
     },
     toolchains = [
         COCO_TOOLCHAIN_TYPE,
@@ -152,6 +154,7 @@ _coco_package_verify_test = rule(
         ),
         "is_windows": attr.bool(mandatory = True),
         "verification_backend": attr.string(values = ["", "--backend=remote"]),
+        "_license_file": attr.label(default = "@io_cocotec_licensing//:licenses", allow_single_file = True),
     },
     test = True,
     toolchains = [
@@ -234,19 +237,31 @@ _coco_package_generate = rule(
             mandatory = True,
         ),
         "language": attr.string(mandatory = True, values = ["cpp"]),
-        "mocks": attr.string(),
+        "mocks": attr.string(values = ["", "gmock"]),
+        "_license_file": attr.label(default = "@io_cocotec_licensing//:licenses", allow_single_file = True),
     },
     toolchains = [
         COCO_TOOLCHAIN_TYPE,
     ],
 )
 
-def coco_cc_library(name, package, srcs = [], deps = [], **kwargs):
+def coco_package_generate(tags = [], **kwargs):
     _coco_package_generate(
+        tags = ["no-remote-exec", "block-network"] + tags,
+        **kwargs
+    )
+
+def coco_cc_generate(tags = [], **kwargs):
+    coco_package_generate(
+        tags = ["no-remote-exec"] + tags,
+        language = "cpp",
+        **kwargs
+    )
+
+def coco_cc_library(name, package, srcs = [], deps = [], **kwargs):
+    coco_cc_generate(
         name = name + "_srcs",
         package = package,
-        language = "cpp",
-        tags = ["no-remote-exec"],
     )
     cc_library(
         name = name,

@@ -21,9 +21,9 @@ def _preferences_file_text(remote_verification_mode, verification_server):
         'remote = "%s"' % remote_verification_mode,
     ]
     if verification_server:
-        lines += [
+        lines.append(
             'server = "%s"' % verification_server,
-        ]
+        )
     return "\n".join(lines)
 
 def BUILD_for_toolchain(name, parent_workspace_name, constraints):
@@ -161,15 +161,38 @@ def coco_repository_set(name, version, constraints):
         name = name,
     ))
 
+def _platform_license_file(ctx):
+    if "os x" in ctx.os.name:
+        return "%s/Library/Application Support/Coco Platform/licenses.lic" % ctx.os.environ.get("HOME")
+    if "windows" in ctx.os.name:
+        return "%s\\..\\LocalLow\\Coco Platform\\licenses.lic" % ctx.os.environ.get("APPDATA")
+    return "%s/.local/share/coco_platform" % ctx.os.environ.get("HOME")
+
 def _coco_license_repository_impl(ctx):
     """Creates a repository to allow users to easily acquire new licenses"""
     ctx.file("WORKSPACE", "")
-    ctx.file("BUILD", """
-load("@io_cocotec_rules_coco//coco:licensing.bzl", "run_cocotec_license_server")
 
-run_cocotec_license_server(
-    name = "fetch",
-    args = ["--acquire", "coco-platform"],
+    auth_token = ctx.os.environ.get("COCOTEC_AUTH_TOKEN", "")
+    if auth_token:
+        print("Writing auth token to" + auth_token)
+        ctx.file("auth_token.secret", auth_token)
+        ctx.file("BUILD", """
+load("@io_cocotec_rules_coco//coco:licensing.bzl", "fetch_license")
+
+fetch_license(
+    name = "licenses",
+    product = "coco-platform",
+    auth_token = "auth_token.secret",
+    visibility = ["//visibility:public"],
+)
+""")
+    else:
+        ctx.symlink(_platform_license_file(ctx), "licenses.lic")
+        ctx.file("BUILD", """
+filegroup(
+    name = "licenses",
+    srcs = ["licenses.lic"],
+    visibility = ["//visibility:public"],
 )
 """)
 
@@ -177,6 +200,8 @@ _coco_license_repository = repository_rule(
     attrs = {
     },
     implementation = _coco_license_repository_impl,
+    environ = ["APPDATA", "COCOTEC_AUTH_TOKEN", "HOME"],
+    local = True,
 )
 
 def _coco_preferences_repository_impl(ctx):
