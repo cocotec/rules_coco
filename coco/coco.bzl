@@ -48,6 +48,7 @@ def _run_coco(ctx, package, verb, arguments, outputs):
         inputs = depset(
             direct = [
                 package[CocoInfo].package_file,
+                ctx.toolchains[COCO_TOOLCHAIN_TYPE].crashpad_handler,
                 ctx.toolchains[COCO_TOOLCHAIN_TYPE].preferences_file,
                 ctx.file._license_file,
             ],
@@ -128,18 +129,13 @@ def _coco_package_verify(ctx):
 
     if ctx.attr.is_windows:
         wrapper_script = ctx.actions.declare_file(ctx.label.name + "-cmd.bat")
-        ctx.actions.write(
-            output = wrapper_script,
-            content = "%s > $XML_OUTPUT_FILE" % " ".join(arguments),
-            is_executable = True,
-        )
     else:
         wrapper_script = ctx.actions.declare_file(ctx.label.name + "-cmd.sh")
-        ctx.actions.write(
-            output = wrapper_script,
-            content = "%s > $XML_OUTPUT_FILE" % (" ".join(arguments)),
-            is_executable = True,
-        )
+    ctx.actions.write(
+        output = wrapper_script,
+        content = "%s > $XML_OUTPUT_FILE" % " ".join(arguments),
+        is_executable = True,
+    )
     return DefaultInfo(
         executable = wrapper_script,
         runfiles = ctx.runfiles(transitive_files = runfiles),
@@ -209,7 +205,7 @@ def _coco_package_generate_impl(ctx):
         "--output-empty-files",
     ]
     if ctx.attr.mocks:
-        arguments += ["--mocks=" + ctx.attr.mocks]
+        arguments += ["--mocks", ctx.attr.mocks]
     if ctx.attr.language == "cpp":
         # Make all include paths absolute within the workspace to avoid the need for includes
         arguments += [
@@ -277,12 +273,10 @@ def coco_cc_gmock_library(
         deps = [],
         gmock = "@com_github_google_googletest//:gtest",
         **kwargs):
-    _coco_package_generate(
+    coco_cc_generate(
         name = name + "_srcs",
         package = package,
-        language = "cpp",
         mocks = "gmock",
-        tags = ["no-remote-exec"],
     )
     cc_library(
         name = name,
