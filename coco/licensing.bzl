@@ -18,6 +18,7 @@ def _fetch_license_impl(ctx):
     # Create the wrapper script to invoke Coco. We try and avoid using bash on Windows.
     output = ctx.actions.declare_file("licenses.lic")
     arguments = [
+        "--no-crash-reporter",
         "--machine-auth-token",
         ctx.file.auth_token.path,
         "--license-file",
