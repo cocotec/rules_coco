@@ -16,7 +16,7 @@ workspace(name = "io_cocotec_rules_coco")
 
 load("@io_cocotec_rules_coco//coco:repositories.bzl", "coco_repositories")
 
-coco_repositories()
+coco_repositories(version = "unsupported_unstable")
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
