@@ -25,14 +25,17 @@ CocoInfo = provider(fields = {
 
 COCO_TOOLCHAIN_TYPE = "@io_cocotec_rules_coco//coco:toolchain_type"
 
-def _coco_startup_args(ctx, package):
+def _runtime_path(file, is_test):
+    return file.short_path if is_test else file.path
+
+def _coco_startup_args(ctx, package, is_test):
     arguments = [
         "--no-license-server",
         "--no-crash-reporter",
         "--override-licenses",
-        ctx.file._license_file.path,
+        _runtime_path(ctx.file._license_file, is_test),
         "--override-preferences",
-        ctx.toolchains[COCO_TOOLCHAIN_TYPE].preferences_file.path,
+        _runtime_path(ctx.toolchains[COCO_TOOLCHAIN_TYPE].preferences_file, is_test),
         "--package",
         package[CocoInfo].package_file.dirname,
     ]
@@ -61,7 +64,7 @@ def _run_coco(ctx, package, verb, arguments, outputs):
             ],
         ),
         outputs = outputs,
-        arguments = _coco_startup_args(ctx, package) + arguments,
+        arguments = _coco_startup_args(ctx, package, False) + arguments,
     )
 
 def _coco_package_impl(ctx):
@@ -111,7 +114,7 @@ def _coco_package_verify(ctx):
     # Create the wrapper script to invoke Coco. We try and avoid using bash on Windows.
     arguments = [
         ctx.toolchains[COCO_TOOLCHAIN_TYPE].coco.path,
-    ] + _coco_startup_args(ctx, ctx.attr.package) + [
+    ] + _coco_startup_args(ctx, ctx.attr.package, True) + [
         "verify",
         "--format=junit",
         ctx.attr.verification_backend,
