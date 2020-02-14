@@ -29,7 +29,10 @@ def _coco_startup_args(ctx, package):
     arguments = [
         "--no-license-server",
         "--no-crash-reporter",
-        "--override-preferences=\"%s\"" % ctx.toolchains[COCO_TOOLCHAIN_TYPE].preferences_file.path,
+        "--override-licenses",
+        ctx.file._license_file.path,
+        "--override-preferences",
+        ctx.toolchains[COCO_TOOLCHAIN_TYPE].preferences_file.path,
         "--package",
         package[CocoInfo].package_file.dirname,
     ]
@@ -120,6 +123,7 @@ def _coco_package_verify(ctx):
             ctx.toolchains[COCO_TOOLCHAIN_TYPE].coco,
             ctx.toolchains[COCO_TOOLCHAIN_TYPE].preferences_file,
             ctx.toolchains[COCO_TOOLCHAIN_TYPE].crashpad_handler,
+            ctx.file._license_file,
         ],
         transitive = [
             ctx.attr.package[CocoInfo].srcs,
