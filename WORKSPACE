@@ -14,14 +14,9 @@
 
 workspace(name = "io_cocotec_rules_coco")
 
-# TODO: Move this to examples/WORKSPACE when recursive repositories are enabled.
-# load("@io_cocotec_rules_coco//coco:repositories.bzl", "coco_repositories")
+load("@io_cocotec_rules_coco//coco:repositories.bzl", "coco_repositories")
 
-# coco_repositories()
-
-load("@io_cocotec_rules_coco//coco:repositories.bzl", "coco_local_repositories")
-
-coco_local_repositories(path = "/Users/Tom/scratch/local-repo")
+coco_repositories()
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
