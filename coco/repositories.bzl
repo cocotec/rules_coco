@@ -174,7 +174,6 @@ def _coco_license_repository_impl(ctx):
 
     auth_token = ctx.os.environ.get("COCOTEC_AUTH_TOKEN", "")
     if auth_token:
-        print("Writing auth token to" + auth_token)
         ctx.file("auth_token.secret", auth_token)
         ctx.file("BUILD", """
 load("@io_cocotec_rules_coco//coco:licensing.bzl", "fetch_license")
