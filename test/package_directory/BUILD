@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("//coco:coco.bzl", "coco_cc_gmock_library", "coco_cc_library", "coco_package")
+load("//coco:coco.bzl", "coco_cc_library", "coco_cc_test_library", "coco_package", "coco_package_generate")
 load("@rules_cc//cc:defs.bzl", "cc_test")
 
 coco_package(
@@ -21,19 +21,26 @@ coco_package(
     package = "Coco.toml",
 )
 
-coco_cc_library(
-    name = "base_cc",
+coco_package_generate(
+    name = "base_cpp",
+    language = "cpp",
+    mocks = True,
     package = ":base",
 )
 
-coco_cc_gmock_library(
-    name = "base_cc_mocks",
-    package = ":base",
+coco_cc_library(
+    name = "base_cc",
+    generated_package = ":base_cpp",
+)
+
+coco_cc_test_library(
+    name = "base_cc_tst",
+    generated_package = ":base_cpp",
     deps = [":base_cc"],
 )
 
 cc_test(
     name = "unit",
     srcs = ["test/base.cc"],
-    deps = [":base_cc_mocks"],
+    deps = [":base_cc_tst"],
 )

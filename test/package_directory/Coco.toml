@@ -1,3 +1,9 @@
 [package]
 name = "base"
 sources = ["."]
+
+[language]
+standard = "1"
+
+[generator.cpp]
+generateMocks = "GMock"

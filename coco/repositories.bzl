@@ -54,7 +54,6 @@ coco_toolchain(
     name = "{toolchain_name}_impl",
     coco = "@{workspace_name}//:coco",
     cocotec_licensing_server = "@{workspace_name}//:cocotec_licensing_server",
-    crashpad_handler = "@{workspace_name}//:crashpad_handler",
     visibility = ["//visibility:public"],
 )
 """.format(
@@ -79,18 +78,12 @@ filegroup(
     visibility = ["//visibility:public"],
 )
 
-filegroup(
-    name = "crashpad_handler",
-    srcs = ["bin/crashpad-handler{binary_ext}"],
-    visibility = ["//visibility:public"],
-)
-
 """.format(
         binary_ext = binary_ext,
     )
 
-def _platform_binary_ext(platform):
-    if platform == "windows":
+def _platform_binary_ext(os):
+    if os == "windows":
         return ".exe"
     return ""
 
@@ -98,20 +91,20 @@ def _coco_toolchain_repository_impl(ctx):
     """The implementation of the coco toolchain repository rule."""
 
     # Download the compiler
-    platform = ctx.attr.name.split("_")[-1]
-    file_name = "coco-{platform}".format(
-        platform = platform,
+    download_path = "{version}/coco_{os}_{arch}.zip".format(
+        arch = ctx.attr.arch.replace("aarch64", "arm64").replace("x86_64", "amd64"),
+        os = ctx.attr.os.replace("osx", "darwin"),
+        version = ctx.attr.version,
     )
-    download_path = "{version}/{file_name}.zip".format(version = ctx.attr.version, file_name = file_name)
     ctx.download_and_extract(
-        url = "https://dl.cocotec.io/cp/{download_path}".format(download_path = download_path),
+        url = "https://dl.cocotec.io/cp/archive/{download_path}".format(download_path = download_path),
         output = "bin",
         sha256 = FILE_KEY_TO_SHA.get(download_path) or "",
     )
 
     ctx.file("WORKSPACE", "")
     ctx.file("BUILD", "\n".join([
-        BUILD_for_coco_archive(binary_ext = _platform_binary_ext(platform)),
+        BUILD_for_coco_archive(binary_ext = _platform_binary_ext(ctx.attr.os)),
         BUILD_for_coco_toolchain(name = "toolchain", workspace_name = ctx.attr.name),
     ]))
 
@@ -128,6 +121,8 @@ def _coco_toolchain_repository_proxy_impl(ctx):
 
 coco_toolchain_repository = repository_rule(
     attrs = {
+        "arch": attr.string(mandatory = True),
+        "os": attr.string(mandatory = True),
         "version": attr.string(mandatory = True),
     },
     implementation = _coco_toolchain_repository_impl,
@@ -144,8 +139,10 @@ coco_toolchain_repository_proxy = repository_rule(
     configure = True,
 )
 
-def coco_repository_set(name, version, constraints):
+def coco_repository_set(name, version, os, arch, constraints):
     coco_toolchain_repository(
+        arch = arch,
+        os = os,
         name = name,
         version = version,
     )
@@ -240,16 +237,35 @@ def _coco_deps(runtime_version, **kwargs):
             sha256 = "97e70364e9249702246c0e9444bccdc4b847bed1eb03c5a3ece4f83dfe6abc44",
         )
 
+    if not "platforms" in native.existing_rules():
+        http_archive(
+            name = "platforms",
+            urls = [
+                "https://mirror.bazel.build/github.com/bazelbuild/platforms/releases/download/0.0.7/platforms-0.0.7.tar.gz",
+                "https://github.com/bazelbuild/platforms/releases/download/0.0.7/platforms-0.0.7.tar.gz",
+            ],
+            sha256 = "3a561c99e7bdbe9173aa653fd579fe849f1d8d67395780ab4770b1f381431d51",
+        )
+
     http_archive(
         name = "io_cocotec_coco_cc_runtime",
         urls = [
-            "https://dl.cocotec.io/cp/{version}/coco_cpp_runtime.zip".format(version = runtime_version),
+            "https://dl.cocotec.io/cp/archive/{version}/coco-cpp-runtime.zip".format(version = runtime_version),
         ],
-        sha256 = FILE_KEY_TO_SHA.get("{version}/coco_cpp_runtime.zip".format(version = runtime_version)),
+        sha256 = FILE_KEY_TO_SHA.get("{version}/coco-cpp-runtime.zip".format(version = runtime_version)),
         build_file_content = """
 cc_library(
-    name = "io_cocotec_coco_cc_runtime",
+    name = "runtime",
     hdrs = ["coco/runtime.h", "coco/stream_logger.h"],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "testing",
+    hdrs = ["coco/gmock_helpers.h"],
+    deps = [
+      ":runtime",
+    ],
     visibility = ["//visibility:public"],
 )
 """,
@@ -270,32 +286,23 @@ def coco_repositories(version = "stable", **kwargs):
         **kwargs
     )
 
-    coco_repository_set(
-        name = "io_cocotec_coco_mac",
-        version = version,
-        constraints = [
-            "@platforms//os:osx",
-            "@platforms//cpu:x86_64",
-        ],
-    )
-
-    coco_repository_set(
-        name = "io_cocotec_coco_linux",
-        version = version,
-        constraints = [
-            "@platforms//os:linux",
-            "@platforms//cpu:x86_64",
-        ],
-    )
-
-    coco_repository_set(
-        name = "io_cocotec_coco_windows",
-        version = version,
-        constraints = [
-            "@platforms//os:windows",
-            "@platforms//cpu:x86_64",
-        ],
-    )
+    for (os, arch) in [
+        ("osx", "aarch64"),
+        ("osx", "x86_64"),
+        ("linux", "aarch64"),
+        ("linux", "x86_64"),
+        ("windows", "x86_64"),
+    ]:
+        coco_repository_set(
+            name = "io_cocotec_coco_%s_%s" % (os, arch),
+            os = os,
+            arch = arch,
+            version = version,
+            constraints = [
+                "@platforms//os:%s" % os,
+                "@platforms//cpu:%s" % arch,
+            ],
+        )
 
 def coco_local_repository_set(name, path):
     native.new_local_repository(

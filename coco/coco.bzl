@@ -15,13 +15,24 @@
 load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@bazel_skylib//lib:paths.bzl", "paths")
 
-CocoInfo = provider(fields = {
-    "name": "",
-    "package_file": "All Coco.toml files",
-    "dep_package_files": "All Coco.toml files",
-    "srcs": "",
-    "dep_srcs": "",
-})
+CocoPackageInfo = provider(
+    doc = "Information about a Coco package",
+    fields = {
+        "name": "The name of the package",
+        "package_file": "The Coco.toml file for this package",
+        "dep_package_files": "All Coco.toml files for all transitive dependencies",
+        "srcs": "All .coco files that are sources of this package or any of its transitive dependencies",
+        "test_srcs": "All .coco files that are test_sources of this package or any of its transitive dependencies",
+    },
+)
+
+CocoGeneratedCodeInfo = provider(
+    doc = "Information about a Coco package",
+    fields = {
+        "outputs": "Code ",
+        "test_outputs": "The Coco.toml file for this package",
+    },
+)
 
 COCO_TOOLCHAIN_TYPE = "@io_cocotec_rules_coco//coco:toolchain_type"
 
@@ -37,9 +48,9 @@ def _coco_startup_args(ctx, package, is_test):
         "--override-preferences",
         _runtime_path(ctx.toolchains[COCO_TOOLCHAIN_TYPE].preferences_file, is_test),
         "--package",
-        package[CocoInfo].package_file.dirname,
+        package[CocoPackageInfo].package_file.dirname,
     ]
-    for package_file in package[CocoInfo].dep_package_files.to_list():
+    for package_file in package[CocoPackageInfo].dep_package_files.to_list():
         arguments += ["--import-path", package_file.dirname]
     return arguments
 
@@ -48,19 +59,17 @@ def _run_coco(ctx, package, verb, arguments, outputs):
         executable = ctx.toolchains[COCO_TOOLCHAIN_TYPE].coco,
         tools = [
             ctx.toolchains[COCO_TOOLCHAIN_TYPE].coco,
-            ctx.toolchains[COCO_TOOLCHAIN_TYPE].crashpad_handler,
         ],
-        progress_message = "%s %s" % (verb, package[CocoInfo].name),
+        progress_message = "%s %s" % (verb, package[CocoPackageInfo].name),
         inputs = depset(
             direct = [
-                package[CocoInfo].package_file,
-                ctx.toolchains[COCO_TOOLCHAIN_TYPE].crashpad_handler,
+                package[CocoPackageInfo].package_file,
                 ctx.toolchains[COCO_TOOLCHAIN_TYPE].preferences_file,
                 ctx.file._license_file,
             ],
             transitive = [
-                package[CocoInfo].srcs,
-                package[CocoInfo].dep_package_files,
+                package[CocoPackageInfo].srcs,
+                package[CocoPackageInfo].dep_package_files,
             ],
         ),
         outputs = outputs,
@@ -70,39 +79,39 @@ def _run_coco(ctx, package, verb, arguments, outputs):
 def _coco_package_impl(ctx):
     if ctx.file.package.basename != "Coco.toml":
         fail("Package must point to a file called exactly 'Coco.toml'", attr = "package")
-    dep_package_files = depset(
-        direct = [dep[CocoInfo].package_file for dep in ctx.attr.deps],
-        transitive = [dep[CocoInfo].dep_package_files for dep in ctx.attr.deps],
-    )
-    srcs = depset(
-        direct = ctx.files.srcs,
-        transitive = [dep[CocoInfo].srcs for dep in ctx.attr.deps],
-    )
-    return CocoInfo(
+    return CocoPackageInfo(
         name = ctx.attr.name,
         package_file = ctx.file.package,
-        dep_package_files = dep_package_files,
-        srcs = srcs,
+        dep_package_files = depset(
+            direct = [dep[CocoPackageInfo].package_file for dep in ctx.attr.deps],
+            transitive = [dep[CocoPackageInfo].dep_package_files for dep in ctx.attr.deps],
+        ),
+        srcs = depset(
+            direct = ctx.files.srcs,
+            transitive = [dep[CocoPackageInfo].srcs for dep in ctx.attr.deps],
+        ),
+        test_srcs = depset(
+            direct = ctx.files.test_srcs,
+            transitive = [dep[CocoPackageInfo].test_srcs for dep in ctx.attr.deps],
+        ),
     )
 
 _coco_package = rule(
     implementation = _coco_package_impl,
     attrs = {
         "srcs": attr.label_list(
-            #     doc = _tidy("""
-            #     List of Coco `.coco` source files used to build the library.
-            #     If `srcs` contains more than one file, then there must be a file either
-            #     named `lib.rs`. Otherwise, `crate_root` must be set to the source file that
-            #     is the root of the crate to be passed to rustc to build this crate.
-            # """),
             allow_files = [".coco"],
             mandatory = True,
+        ),
+        "test_srcs": attr.label_list(
+            allow_files = [".coco"],
+            allow_empty = True,
         ),
         "package": attr.label(
             mandatory = True,
             allow_single_file = [".toml"],
         ),
-        "deps": attr.label_list(providers = [CocoInfo]),
+        "deps": attr.label_list(providers = [CocoPackageInfo]),
         "_license_file": attr.label(default = "@io_cocotec_licensing//:licenses", allow_single_file = True),
     },
     toolchains = [
@@ -126,15 +135,14 @@ def _coco_package_verify(ctx):
 
     runfiles = depset(
         direct = [
-            ctx.attr.package[CocoInfo].package_file,
+            ctx.attr.package[CocoPackageInfo].package_file,
             ctx.toolchains[COCO_TOOLCHAIN_TYPE].coco,
             ctx.toolchains[COCO_TOOLCHAIN_TYPE].preferences_file,
-            ctx.toolchains[COCO_TOOLCHAIN_TYPE].crashpad_handler,
             ctx.file._license_file,
         ],
         transitive = [
-            ctx.attr.package[CocoInfo].srcs,
-            ctx.attr.package[CocoInfo].dep_package_files,
+            ctx.attr.package[CocoPackageInfo].srcs,
+            ctx.attr.package[CocoPackageInfo].dep_package_files,
         ],
     )
 
@@ -156,7 +164,7 @@ _coco_package_verify_test = rule(
     implementation = _coco_package_verify,
     attrs = {
         "package": attr.label(
-            providers = [CocoInfo],
+            providers = [CocoPackageInfo],
             mandatory = True,
         ),
         "is_windows": attr.bool(mandatory = True),
@@ -189,62 +197,95 @@ def coco_package(name, tags = [], **kwargs):
         tags = ["no-remote-exec", "requires-network"],
     )
 
-def _coco_package_generate_impl(ctx):
-    srcs = ctx.attr.package[CocoInfo].srcs
-    package_dir = ctx.attr.package[CocoInfo].package_file.dirname
+def _add_outputs(ctx, outputs, mock_outputs, src):
+    if ctx.attr.language == "cpp":
+        if ctx.attr.mocks:
+            for ext in ["Mock.h", "Mock.cc"]:
+                mock_outputs.append(ctx.actions.declare_file(paths.replace_extension(src.basename, ext), sibling = src))
 
-    # Calculate output directory
-    outputs = []
+        for ext in [".h", ".cc"]:
+            outputs.append(ctx.actions.declare_file(paths.replace_extension(src.basename, ext), sibling = src))
+    else:
+        fail("unrecognised language")
+
+def _output_directory(package_dir, srcs):
     root_output_dir = None
     for src in srcs.to_list():
         relative_to_package = paths.relativize(src.path, package_dir)
         if not root_output_dir or len(relative_to_package) < len(root_output_dir):
             root_output_dir = paths.dirname(relative_to_package)
-        files = []
-        if ctx.attr.language == "cpp":
-            if ctx.attr.mocks:
-                files = [paths.replace_extension(src.basename, "Mock.h"), paths.replace_extension(src.basename, "Mock.cc")]
-            else:
-                files = [paths.replace_extension(src.basename, ".h"), paths.replace_extension(src.basename, ".cc")]
+    return root_output_dir
 
-        outputs += [ctx.actions.declare_file(file, sibling = src) for file in files]
+def _coco_package_generate_impl(ctx):
+    srcs = ctx.attr.package[CocoPackageInfo].srcs
+    test_srcs = ctx.attr.package[CocoPackageInfo].test_srcs
+    package_dir = ctx.attr.package[CocoPackageInfo].package_file.dirname
 
+    outputs = []
+    mock_outputs = []
+    test_outputs = []
+    for src in srcs.to_list():
+        _add_outputs(ctx, outputs, mock_outputs, src)
+    for src in test_srcs.to_list():
+        _add_outputs(ctx, test_outputs, mock_outputs, src)
+    test_outputs += mock_outputs
+
+    root_output_dir = _output_directory(package_dir, srcs)
+    output_dir = paths.join(ctx.genfiles_dir.path, package_dir, root_output_dir)
     arguments = [
         "generate-%s" % ctx.attr.language,
         "--output",
-        paths.join(ctx.genfiles_dir.path, package_dir, root_output_dir),
+        output_dir,
         "--output-empty-files",
     ]
-    if ctx.attr.mocks:
-        arguments += ["--mocks", ctx.attr.mocks]
+    if test_srcs:
+        arguments += [
+            "--test-output",
+            paths.join(ctx.genfiles_dir.path, package_dir, _output_directory(package_dir, test_srcs)),
+        ]
+    elif ctx.attr.mocks:
+        arguments += [
+            "--test-output",
+            output_dir,
+        ]
     if ctx.attr.language == "cpp":
         # Make all include paths absolute within the workspace to avoid the need for includes
         arguments += [
             "--include-prefix",
             paths.join(package_dir, root_output_dir),
         ]
+    else:
+        fail("unrecognised language")
 
     _run_coco(
         ctx = ctx,
         package = ctx.attr.package,
         verb = "Generating %s" % ctx.attr.language,
         arguments = arguments,
-        outputs = outputs,
+        outputs = outputs + test_outputs,
     )
 
-    return DefaultInfo(
-        files = depset(outputs),
-    )
+    outputs = depset(outputs)
+    test_outputs = depset(test_outputs)
+    return [
+        DefaultInfo(
+            files = outputs,
+        ),
+        CocoGeneratedCodeInfo(
+            outputs = outputs,
+            test_outputs = test_outputs,
+        ),
+    ]
 
 _coco_package_generate = rule(
     implementation = _coco_package_generate_impl,
     attrs = {
         "package": attr.label(
-            providers = [CocoInfo],
+            providers = [CocoPackageInfo],
             mandatory = True,
         ),
         "language": attr.string(mandatory = True, values = ["cpp"]),
-        "mocks": attr.string(values = ["", "gmock"]),
+        "mocks": attr.bool(),
         "_license_file": attr.label(default = "@io_cocotec_licensing//:licenses", allow_single_file = True),
     },
     toolchains = [
@@ -252,46 +293,55 @@ _coco_package_generate = rule(
     ],
 )
 
-def coco_package_generate(tags = [], **kwargs):
+def _coco_test_outputs_impl(ctx):
+    return [
+        DefaultInfo(
+            files = ctx.attr.package[CocoGeneratedCodeInfo].test_outputs,
+        ),
+    ]
+
+_coco_test_outputs = rule(
+    implementation = _coco_test_outputs_impl,
+    attrs = {
+        "package": attr.label(
+            providers = [CocoGeneratedCodeInfo],
+            mandatory = True,
+        ),
+    },
+)
+
+def _test_outputs_name(name):
+    return "%s.tst" % name
+
+def coco_package_generate(name, tags = [], **kwargs):
     _coco_package_generate(
+        name = name,
         tags = ["no-remote-exec", "block-network"] + tags,
         **kwargs
     )
-
-def coco_cc_generate(tags = [], **kwargs):
-    coco_package_generate(
-        tags = ["no-remote-exec"] + tags,
-        language = "cpp",
-        **kwargs
+    _coco_test_outputs(
+        name = _test_outputs_name(name),
+        package = name,
     )
 
-def coco_cc_library(name, package, srcs = [], deps = [], **kwargs):
-    coco_cc_generate(
-        name = name + "_srcs",
-        package = package,
-    )
+def coco_cc_library(name, generated_package, srcs = [], deps = [], **kwargs):
     cc_library(
         name = name,
-        srcs = srcs + [":%s_srcs" % name],
-        deps = deps + ["@io_cocotec_coco_cc_runtime"],
+        srcs = srcs + [generated_package],
+        deps = deps + ["@io_cocotec_coco_cc_runtime//:runtime"],
         **kwargs
     )
 
-def coco_cc_gmock_library(
+def coco_cc_test_library(
         name,
-        package,
+        generated_package,
         srcs = [],
         deps = [],
-        gmock = "@com_github_google_googletest//:gtest",
+        gmock = "@com_google_googletest//:gtest",
         **kwargs):
-    coco_cc_generate(
-        name = name + "_srcs",
-        package = package,
-        mocks = "gmock",
-    )
     cc_library(
         name = name,
-        srcs = srcs + [":%s_srcs" % name],
-        deps = deps + [gmock],
+        srcs = srcs + [_test_outputs_name(generated_package)],
+        deps = deps + [gmock, "@io_cocotec_coco_cc_runtime//:testing"],
         **kwargs
     )

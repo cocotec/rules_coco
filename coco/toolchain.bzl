@@ -16,7 +16,6 @@ def _coco_toolchain_impl(ctx):
     toolchain = platform_common.ToolchainInfo(
         coco = ctx.file.coco,
         cocotec_licensing_server = ctx.file.cocotec_licensing_server,
-        crashpad_handler = ctx.file.crashpad_handler,
         preferences_file = ctx.file.preferences_file,
     )
     make_variables = platform_common.TemplateVariableInfo({
@@ -34,11 +33,6 @@ coco_toolchain = rule(
         ),
         "cocotec_licensing_server": attr.label(
             doc = "The location of the `cocotec-licensing-server` binary. Can be a direct source or a filegroup containing one item.",
-            allow_single_file = True,
-            mandatory = True,
-        ),
-        "crashpad_handler": attr.label(
-            doc = "The location of the `crashpad-handler` binary. Can be a direct source or a filegroup containing one item.",
             allow_single_file = True,
             mandatory = True,
         ),

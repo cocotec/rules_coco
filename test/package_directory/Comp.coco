@@ -1,7 +1,8 @@
-import unqualified PBase
+import unqualified Runnable
 
+@runtime(.MultiThreaded)
 component Comp {
-  client : Provided<PBase>;
+  val client : Provided<Runnable>
   machine M {
     state Stopped {
       client.start() = setNextState(Started)

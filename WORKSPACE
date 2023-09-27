@@ -16,13 +16,13 @@ workspace(name = "io_cocotec_rules_coco")
 
 load("@io_cocotec_rules_coco//coco:repositories.bzl", "coco_repositories")
 
-coco_repositories(version = "unsupported_unstable")
+coco_repositories(version = "1.3.11")
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 http_archive(
-    name = "com_github_google_googletest",
-    sha256 = "94c634d499558a76fa649edb13721dce6e98fb1e7018dfaeba3cd7a083945e91",
-    strip_prefix = "googletest-release-1.10.0",
-    url = "https://github.com/google/googletest/archive/release-1.10.0.zip",
+    name = "com_google_googletest",  # 2021-07-09T13:28:13Z
+    sha256 = "12ef65654dc01ab40f6f33f9d02c04f2097d2cd9fbe48dc6001b29543583b0ad",
+    strip_prefix = "googletest-8d51ffdfab10b3fba636ae69bc03da4b54f8c235",
+    urls = ["https://github.com/google/googletest/archive/8d51ffdfab10b3fba636ae69bc03da4b54f8c235.zip"],
 )

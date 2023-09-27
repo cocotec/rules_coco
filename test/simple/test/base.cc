@@ -1,8 +1,9 @@
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
 #include "coco/stream_logger.h"
-#include "test/simple/src/PBase.h"
-#include "test/simple/src/PBaseMock.h"
+#include "test/simple/src/Runnable.h"
+#include "test/simple/src/RunnableMock.h"
 
 using ::testing::_;
 using ::testing::AtLeast;
@@ -12,12 +13,12 @@ using ::testing::Return;
 using ::testing::WithArg;
 
 TEST(MockTest, Main) {
-  PBaseProvidedMock mock;
-  EXPECT_CALL(mock, start()).Times(Exactly(1));
-  EXPECT_CALL(mock, stop()).Times(Exactly(1));
+  RunnableBaseMock mock;
+  EXPECT_CALL(mock, client_start()).Times(Exactly(1));
+  EXPECT_CALL(mock, client_stop()).Times(Exactly(1));
 
-  mock.start();
-  mock.stop();
+  mock.client_start();
+  mock.client_stop();
 }
 
 int main(int argc, char **argv) { return RUN_ALL_TESTS(); }

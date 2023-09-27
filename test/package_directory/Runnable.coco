@@ -1,4 +1,4 @@
-port PBase {
+port Runnable {
   function start() : Nil
   function stop() : Nil
   machine M {
@@ -10,4 +10,9 @@ port PBase {
       stop() = setNextState(Stopped)
     }
   }
+}
+
+@runtime(.MultiThreaded)
+external component RunnableBase {
+  val client : Provided<Runnable>
 }
