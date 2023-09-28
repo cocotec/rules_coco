@@ -253,6 +253,7 @@ def _coco_package_generate_impl(ctx):
         arguments += [
             "--include-prefix",
             paths.join(package_dir, root_output_dir),
+            "--output-runtime-header=false",
         ]
     else:
         fail("unrecognised language")

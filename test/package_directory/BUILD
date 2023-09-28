@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("//coco:coco.bzl", "coco_cc_library", "coco_cc_test_library", "coco_package", "coco_package_generate")
+load("@io_cocotec_rules_coco//coco:coco.bzl", "coco_cc_library", "coco_cc_test_library", "coco_package", "coco_package_generate")
 load("@rules_cc//cc:defs.bzl", "cc_test")
 
 coco_package(

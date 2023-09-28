@@ -163,7 +163,7 @@ def _platform_license_file(ctx):
         return "%s/Library/Application Support/Coco Platform/licenses.lic" % ctx.os.environ.get("HOME")
     if "windows" in ctx.os.name:
         return "%s\\..\\LocalLow\\Coco Platform\\licenses.lic" % ctx.os.environ.get("APPDATA")
-    return "%s/.local/share/coco_platform" % ctx.os.environ.get("HOME")
+    return "%s/.local/share/coco_platform/licenses.lic" % ctx.os.environ.get("HOME")
 
 def _coco_license_repository_impl(ctx):
     """Creates a repository to allow users to easily acquire new licenses"""
@@ -219,8 +219,8 @@ _coco_preferences_repository = repository_rule(
     attrs = {
         "verification_server": attr.bool(),
         "remote_verification_mode": attr.string(
-            default = "disabled",
-            values = ["disabled", "enabled", "preferLocal", "preferRemote", "only"],
+            default = "enabled",
+            values = ["disabled", "enabled", "only", "onlyIfAvailable"],
         ),
     },
     implementation = _coco_preferences_repository_impl,
