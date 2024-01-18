@@ -31,7 +31,6 @@ def BUILD_for_toolchain(name, parent_workspace_name, constraints):
 toolchain(
     name = "toolchain",
     exec_compatible_with = [{constraints}],
-    target_compatible_with = [{constraints}],
     toolchain = "@{parent_workspace_name}//:toolchain_impl",
     toolchain_type = "@io_cocotec_rules_coco//coco:toolchain_type",
 )
