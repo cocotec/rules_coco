@@ -895,5 +895,20 @@ FILE_KEY_TO_SHA = {
     "1.4.0-beta.6/coco_platform_darwin_arm64.vsix": "128c8f198b5156e245dba36cb49d490bec23b336e9b5fcbab6d9b7c815fb8a99",
     "1.4.0-beta.6/coco-tutorial-examples.zip": "ca7afabea88b5c3db2e9e2d650d342d46af36298b6a02f48f17aa7619df4d7a0",
     "1.4.0-beta.6/coco-cpp-runtime.zip": "59fa612e1a163fcf9ac7b44db66c14b23b9fa1c9c248ca3c2a84af314950073e",
-    "1.4.0-beta.6/coco-c-runtime.zip": "502b88e40b92dc594193dde1f75fd5f64e311424297b52b08c748799d172edb3"
+    "1.4.0-beta.6/coco-c-runtime.zip": "502b88e40b92dc594193dde1f75fd5f64e311424297b52b08c748799d172edb3",
+    "1.4.0-beta.7/coco_platform_p2.zip": "a9f01555eb63cc4bc6d6868b824f52990f6e90fe543f7915b44d5dceabad9cd8",
+    "1.4.0-beta.7/Cocotec.CocoPlatform.nupkg": "7ccb0f1f93e23ff7c3cc576b6d017cddfa86e0e6fc75baef963876f84777c8b4",
+    "1.4.0-beta.7/coco_darwin_amd64.zip": "54a29d1a7dba244053a9bad2a0dde49ca49e63d1c56123cf4761a21688d14e23",
+    "1.4.0-beta.7/coco_linux_amd64.zip": "38d37848456e933e470bac1ee83b9e4404cfaeb2df3c0013764e78088fb606cb",
+    "1.4.0-beta.7/coco_windows_amd64.zip": "73637294443a45513f8650a4eb4c69d24d63fdc206126d5369375412b88da50c",
+    "1.4.0-beta.7/coco_linux_arm64.zip": "38a6ad245a9ce985d6b11e6c76b9e552cc36f4a810c54f842a416ab22f5f3360",
+    "1.4.0-beta.7/coco_darwin_arm64.zip": "7a4115430063354abf512d3e452b2692c04ce38ee76b8e636c1f6335a708eb3c",
+    "1.4.0-beta.7/coco_platform_darwin_amd64.vsix": "e5afa1c1d9c30a140ac88e3865506d7a95d069d7c29b8af0eacf07554739195f",
+    "1.4.0-beta.7/coco_platform_linux_amd64.vsix": "37750a0f7e7c8736f0c81594a6393e24b2b03400047b13f6d5cd4b49e686c481",
+    "1.4.0-beta.7/coco_platform_windows_amd64.vsix": "3f61117fb85670e6947dd6cf59c5ebfc4ede5b8eb76973115afdb2cb0a68707a",
+    "1.4.0-beta.7/coco_platform_linux_arm64.vsix": "09f3443e4a7674191dd666e86b1ca6997cadfcf9552e5be7d489de83db860684",
+    "1.4.0-beta.7/coco_platform_darwin_arm64.vsix": "2978ec78b367b9e0e12cb4d456c3aba228571532d153e77707d0d6c853b0a8df",
+    "1.4.0-beta.7/coco-tutorial-examples.zip": "ca7afabea88b5c3db2e9e2d650d342d46af36298b6a02f48f17aa7619df4d7a0",
+    "1.4.0-beta.7/coco-cpp-runtime.zip": "63ddb05c348115ddc7fc6b78c5c1a7a2781b2c8b9647cbc164f7137ff6781b09",
+    "1.4.0-beta.7/coco-c-runtime.zip": "7c3e1e1584038756833c3ffb96ebdbfa78c8df082ae75f002ad1ffe14bf095c6"
 }
