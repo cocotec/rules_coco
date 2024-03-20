@@ -58,7 +58,8 @@ if __name__ == "__main__":
     parser.add_argument("--out",
                         action="store",
                         type=Path,
-                        default=tools_dir.parent / "coco" / "known_shas.bzl")
+                        default=tools_dir.parent / "coco" / "private" /
+                        "known_shas.bzl")
 
     options = parser.parse_args()
 

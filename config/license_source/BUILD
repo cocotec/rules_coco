@@ -1,4 +1,4 @@
-# Copyright 2019 Cocotec Limited
+# Copyright 2024 Cocotec Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,6 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-package(default_visibility = ["//visibility:public"])
+load("@io_cocotec_rules_coco//coco/private:licensing.bzl", "LICENSE_SOURCES")
 
-toolchain_type(name = "toolchain_type")
+[config_setting(
+    name = source,
+    flag_values = {
+        "//:license_source": source,
+    },
+    visibility = ["//visibility:public"],
+) for source in LICENSE_SOURCES]

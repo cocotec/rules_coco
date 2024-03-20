@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@bazel_skylib//lib:paths.bzl", "paths")
+load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 
 CocoPackageInfo = provider(
     doc = "Information about a Coco package",
@@ -34,7 +34,21 @@ CocoGeneratedCodeInfo = provider(
     },
 )
 
+LICENSE_ATTRIBUTES = {
+    "license_file": attr.label(mandatory = False, allow_single_file = True),
+    "_license_source": attr.label(default = Label("//:license_source")),
+    "_license_token": attr.label(default = Label("//:license_token")),
+}
+
 COCO_TOOLCHAIN_TYPE = "@io_cocotec_rules_coco//coco:toolchain_type"
+
+def _maybe_license_file():
+    return select({
+        "@io_cocotec_rules_coco//config/license_source:action_environment": None,
+        "@io_cocotec_rules_coco//config/license_source:local_acquire": "@io_cocotec_licensing_fetch//:licenses",
+        "@io_cocotec_rules_coco//config/license_source:local_user": "@io_cocotec_licensing_local//:licenses",
+        "@io_cocotec_rules_coco//config/license_source:token": None,
+    })
 
 def _runtime_path(file, is_test):
     return file.short_path if is_test else file.path
@@ -43,16 +57,41 @@ def _coco_startup_args(ctx, package, is_test):
     arguments = [
         "--no-license-server",
         "--no-crash-reporter",
-        "--override-licenses",
-        _runtime_path(ctx.file._license_file, is_test),
         "--override-preferences",
         _runtime_path(ctx.toolchains[COCO_TOOLCHAIN_TYPE].preferences_file, is_test),
         "--package",
         package[CocoPackageInfo].package_file.dirname,
+        "--terminal=plain",
     ]
+    if ctx.file.license_file:
+        arguments.append("--override-licenses")
+        arguments.append(_runtime_path(ctx.file.license_file, is_test))
     for package_file in package[CocoPackageInfo].dep_package_files.to_list():
         arguments += ["--import-path", package_file.dirname]
     return arguments
+
+def _coco_env(ctx):
+    env = {}
+    if ctx.attr._license_source[BuildSettingInfo].value == "token":
+        env["COCOTEC_AUTH_TOKEN"] = ctx.attr._license_token[BuildSettingInfo].value
+    return env
+
+def _coco_runfiles(ctx, package, is_test):
+    direct = [
+        package[CocoPackageInfo].package_file,
+        ctx.toolchains[COCO_TOOLCHAIN_TYPE].preferences_file,
+    ]
+    if is_test:
+        direct.append(ctx.toolchains[COCO_TOOLCHAIN_TYPE].coco)
+    if ctx.file.license_file:
+        direct.append(ctx.file.license_file)
+    return depset(
+        direct = direct,
+        transitive = [
+            package[CocoPackageInfo].srcs,
+            package[CocoPackageInfo].dep_package_files,
+        ],
+    )
 
 def _run_coco(ctx, package, verb, arguments, outputs):
     ctx.actions.run(
@@ -60,18 +99,9 @@ def _run_coco(ctx, package, verb, arguments, outputs):
         tools = [
             ctx.toolchains[COCO_TOOLCHAIN_TYPE].coco,
         ],
+        env = _coco_env(ctx),
         progress_message = "%s %s" % (verb, package[CocoPackageInfo].name),
-        inputs = depset(
-            direct = [
-                package[CocoPackageInfo].package_file,
-                ctx.toolchains[COCO_TOOLCHAIN_TYPE].preferences_file,
-                ctx.file._license_file,
-            ],
-            transitive = [
-                package[CocoPackageInfo].srcs,
-                package[CocoPackageInfo].dep_package_files,
-            ],
-        ),
+        inputs = _coco_runfiles(ctx, package, False),
         outputs = outputs,
         arguments = _coco_startup_args(ctx, package, False) + arguments,
     )
@@ -96,7 +126,7 @@ def _coco_package_impl(ctx):
         ),
     )
 
-_coco_package = rule(
+coco_package = rule(
     implementation = _coco_package_impl,
     attrs = {
         "srcs": attr.label_list(
@@ -112,7 +142,6 @@ _coco_package = rule(
             allow_single_file = [".toml"],
         ),
         "deps": attr.label_list(providers = [CocoPackageInfo]),
-        "_license_file": attr.label(default = "@io_cocotec_licensing//:licenses", allow_single_file = True),
     },
     toolchains = [
         COCO_TOOLCHAIN_TYPE,
@@ -129,72 +158,78 @@ def _coco_package_verify(ctx):
         coco_path,
     ] + _coco_startup_args(ctx, ctx.attr.package, True) + [
         "verify",
-        "--format=junit",
-        ctx.attr.verification_backend,
+        "--results-junit",
+        "%%XML_OUTPUT_FILE%%" if ctx.attr.is_windows else "$XML_OUTPUT_FILE",
     ]
 
-    runfiles = depset(
-        direct = [
-            ctx.attr.package[CocoPackageInfo].package_file,
-            ctx.toolchains[COCO_TOOLCHAIN_TYPE].coco,
-            ctx.toolchains[COCO_TOOLCHAIN_TYPE].preferences_file,
-            ctx.file._license_file,
-        ],
-        transitive = [
-            ctx.attr.package[CocoPackageInfo].srcs,
-            ctx.attr.package[CocoPackageInfo].dep_package_files,
-        ],
-    )
+    backend = ctx.attr._verification_backend[BuildSettingInfo].value
+    if backend != "":
+        arguments.append("--backend")
+        arguments.append(backend)
 
+    command = " ".join(arguments)
+    env = _coco_env(ctx)
+    wrapper_lines = []
     if ctx.attr.is_windows:
         wrapper_script = ctx.actions.declare_file(ctx.label.name + "-cmd.bat")
+        wrapper_lines = [
+            "@ECHO ON",
+            "echo test",
+            "dir .",
+            "dir ..",
+            "echo %%RUNFILES_DIR%%",
+            "SET",
+            "type ..\\MANIFEST",
+        ]
+        for k, v in env.items():
+            wrapper_lines.append("SET %s=\"%s\"" % (k, v))
+        wrapper_lines.append("")
+        wrapper_lines.append(command)
     else:
         wrapper_script = ctx.actions.declare_file(ctx.label.name + "-cmd.sh")
+        wrapper_lines = [
+            "#!/usr/bin/env bash",
+            "exec env \\",
+        ]
+        for k, v in env.items():
+            wrapper_lines.append("  %s=\"%s\" \\" % (k, v))
+        wrapper_lines.append(command)
+
     ctx.actions.write(
         output = wrapper_script,
-        content = "%s > %%XML_OUTPUT_FILE%%" % " ".join(arguments),
+        content = "\n".join(wrapper_lines),
         is_executable = True,
     )
+
     return DefaultInfo(
         executable = wrapper_script,
-        runfiles = ctx.runfiles(transitive_files = runfiles),
+        runfiles = ctx.runfiles(transitive_files = _coco_runfiles(ctx, ctx.attr.package, True)),
     )
 
 _coco_package_verify_test = rule(
     implementation = _coco_package_verify,
-    attrs = {
+    attrs = dict(LICENSE_ATTRIBUTES.items() + {
         "package": attr.label(
             providers = [CocoPackageInfo],
             mandatory = True,
         ),
         "is_windows": attr.bool(mandatory = True),
-        "verification_backend": attr.string(values = ["", "--backend=remote"]),
-        "_license_file": attr.label(default = "@io_cocotec_licensing//:licenses", allow_single_file = True),
-    },
+        "_verification_backend": attr.label(default = Label("//:verification_backend")),
+    }.items()),
     test = True,
     toolchains = [
         COCO_TOOLCHAIN_TYPE,
     ],
 )
 
-def coco_package(name, tags = [], **kwargs):
-    _coco_package(
-        name = name,
-        tags = ["no-remote-exec"] + tags,
-        **kwargs
-    )
+def coco_package_verify_test(**kwargs):
     _coco_package_verify_test(
-        name = name + "_verify",
-        package = ":" + name,
         is_windows = select({
             "@bazel_tools//src/conditions:host_windows": True,
             "//conditions:default": False,
         }),
-        verification_backend = select({
-            "@io_cocotec_rules_coco//coco:remote_verification": "--backend=remote",
-            "//conditions:default": "",
-        }),
-        tags = ["no-remote-exec", "requires-network"],
+        license_file = _maybe_license_file(),
+        **kwargs
     )
 
 def _add_outputs(ctx, outputs, mock_outputs, src):
@@ -280,15 +315,14 @@ def _coco_package_generate_impl(ctx):
 
 _coco_package_generate = rule(
     implementation = _coco_package_generate_impl,
-    attrs = {
+    attrs = dict(LICENSE_ATTRIBUTES.items() + {
         "package": attr.label(
             providers = [CocoPackageInfo],
             mandatory = True,
         ),
         "language": attr.string(mandatory = True, values = ["cpp"]),
         "mocks": attr.bool(),
-        "_license_file": attr.label(default = "@io_cocotec_licensing//:licenses", allow_single_file = True),
-    },
+    }.items()),
     toolchains = [
         COCO_TOOLCHAIN_TYPE,
     ],
@@ -311,38 +345,16 @@ _coco_test_outputs = rule(
     },
 )
 
-def _test_outputs_name(name):
+def coco_test_outputs_name(name):
     return "%s.tst" % name
 
-def coco_package_generate(name, tags = [], **kwargs):
+def coco_package_generate(name, **kwargs):
     _coco_package_generate(
         name = name,
-        tags = ["no-remote-exec", "block-network"] + tags,
+        license_file = _maybe_license_file(),
         **kwargs
     )
     _coco_test_outputs(
-        name = _test_outputs_name(name),
+        name = coco_test_outputs_name(name),
         package = name,
-    )
-
-def coco_cc_library(name, generated_package, srcs = [], deps = [], **kwargs):
-    cc_library(
-        name = name,
-        srcs = srcs + [generated_package],
-        deps = deps + ["@io_cocotec_coco_cc_runtime//:runtime"],
-        **kwargs
-    )
-
-def coco_cc_test_library(
-        name,
-        generated_package,
-        srcs = [],
-        deps = [],
-        gmock = "@com_google_googletest//:gtest",
-        **kwargs):
-    cc_library(
-        name = name,
-        srcs = srcs + [_test_outputs_name(generated_package)],
-        deps = deps + [gmock, "@io_cocotec_coco_cc_runtime//:testing"],
-        **kwargs
     )

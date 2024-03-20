@@ -1,1 +1,5 @@
+# For windows we need proper runfiels
+startup --windows_enable_symlinks
+common --enable_runfiles=true
+
 common --enable_bzlmod=false

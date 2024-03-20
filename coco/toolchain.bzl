@@ -18,10 +18,7 @@ def _coco_toolchain_impl(ctx):
         cocotec_licensing_server = ctx.file.cocotec_licensing_server,
         preferences_file = ctx.file.preferences_file,
     )
-    make_variables = platform_common.TemplateVariableInfo({
-        "COCOTEC_LICENSING_SERVER": ctx.file.cocotec_licensing_server.path,
-    })
-    return [toolchain, make_variables]
+    return toolchain
 
 coco_toolchain = rule(
     _coco_toolchain_impl,

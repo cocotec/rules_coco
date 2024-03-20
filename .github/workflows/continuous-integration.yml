@@ -1,26 +1,40 @@
 name: CI
 
-on: [push, pull_request]
+on:
+  pull_request:
+  push:
+    branches:
+      - "develop"
 
 jobs:
   build:
-    runs-on:  ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        bazel_version: ["7.1.0", "6.5.0"]
+        license_source: ["local_acquire"]
         os: [ubuntu-latest, macos-latest, windows-latest]
+        verification_backend: ["local", "remote"]
 
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Mount bazel cache
-      uses: actions/cache@v4
-      with:
-        path: "/home/runner/.cache/bazel"
-        key: bazel
+      - name: Mount bazel cache
+        uses: actions/cache@v4
+        with:
+          path: "/home/runner/.cache/bazel"
+          key: ${{ runner.os }}-bazel-${{ hashFiles('.bazelversion', '.bazelrc', 'WORKSPACE', 'WORKSPACE.bazel', 'MODULE.bazel') }}
+          restore-keys: |
+            ${{ runner.os }}-bazel-
 
-    - uses: cocotec/bazel-action@v2
-      with:
-        command: test --define coco_verification=remote //...
-      env:
-         COCOTEC_AUTH_TOKEN: ${{ secrets.COCOTEC_AUTH_TOKEN }}
+      - uses: cocotec/bazel-action@v2
+        with:
+          command: >-
+            test
+            --@io_cocotec_rules_coco//:license_source=${{ matrix.license_source }}
+            --@io_cocotec_rules_coco//:verification_backend=${{ matrix.verification_backend }}
+            //...
+        env:
+          COCOTEC_AUTH_TOKEN: ${{ secrets.COCOTEC_AUTH_TOKEN }}
+          USE_BAZEL_VERSION: ${{ matrix.bazel_version }}
