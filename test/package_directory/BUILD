@@ -12,13 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("@io_cocotec_rules_coco//coco:coco.bzl", "coco_cc_library", "coco_cc_test_library", "coco_package", "coco_package_generate")
+load("@io_cocotec_rules_coco//coco:cc.bzl", "coco_cc_library", "coco_cc_test_library")
+load("@io_cocotec_rules_coco//coco:defs.bzl", "coco_package", "coco_package_generate", "coco_package_verify_test")
 load("@rules_cc//cc:defs.bzl", "cc_test")
 
 coco_package(
     name = "base",
     srcs = glob(["*.coco"]),
     package = "Coco.toml",
+)
+
+coco_package_verify_test(
+    name = "base_verify",
+    package = ":base",
 )
 
 coco_package_generate(
