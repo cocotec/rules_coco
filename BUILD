@@ -17,7 +17,7 @@ load("@io_cocotec_rules_coco//coco/private:licensing.bzl", "LICENSE_SOURCES")
 
 string_flag(
     name = "license_source",
-    build_setting_default = "auto",
+    build_setting_default = "local_user",
     values = LICENSE_SOURCES,
     visibility = ["//visibility:public"],
 )
