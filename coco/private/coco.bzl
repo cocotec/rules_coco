@@ -172,15 +172,7 @@ def _coco_package_verify(ctx):
     wrapper_lines = []
     if ctx.attr.is_windows:
         wrapper_script = ctx.actions.declare_file(ctx.label.name + "-cmd.bat")
-        wrapper_lines = [
-            "@ECHO ON",
-            "echo test",
-            "dir .",
-            "dir ..",
-            "echo %%RUNFILES_DIR%%",
-            "SET",
-            "type ..\\MANIFEST",
-        ]
+        wrapper_lines = []
         for k, v in env.items():
             wrapper_lines.append("SET %s=\"%s\"" % (k, v))
         wrapper_lines.append("")
