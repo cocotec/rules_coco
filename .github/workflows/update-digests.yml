@@ -19,7 +19,7 @@ jobs:
 
       - name: "Create Pull Request"
         run: |
-          git checkout -b 'chore/update-digests'
+          git checkout -b 'chore/update-digests-${{github.run_number}}-${{github.run_attempt}}'
           git config user.name github-actions
           git config user.email github-actions@github.com
           git add coco/private/known_shas.bzl
