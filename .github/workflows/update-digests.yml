@@ -1,0 +1,23 @@
+name: CI
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update Digests
+        run: "python3 tools/update_digests.py"
+
+      - name: "Create Pull Request"
+        run: |
+          git checkout -b 'chore/update-digests'
+          git add coco/private/known_shas.bzl
+          git commit --message 'build: update digests'
+          gh pr create --base develop --title 'build: update digests' --body 'Created by Github action'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
