@@ -41,7 +41,7 @@ def create_digest_dictionary(versions_file: str) -> Dict[str, str]:
     for version in json.loads(versions_file)["all"]:
         try:
             for file, digest in download_sha_file(
-                    f'https://dl.cocotec.io/cp/archive/{version}/sha256sums.txt'
+                    f'https://dl.cocotec.io/cp/archive/{version['name']}/sha256sums.txt'
             ).items():
                 result[f'{version}/{file}'] = digest
         except HTTPError:
