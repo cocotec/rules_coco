@@ -20,21 +20,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Mount bazel cache
-        uses: actions/cache@v4
+      - uses: bazel-contrib/setup-bazel@7d9487bea505c4779367dc5b21dfc4dc6a02d21d
         with:
-          path: "/home/runner/.cache/bazel"
-          key: ${{ runner.os }}-bazel-${{ hashFiles('.bazelversion', '.bazelrc', 'WORKSPACE', 'WORKSPACE.bazel', 'MODULE.bazel') }}
-          restore-keys: |
-            ${{ runner.os }}-bazel-
-
-      - uses: cocotec/bazel-action@v2
-        with:
-          command: >-
-            test
-            --@io_cocotec_rules_coco//:license_source=${{ matrix.license_source }}
-            --@io_cocotec_rules_coco//:verification_backend=${{ matrix.verification_backend }}
-            //...
+          disk-cache: ${{ github.workflow }}-${{ matrix.bazel_version }}
+          repository-cache: true            
+      
+      - run: >-
+          bazel
+          test
+          --color=yes
+          --keep_going
+          --@io_cocotec_rules_coco//:license_source=${{ matrix.license_source }}
+          --@io_cocotec_rules_coco//:verification_backend=${{ matrix.verification_backend }}
+          //...
         env:
           COCOTEC_AUTH_TOKEN: ${{ secrets.COCOTEC_AUTH_TOKEN }}
           USE_BAZEL_VERSION: ${{ matrix.bazel_version }}
