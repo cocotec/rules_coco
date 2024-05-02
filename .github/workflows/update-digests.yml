@@ -1,4 +1,4 @@
-name: CI
+name: Update Digests
 
 on:
   workflow_dispatch:
