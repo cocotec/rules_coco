@@ -42,7 +42,7 @@ def create_digest_dictionary(versions_file: str) -> Dict[str, str]:
         version = version["name"]
         try:
             for file, digest in download_sha_file(
-                    f'https://dl.cocotec.io/cp/archive/{version}/sha256sums.txt'
+                    f'https://dl.cocotec.io/popili/archive/{version}/sha256sums.txt'
             ).items():
                 if not file.endswith(".zip") or file.endswith(
                         "p2.zip") or file.endswith("examples.zip"):
@@ -58,7 +58,7 @@ if __name__ == "__main__":
     parser.add_argument("--versions",
                         action="store",
                         type=str,
-                        default="https://dl.cocotec.io/cp/versions.json")
+                        default="https://dl.cocotec.io/popili/versions.json")
     parser.add_argument("--out",
                         action="store",
                         type=Path,
