@@ -85,7 +85,7 @@ def _coco_toolchain_repository_impl(ctx):
         version = ctx.attr.version,
     )
     ctx.download_and_extract(
-        url = "https://dl.cocotec.io/cp/archive/{download_path}".format(download_path = download_path),
+        url = "https://dl.cocotec.io/popili/archive/{download_path}".format(download_path = download_path),
         output = "bin",
         sha256 = FILE_KEY_TO_SHA.get(download_path) or "",
     )
@@ -221,7 +221,7 @@ def _coco_cc_repositories(version):
     http_archive(
         name = "io_cocotec_coco_cc_runtime",
         urls = [
-            "https://dl.cocotec.io/cp/archive/{version}/coco-cpp-runtime.zip".format(version = version),
+            "https://dl.cocotec.io/popili/archive/{version}/coco-cpp-runtime.zip".format(version = version),
         ],
         sha256 = FILE_KEY_TO_SHA.get("{version}/coco-cpp-runtime.zip".format(version = version)),
         build_file_content = """
