@@ -466,5 +466,13 @@ FILE_KEY_TO_SHA = {
     "1.4.0/coco_darwin_arm64.zip": "b2d1c2b57d4946c749376aa76285c39555d0e55a4a4da4e88719e20cb3adb1a1",
     "1.4.0/coco-cpp-runtime.zip": "2ca05f16963a6e4a4b8fc3e9e208465be9e84ea1ebdae1af42add39e0a0eca85",
     "1.4.0/coco-c-runtime.zip": "d91c9bb241e1513845c68409dd6a6ac7d37405fc57a0b2103386b0d87c905fb4",
-    "1.4.0/coco-csharp-runtime.zip": "f0f6a7fc3d4c0f3297c5f5fb5ac169483bc6634719fce643f2a438c656af5731"
+    "1.4.0/coco-csharp-runtime.zip": "f0f6a7fc3d4c0f3297c5f5fb5ac169483bc6634719fce643f2a438c656af5731",
+    "1.4.1/coco_darwin_amd64.zip": "e1744b6852c1999190b9c9219457e1de41c8873b82a3bcd36bea2cdb786c445a",
+    "1.4.1/coco_linux_amd64.zip": "0f4103736d3c832e1e71f01a348eb540bb2241afdb81fe055728ccadabf56128",
+    "1.4.1/coco_windows_amd64.zip": "a2b835aebb1f514b34d4111590e7f769acb018c2af76137d86a2bd160a88a891",
+    "1.4.1/coco_linux_arm64.zip": "060edb190da9a214fa3e059723f7987e07c887b152f8d6e8285424779f3af11e",
+    "1.4.1/coco_darwin_arm64.zip": "97f412237e742107f36146c06492b687cc8eb4d52a8c72b298e51f6dec82ba91",
+    "1.4.1/coco-cpp-runtime.zip": "ca7262a338fa978470d4a2f1cde652e281fb42200ad6f7daa5da13fd631f4eaf",
+    "1.4.1/coco-c-runtime.zip": "a1c18850f9c34b27a4759f247bd06eab0f50a0076fbb01b88f613b5a1d6c4bfa",
+    "1.4.1/coco-csharp-runtime.zip": "fc2dd203cc179e2a647bda58dce77b8d66bfc4e829e074c8b25a0d1b7d498d94"
 }
