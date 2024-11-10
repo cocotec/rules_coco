@@ -15,6 +15,11 @@
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load(":known_shas.bzl", "FILE_KEY_TO_SHA")
 
+KNOWN_VERSION_SUFFIXES = [
+    "_6",
+    "",
+]
+
 def BUILD_for_toolchain(name, parent_workspace_name, constraints):
     return """
 toolchain(
@@ -49,14 +54,14 @@ coco_toolchain(
         workspace_name = workspace_name,
     )
 
-def BUILD_for_coco_archive(binary_ext):
+def BUILD_for_coco_archive(binary_ext, product):
     """Emits a BUILD file the compiler .zip."""
     return """
 load("@io_cocotec_rules_coco//coco:toolchain.bzl", "coco_toolchain")
 
 filegroup(
     name = "coco",
-    srcs = ["bin/coco{binary_ext}"],
+    srcs = ["bin/{product}{binary_ext}"],
     visibility = ["//visibility:public"],
 )
 
@@ -68,6 +73,7 @@ filegroup(
 
 """.format(
         binary_ext = binary_ext,
+        product = product,
     )
 
 def _platform_binary_ext(os):
@@ -75,14 +81,23 @@ def _platform_binary_ext(os):
         return ".exe"
     return ""
 
+def _product_for(version):
+    parts = version.split("-")[0].split(".")
+    if int(parts[0]) == 1 and int(parts[1]) < 5:
+        return "coco"
+    return "popili"
+
 def _coco_toolchain_repository_impl(ctx):
     """The implementation of the coco toolchain repository rule."""
 
+    product = _product_for(ctx.attr.version)
+
     # Download the compiler
-    download_path = "{version}/coco_{os}_{arch}.zip".format(
+    download_path = "{version}/{product}_{os}_{arch}.zip".format(
         arch = ctx.attr.arch.replace("aarch64", "arm64").replace("x86_64", "amd64"),
         os = ctx.attr.os.replace("osx", "darwin"),
         version = ctx.attr.version,
+        product = product,
     )
     ctx.download_and_extract(
         url = "https://dl.cocotec.io/popili/archive/{download_path}".format(download_path = download_path),
@@ -92,13 +107,17 @@ def _coco_toolchain_repository_impl(ctx):
 
     ctx.file("WORKSPACE", "")
     ctx.file("BUILD", "\n".join([
-        BUILD_for_coco_archive(binary_ext = _platform_binary_ext(ctx.attr.os)),
-        BUILD_for_coco_toolchain(name = "toolchain", workspace_name = ctx.attr.name),
+        BUILD_for_coco_archive(binary_ext = _platform_binary_ext(ctx.attr.os), product = product),
+        BUILD_for_coco_toolchain(
+            name = "toolchain",
+            workspace_name = ctx.attr.name,
+        ),
     ]))
 
 def _coco_toolchain_repository_proxy_impl(ctx):
     # Delete the cached license token
-    ctx.delete("licenses.lic")
+    for suffix in KNOWN_VERSION_SUFFIXES:
+        ctx.delete("licenses%s.lic" % suffix)
 
     ctx.file("WORKSPACE", "")
     ctx.file("BUILD", BUILD_for_toolchain(
@@ -146,12 +165,12 @@ def coco_repository_set(name, version, os, arch, constraints):
         name = name,
     ))
 
-def _platform_license_file(ctx):
+def _platform_license_file(ctx, version_suffix):
     if "os x" in ctx.os.name:
-        return "%s/Library/Application Support/Coco Platform/licenses.lic" % ctx.os.environ.get("HOME")
+        return "%s/Library/Application Support/Coco Platform/licenses%s.lic" % (ctx.os.environ.get("HOME"), version_suffix)
     if "windows" in ctx.os.name:
-        return "%s\\..\\LocalLow\\Coco Platform\\licenses.lic" % ctx.os.environ.get("APPDATA")
-    return "%s/.local/share/coco_platform/licenses.lic" % ctx.os.environ.get("HOME")
+        return "%s\\..\\LocalLow\\Coco Platform\\licenses%s.lic" % (ctx.os.environ.get("APPDATA"), version_suffix)
+    return "%s/.local/share/coco_platform/licenses%s.lic" % (ctx.os.environ.get("HOME"), version_suffix)
 
 def _coco_fetch_license_repository_impl(ctx):
     """Creates a repository to allow users to easily acquire new licenses"""
@@ -183,14 +202,24 @@ _coco_fetch_license_repository = repository_rule(
 def _coco_symlink_license_repository_impl(ctx):
     """Creates a repository to allow users to easily acquire new licenses"""
     ctx.file("WORKSPACE", "")
-    ctx.symlink(_platform_license_file(ctx), "licenses.lic")
-    ctx.file("BUILD", """
+    build_content = ""
+    for suffix in KNOWN_VERSION_SUFFIXES:
+        file = ctx.path(_platform_license_file(ctx, suffix))
+        if file.exists:
+            ctx.symlink(file, file.basename)
+            build_content += """
 filegroup(
     name = "licenses",
-    srcs = ["licenses.lic"],
+    srcs = ["%s"],
     visibility = ["//visibility:public"],
 )
-""")
+""" % (file.basename)
+            break
+
+    if build_content == "":
+        fail("Could not find a license for Popili")
+
+    ctx.file("BUILD", build_content)
 
 _coco_symlink_license_repository = repository_rule(
     attrs = {
@@ -299,8 +328,11 @@ def coco_local_repository_set(name, path):
         name = name,
         path = path,
         build_file_content = "\n".join([
-            BUILD_for_coco_archive(binary_ext = ""),
-            BUILD_for_coco_toolchain(name = "toolchain", workspace_name = name),
+            BUILD_for_coco_archive(binary_ext = "", product = "popili"),
+            BUILD_for_coco_toolchain(
+                name = "toolchain",
+                workspace_name = name,
+            ),
         ]),
         workspace_file_content = "",
     )
