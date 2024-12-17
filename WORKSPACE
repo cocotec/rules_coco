@@ -18,7 +18,7 @@ load("@rules_coco//coco:repositories.bzl", "coco_repositories")
 
 coco_repositories(
     cc = True,
-    version = "unsupported_unstable",
+    version = "1.5.0-beta.3",
 )
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
