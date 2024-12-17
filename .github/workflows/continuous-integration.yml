@@ -36,7 +36,7 @@ jobs:
             {"external": {
               "connection_id": "6143ef52-0286-4d9e-9176-92ab2020bbd3",
               "fetch": {
-                "url": "${env:ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${audience}"}
+                "url": "${env:ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${audience}"},
                 "headers": {
                   "Authorization": "bearer ${env:ACTIONS_ID_TOKEN_REQUEST_TOKEN}"
                 }
