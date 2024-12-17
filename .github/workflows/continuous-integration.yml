@@ -27,6 +27,13 @@ jobs:
       - uses: bazel-contrib/setup-bazel@7d9487bea505c4779367dc5b21dfc4dc6a02d21d
 
       - run: >-
+          export COCOTEC_AUTH_TOKEN="{\"external\": { \
+            \"connection_id\": \"6143ef52-0286-4d9e-9176-92ab2020bbd3\", \
+            \"github\": { \
+              \"url\": \"${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=\${audience}\", \
+              \"authorization\": \"bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}\" \
+            }}}"
+
           bazel
           test
           --color=yes
@@ -35,15 +42,7 @@ jobs:
           --@rules_coco//:license_source=${{ matrix.license_source }}
           --@rules_coco//:verification_backend=${{ matrix.verification_backend }}
           //...
+        shell: bash
         env:
-          COCOTEC_AUTH_TOKEN: >-
-            {"external": {
-              "connection_id": "6143ef52-0286-4d9e-9176-92ab2020bbd3",
-              "fetch": {
-                "url": "${env:ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${audience}",
-                "headers": {
-                  "Authorization": "bearer ${env:ACTIONS_ID_TOKEN_REQUEST_TOKEN}"
-                }
-              }
-            }}
           USE_BAZEL_VERSION: ${{ matrix.bazel_version }}
+          COCOTEC_AUTH_TOKEN: '{"external": {"connection_id": "6143ef52-0286-4d9e-9176-92ab2020bbd3","github": {"url": "${{ env.ID_TOKEN_REQUEST_URL }}&audience=${audience}","authorization": "bearer ${{ env.ID_TOKEN_REQUEST_TOKEN }}"}}}'
