@@ -17,6 +17,9 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
         verification_backend: ["local", "remote"]
 
+    permissions:
+      id-token: write
+
     steps:
       - uses: actions/checkout@v4
 
