@@ -41,5 +41,5 @@ jobs:
                   "Authorization": "bearer ${env:ACTIONS_ID_TOKEN_REQUEST_TOKEN}"
                 }
               }
-            }
+            }}
           USE_BAZEL_VERSION: ${{ matrix.bazel_version }}
