@@ -18,6 +18,7 @@ jobs:
         verification_backend: ["local", "remote"]
 
     permissions:
+      contents: read
       id-token: write
 
     steps:
