@@ -1,3 +1,3 @@
 """The version of rules_coco."""
 
-VERSION = "0.0.11"
+VERSION = "0.0.12"

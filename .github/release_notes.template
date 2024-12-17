@@ -8,6 +8,6 @@ load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 http_archive(
     name = "rules_coco",
     integrity = "sha256-{sha256_base64}",
-    urls = ["https://dl.cocotec.io/rules_coco/{version}/rules_coco_{version}.tar.gz"],
+    urls = ["https://dl.cocotec.io/rules_coco/rules_coco_{version}.tar.gz"],
 )
 ```
