@@ -50,3 +50,14 @@ cc_test(
     srcs = ["test/base.cc"],
     deps = [":base_cc_tst"],
 )
+
+sh_test(
+    name = "check_make_variables",
+    srcs = ["run.sh"],
+    args = ["$(POPILI) $(POPILI_STARTUP_ARGS)"],
+    data = [
+        ":base",
+        "@io_cocotec_rules_coco//coco:current_popili_version",
+    ],
+    toolchains = ["@io_cocotec_rules_coco//coco:current_popili_version"],
+)

@@ -18,7 +18,7 @@ load("@io_cocotec_rules_coco//coco:repositories.bzl", "coco_repositories")
 
 coco_repositories(
     cc = True,
-    version = "1.5.0-beta.1",
+    version = "1.5.0-beta.2",
 )
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")

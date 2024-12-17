@@ -59,15 +59,18 @@ def _coco_startup_args(ctx, package, is_test):
         "--no-crash-reporter",
         "--override-preferences",
         _runtime_path(ctx.toolchains[COCO_TOOLCHAIN_TYPE].preferences_file, is_test),
-        "--package",
-        package[CocoPackageInfo].package_file.dirname,
         "--terminal=plain",
     ]
     if ctx.file.license_file:
         arguments.append("--override-licenses")
         arguments.append(_runtime_path(ctx.file.license_file, is_test))
-    for package_file in package[CocoPackageInfo].dep_package_files.to_list():
-        arguments += ["--import-path", package_file.dirname]
+    if package:
+        arguments += [
+            "--package",
+            package[CocoPackageInfo].package_file.dirname,
+        ]
+        for package_file in package[CocoPackageInfo].dep_package_files.to_list():
+            arguments += ["--import-path", package_file.dirname]
     return arguments
 
 def _coco_env(ctx):
@@ -78,19 +81,20 @@ def _coco_env(ctx):
 
 def _coco_runfiles(ctx, package, is_test):
     direct = [
-        package[CocoPackageInfo].package_file,
         ctx.toolchains[COCO_TOOLCHAIN_TYPE].preferences_file,
     ]
+    transitive = []
     if is_test:
         direct.append(ctx.toolchains[COCO_TOOLCHAIN_TYPE].coco)
     if ctx.file.license_file:
         direct.append(ctx.file.license_file)
+    if package:
+        direct.append(package[CocoPackageInfo].package_file)
+        transitive.append(package[CocoPackageInfo].srcs)
+        transitive.append(package[CocoPackageInfo].dep_package_files)
     return depset(
         direct = direct,
-        transitive = [
-            package[CocoPackageInfo].srcs,
-            package[CocoPackageInfo].dep_package_files,
-        ],
+        transitive = transitive,
     )
 
 def _run_coco(ctx, package, verb, arguments, outputs):
@@ -109,22 +113,29 @@ def _run_coco(ctx, package, verb, arguments, outputs):
 def _coco_package_impl(ctx):
     if ctx.file.package.basename != "Coco.toml":
         fail("Package must point to a file called exactly 'Coco.toml'", attr = "package")
-    return CocoPackageInfo(
-        name = ctx.attr.name,
-        package_file = ctx.file.package,
-        dep_package_files = depset(
-            direct = [dep[CocoPackageInfo].package_file for dep in ctx.attr.deps],
-            transitive = [dep[CocoPackageInfo].dep_package_files for dep in ctx.attr.deps],
-        ),
-        srcs = depset(
-            direct = ctx.files.srcs,
-            transitive = [dep[CocoPackageInfo].srcs for dep in ctx.attr.deps],
-        ),
-        test_srcs = depset(
-            direct = ctx.files.test_srcs,
-            transitive = [dep[CocoPackageInfo].test_srcs for dep in ctx.attr.deps],
-        ),
+    package_file = ctx.file.package
+    dep_package_files = depset(
+        direct = [dep[CocoPackageInfo].package_file for dep in ctx.attr.deps],
+        transitive = [dep[CocoPackageInfo].dep_package_files for dep in ctx.attr.deps],
     )
+    srcs = depset(
+        direct = ctx.files.srcs,
+        transitive = [dep[CocoPackageInfo].srcs for dep in ctx.attr.deps],
+    )
+    test_srcs = depset(
+        direct = ctx.files.test_srcs,
+        transitive = [dep[CocoPackageInfo].test_srcs for dep in ctx.attr.deps],
+    )
+    return [
+        CocoPackageInfo(
+            name = ctx.attr.name,
+            package_file = package_file,
+            dep_package_files = dep_package_files,
+            srcs = srcs,
+            test_srcs = test_srcs,
+        ),
+        DefaultInfo(files = depset(direct = [package_file], transitive = [srcs, test_srcs, dep_package_files])),
+    ]
 
 coco_package = rule(
     implementation = _coco_package_impl,
@@ -349,4 +360,30 @@ def coco_package_generate(name, **kwargs):
     _coco_test_outputs(
         name = coco_test_outputs_name(name),
         package = name,
+    )
+
+def _popili_version_alias_impl(ctx):
+    toolchain = ctx.toolchains["@io_cocotec_rules_coco//coco:toolchain_type"]
+    return [
+        toolchain,
+        platform_common.TemplateVariableInfo({
+            "POPILI": toolchain.coco.path,
+            "POPILI_STARTUP_ARGS": " ".join(_coco_startup_args(ctx, None, True)),
+        }),
+        DefaultInfo(
+            runfiles = ctx.runfiles(transitive_files = _coco_runfiles(ctx, None, True)),
+        ),
+    ]
+
+_popili_version_alias = rule(
+    attrs = LICENSE_ATTRIBUTES,
+    implementation = _popili_version_alias_impl,
+    toolchains = ["@io_cocotec_rules_coco//coco:toolchain_type"],
+)
+
+def popili_version_alias(name, **kwargs):
+    _popili_version_alias(
+        name = name,
+        license_file = _maybe_license_file(),
+        **kwargs
     )
