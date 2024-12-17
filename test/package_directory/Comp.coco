@@ -5,7 +5,7 @@ component Comp {
   val client : Provided<Runnable>
   machine M {
     state Stopped {
-      client.start() = setNextState(Started)
+      client.begin() = setNextState(Started)
     }
 
     state Started {

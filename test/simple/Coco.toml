@@ -3,7 +3,11 @@ name = "base"
 sources = ["src"]
 
 [language]
-standard = "1"
+standard = "1.2"
+profiles = ["C++"]
+
+[generator]
+defaultLanguage = "C++"
 
 [generator.cpp]
 generateMocks = "GMock"

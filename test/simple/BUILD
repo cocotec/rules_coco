@@ -53,7 +53,7 @@ cc_test(
 
 sh_test(
     name = "check_make_variables",
-    srcs = ["run.sh"],
+    srcs = ["typecheck.sh"],
     args = ["$(POPILI) $(POPILI_STARTUP_ARGS)"],
     data = [
         ":base",

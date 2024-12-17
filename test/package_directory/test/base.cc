@@ -14,10 +14,10 @@ using ::testing::WithArg;
 
 TEST(MockTest, Main) {
   RunnableBaseMock mock;
-  EXPECT_CALL(mock, client_start()).Times(Exactly(1));
+  EXPECT_CALL(mock, client_begin()).Times(Exactly(1));
   EXPECT_CALL(mock, client_stop()).Times(Exactly(1));
 
-  mock.client_start();
+  mock.client_begin();
   mock.client_stop();
 }
 
