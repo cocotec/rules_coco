@@ -83,9 +83,15 @@ def _platform_binary_ext(os):
 
 def _product_for(version):
     parts = version.split("-")[0].split(".")
-    if int(parts[0]) == 1 and int(parts[1]) < 5:
+    if len(parts) >= 2 and int(parts[0]) == 1 and int(parts[1]) < 5:
         return "coco"
     return "popili"
+
+def download_prefix(version):
+    parts = version.split("-")[0].split(".")
+    if len(parts) >= 2:
+        return "archive/%s" % version
+    return version
 
 def _coco_toolchain_repository_impl(ctx):
     """The implementation of the coco toolchain repository rule."""
@@ -93,14 +99,14 @@ def _coco_toolchain_repository_impl(ctx):
     product = _product_for(ctx.attr.version)
 
     # Download the compiler
-    download_path = "{version}/{product}_{os}_{arch}.zip".format(
+    download_path = "{download_prefix}/{product}_{os}_{arch}.zip".format(
         arch = ctx.attr.arch.replace("aarch64", "arm64").replace("x86_64", "amd64"),
         os = ctx.attr.os.replace("osx", "darwin"),
-        version = ctx.attr.version,
+        download_prefix = download_prefix(ctx.attr.version),
         product = product,
     )
     ctx.download_and_extract(
-        url = "https://dl.cocotec.io/popili/archive/{download_path}".format(download_path = download_path),
+        url = "https://dl.cocotec.io/popili/{download_path}".format(download_path = download_path),
         output = "bin",
         sha256 = FILE_KEY_TO_SHA.get(download_path) or "",
     )
@@ -250,7 +256,7 @@ def _coco_cc_repositories(version):
     http_archive(
         name = "io_cocotec_coco_cc_runtime",
         urls = [
-            "https://dl.cocotec.io/popili/archive/{version}/coco-cpp-runtime.zip".format(version = version),
+            "https://dl.cocotec.io/popili/{download_prefix}/coco-cpp-runtime.zip".format(download_prefix = download_prefix(version)),
         ],
         sha256 = FILE_KEY_TO_SHA.get("{version}/coco-cpp-runtime.zip".format(version = version)),
         build_file_content = """
