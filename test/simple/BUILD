@@ -57,7 +57,7 @@ sh_test(
     args = ["$(POPILI) $(POPILI_STARTUP_ARGS)"],
     data = [
         ":base",
-        "@io_cocotec_rules_coco//coco:current_popili_version",
+        "@io_cocotec_rules_coco//coco/toolchain:current_popili_version",
     ],
-    toolchains = ["@io_cocotec_rules_coco//coco:current_popili_version"],
+    toolchains = ["@io_cocotec_rules_coco//coco/toolchain:current_popili_version"],
 )

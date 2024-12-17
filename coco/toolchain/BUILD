@@ -1,4 +1,4 @@
-# Copyright 2019 Cocotec Limited
+# Copyright 2024 Cocotec Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("//coco/private:coco.bzl", "popili_version_alias")
+
 package(default_visibility = ["//visibility:public"])
 
-toolchain_type(name = "toolchain_type")
+popili_version_alias(name = "current_popili_version")
