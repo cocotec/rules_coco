@@ -78,6 +78,6 @@ LICENSE_SOURCES = [
     "local_user",
 
     # The explicitly provided token should be used as COCOTEC_AUTH_TOKEN. In this case,
-    # --@io_cocotec_rules_coco//:license_token must be set as well
+    # --@rules_coco//:license_token must be set as well
     "token",
 ]

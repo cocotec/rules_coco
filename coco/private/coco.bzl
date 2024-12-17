@@ -40,14 +40,14 @@ LICENSE_ATTRIBUTES = {
     "_license_token": attr.label(default = Label("//:license_token")),
 }
 
-COCO_TOOLCHAIN_TYPE = "@io_cocotec_rules_coco//coco:toolchain_type"
+COCO_TOOLCHAIN_TYPE = "@rules_coco//coco:toolchain_type"
 
 def _maybe_license_file():
     return select({
-        "@io_cocotec_rules_coco//config/license_source:action_environment": None,
-        "@io_cocotec_rules_coco//config/license_source:local_acquire": "@io_cocotec_licensing_fetch//:licenses",
-        "@io_cocotec_rules_coco//config/license_source:local_user": "@io_cocotec_licensing_local//:licenses",
-        "@io_cocotec_rules_coco//config/license_source:token": None,
+        "@rules_coco//config/license_source:action_environment": None,
+        "@rules_coco//config/license_source:local_acquire": "@io_cocotec_licensing_fetch//:licenses",
+        "@rules_coco//config/license_source:local_user": "@io_cocotec_licensing_local//:licenses",
+        "@rules_coco//config/license_source:token": None,
     })
 
 def _runtime_path(file, is_test):
@@ -363,7 +363,7 @@ def coco_package_generate(name, **kwargs):
     )
 
 def _popili_version_alias_impl(ctx):
-    toolchain = ctx.toolchains["@io_cocotec_rules_coco//coco:toolchain_type"]
+    toolchain = ctx.toolchains["@rules_coco//coco:toolchain_type"]
     return [
         toolchain,
         platform_common.TemplateVariableInfo({
@@ -378,7 +378,7 @@ def _popili_version_alias_impl(ctx):
 _popili_version_alias = rule(
     attrs = LICENSE_ATTRIBUTES,
     implementation = _popili_version_alias_impl,
-    toolchains = ["@io_cocotec_rules_coco//coco:toolchain_type"],
+    toolchains = ["@rules_coco//coco:toolchain_type"],
 )
 
 def popili_version_alias(name, **kwargs):

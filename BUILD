@@ -13,7 +13,7 @@
 # limitations under the License.
 
 load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
-load("@io_cocotec_rules_coco//coco/private:licensing.bzl", "LICENSE_SOURCES")
+load("@rules_coco//coco/private:licensing.bzl", "LICENSE_SOURCES")
 
 string_flag(
     name = "license_source",

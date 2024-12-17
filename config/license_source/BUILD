@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("@io_cocotec_rules_coco//coco/private:licensing.bzl", "LICENSE_SOURCES")
+load("@rules_coco//coco/private:licensing.bzl", "LICENSE_SOURCES")
 
 [config_setting(
     name = source,

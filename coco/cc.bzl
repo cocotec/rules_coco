@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("@io_cocotec_rules_coco//coco:defs.bzl", "coco_test_outputs_name")
 load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_coco//coco:defs.bzl", "coco_test_outputs_name")
 
 def coco_cc_library(name, generated_package, srcs = [], deps = [], **kwargs):
     cc_library(

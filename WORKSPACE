@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-workspace(name = "io_cocotec_rules_coco")
+workspace(name = "rules_coco")
 
-load("@io_cocotec_rules_coco//coco:repositories.bzl", "coco_repositories")
+load("@rules_coco//coco:repositories.bzl", "coco_repositories")
 
 coco_repositories(
     cc = True,

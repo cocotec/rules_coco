@@ -32,8 +32,8 @@ jobs:
           --color=yes
           --keep_going
           --test_output=errors
-          --@io_cocotec_rules_coco//:license_source=${{ matrix.license_source }}
-          --@io_cocotec_rules_coco//:verification_backend=${{ matrix.verification_backend }}
+          --@rules_coco//:license_source=${{ matrix.license_source }}
+          --@rules_coco//:verification_backend=${{ matrix.verification_backend }}
           //...
         env:
           COCOTEC_AUTH_TOKEN: >-

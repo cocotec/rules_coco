@@ -26,7 +26,7 @@ toolchain(
     name = "toolchain",
     exec_compatible_with = [{constraints}],
     toolchain = "@{parent_workspace_name}//:toolchain_impl",
-    toolchain_type = "@io_cocotec_rules_coco//coco:toolchain_type",
+    toolchain_type = "@rules_coco//coco:toolchain_type",
 )
 """.format(
         name = name,
@@ -57,7 +57,7 @@ coco_toolchain(
 def BUILD_for_coco_archive(binary_ext, product):
     """Emits a BUILD file the compiler .zip."""
     return """
-load("@io_cocotec_rules_coco//coco:toolchain.bzl", "coco_toolchain")
+load("@rules_coco//coco:toolchain.bzl", "coco_toolchain")
 
 filegroup(
     name = "coco",
@@ -186,7 +186,7 @@ def _coco_fetch_license_repository_impl(ctx):
         fail("cannot fetch a license without COCOTEC_AUTH_TOKEN; set this environment variable or use a different licensing mode")
     ctx.file("auth_token.secret", auth_token)
     ctx.file("BUILD", """
-load("@io_cocotec_rules_coco//coco/private:licensing.bzl", "fetch_license")
+load("@rules_coco//coco/private:licensing.bzl", "fetch_license")
 
 fetch_license(
     name = "licenses",
