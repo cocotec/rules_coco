@@ -1,0 +1,105 @@
+---
+name: Release
+on:
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  validation:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v3
+      # TODO: Unfortunately it's not obvious how to restrict `workflow_dispatch` to a particular branch
+      # so this step ensures releases are always done off of `develop`.
+      - name: Ensure branch is 'develop'
+        run: |
+          git fetch origin &> /dev/null
+          branch="$(git rev-parse --abbrev-ref HEAD)"
+          if [[ "${branch}" != "develop" ]]; then
+            echo "The release branch must be develop. Got '${branch}'' instead." >&2
+            exit 1
+          else
+            echo "Branch is '${branch}'"
+          fi
+      - name: Ensure release does not already exist
+        run: |
+          git fetch origin &> /dev/null
+          version="$(grep 'VERSION =' ${{ github.workspace }}/version.bzl | sed 's/VERSION = "//' | sed 's/"//')"
+          if [[ -n "$(git tag -l ${version})" ]]; then
+            echo "A release '${version}' already exists." >&2
+            exit 1
+          else
+            echo "Tag '${version}' will be created"
+          fi
+
+  release:
+    needs: validation
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v3
+      - name: Detect the current version
+        run: |
+          version="$(grep 'VERSION =' ${{ github.workspace }}/version.bzl | grep -o '[[:digit:].]\+')"
+          echo "RELEASE_VERSION=${version}" >> $GITHUB_ENV
+      - name: Create the rules archive
+        run: |
+          # Build an archive of the repo contents.
+          tar -czf ${{ github.workspace }}/.github/rules_coco_${{ env.RELEASE_VERSION }}.tar.gz \
+            -C ${{ github.workspace }} \
+            --exclude=".git" \
+            --exclude=".github" \
+            .
+
+          # Save the sha256 checksum of the distro archive to the environment
+          sha256_base64="$(shasum --algorithm 256 ${{ github.workspace }}/.github/rules_coco_${{ env.RELEASE_VERSION }}.tar.gz | awk '{ print $1 }' | xxd -r -p | base64)"
+          echo "ARCHIVE_SHA256_BASE64=${sha256_base64}" >> $GITHUB_ENV
+        env:
+          URL_PREFIX: https://github.com/${{ github.repository_owner }}/rules_coco/releases/download/${{ env.RELEASE_VERSION }}
+
+      # Upload the artifact in case creating a release fails so all artifacts can then be manually recovered.
+      - uses: actions/upload-artifact@v3
+        with:
+          name: "rules_coco_${{ env.RELEASE_VERSION }}.tar.gz"
+          path: ${{ github.workspace }}/.github/rules_coco_${{ env.RELEASE_VERSION }}.tar.gz
+          if-no-files-found: error
+      - name: Generate release notes
+        run: |
+          # Generate the release notes
+          sed 's#{version}#${{ env.RELEASE_VERSION }}#g' ${{ github.workspace }}/.github/release_notes.template \
+          | sed 's#{sha256_base64}#${{ env.ARCHIVE_SHA256_BASE64 }}#g' \
+          > ${{ github.workspace }}/.github/release_notes.txt
+      - name: Create release
+        uses: softprops/action-gh-release@v1
+        id: rules_coco_release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          generate_release_notes: true
+          tag_name: ${{ env.RELEASE_VERSION }}
+          body_path: ${{ github.workspace }}/.github/release_notes.txt
+          target_commitish: ${{ github.base_ref }}
+
+      - name: "Upload the rules archive"
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.rules_coco_release.outputs.upload_url }}
+          asset_name: rules_coco_${{ env.RELEASE_VERSION }}.tar.gz
+          asset_path: ${{ github.workspace }}/.github/rules_coco_${{ env.RELEASE_VERSION }}.tar.gz
+          asset_content_type: application/gzip
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: "projects/1087051700446/locations/global/workloadIdentityPools/github-dev-pool/providers/github-cocotec"
+          service_account: "gh-cocotec-rules-coco-r7tw@dev-773ceb2b.iam.gserviceaccount.com"
+
+      - name: "Upload to dl.cocotec.io"
+        uses: google-github-actions/upload-cloud-storage@v2
+        with:
+          path: "${{ github.workspace }}/.github/rules_coco_${{ env.RELEASE_VERSION }}.tar.gz"
+          destination: "cocotec-downloads/rules_coco"
