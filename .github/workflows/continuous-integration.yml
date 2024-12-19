@@ -7,7 +7,7 @@ on:
       - "develop"
 
 jobs:
-  build:
+  test:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -46,3 +46,15 @@ jobs:
         env:
           USE_BAZEL_VERSION: ${{ matrix.bazel_version }}
           COCOTEC_AUTH_TOKEN: '{"external": {"connection_id": "6143ef52-0286-4d9e-9176-92ab2020bbd3","github": {"url": "${{ env.ID_TOKEN_REQUEST_URL }}&audience=${audience}","authorization": "bearer ${{ env.ID_TOKEN_REQUEST_TOKEN }}"}}}'
+
+  # This allows us to have a branch protection rule for tests and deploys with matrix
+  build:
+    runs-on: ubuntu-20.04
+    needs: [test]
+    steps:
+      - name: Successful build
+        if: ${{ !(contains(needs.*.result, 'failure')) }}
+        run: exit 0
+      - name: Failing build
+        if: ${{ contains(needs.*.result, 'failure') }}
+        run: exit 1
