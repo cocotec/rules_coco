@@ -64,7 +64,7 @@ jobs:
           URL_PREFIX: https://github.com/${{ github.repository_owner }}/rules_coco/releases/download/${{ env.RELEASE_VERSION }}
 
       # Upload the artifact in case creating a release fails so all artifacts can then be manually recovered.
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: "rules_coco_${{ env.RELEASE_VERSION }}.tar.gz"
           path: ${{ github.workspace }}/.github/rules_coco_${{ env.RELEASE_VERSION }}.tar.gz
