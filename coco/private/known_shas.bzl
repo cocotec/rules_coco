@@ -570,5 +570,13 @@ FILE_KEY_TO_SHA = {
     "1.5.0-beta.6/popili_darwin_arm64.zip": "2d5c3fc8d60b4d4363dec86c34b9bdf590effae56ffae3731d128d4ebac1e8be",
     "1.5.0-beta.6/coco-cpp-runtime.zip": "db88fdb44e02b31d65fe47c337d538910e2a06026fb56c0ebffac002f6457a74",
     "1.5.0-beta.6/coco-c-runtime.zip": "fa40072e01d6b48163439bc777233c3a1215026a8d3e478d9398063468ba1b22",
-    "1.5.0-beta.6/coco-csharp-runtime.zip": "9ea586dc06d134f79fc0d8979bf68afa59527824ddd84f256ee81162f6e7b29e"
+    "1.5.0-beta.6/coco-csharp-runtime.zip": "9ea586dc06d134f79fc0d8979bf68afa59527824ddd84f256ee81162f6e7b29e",
+    "1.5.0-beta.7/popili_darwin_amd64.zip": "44b10b4628c2fc8b0cd820de292d7311d82aed151532dc1fdc5f90e09f5fb3d1",
+    "1.5.0-beta.7/popili_linux_amd64.zip": "92a20569043b7b98bcba0be328ca410b6252873a3e54abbcdc9d9bedba8ff4a4",
+    "1.5.0-beta.7/popili_windows_amd64.zip": "dbdf4a5042bedb9f0a9ae973fa4b24724447531ae166bec9142c093cd3260f0b",
+    "1.5.0-beta.7/popili_linux_arm64.zip": "fe0cb1eacf7e23117e82b4840994ad6f1a045575e13b06c6e96afcdfa88d7367",
+    "1.5.0-beta.7/popili_darwin_arm64.zip": "124e901414c22a17e5477b866178cb0a26757c4ce004a89b2693ff220d4d5d00",
+    "1.5.0-beta.7/coco-cpp-runtime.zip": "e0b07e05a1cbdec668a46e71544fea384daede0ee0f5333f778a489806577ff7",
+    "1.5.0-beta.7/coco-c-runtime.zip": "3ef4953f732b01c14467f92fa7a5f5add08073672c496c9beb9a810f7b2737d3",
+    "1.5.0-beta.7/coco-csharp-runtime.zip": "73ba40d0fa62bb639e8eb0d46e2ff2c604361fac7b374961eec2ebc1174325f5"
 }
