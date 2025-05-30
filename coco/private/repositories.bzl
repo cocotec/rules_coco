@@ -262,7 +262,8 @@ def _coco_cc_repositories(version):
         build_file_content = """
 cc_library(
     name = "runtime",
-    hdrs = ["coco/runtime.h", "coco/stream_logger.h"],
+    hdrs = glob(["coco/*.h"], exclude = ["coco/gmock_helpers.h"]),
+    srcs = glob(["coco/src/*.cc"]),
     visibility = ["//visibility:public"],
 )
 
