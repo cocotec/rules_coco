@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   validation:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
       # TODO: Unfortunately it's not obvious how to restrict `workflow_dispatch` to a particular branch
@@ -41,7 +41,7 @@ jobs:
 
   release:
     needs: validation
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
       - name: Detect the current version
