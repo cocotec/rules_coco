@@ -12,12 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Public API for Coco package rules and code generation."""
+
 load(
     "//coco/private:coco.bzl",
     _coco_package = "coco_package",
     _coco_package_generate = "coco_package_generate",
     _coco_package_verify_test = "coco_package_verify_test",
     _coco_test_outputs_name = "coco_test_outputs_name",
+    _with_popili_version = "with_popili_version",
+)
+load(
+    "//coco/private:licensing.bzl",
+    _LICENSE_SOURCES = "LICENSE_SOURCES",
 )
 
 coco_package = _coco_package
@@ -27,3 +34,7 @@ coco_package_verify_test = _coco_package_verify_test
 coco_package_generate = _coco_package_generate
 
 coco_test_outputs_name = _coco_test_outputs_name
+
+with_popili_version = _with_popili_version
+
+LICENSE_SOURCES = _LICENSE_SOURCES

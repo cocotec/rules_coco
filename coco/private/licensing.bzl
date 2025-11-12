@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Licensing rules and helpers for Coco."""
+
 load(":coco.bzl", "COCO_TOOLCHAIN_TYPE")
 
 def _fetch_license_impl(ctx):
@@ -42,7 +44,6 @@ def _fetch_license_impl(ctx):
 _fetch_license = rule(
     attrs = {
         "auth_token": attr.label(allow_single_file = True),
-        "is_windows": attr.bool(mandatory = True),
         "product": attr.string(),
     },
     implementation = _fetch_license_impl,
@@ -53,10 +54,6 @@ _fetch_license = rule(
 
 def fetch_license(tags = [], **kwargs):
     _fetch_license(
-        is_windows = select({
-            "@bazel_tools//src/conditions:host_windows": True,
-            "//conditions:default": False,
-        }),
         tags = ["no-remote-exec", "no-remote-cache", "requires-network"] + tags,
         **kwargs
     )

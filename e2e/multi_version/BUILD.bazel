@@ -1,0 +1,132 @@
+# E2E test for multi-version support in rules_coco
+# This BUILD file demonstrates using different popili versions for different packages
+# using the with_popili_version() wrapper
+
+load("@rules_coco//coco:cc.bzl", "coco_cc_library")
+load("@rules_coco//coco:defs.bzl", "coco_package", "coco_package_generate", "coco_package_verify_test", "with_popili_version")
+
+# Modern package - uses 1.5.0
+coco_package(
+    name = "modern",
+    srcs = ["modern/src/Example.coco"],
+    package = "modern/Coco.toml",
+)
+
+with_popili_version(
+    name = "modern_v150",
+    target = ":modern",
+    version = "1.5.0",
+)
+
+coco_package_verify_test(
+    name = "modern_verify",
+    package = ":modern_v150",
+)
+
+coco_package_generate(
+    name = "modern_cpp",
+    language = "cpp",
+    package = ":modern_v150",
+)
+
+with_popili_version(
+    name = "modern_cpp_v150",
+    target = ":modern_cpp",
+    version = "1.5.0",
+)
+
+coco_cc_library(
+    name = "modern_cc_impl",
+    generated_package = ":modern_cpp_v150",
+    tags = ["manual"],
+)
+
+with_popili_version(
+    name = "modern_cc",
+    target = ":modern_cc_impl",
+    version = "1.5.0",
+)
+
+# Legacy package - uses 1.5.1
+coco_package(
+    name = "legacy",
+    srcs = ["legacy/src/Example.coco"],
+    package = "legacy/Coco.toml",
+)
+
+with_popili_version(
+    name = "legacy_v151",
+    target = ":legacy",
+    version = "1.5.1",
+)
+
+coco_package_verify_test(
+    name = "legacy_verify",
+    package = ":legacy_v151",
+)
+
+coco_package_generate(
+    name = "legacy_cpp",
+    language = "cpp",
+    package = ":legacy_v151",
+)
+
+with_popili_version(
+    name = "legacy_cpp_v151",
+    target = ":legacy_cpp",
+    version = "1.5.1",
+)
+
+coco_cc_library(
+    name = "legacy_cc_impl",
+    generated_package = ":legacy_cpp_v151",
+    tags = ["manual"],
+)
+
+with_popili_version(
+    name = "legacy_cc",
+    target = ":legacy_cc_impl",
+    version = "1.5.1",
+)
+
+# Flexible package - also uses 1.5.0
+coco_package(
+    name = "flexible",
+    srcs = ["flexible/src/Example.coco"],
+    package = "flexible/Coco.toml",
+)
+
+with_popili_version(
+    name = "flexible_v150",
+    target = ":flexible",
+    version = "1.5.0",
+)
+
+coco_package_verify_test(
+    name = "flexible_verify",
+    package = ":flexible_v150",
+)
+
+coco_package_generate(
+    name = "flexible_cpp",
+    language = "cpp",
+    package = ":flexible_v150",
+)
+
+with_popili_version(
+    name = "flexible_cpp_v150",
+    target = ":flexible_cpp",
+    version = "1.5.0",
+)
+
+coco_cc_library(
+    name = "flexible_cc_impl",
+    generated_package = ":flexible_cpp_v150",
+    tags = ["manual"],
+)
+
+with_popili_version(
+    name = "flexible_cc",
+    target = ":flexible_cc_impl",
+    version = "1.5.0",
+)

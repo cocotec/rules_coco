@@ -1,0 +1,2 @@
+# Ignore the e2e directory as each subdirectory is a separate Bazel module
+e2e/

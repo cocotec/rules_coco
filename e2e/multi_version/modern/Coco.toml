@@ -1,0 +1,10 @@
+[package]
+name = "modern"
+sources = ["src"]
+
+[language]
+standard = "2024"
+profiles = ["C++"]
+
+[generator]
+defaultLanguage = "C++"

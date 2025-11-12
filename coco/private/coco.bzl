@@ -12,15 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Core Coco package rules and providers."""
+
 load("@bazel_skylib//lib:paths.bzl", "paths")
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
+load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
+load(":version_aliases.bzl", "VERSION_ALIASES")
 
 CocoPackageInfo = provider(
     doc = "Information about a Coco package",
     fields = {
+        "dep_package_files": "All Coco.toml files for all transitive dependencies",
         "name": "The name of the package",
         "package_file": "The Coco.toml file for this package",
-        "dep_package_files": "All Coco.toml files for all transitive dependencies",
         "srcs": "All .coco files that are sources of this package or any of its transitive dependencies",
         "test_srcs": "All .coco files that are test_sources of this package or any of its transitive dependencies",
     },
@@ -35,20 +39,114 @@ CocoGeneratedCodeInfo = provider(
 )
 
 LICENSE_ATTRIBUTES = {
-    "license_file": attr.label(mandatory = False, allow_single_file = True),
+    "_license_file_fetch": attr.label(default = Label("@io_cocotec_licensing_fetch//:licenses")),
+    "_license_file_local": attr.label(default = Label("@io_cocotec_licensing_local//:licenses")),
     "_license_source": attr.label(default = Label("//:license_source")),
     "_license_token": attr.label(default = Label("//:license_token")),
 }
 
 COCO_TOOLCHAIN_TYPE = "@rules_coco//coco:toolchain_type"
 
-def _maybe_license_file():
-    return select({
-        "@rules_coco//config/license_source:action_environment": None,
-        "@rules_coco//config/license_source:local_acquire": "@io_cocotec_licensing_fetch//:licenses",
-        "@rules_coco//config/license_source:local_user": "@io_cocotec_licensing_local//:licenses",
-        "@rules_coco//config/license_source:token": None,
-    })
+def _resolve_version_alias(version):
+    """Resolve a version alias (like 'stable') to an actual version number.
+
+    Args:
+        version: A version string, which may be an alias like 'stable' or an actual version like '1.5.0'
+
+    Returns:
+        The resolved version string
+    """
+    if version in VERSION_ALIASES:
+        return VERSION_ALIASES[version]
+    return version
+
+def _popili_version_transition_impl(_settings, attr):
+    """Transition implementation for per-target popili version selection.
+
+    If the target specifies a version attribute, transition to that version.
+    Version aliases (like "stable") are resolved to actual version numbers.
+    Otherwise, keep the current configuration's version setting.
+    """
+    if hasattr(attr, "version") and attr.version:
+        resolved_version = _resolve_version_alias(attr.version)
+        return {"@rules_coco//:version": resolved_version}
+    return {}
+
+_popili_version_transition = transition(
+    implementation = _popili_version_transition_impl,
+    inputs = [],
+    outputs = ["@rules_coco//:version"],
+)
+
+# Export for use in cc.bzl
+popili_version_transition = _popili_version_transition
+
+def _with_popili_version_impl(ctx):
+    """Wrapper rule that applies popili version transition to a target.
+
+    This allows users to build a specific target with a different popili version
+    than the default specified by --@rules_coco//:version.
+    """
+
+    # When using configuration transitions, ctx.attr.target becomes a list
+    target = ctx.attr.target[0] if type(ctx.attr.target) == type([]) else ctx.attr.target
+
+    # Forward all providers from the target
+    # We need to explicitly check for each provider type and forward them
+    providers = []
+
+    # Forward DefaultInfo if present
+    if hasattr(target, "files"):
+        providers.append(target[DefaultInfo])
+
+    # Forward CocoPackageInfo if present
+    if CocoPackageInfo in target:
+        providers.append(target[CocoPackageInfo])
+
+    # Forward CocoGeneratedCodeInfo if present
+    if CocoGeneratedCodeInfo in target:
+        providers.append(target[CocoGeneratedCodeInfo])
+
+    # Forward CcInfo if present
+    if CcInfo in target:
+        providers.append(target[CcInfo])
+
+    # Forward OutputGroupInfo if present
+    if OutputGroupInfo in target:
+        providers.append(target[OutputGroupInfo])
+
+    return providers
+
+with_popili_version = rule(
+    implementation = _with_popili_version_impl,
+    attrs = {
+        "target": attr.label(
+            mandatory = True,
+            doc = "The target to build with a specific popili version",
+        ),
+        "version": attr.string(
+            mandatory = True,
+            doc = "The popili version to use (e.g., '1.5.0', '1.4.7')",
+        ),
+    },
+    cfg = _popili_version_transition,
+    doc = """Wrapper rule to build a target with a specific popili version.
+
+    Use this when you need to build different targets with different popili versions
+    in the same build. For most cases, just use --@rules_coco//:version=X.Y.Z.
+
+    Example:
+        coco_package(name = "pkg", ...)
+
+        with_popili_version(
+            name = "pkg_v147",
+            target = ":pkg",
+            version = "1.4.7",
+        )
+    """,
+)
+
+# License files are now obtained from the toolchain, not passed as attributes
 
 def _runtime_path(file, is_test):
     return file.short_path if is_test else file.path
@@ -61,9 +159,10 @@ def _coco_startup_args(ctx, package, is_test):
         _runtime_path(ctx.toolchains[COCO_TOOLCHAIN_TYPE].preferences_file, is_test),
         "--terminal=plain",
     ]
-    if ctx.file.license_file:
+    license_file = _get_license_file_from_toolchain(ctx)
+    if license_file:
         arguments.append("--override-licenses")
-        arguments.append(_runtime_path(ctx.file.license_file, is_test))
+        arguments.append(_runtime_path(license_file, is_test))
     if package:
         arguments += [
             "--package",
@@ -72,6 +171,21 @@ def _coco_startup_args(ctx, package, is_test):
         for package_file in package[CocoPackageInfo].dep_package_files.to_list():
             arguments += ["--import-path", package_file.dirname]
     return arguments
+
+def _get_license_file_from_toolchain(ctx):
+    """Get the appropriate license file based on license_source.
+
+    Note: Despite the name, this doesn't actually use the toolchain - it
+    accesses well-known license repositories to avoid circular dependencies.
+    """
+    license_source = ctx.attr._license_source[BuildSettingInfo].value
+    if license_source == "local_acquire":
+        files = ctx.attr._license_file_fetch[DefaultInfo].files.to_list()
+        return files[0] if files else None
+    elif license_source == "local_user":
+        files = ctx.attr._license_file_local[DefaultInfo].files.to_list()
+        return files[0] if files else None
+    return None
 
 def _coco_env(ctx):
     env = {}
@@ -86,8 +200,9 @@ def _coco_runfiles(ctx, package, is_test):
     transitive = []
     if is_test:
         direct.append(ctx.toolchains[COCO_TOOLCHAIN_TYPE].coco)
-    if ctx.file.license_file:
-        direct.append(ctx.file.license_file)
+    license_file = _get_license_file_from_toolchain(ctx)
+    if license_file:
+        direct.append(license_file)
     if package:
         direct.append(package[CocoPackageInfo].package_file)
         transitive.append(package[CocoPackageInfo].srcs)
@@ -140,6 +255,13 @@ def _coco_package_impl(ctx):
 coco_package = rule(
     implementation = _coco_package_impl,
     attrs = {
+        "deps": attr.label_list(
+            providers = [CocoPackageInfo],
+        ),
+        "package": attr.label(
+            mandatory = True,
+            allow_single_file = [".toml"],
+        ),
         "srcs": attr.label_list(
             allow_files = [".coco"],
             mandatory = True,
@@ -148,11 +270,6 @@ coco_package = rule(
             allow_files = [".coco"],
             allow_empty = True,
         ),
-        "package": attr.label(
-            mandatory = True,
-            allow_single_file = [".toml"],
-        ),
-        "deps": attr.label_list(providers = [CocoPackageInfo]),
     },
     toolchains = [
         COCO_TOOLCHAIN_TYPE,
@@ -212,11 +329,11 @@ def _coco_package_verify(ctx):
 _coco_package_verify_test = rule(
     implementation = _coco_package_verify,
     attrs = dict(LICENSE_ATTRIBUTES.items() + {
+        "is_windows": attr.bool(mandatory = True),
         "package": attr.label(
             providers = [CocoPackageInfo],
             mandatory = True,
         ),
-        "is_windows": attr.bool(mandatory = True),
         "_verification_backend": attr.label(default = Label("//:verification_backend")),
     }.items()),
     test = True,
@@ -228,10 +345,9 @@ _coco_package_verify_test = rule(
 def coco_package_verify_test(**kwargs):
     _coco_package_verify_test(
         is_windows = select({
-            "@bazel_tools//src/conditions:host_windows": True,
+            "@platforms//os:windows": True,
             "//conditions:default": False,
         }),
-        license_file = _maybe_license_file(),
         **kwargs
     )
 
@@ -255,9 +371,11 @@ def _output_directory(package_dir, srcs):
     return root_output_dir
 
 def _coco_package_generate_impl(ctx):
-    srcs = ctx.attr.package[CocoPackageInfo].srcs
-    test_srcs = ctx.attr.package[CocoPackageInfo].test_srcs
-    package_dir = ctx.attr.package[CocoPackageInfo].package_file.dirname
+    # When using configuration transitions, ctx.attr.package becomes a list
+    package = ctx.attr.package[0] if type(ctx.attr.package) == type([]) else ctx.attr.package
+    srcs = package[CocoPackageInfo].srcs
+    test_srcs = package[CocoPackageInfo].test_srcs
+    package_dir = package[CocoPackageInfo].package_file.dirname
 
     outputs = []
     mock_outputs = []
@@ -298,7 +416,7 @@ def _coco_package_generate_impl(ctx):
 
     _run_coco(
         ctx = ctx,
-        package = ctx.attr.package,
+        package = package,
         verb = "Generating %s" % ctx.attr.language,
         arguments = arguments,
         outputs = outputs + test_outputs,
@@ -319,12 +437,12 @@ def _coco_package_generate_impl(ctx):
 _coco_package_generate = rule(
     implementation = _coco_package_generate_impl,
     attrs = dict(LICENSE_ATTRIBUTES.items() + {
+        "language": attr.string(mandatory = True, values = ["cpp"]),
+        "mocks": attr.bool(),
         "package": attr.label(
             providers = [CocoPackageInfo],
             mandatory = True,
         ),
-        "language": attr.string(mandatory = True, values = ["cpp"]),
-        "mocks": attr.bool(),
     }.items()),
     toolchains = [
         COCO_TOOLCHAIN_TYPE,
@@ -354,7 +472,6 @@ def coco_test_outputs_name(name):
 def coco_package_generate(name, **kwargs):
     _coco_package_generate(
         name = name,
-        license_file = _maybe_license_file(),
         **kwargs
     )
     _coco_test_outputs(
@@ -367,7 +484,7 @@ def _popili_version_alias_impl(ctx):
     return [
         toolchain,
         platform_common.TemplateVariableInfo({
-            "POPILI": toolchain.coco.path,
+            "POPILI": toolchain.coco.short_path,
             "POPILI_STARTUP_ARGS": " ".join(_coco_startup_args(ctx, None, True)),
         }),
         DefaultInfo(
@@ -384,6 +501,5 @@ _popili_version_alias = rule(
 def popili_version_alias(name, **kwargs):
     _popili_version_alias(
         name = name,
-        license_file = _maybe_license_file(),
         **kwargs
     )

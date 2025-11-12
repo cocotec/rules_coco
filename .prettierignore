@@ -1,0 +1,12 @@
+# Bazel outputs
+bazel-*
+
+# Generated documentation
+docs/
+
+# Lock files
+*.lock
+MODULE.bazel.lock
+
+# Test outputs
+test/*/bazel-*

@@ -1,2 +1,43 @@
+# Bazel outputs
 /bazel-*
 /examples/bazel-*
+/e2e/*/bazel-*
+
+# User-specific Bazel configuration
+.bazelrc.user
+
+# IDE - VSCode
+.vscode/
+*.code-workspace
+
+# IDE - IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# IDE - Eclipse
+.classpath
+.project
+.settings/
+bin/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Test outputs
+*.log
+test-results/
+coverage/

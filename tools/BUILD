@@ -12,8 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("@rules_python//python:defs.bzl", "py_binary")
+
 py_binary(
     name = "update_digests",
     srcs = ["update_digests.py"],
+    tags = ["manual"],
+)
+
+py_binary(
+    name = "release",
+    srcs = ["release.py"],
     tags = ["manual"],
 )

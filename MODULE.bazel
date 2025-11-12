@@ -1,0 +1,53 @@
+# Copyright 2024 Cocotec Limited
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Bazel module for rules_coco - Coco/Popili verification tool rules."""
+
+module(
+    name = "rules_coco",
+    version = "0.1.0",
+    compatibility_level = 1,
+)
+
+bazel_dep(name = "bazel_skylib", version = "1.8.1")
+bazel_dep(name = "platforms", version = "1.0.0")
+bazel_dep(name = "rules_cc", version = "0.2.14")  # Required for public C++ API
+
+bazel_dep(name = "rules_python", version = "1.6.3", dev_dependency = True)
+bazel_dep(name = "rules_shell", version = "0.6.1", dev_dependency = True)
+bazel_dep(name = "googletest", version = "1.17.0.bcr.2", dev_dependency = True)
+
+# TODO: this is only here to get a version of protobuf that is compatible with the version of abseil used by googletest
+bazel_dep(name = "protobuf", version = "33.0", dev_dependency = True)
+bazel_dep(name = "stardoc", version = "0.8.0", dev_dependency = True)
+
+# Coco toolchain extension
+coco = use_extension("//coco:extensions.bzl", "coco")
+coco.toolchain(
+    cc = True,
+    versions = ["stable"],
+)
+
+# Rules providers must explicitly import and register toolchains
+# Consumer modules (your projects) inherit these automatically and don't need use_repo/register_toolchains
+use_repo(
+    coco,
+    "coco_toolchains",
+    "io_cocotec_coco_preferences",
+    "io_cocotec_licensing_fetch",
+    "io_cocotec_licensing_local",
+)
+
+# Register all toolchains - inherited by consumers automatically
+register_toolchains("@coco_toolchains//:all")

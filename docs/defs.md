@@ -1,0 +1,123 @@
+<!-- Generated with Stardoc: http://skydoc.bazel.build -->
+
+Public API for Coco package rules and code generation.
+
+<a id="coco_package"></a>
+
+## coco_package
+
+<pre>
+load("@rules_coco//coco:defs.bzl", "coco_package")
+
+coco_package(<a href="#coco_package-name">name</a>, <a href="#coco_package-deps">deps</a>, <a href="#coco_package-srcs">srcs</a>, <a href="#coco_package-package">package</a>, <a href="#coco_package-test_srcs">test_srcs</a>)
+</pre>
+
+
+
+**ATTRIBUTES**
+
+
+| Name  | Description | Type | Mandatory | Default |
+| :------------- | :------------- | :------------- | :------------- | :------------- |
+| <a id="coco_package-name"></a>name |  A unique name for this target.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
+| <a id="coco_package-deps"></a>deps |  -   | <a href="https://bazel.build/concepts/labels">List of labels</a> | optional |  `[]`  |
+| <a id="coco_package-srcs"></a>srcs |  -   | <a href="https://bazel.build/concepts/labels">List of labels</a> | required |  |
+| <a id="coco_package-package"></a>package |  -   | <a href="https://bazel.build/concepts/labels">Label</a> | required |  |
+| <a id="coco_package-test_srcs"></a>test_srcs |  -   | <a href="https://bazel.build/concepts/labels">List of labels</a> | optional |  `[]`  |
+
+
+<a id="with_popili_version"></a>
+
+## with_popili_version
+
+<pre>
+load("@rules_coco//coco:defs.bzl", "with_popili_version")
+
+with_popili_version(<a href="#with_popili_version-name">name</a>, <a href="#with_popili_version-target">target</a>, <a href="#with_popili_version-version">version</a>)
+</pre>
+
+Wrapper rule to build a target with a specific popili version.
+
+Use this when you need to build different targets with different popili versions
+in the same build. For most cases, just use --@rules_coco//:version=X.Y.Z.
+
+Example:
+    coco_package(name = "pkg", ...)
+
+    with_popili_version(
+        name = "pkg_v147",
+        target = ":pkg",
+        version = "1.4.7",
+    )
+
+**ATTRIBUTES**
+
+
+| Name  | Description | Type | Mandatory | Default |
+| :------------- | :------------- | :------------- | :------------- | :------------- |
+| <a id="with_popili_version-name"></a>name |  A unique name for this target.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
+| <a id="with_popili_version-target"></a>target |  The target to build with a specific popili version   | <a href="https://bazel.build/concepts/labels">Label</a> | required |  |
+| <a id="with_popili_version-version"></a>version |  The popili version to use (e.g., '1.5.0', '1.4.7')   | String | required |  |
+
+
+<a id="coco_package_generate"></a>
+
+## coco_package_generate
+
+<pre>
+load("@rules_coco//coco:defs.bzl", "coco_package_generate")
+
+coco_package_generate(<a href="#coco_package_generate-name">name</a>, <a href="#coco_package_generate-kwargs">**kwargs</a>)
+</pre>
+
+
+
+**PARAMETERS**
+
+
+| Name  | Description | Default Value |
+| :------------- | :------------- | :------------- |
+| <a id="coco_package_generate-name"></a>name |  <p align="center"> - </p>   |  none |
+| <a id="coco_package_generate-kwargs"></a>kwargs |  <p align="center"> - </p>   |  none |
+
+
+<a id="coco_package_verify_test"></a>
+
+## coco_package_verify_test
+
+<pre>
+load("@rules_coco//coco:defs.bzl", "coco_package_verify_test")
+
+coco_package_verify_test(<a href="#coco_package_verify_test-kwargs">**kwargs</a>)
+</pre>
+
+
+
+**PARAMETERS**
+
+
+| Name  | Description | Default Value |
+| :------------- | :------------- | :------------- |
+| <a id="coco_package_verify_test-kwargs"></a>kwargs |  <p align="center"> - </p>   |  none |
+
+
+<a id="coco_test_outputs_name"></a>
+
+## coco_test_outputs_name
+
+<pre>
+load("@rules_coco//coco:defs.bzl", "coco_test_outputs_name")
+
+coco_test_outputs_name(<a href="#coco_test_outputs_name-name">name</a>)
+</pre>
+
+
+
+**PARAMETERS**
+
+
+| Name  | Description | Default Value |
+| :------------- | :------------- | :------------- |
+| <a id="coco_test_outputs_name-name"></a>name |  <p align="center"> - </p>   |  none |
+
+

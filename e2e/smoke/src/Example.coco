@@ -1,0 +1,9 @@
+port Example {
+  function process() : Nil
+  machine { process() = {} }
+}
+
+@runtime(.MultiThreaded)
+external component ExampleComponent {
+  val client : Provided<Example>
+}

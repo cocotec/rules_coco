@@ -1,5 +1,21 @@
-# For windows we need proper runfiels
+# For windows we need proper runfiles
 startup --windows_enable_symlinks
 common --enable_runfiles=true
 
-common --enable_bzlmod=false
+# Enable platform-specific config (build:windows, build:linux, build:macos)
+common --enable_platform_specific_config
+
+common --enable_bzlmod=true
+common:bzlmod --enable_bzlmod=true
+common:workspace --repositories_without_autoloads=cc_compatibility_proxy
+common:workspace --enable_bzlmod=false
+common:workspace --enable_workspace=true
+common:workspace --deleted_packages=docs
+
+# CI config excludes docs to avoid building protobuf in test jobs
+common:ci --deleted_packages=docs
+
+# Windows-specific: Enable conforming preprocessor for proper macro handling
+build:windows --copt=/Zc:preprocessor
+build:windows --host_copt=/Zc:preprocessor
+build:windows --repo_env=BAZEL_SH

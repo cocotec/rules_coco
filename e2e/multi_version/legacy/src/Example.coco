@@ -1,0 +1,14 @@
+// Example Coco source for multi-version testing (legacy package)
+// This package explicitly uses popili 1.5.1
+
+port LegacyInterface {
+  function run() : Nil
+  machine {
+    run() = {}
+  }
+}
+
+@runtime(.SingleThreaded)
+external component LegacyComponent {
+  val client : Provided<LegacyInterface>
+}
