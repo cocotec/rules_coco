@@ -271,6 +271,11 @@ def _create_coco_wrapper_script(ctx, package, arguments):
 
     return wrapper_script
 
+# Export helper functions for use by other private modules (e.g., format.bzl)
+# These are implementation details and should not be used by end users
+create_coco_wrapper_script = _create_coco_wrapper_script
+coco_runfiles = _coco_runfiles
+
 def _coco_package_impl(ctx):
     if ctx.file.package.basename != "Coco.toml":
         fail("Package must point to a file called exactly 'Coco.toml'", attr = "package")

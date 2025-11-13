@@ -19,8 +19,8 @@ load(
     "COCO_TOOLCHAIN_TYPE",
     "CocoPackageInfo",
     "LICENSE_ATTRIBUTES",
-    "_coco_runfiles",
-    "_create_coco_wrapper_script",
+    "coco_runfiles",
+    "create_coco_wrapper_script",
 )
 
 def _coco_fmt_test_impl(ctx):
@@ -35,11 +35,11 @@ def _coco_fmt_test_impl(ctx):
         "--verify",
     ]
 
-    wrapper_script = _create_coco_wrapper_script(ctx, ctx.attr.package, arguments)
+    wrapper_script = create_coco_wrapper_script(ctx, ctx.attr.package, arguments)
 
     return DefaultInfo(
         executable = wrapper_script,
-        runfiles = ctx.runfiles(transitive_files = _coco_runfiles(ctx, ctx.attr.package, True)),
+        runfiles = ctx.runfiles(transitive_files = coco_runfiles(ctx, ctx.attr.package, True)),
     )
 
 _coco_fmt_test = rule(
@@ -96,11 +96,11 @@ def _coco_fmt_binary_impl(ctx):
         "format",
     ]
 
-    wrapper_script = _create_coco_wrapper_script(ctx, ctx.attr.package, arguments)
+    wrapper_script = create_coco_wrapper_script(ctx, ctx.attr.package, arguments)
 
     return DefaultInfo(
         executable = wrapper_script,
-        runfiles = ctx.runfiles(transitive_files = _coco_runfiles(ctx, ctx.attr.package, True)),
+        runfiles = ctx.runfiles(transitive_files = coco_runfiles(ctx, ctx.attr.package, True)),
     )
 
 _coco_fmt_binary = rule(
