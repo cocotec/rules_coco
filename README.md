@@ -54,7 +54,7 @@ http_archive(
 load("@rules_coco//coco:repositories.bzl", "coco_repositories")
 
 coco_repositories(
-    versions = ["stable"],  # Or specify explicit versions like ["1.5.1"]
+    version = "stable",  # Or specify a explicit version like "1.5.1"
     cc = True,
 )
 ```
@@ -234,6 +234,24 @@ coco_verify_test(
     package = ":my_package",
 )
 ```
+
+### Formatting
+
+Format checking can be integrated into your test suite using `coco_fmt_test`:
+
+```starlark
+load("@rules_coco//coco:defs.bzl", "coco_fmt_test")
+
+coco_fmt_test(
+    name = "my_package_fmt_test",
+    package = ":my_package",
+)
+```
+
+This creates two targets:
+
+- `my_package_fmt_test`: Test that fails if code isn't formatted (`bazel test`)
+- `my_package_fmt`: Binary to format code in-place (`bazel run`)
 
 ## License
 

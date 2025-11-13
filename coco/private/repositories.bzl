@@ -211,7 +211,10 @@ def _coco_deps(version, cc = False):
         coco_cc_repositories(version = version)
 
     coco_preferences_repository(name = "io_cocotec_coco_preferences")
-    coco_fetch_license_repository(name = "io_cocotec_licensing_fetch")
+    coco_fetch_license_repository(
+        name = "io_cocotec_licensing_fetch",
+        versions = [version],
+    )
     coco_symlink_license_repository(name = "io_cocotec_licensing_local")
 
 def coco_repositories(version = "stable", **kwargs):

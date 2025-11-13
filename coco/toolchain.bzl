@@ -41,7 +41,7 @@ coco_toolchain = rule(
             mandatory = True,
         ),
         "preferences_file": attr.label(
-            doc = "The location of the Coco Platform `preferences.toml` file. Can be a direct source or a filegroup containing one item.",
+            doc = "The location of the Popili `preferences.toml` file. Can be a direct source or a filegroup containing one item.",
             allow_single_file = True,
             default = "@io_cocotec_coco_preferences//:preferences",
         ),
