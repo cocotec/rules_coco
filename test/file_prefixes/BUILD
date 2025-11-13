@@ -11,8 +11,8 @@ coco_generate(
     name = "file_prefixes_test_cpp",
     language = "cpp",
     package = ":file_prefixes_test",
-    header_file_prefix = "api_",
-    impl_file_prefix = "impl_",
+    cpp_header_file_prefix = "api_",
+    cpp_implementation_file_prefix = "impl_",
 )
 
 coco_cc_library(
