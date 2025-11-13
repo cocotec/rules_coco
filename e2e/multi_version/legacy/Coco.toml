@@ -1,0 +1,10 @@
+[package]
+name = "legacy"
+sources = ["src"]
+
+[language]
+standard = "1"
+profiles = ["C++"]
+
+[generator]
+defaultLanguage = "C++"

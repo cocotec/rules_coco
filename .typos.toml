@@ -1,0 +1,26 @@
+[default]
+extend-ignore-re = [
+  # Ignore hex strings
+  "[0-9a-fA-F]{32,}",
+  # Ignore base64-like strings
+  "[A-Za-z0-9+/]{40,}",
+]
+
+[default.extend-words]
+# Add project-specific words here
+# Example: "cocotec" = "cocotec"
+coco = "coco"
+popili = "popili"
+cocotec = "cocotec"
+bazel = "bazel"
+bzlmod = "bzlmod"
+starlark = "starlark"
+
+[files]
+extend-exclude = [
+  "*.bzl.lock",
+  "*.bazel.lock",
+  "MODULE.bazel.lock",
+  "bazel-*",
+  "*.sha256",
+]

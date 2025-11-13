@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Public API for Coco repository rules."""
+
 load(
     "//coco/private:repositories.bzl",
     _coco_repositories = "coco_repositories",

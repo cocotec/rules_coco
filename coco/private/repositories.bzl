@@ -12,13 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
-load(":known_shas.bzl", "FILE_KEY_TO_SHA")
+"""WORKSPACE-mode repository rules for Coco toolchains."""
 
-KNOWN_VERSION_SUFFIXES = [
-    "_6",
-    "",
-]
+load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+load(
+    ":common_repositories.bzl",
+    "KNOWN_VERSION_SUFFIXES",
+    "coco_cc_repositories",
+    "coco_fetch_license_repository",
+    "coco_preferences_repository",
+    "coco_symlink_license_repository",
+    "download_prefix",
+    "version_to_repo_suffix",
+)
+load(":known_shas.bzl", "FILE_KEY_TO_SHA")
 
 def BUILD_for_toolchain(name, parent_workspace_name, constraints):
     return """
@@ -34,24 +41,33 @@ toolchain(
         parent_workspace_name = parent_workspace_name,
     )
 
-def BUILD_for_coco_toolchain(workspace_name, name):
+def BUILD_for_coco_toolchain(name, cc_runtime_label = None):
     """Emits a toolchain declaration to match an existing compiler and stdlib.
 
     Args:
-      workspace_name: The name of the workspace that this toolchain resides in
       name: The name of the toolchain declaration
+      cc_runtime_label: Optional label to the C++ runtime library (can be a Label object or string)
+
+    Returns:
+      A string containing BUILD file content for the toolchain.
     """
+
+    # Use relative labels since coco and cocotec_licensing_server are defined
+    # in the same BUILD file. This works in both WORKSPACE and bzlmod.
+    cc_runtime_attr = ""
+    if cc_runtime_label:
+        cc_runtime_attr = '\n    cc_runtime = "{}",'.format(str(cc_runtime_label))
 
     return """
 coco_toolchain(
     name = "{toolchain_name}_impl",
-    coco = "@{workspace_name}//:coco",
-    cocotec_licensing_server = "@{workspace_name}//:cocotec_licensing_server",
+    coco = "//:coco",
+    cocotec_licensing_server = "//:cocotec_licensing_server",{cc_runtime_attr}
     visibility = ["//visibility:public"],
 )
 """.format(
         toolchain_name = name,
-        workspace_name = workspace_name,
+        cc_runtime_attr = cc_runtime_attr,
     )
 
 def BUILD_for_coco_archive(binary_ext, product):
@@ -87,12 +103,6 @@ def _product_for(version):
         return "coco"
     return "popili"
 
-def download_prefix(version):
-    parts = version.split("-")[0].split(".")
-    if len(parts) >= 2:
-        return "archive/%s" % version
-    return version
-
 def _coco_toolchain_repository_impl(ctx):
     """The implementation of the coco toolchain repository rule."""
 
@@ -116,7 +126,7 @@ def _coco_toolchain_repository_impl(ctx):
         BUILD_for_coco_archive(binary_ext = _platform_binary_ext(ctx.attr.os), product = product),
         BUILD_for_coco_toolchain(
             name = "toolchain",
-            workspace_name = ctx.attr.name,
+            cc_runtime_label = ctx.attr.cc_runtime_label,
         ),
     ]))
 
@@ -135,6 +145,10 @@ def _coco_toolchain_repository_proxy_impl(ctx):
 coco_toolchain_repository = repository_rule(
     attrs = {
         "arch": attr.string(mandatory = True),
+        "cc_runtime_label": attr.label(
+            doc = "Optional label to the C++ runtime library",
+            default = None,
+        ),
         "os": attr.string(mandatory = True),
         "version": attr.string(mandatory = True),
     },
@@ -143,8 +157,8 @@ coco_toolchain_repository = repository_rule(
 
 coco_toolchain_repository_proxy = repository_rule(
     attrs = {
-        "parent_workspace_name": attr.string(mandatory = True),
         "constraints": attr.string_list(),
+        "parent_workspace_name": attr.string(mandatory = True),
     },
     implementation = _coco_toolchain_repository_proxy_impl,
     # This ensures this is run on fetch, allowing us to refresh the license token
@@ -152,12 +166,13 @@ coco_toolchain_repository_proxy = repository_rule(
     configure = True,
 )
 
-def coco_repository_set(name, version, os, arch, constraints):
+def coco_repository_set(name, version, os, arch, constraints, cc_runtime_label = None):
     coco_toolchain_repository(
         arch = arch,
         os = os,
         name = name,
         version = version,
+        cc_runtime_label = cc_runtime_label,
     )
 
     coco_toolchain_repository_proxy(
@@ -171,146 +186,52 @@ def coco_repository_set(name, version, os, arch, constraints):
         name = name,
     ))
 
-def _platform_license_file(ctx, version_suffix):
-    if "os x" in ctx.os.name:
-        return "%s/Library/Application Support/Coco Platform/licenses%s.lic" % (ctx.os.environ.get("HOME"), version_suffix)
-    if "windows" in ctx.os.name:
-        return "%s\\..\\LocalLow\\Coco Platform\\licenses%s.lic" % (ctx.os.environ.get("APPDATA"), version_suffix)
-    return "%s/.local/share/coco_platform/licenses%s.lic" % (ctx.os.environ.get("HOME"), version_suffix)
-
-def _coco_fetch_license_repository_impl(ctx):
-    """Creates a repository to allow users to easily acquire new licenses"""
-    ctx.file("WORKSPACE", "")
-    auth_token = ctx.os.environ.get("COCOTEC_AUTH_TOKEN", "")
-    if not auth_token:
-        fail("cannot fetch a license without COCOTEC_AUTH_TOKEN; set this environment variable or use a different licensing mode")
-    ctx.file("auth_token.secret", auth_token)
-    ctx.file("BUILD", """
-load("@rules_coco//coco/private:licensing.bzl", "fetch_license")
-
-fetch_license(
-    name = "licenses",
-    product = "coco-platform",
-    auth_token = "auth_token.secret",
-    tags = ["manual"],
-    visibility = ["//visibility:public"],
-)
-""")
-
-_coco_fetch_license_repository = repository_rule(
-    attrs = {
-    },
-    implementation = _coco_fetch_license_repository_impl,
-    environ = ["APPDATA", "HOME"],
-    local = True,
-)
-
-def _coco_symlink_license_repository_impl(ctx):
-    """Creates a repository to allow users to easily acquire new licenses"""
-    ctx.file("WORKSPACE", "")
-    build_content = ""
-    for suffix in KNOWN_VERSION_SUFFIXES:
-        file = ctx.path(_platform_license_file(ctx, suffix))
-        if file.exists:
-            ctx.symlink(file, file.basename)
-            build_content += """
-filegroup(
-    name = "licenses",
-    srcs = ["%s"],
-    visibility = ["//visibility:public"],
-)
-""" % (file.basename)
-            break
-
-    if build_content == "":
-        fail("Could not find a license for Popili")
-
-    ctx.file("BUILD", build_content)
-
-_coco_symlink_license_repository = repository_rule(
-    attrs = {
-    },
-    implementation = _coco_symlink_license_repository_impl,
-    environ = ["APPDATA", "HOME"],
-    local = True,
-)
-
-def _coco_preferences_repository_impl(ctx):
-    """Creates a repository to allow users to easily acquire new licenses"""
-    ctx.file("preferences.toml", "")
-    ctx.file("WORKSPACE", "")
-    ctx.file("BUILD", """
-filegroup(
-    name = "preferences",
-    srcs = ["preferences.toml"],
-    visibility = ["//visibility:public"],
-)
-""")
-
-_coco_preferences_repository = repository_rule(
-    attrs = {},
-    implementation = _coco_preferences_repository_impl,
-)
-
-def _coco_cc_repositories(version):
-    http_archive(
-        name = "io_cocotec_coco_cc_runtime",
-        urls = [
-            "https://dl.cocotec.io/popili/{download_prefix}/coco-cpp-runtime.zip".format(download_prefix = download_prefix(version)),
-        ],
-        sha256 = FILE_KEY_TO_SHA.get("{version}/coco-cpp-runtime.zip".format(version = version)),
-        build_file_content = """
-cc_library(
-    name = "runtime",
-    hdrs = glob(["coco/*.h"], exclude = ["coco/gmock_helpers.h"]),
-    srcs = glob(["coco/src/*.cc"]),
-    visibility = ["//visibility:public"],
-)
-
-cc_library(
-    name = "testing",
-    hdrs = ["coco/gmock_helpers.h"],
-    deps = [
-      ":runtime",
-    ],
-    visibility = ["//visibility:public"],
-)
-""",
-    )
-
 def _coco_deps(version, cc = False):
     if not "bazel_skylib" in native.existing_rules():
         http_archive(
             name = "bazel_skylib",
             urls = [
-                "https://mirror.bazel.build/github.com/bazelbuild/bazel-skylib/releases/download/1.0.2/bazel-skylib-1.0.2.tar.gz",
-                "https://github.com/bazelbuild/bazel-skylib/releases/download/1.0.2/bazel-skylib-1.0.2.tar.gz",
+                "https://mirror.bazel.build/github.com/bazelbuild/bazel-skylib/releases/download/1.8.1/bazel-skylib-1.8.1.tar.gz",
+                "https://github.com/bazelbuild/bazel-skylib/releases/download/1.8.1/bazel-skylib-1.8.1.tar.gz",
             ],
-            sha256 = "97e70364e9249702246c0e9444bccdc4b847bed1eb03c5a3ece4f83dfe6abc44",
+            sha256 = "51b5105a760b353773f904d2bbc5e664d0987fbaf22265164de65d43e910d8ac",
         )
 
     if not "platforms" in native.existing_rules():
         http_archive(
             name = "platforms",
             urls = [
-                "https://mirror.bazel.build/github.com/bazelbuild/platforms/releases/download/0.0.7/platforms-0.0.7.tar.gz",
-                "https://github.com/bazelbuild/platforms/releases/download/0.0.7/platforms-0.0.7.tar.gz",
+                "https://mirror.bazel.build/github.com/bazelbuild/platforms/releases/download/1.0.0/platforms-1.0.0.tar.gz",
+                "https://github.com/bazelbuild/platforms/releases/download/1.0.0/platforms-1.0.0.tar.gz",
             ],
-            sha256 = "3a561c99e7bdbe9173aa653fd579fe849f1d8d67395780ab4770b1f381431d51",
+            sha256 = "3384eb1c30762704fbe38e440204e114154086c8fc8a8c2e3e28441028c019a8",
         )
 
     if cc:
-        _coco_cc_repositories(version = version)
+        coco_cc_repositories(version = version)
 
-    _coco_preferences_repository(name = "io_cocotec_coco_preferences")
-    _coco_fetch_license_repository(name = "io_cocotec_licensing_fetch")
-    _coco_symlink_license_repository(name = "io_cocotec_licensing_local")
+    coco_preferences_repository(name = "io_cocotec_coco_preferences")
+    coco_fetch_license_repository(name = "io_cocotec_licensing_fetch")
+    coco_symlink_license_repository(name = "io_cocotec_licensing_local")
 
 def coco_repositories(version = "stable", **kwargs):
+    """Sets up Coco toolchain repositories for WORKSPACE mode.
+
+    Args:
+      version: The Coco version to use (default: "stable").
+      **kwargs: Additional arguments including 'cc' for C++ support.
+    """
+    cc = kwargs.get("cc", False)
     _coco_deps(
         version = version,
         **kwargs
     )
+
+    # Determine cc_runtime_label if CC support is enabled
+    cc_runtime_label = None
+    if cc:
+        version_suffix = version_to_repo_suffix(version)
+        cc_runtime_label = "@io_cocotec_coco_cc_runtime__%s//:runtime" % version_suffix
 
     for (os, arch) in [
         ("osx", "aarch64"),
@@ -328,6 +249,7 @@ def coco_repositories(version = "stable", **kwargs):
                 "@platforms//os:%s" % os,
                 "@platforms//cpu:%s" % arch,
             ],
+            cc_runtime_label = cc_runtime_label,
         )
 
 def coco_local_repository_set(name, path):
@@ -338,7 +260,6 @@ def coco_local_repository_set(name, path):
             BUILD_for_coco_archive(binary_ext = "", product = "popili"),
             BUILD_for_coco_toolchain(
                 name = "toolchain",
-                workspace_name = name,
             ),
         ]),
         workspace_file_content = "",

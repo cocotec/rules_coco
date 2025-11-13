@@ -1,0 +1,14 @@
+// Example Coco source for multi-version testing (flexible package)
+// This package uses version 1.5.0
+
+port FlexibleInterface {
+  function execute() : Nil
+  machine {
+    execute() = {}
+  }
+}
+
+@runtime(.SingleThreaded)
+external component FlexibleComponent {
+  val client : Provided<FlexibleInterface>
+}

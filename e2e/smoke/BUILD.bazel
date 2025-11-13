@@ -1,0 +1,54 @@
+# E2E smoke test BUILD file
+# Tests basic rules_coco functionality including C++ code generation and execution
+
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_test")
+load("@rules_coco//coco:cc.bzl", "coco_cc_library", "coco_cc_test_library")
+load("@rules_coco//coco:defs.bzl", "coco_package", "coco_package_generate", "coco_package_verify_test")
+
+# Define Coco package
+coco_package(
+    name = "smoke",
+    srcs = glob(["src/**/*.coco"]),
+    package = "Coco.toml",
+)
+
+# Verify the Coco package
+coco_package_verify_test(
+    name = "smoke_verify",
+    package = ":smoke",
+)
+
+# Generate C++ code from Coco
+coco_package_generate(
+    name = "smoke_cpp",
+    language = "cpp",
+    mocks = True,
+    package = ":smoke",
+)
+
+# Create C++ library from generated code
+coco_cc_library(
+    name = "smoke_cc",
+    generated_package = ":smoke_cpp",
+)
+
+# Create C++ test library with mocks
+coco_cc_test_library(
+    name = "smoke_cc_tst",
+    generated_package = ":smoke_cpp",
+    deps = [":smoke_cc"],
+)
+
+# C++ binary that uses the generated code
+cc_binary(
+    name = "smoke_bin",
+    srcs = ["test/main.cc"],
+    deps = [":smoke_cc"],
+)
+
+# C++ unit test with GoogleTest
+cc_test(
+    name = "smoke_test",
+    srcs = ["test/smoke_test.cc"],
+    deps = [":smoke_cc_tst"],
+)

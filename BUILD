@@ -13,7 +13,7 @@
 # limitations under the License.
 
 load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
-load("@rules_coco//coco/private:licensing.bzl", "LICENSE_SOURCES")
+load("@rules_coco//coco:defs.bzl", "LICENSE_SOURCES")
 
 string_flag(
     name = "license_source",
@@ -39,3 +39,18 @@ string_flag(
     ],
     visibility = ["//visibility:public"],
 )
+
+# Build flag for selecting the coco toolchain version
+# The default value is set by the extension based on the first registered version
+# If no versions are registered, it defaults to the current stable version (1.5.1)
+string_flag(
+    name = "version",
+    build_setting_default = "1.5.1",
+    visibility = ["//visibility:public"],
+)
+
+# Export version files for test access and external consumption
+exports_files([
+    "version.bzl",
+    "MODULE.bazel",
+])

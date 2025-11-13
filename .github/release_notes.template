@@ -1,6 +1,22 @@
 # {version}
 
-## WORKSPACE
+## Setup
+
+**Bzlmod** (add to your `MODULE.bazel`):
+
+```python
+bazel_dep(name = "rules_coco")
+archive_override(
+    module_name = "rules_coco",
+    urls = ["https://github.com/cocotec/rules_coco/releases/download/{version}/rules_coco_{version}.tar.gz"],
+    integrity = "sha256-{sha256_base64}",
+)
+
+coco = use_extension("@rules_coco//coco:extensions.bzl", "coco")
+coco.toolchain(versions = ["stable"], cc = True)
+```
+
+**WORKSPACE** (deprecated):
 
 ```python
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
@@ -8,6 +24,9 @@ load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 http_archive(
     name = "rules_coco",
     integrity = "sha256-{sha256_base64}",
-    urls = ["https://dl.cocotec.io/rules_coco/rules_coco_{version}.tar.gz"],
+    urls = ["https://github.com/cocotec/rules_coco/releases/download/{version}/rules_coco_{version}.tar.gz"],
 )
+
+load("@rules_coco//coco:repositories.bzl", "coco_repositories")
+coco_repositories(version = "1.5.1", cc = True)
 ```

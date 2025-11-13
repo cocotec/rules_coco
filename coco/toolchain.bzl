@@ -12,17 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Coco toolchain implementation."""
+
 def _coco_toolchain_impl(ctx):
     toolchain = platform_common.ToolchainInfo(
         coco = ctx.file.coco,
         cocotec_licensing_server = ctx.file.cocotec_licensing_server,
         preferences_file = ctx.file.preferences_file,
+        cc_runtime = ctx.attr.cc_runtime,
     )
     return toolchain
 
 coco_toolchain = rule(
     _coco_toolchain_impl,
     attrs = {
+        "cc_runtime": attr.label(
+            doc = "The C++ runtime library for Coco. Optional - only needed when using coco_cc_library.",
+            default = None,
+        ),
         "coco": attr.label(
             doc = "The location of the `coco` binary. Can be a direct source or a filegroup containing one item.",
             allow_single_file = True,

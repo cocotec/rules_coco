@@ -1,55 +1,195 @@
 name: CI
-
 on:
   pull_request:
   push:
     branches:
       - "develop"
-
 jobs:
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install pre-commit
+        run: pip install pre-commit
+      - name: Run pre-commit hooks
+        run: pre-commit run --all-files
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: bazel-contrib/setup-bazel@7d9487bea505c4779367dc5b21dfc4dc6a02d21d
+      - name: Generate documentation
+        run: bazel build //docs:docs
+        env:
+          USE_BAZEL_VERSION: "8.4.2"
+      - name: Check docs are up-to-date
+        run: |
+          # Generate docs to bazel-bin
+          # Compare with committed docs
+          for file in bazel-bin/docs/*.md; do
+            basename=$(basename "$file")
+            if ! diff -q "$file" "docs/$basename"; then
+              echo "Error: docs/$basename is out of date"
+              echo "Run: bazel build //docs:docs && cp bazel-bin/docs/*.md docs/"
+              exit 1
+            fi
+          done
+        shell: bash
   test:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        bazel_version: ["7.1.0", "6.5.0"]
-        license_source: ["local_acquire"]
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        verification_backend: ["local", "remote"]
-
+        # Strategic test matrix (12 jobs total):
+        # - WORKSPACE mode: Bazel 8.4.2 (deprecated but supported on current LTS)
+        # - bzlmod mode: Bazel 8.4.2 (current LTS) and 9.0.0rc2 (next major)
+        # - All 3 OSes (ubuntu, macos, windows) with remote verification (9 jobs)
+        # - Ubuntu only with local verification (3 jobs)
+        include:
+          # Remote verification: all OSes, all configs (9 jobs)
+          - {
+              os: ubuntu-latest,
+              bazel_version: "8.4.2",
+              build_system: "workspace",
+              verification_backend: "remote",
+            }
+          - {
+              os: macos-latest,
+              bazel_version: "8.4.2",
+              build_system: "workspace",
+              verification_backend: "remote",
+            }
+          - {
+              os: windows-latest,
+              bazel_version: "8.4.2",
+              build_system: "workspace",
+              verification_backend: "remote",
+            }
+          - {
+              os: ubuntu-latest,
+              bazel_version: "8.4.2",
+              build_system: "bzlmod",
+              verification_backend: "remote",
+            }
+          - {
+              os: macos-latest,
+              bazel_version: "8.4.2",
+              build_system: "bzlmod",
+              verification_backend: "remote",
+            }
+          - {
+              os: windows-latest,
+              bazel_version: "8.4.2",
+              build_system: "bzlmod",
+              verification_backend: "remote",
+            }
+          - {
+              os: ubuntu-latest,
+              bazel_version: "9.0.0rc2",
+              build_system: "bzlmod",
+              verification_backend: "remote",
+            }
+          - {
+              os: macos-latest,
+              bazel_version: "9.0.0rc2",
+              build_system: "bzlmod",
+              verification_backend: "remote",
+            }
+          - {
+              os: windows-latest,
+              bazel_version: "9.0.0rc2",
+              build_system: "bzlmod",
+              verification_backend: "remote",
+            }
+          # Local verification: ubuntu only, all configs (3 jobs)
+          - {
+              os: ubuntu-latest,
+              bazel_version: "8.4.2",
+              build_system: "workspace",
+              verification_backend: "local",
+            }
+          - {
+              os: ubuntu-latest,
+              bazel_version: "8.4.2",
+              build_system: "bzlmod",
+              verification_backend: "local",
+            }
+          - {
+              os: ubuntu-latest,
+              bazel_version: "9.0.0rc2",
+              build_system: "bzlmod",
+              verification_backend: "local",
+            }
     permissions:
       contents: read
       id-token: write
-
     steps:
       - uses: actions/checkout@v4
-
       - uses: bazel-contrib/setup-bazel@7d9487bea505c4779367dc5b21dfc4dc6a02d21d
-
-      - run: >-
+      - name: Test root workspace
+        run: |
           export COCOTEC_AUTH_TOKEN="{\"external\": { \
             \"connection_id\": \"6143ef52-0286-4d9e-9176-92ab2020bbd3\", \
             \"github\": { \
               \"url\": \"${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=\${audience}\", \
               \"authorization\": \"bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}\" \
             }}}"
-
-          bazel
-          test
-          --color=yes
-          --keep_going
-          --test_output=errors
-          --@rules_coco//:license_source=${{ matrix.license_source }}
-          --@rules_coco//:verification_backend=${{ matrix.verification_backend }}
-          //...
+          bazel test --config=ci --config=${{ matrix.build_system }} --repo_env=COCOTEC_AUTH_TOKEN --color=yes --keep_going --test_output=errors --@rules_coco//:license_source=local_acquire --@rules_coco//:verification_backend=${{ matrix.verification_backend }} //...
         shell: bash
         env:
           USE_BAZEL_VERSION: ${{ matrix.bazel_version }}
-
+          BAZEL_SH: C:\msys64\usr\bin\bash.exe
+      - name: Test e2e/smoke
+        run: |
+          cd e2e/smoke
+          export COCOTEC_AUTH_TOKEN="{\"external\": { \
+            \"connection_id\": \"6143ef52-0286-4d9e-9176-92ab2020bbd3\", \
+            \"github\": { \
+              \"url\": \"${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=\${audience}\", \
+              \"authorization\": \"bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}\" \
+            }}}"
+          bazel test \
+            --config=${{ matrix.build_system }} \
+            --repo_env=COCOTEC_AUTH_TOKEN \
+            --color=yes \
+            --keep_going \
+            --test_output=errors \
+            --@rules_coco//:license_source=local_acquire \
+            --@rules_coco//:verification_backend=${{ matrix.verification_backend }} \
+            //...
+        shell: bash
+        env:
+          USE_BAZEL_VERSION: ${{ matrix.bazel_version }}
+          BAZEL_SH: C:\msys64\usr\bin\bash.exe
+      - name: Test e2e/multi_version
+        run: |
+          cd e2e/multi_version
+          export COCOTEC_AUTH_TOKEN="{\"external\": { \
+            \"connection_id\": \"6143ef52-0286-4d9e-9176-92ab2020bbd3\", \
+            \"github\": { \
+              \"url\": \"${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=\${audience}\", \
+              \"authorization\": \"bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}\" \
+            }}}"
+          bazel test \
+            --config=${{ matrix.build_system }} \
+            --repo_env=COCOTEC_AUTH_TOKEN \
+            --color=yes \
+            --keep_going \
+            --test_output=errors \
+            --@rules_coco//:license_source=local_acquire \
+            --@rules_coco//:verification_backend=${{ matrix.verification_backend }} \
+            //...
+        shell: bash
+        env:
+          USE_BAZEL_VERSION: ${{ matrix.bazel_version }}
+          BAZEL_SH: C:\msys64\usr\bin\bash.exe
   # This allows us to have a branch protection rule for tests and deploys with matrix
   build:
-    runs-on: ubuntu-20.04
-    needs: [test]
+    runs-on: ubuntu-latest
+    needs: [pre-commit, docs, test]
     steps:
       - name: Successful build
         if: ${{ !(contains(needs.*.result, 'failure')) }}
