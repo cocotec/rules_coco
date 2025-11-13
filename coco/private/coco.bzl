@@ -496,12 +496,25 @@ def coco_verify_test(**kwargs):
 
 def _add_outputs(ctx, outputs, mock_outputs, src):
     if ctx.attr.language == "cpp":
-        if ctx.attr.mocks:
-            for ext in ["Mock" + ctx.attr.header_extension, "Mock" + ctx.attr.impl_extension]:
-                mock_outputs.append(ctx.actions.declare_file(paths.replace_extension(src.basename, ext), sibling = src))
+        # Get the base name without extension
+        base_name = paths.split_extension(src.basename)[0]
 
-        for ext in [ctx.attr.header_extension, ctx.attr.impl_extension]:
-            outputs.append(ctx.actions.declare_file(paths.replace_extension(src.basename, ext), sibling = src))
+        if ctx.attr.mocks:
+            # Mock header
+            mock_header_name = ctx.attr.header_file_prefix + base_name + "Mock" + ctx.attr.header_extension
+            mock_outputs.append(ctx.actions.declare_file(mock_header_name, sibling = src))
+
+            # Mock implementation
+            mock_impl_name = ctx.attr.impl_file_prefix + base_name + "Mock" + ctx.attr.impl_extension
+            mock_outputs.append(ctx.actions.declare_file(mock_impl_name, sibling = src))
+
+        # Regular header
+        header_name = ctx.attr.header_file_prefix + base_name + ctx.attr.header_extension
+        outputs.append(ctx.actions.declare_file(header_name, sibling = src))
+
+        # Regular implementation
+        impl_name = ctx.attr.impl_file_prefix + base_name + ctx.attr.impl_extension
+        outputs.append(ctx.actions.declare_file(impl_name, sibling = src))
     else:
         fail("unrecognised language")
 
@@ -588,6 +601,8 @@ _coco_generate = rule(
         ),
         "header_extension": attr.string(default = ".h"),
         "impl_extension": attr.string(default = ".cc"),
+        "header_file_prefix": attr.string(default = ""),
+        "impl_file_prefix": attr.string(default = ""),
     }.items()),
     toolchains = [
         COCO_TOOLCHAIN_TYPE,
