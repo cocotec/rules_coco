@@ -2,30 +2,6 @@
 
 Public API for Coco package rules and code generation.
 
-<a id="coco_package"></a>
-
-## coco_package
-
-<pre>
-load("@rules_coco//coco:defs.bzl", "coco_package")
-
-coco_package(<a href="#coco_package-name">name</a>, <a href="#coco_package-deps">deps</a>, <a href="#coco_package-srcs">srcs</a>, <a href="#coco_package-package">package</a>, <a href="#coco_package-test_srcs">test_srcs</a>)
-</pre>
-
-
-
-**ATTRIBUTES**
-
-
-| Name  | Description | Type | Mandatory | Default |
-| :------------- | :------------- | :------------- | :------------- | :------------- |
-| <a id="coco_package-name"></a>name |  A unique name for this target.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
-| <a id="coco_package-deps"></a>deps |  -   | <a href="https://bazel.build/concepts/labels">List of labels</a> | optional |  `[]`  |
-| <a id="coco_package-srcs"></a>srcs |  -   | <a href="https://bazel.build/concepts/labels">List of labels</a> | required |  |
-| <a id="coco_package-package"></a>package |  -   | <a href="https://bazel.build/concepts/labels">Label</a> | required |  |
-| <a id="coco_package-test_srcs"></a>test_srcs |  -   | <a href="https://bazel.build/concepts/labels">List of labels</a> | optional |  `[]`  |
-
-
 <a id="with_popili_version"></a>
 
 ## with_popili_version
@@ -111,6 +87,27 @@ coco_generate(<a href="#coco_generate-name">name</a>, <a href="#coco_generate-kw
 | :------------- | :------------- | :------------- |
 | <a id="coco_generate-name"></a>name |  <p align="center"> - </p>   |  none |
 | <a id="coco_generate-kwargs"></a>kwargs |  <p align="center"> - </p>   |  none |
+
+
+<a id="coco_package"></a>
+
+## coco_package
+
+<pre>
+load("@rules_coco//coco:defs.bzl", "coco_package")
+
+coco_package(<a href="#coco_package-name">name</a>, <a href="#coco_package-kwargs">**kwargs</a>)
+</pre>
+
+Define a Coco package from Coco.toml and .coco source files.
+
+**PARAMETERS**
+
+
+| Name  | Description | Default Value |
+| :------------- | :------------- | :------------- |
+| <a id="coco_package-name"></a>name |  Name of the package target   |  none |
+| <a id="coco_package-kwargs"></a>kwargs |  Additional arguments passed to the underlying rule   |  none |
 
 
 <a id="coco_test_outputs_name"></a>

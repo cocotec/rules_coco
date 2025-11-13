@@ -187,6 +187,19 @@ coco_package(
 )
 ```
 
+To enable type checking as part of the build, add `typecheck = True`:
+
+```starlark
+coco_package(
+    name = "my_package",
+    srcs = glob(["*.coco"]),
+    manifest = "Coco.toml",
+    typecheck = True,  # Validates types before code generation
+)
+```
+
+When enabled, any target depending on this package (such as `coco_generate`) will wait for typecheck to pass.
+
 ### Generating Code
 
 To generate C++ code:
