@@ -14,7 +14,7 @@
 
 load("@rules_cc//cc:defs.bzl", "cc_test")
 load("@rules_coco//coco:cc.bzl", "coco_cc_library", "coco_cc_test_library")
-load("@rules_coco//coco:defs.bzl", "coco_package", "coco_generate", "coco_verify_test")
+load("@rules_coco//coco:defs.bzl", "coco_generate", "coco_package", "coco_verify_test")
 
 coco_package(
     name = "base",

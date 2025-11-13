@@ -3,7 +3,7 @@
 # using the with_popili_version() wrapper
 
 load("@rules_coco//coco:cc.bzl", "coco_cc_library")
-load("@rules_coco//coco:defs.bzl", "coco_package", "coco_generate", "coco_verify_test", "with_popili_version")
+load("@rules_coco//coco:defs.bzl", "coco_generate", "coco_package", "coco_verify_test", "with_popili_version")
 
 # Modern package - uses 1.5.0
 coco_package(

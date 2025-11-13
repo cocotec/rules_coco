@@ -16,10 +16,10 @@
 
 load(
     "//coco/private:coco.bzl",
-    _coco_package = "coco_package",
     _coco_generate = "coco_generate",
-    _coco_verify_test = "coco_verify_test",
+    _coco_package = "coco_package",
     _coco_test_outputs_name = "coco_test_outputs_name",
+    _coco_verify_test = "coco_verify_test",
     _with_popili_version = "with_popili_version",
 )
 load(
