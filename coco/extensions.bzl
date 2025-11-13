@@ -16,6 +16,7 @@
 
 load(
     "//coco/private:common_repositories.bzl",
+    "coco_c_runtime_repository",
     "coco_cc_runtime_repository",
     "coco_fetch_license_repository",
     "coco_preferences_repository",
@@ -131,11 +132,13 @@ def _toolchain_tag_impl(ctx):
     # Merge versions from all modules to support different modules requesting different versions
     all_versions = []
     cc = False
+    c = False
 
     for mod in ctx.modules:
         for toolchain in mod.tags.toolchain:
             all_versions.extend(toolchain.versions)
             cc = cc or toolchain.cc
+            c = c or toolchain.c
 
     # Resolve version aliases (like "stable" -> "1.5.1") and deduplicate
     # Keep track of both original and resolved versions for config_settings
@@ -175,6 +178,13 @@ def _toolchain_tag_impl(ctx):
                 version = version,
             )
 
+        # Set up C runtime if requested (version-specific)
+        if c:
+            coco_c_runtime_repository(
+                name = "io_cocotec_coco_c_runtime__%s" % version_suffix,
+                version = version,
+            )
+
         # Set up toolchains for all platforms
         for (os, arch) in [
             ("osx", "aarch64"),
@@ -191,12 +201,18 @@ def _toolchain_tag_impl(ctx):
             if cc:
                 cc_runtime_label = "@io_cocotec_coco_cc_runtime__%s//:runtime" % version_suffix
 
+            # Determine c_runtime_label if C support is enabled
+            c_runtime_label = None
+            if c:
+                c_runtime_label = "@io_cocotec_coco_c_runtime__%s//:runtime" % version_suffix
+
             coco_toolchain_repository(
                 name = repo_name,
                 arch = arch,
                 os = os,
                 version = version,
                 cc_runtime_label = cc_runtime_label,
+                c_runtime_label = c_runtime_label,
             )
 
             constraints = [
@@ -236,6 +252,10 @@ def _toolchain_tag_impl(ctx):
 
 _toolchain_tag = tag_class(
     attrs = {
+        "c": attr.bool(
+            default = False,
+            doc = "Whether to include C runtime support",
+        ),
         "cc": attr.bool(
             default = False,
             doc = "Whether to include C++ runtime support",

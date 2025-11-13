@@ -31,7 +31,8 @@ archive_override(
 coco = use_extension("@rules_coco//coco:extensions.bzl", "coco")
 coco.toolchain(
     versions = ["stable"],  # Or specify explicit versions like ["1.5.1"]
-    cc = True,
+    c = True,   # Enable C runtime (for coco_c_library)
+    cc = True,  # Enable C++ runtime (for coco_cc_library)
 )
 ```
 
@@ -55,7 +56,8 @@ load("@rules_coco//coco:repositories.bzl", "coco_repositories")
 
 coco_repositories(
     version = "stable",  # Or specify a explicit version like "1.5.1"
-    cc = True,
+    c = True,   # Enable C runtime (for coco_c_library)
+    cc = True,  # Enable C++ runtime (for coco_cc_library)
 )
 ```
 
@@ -113,6 +115,7 @@ There are several ways of setting the version of Popili that you would like to u
    ```starlark
    coco = use_extension("@rules_coco//coco:extensions.bzl", "coco")
    coco.toolchain(
+       c = True,
        cc = True,
        versions = ["1.5.0", "1.4.0"],  # Register both versions
    )
@@ -202,6 +205,8 @@ When enabled, any target depending on this package (such as `coco_generate`) wil
 
 ### Generating Code
 
+#### C++ Code Generation
+
 To generate C++ code:
 
 ```starlark
@@ -229,9 +234,38 @@ cc_library(
 Alternatively these steps can be combined using `coco_cc_library`:
 
 ```starlark
+load("@rules_coco//coco:cc.bzl", "coco_cc_library")
+
 coco_cc_library(
     name = "my_package_cc",
-    generated_package = ":base_cpp",
+    generated_package = ":my_package_cc_src",
+)
+```
+
+# <<<<<<< HEAD
+
+#### C Code Generation
+
+To generate C code:
+
+```starlark
+load("@rules_coco//coco:defs.bzl", "coco_generate")
+
+coco_generate(
+    name = "my_package_c_src",
+    language = "c",
+    package = ":my_package",
+)
+```
+
+This can be compiled using `coco_c_library`:
+
+```starlark
+load("@rules_coco//coco:c.bzl", "coco_c_library")
+
+coco_c_library(
+    name = "my_package_c",
+    generated_package = ":my_package_c_src",
 )
 ```
 
@@ -262,6 +296,12 @@ coco_generate(
 
 | Coco.toml Setting                           | `coco_generate` Attribute           |
 | ------------------------------------------- | ----------------------------------- |
+| `generator.c.headerFileExtension`           | `c_header_file_extension`           |
+| `generator.c.implementationFileExtension`   | `c_implementation_file_extension`   |
+| `generator.c.headerFilePrefix`              | `c_header_file_prefix`              |
+| `generator.c.implementationFilePrefix`      | `c_implementation_file_prefix`      |
+| `generator.c.fileNameMangler`               | `c_file_name_mangler`               |
+| `generator.c.flatFileHierarchy`             | `c_flat_file_hierarchy`             |
 | `generator.cpp.headerFileExtension`         | `cpp_header_file_extension`         |
 | `generator.cpp.implementationFileExtension` | `cpp_implementation_file_extension` |
 | `generator.cpp.headerFilePrefix`            | `cpp_header_file_prefix`            |

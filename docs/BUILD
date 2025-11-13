@@ -32,6 +32,13 @@ stardoc(
 )
 
 stardoc(
+    name = "c",
+    out = "c.md",
+    input = "//coco:c.bzl",
+    deps = ["//coco:c"],
+)
+
+stardoc(
     name = "repositories",
     out = "repositories.md",
     input = "//coco:repositories.bzl",
@@ -42,6 +49,7 @@ stardoc(
 filegroup(
     name = "docs",
     srcs = [
+        "c.md",
         "cc.md",
         "defs.md",
         "repositories.md",

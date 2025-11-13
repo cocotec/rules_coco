@@ -1,0 +1,13 @@
+[package]
+name = "c_flat_hierarchy_test"
+sources = ["src"]
+
+[language]
+standard = "1.2"
+profiles = ["C"]
+
+[generator]
+defaultLanguage = "C"
+
+[generator.c]
+flatFileHierarchy = true

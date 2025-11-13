@@ -35,6 +35,7 @@ bazel_dep(name = "stardoc", version = "0.8.0", dev_dependency = True)
 # Coco toolchain extension
 coco = use_extension("//coco:extensions.bzl", "coco")
 coco.toolchain(
+    c = True,
     cc = True,
     versions = ["stable"],
 )

@@ -171,6 +171,48 @@ _coco_cc_runtime_repository = repository_rule(
     },
 )
 
+def _coco_c_runtime_repository_impl(ctx):
+    """Implementation for C runtime repository rule."""
+    version = ctx.attr.version
+    ctx.download_and_extract(
+        url = "https://dl.cocotec.io/popili/{download_prefix}/coco-c-runtime.zip".format(
+            download_prefix = download_prefix(version),
+        ),
+        sha256 = FILE_KEY_TO_SHA.get("{version}/coco-c-runtime.zip".format(version = version)),
+    )
+
+    ctx.file("WORKSPACE", """workspace(name = "{}")""".format(ctx.name))
+
+    ctx.file("BUILD.bazel", """
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+cc_library(
+    name = "runtime",
+    hdrs = glob(["coco_c/*.h"]),
+    srcs = glob(["coco_c/src/*.c"], allow_empty = True) + glob(["coco_c/*.c"], allow_empty = True),
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "testing",
+    hdrs = glob(["coco_c/testing/*.h"], allow_empty = True),
+    deps = [
+      ":runtime",
+    ],
+    visibility = ["//visibility:public"],
+)
+""")
+
+_coco_c_runtime_repository = repository_rule(
+    implementation = _coco_c_runtime_repository_impl,
+    attrs = {
+        "version": attr.string(
+            doc = "The version of coco/popili to download C runtime for",
+            mandatory = True,
+        ),
+    },
+)
+
 def _coco_cc_repositories(version):
     """Set up C++ runtime repository with version-specific name.
 
@@ -325,6 +367,7 @@ _coco_symlink_license_repository = repository_rule(
 )
 
 # Public API - these are the functions/rules that should be imported
+coco_c_runtime_repository = _coco_c_runtime_repository
 coco_cc_repositories = _coco_cc_repositories
 coco_cc_runtime_repository = _coco_cc_runtime_repository
 coco_preferences_repository = _coco_preferences_repository

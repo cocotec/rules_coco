@@ -1,0 +1,14 @@
+[package]
+name = "c_file_extensions_test"
+sources = ["src"]
+
+[language]
+standard = "1.2"
+profiles = ["C"]
+
+[generator]
+defaultLanguage = "C"
+
+[generator.c]
+headerFileExtension = ".h"
+implementationFileExtension = ".c"

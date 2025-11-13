@@ -23,6 +23,7 @@ popili_version_alias(name = "current_popili_version")
 
 # Export key public Starlark files
 exports_files([
+    "c.bzl",
     "cc.bzl",
     "defs.bzl",
     "extensions.bzl",
@@ -50,6 +51,15 @@ bzl_library(
 )
 
 bzl_library(
+    name = "c",
+    srcs = ["c.bzl"],
+    deps = [
+        ":defs",
+        "@rules_cc//cc:defs_bzl",
+    ],
+)
+
+bzl_library(
     name = "cc",
     srcs = ["cc.bzl"],
     deps = [
@@ -70,6 +80,7 @@ bzl_library(
     name = "bzl_lib",
     srcs = glob(["*.bzl"]),
     deps = [
+        ":c",
         ":cc",
         ":defs",
         ":repositories",

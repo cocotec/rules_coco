@@ -295,6 +295,122 @@ def _compute_output_filenames_combined_test(ctx):
 
     return unittest.end(env)
 
+# Tests for C language output filename computation
+
+def _compute_output_filenames_c_basic_test(ctx):
+    """Test basic C output filename computation."""
+    env = unittest.begin(ctx)
+
+    config = struct(
+        file_name_mangler = "Unaltered",
+        header_prefix = "",
+        header_extension = ".h",
+        impl_prefix = "",
+        impl_extension = ".c",
+        mocks = False,
+        flat_hierarchy = False,
+        root_output_dir = None,
+    )
+
+    result = compute_output_filenames("Example.coco", config)
+
+    asserts.equals(env, "Example.h", result.header)
+    asserts.equals(env, "Example.c", result.impl)
+    asserts.equals(env, None, result.mock_header)
+    asserts.equals(env, None, result.mock_impl)
+
+    return unittest.end(env)
+
+def _compute_output_filenames_c_with_prefixes_test(ctx):
+    """Test C output filename computation with prefixes."""
+    env = unittest.begin(ctx)
+
+    config = struct(
+        file_name_mangler = "Unaltered",
+        header_prefix = "api_",
+        header_extension = ".h",
+        impl_prefix = "impl_",
+        impl_extension = ".c",
+        mocks = False,
+        flat_hierarchy = False,
+        root_output_dir = None,
+    )
+
+    result = compute_output_filenames("Example.coco", config)
+
+    asserts.equals(env, "api_Example.h", result.header)
+    asserts.equals(env, "impl_Example.c", result.impl)
+
+    return unittest.end(env)
+
+def _compute_output_filenames_c_with_mangling_test(ctx):
+    """Test C output filename computation with name mangling."""
+    env = unittest.begin(ctx)
+
+    config = struct(
+        file_name_mangler = "LowerUnderscore",
+        header_prefix = "",
+        header_extension = ".h",
+        impl_prefix = "",
+        impl_extension = ".c",
+        mocks = False,
+        flat_hierarchy = False,
+        root_output_dir = None,
+    )
+
+    result = compute_output_filenames("ExampleName.coco", config)
+
+    asserts.equals(env, "example_name.h", result.header)
+    asserts.equals(env, "example_name.c", result.impl)
+
+    return unittest.end(env)
+
+def _compute_output_filenames_c_flat_hierarchy_test(ctx):
+    """Test C output filename computation with flat hierarchy."""
+    env = unittest.begin(ctx)
+
+    config = struct(
+        file_name_mangler = "Unaltered",
+        header_prefix = "",
+        header_extension = ".h",
+        impl_prefix = "",
+        impl_extension = ".c",
+        mocks = False,
+        flat_hierarchy = True,
+        root_output_dir = "src",
+    )
+
+    result = compute_output_filenames("Example.coco", config)
+
+    asserts.equals(env, "src/Example.h", result.header)
+    asserts.equals(env, "src/Example.c", result.impl)
+
+    return unittest.end(env)
+
+def _compute_output_filenames_c_combined_test(ctx):
+    """Test C output filename computation with all options combined."""
+    env = unittest.begin(ctx)
+
+    config = struct(
+        file_name_mangler = "LowerUnderscore",
+        header_prefix = "api_",
+        header_extension = ".h",
+        impl_prefix = "impl_",
+        impl_extension = ".c",
+        mocks = True,
+        flat_hierarchy = True,
+        root_output_dir = "generated",
+    )
+
+    result = compute_output_filenames("ExampleName.coco", config)
+
+    asserts.equals(env, "generated/api_example_name.h", result.header)
+    asserts.equals(env, "generated/impl_example_name.c", result.impl)
+    asserts.equals(env, "generated/api_example_nameMock.h", result.mock_header)
+    asserts.equals(env, "generated/impl_example_nameMock.c", result.mock_impl)
+
+    return unittest.end(env)
+
 # Create test rules for compute_output_filenames
 compute_output_filenames_basic_test = unittest.make(_compute_output_filenames_basic_test)
 compute_output_filenames_with_prefixes_test = unittest.make(_compute_output_filenames_with_prefixes_test)
@@ -304,6 +420,13 @@ compute_output_filenames_with_mocks_test = unittest.make(_compute_output_filenam
 compute_output_filenames_flat_hierarchy_test = unittest.make(_compute_output_filenames_flat_hierarchy_test)
 compute_output_filenames_flat_hierarchy_no_root_test = unittest.make(_compute_output_filenames_flat_hierarchy_no_root_test)
 compute_output_filenames_combined_test = unittest.make(_compute_output_filenames_combined_test)
+
+# Create test rules for C language compute_output_filenames
+compute_output_filenames_c_basic_test = unittest.make(_compute_output_filenames_c_basic_test)
+compute_output_filenames_c_with_prefixes_test = unittest.make(_compute_output_filenames_c_with_prefixes_test)
+compute_output_filenames_c_with_mangling_test = unittest.make(_compute_output_filenames_c_with_mangling_test)
+compute_output_filenames_c_flat_hierarchy_test = unittest.make(_compute_output_filenames_c_flat_hierarchy_test)
+compute_output_filenames_c_combined_test = unittest.make(_compute_output_filenames_c_combined_test)
 
 def coco_test_suite(name):
     """Create test suite for coco functions.
@@ -323,7 +446,7 @@ def coco_test_suite(name):
         mangle_name_caps_upper_underscore_test,
         mangle_name_edge_cases_test,
 
-        # _compute_output_filenames tests
+        # _compute_output_filenames tests (C++)
         compute_output_filenames_basic_test,
         compute_output_filenames_with_prefixes_test,
         compute_output_filenames_with_extensions_test,
@@ -332,4 +455,11 @@ def coco_test_suite(name):
         compute_output_filenames_flat_hierarchy_test,
         compute_output_filenames_flat_hierarchy_no_root_test,
         compute_output_filenames_combined_test,
+
+        # _compute_output_filenames tests (C)
+        compute_output_filenames_c_basic_test,
+        compute_output_filenames_c_with_prefixes_test,
+        compute_output_filenames_c_with_mangling_test,
+        compute_output_filenames_c_flat_hierarchy_test,
+        compute_output_filenames_c_combined_test,
     )

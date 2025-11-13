@@ -20,6 +20,6 @@ Sets up Coco toolchain repositories for WORKSPACE mode.
 | Name  | Description | Default Value |
 | :------------- | :------------- | :------------- |
 | <a id="coco_repositories-version"></a>version |  The Coco version to use (default: "stable").   |  `"stable"` |
-| <a id="coco_repositories-kwargs"></a>kwargs |  Additional arguments including 'cc' for C++ support.   |  none |
+| <a id="coco_repositories-kwargs"></a>kwargs |  Additional arguments including 'c' for C support and 'cc' for C++ support.   |  none |
 
 

@@ -7,6 +7,7 @@ This directory contains auto-generated API documentation for rules_coco, created
 All API documentation is auto-generated from the source .bzl files:
 
 - [defs.md](defs.md) - Main public API (coco_package, coco_generate, coco_verify_test, etc.)
+- [c.md](c.md) - C integration rules (coco_c_library, coco_c_test_library, etc.)
 - [cc.md](cc.md) - C++ integration rules (coco_cc_library, coco_cc_test_library, etc.)
 - [repositories.md](repositories.md) - Repository setup rules (coco_repositories, etc.)
 
@@ -15,11 +16,8 @@ All API documentation is auto-generated from the source .bzl files:
 To regenerate the documentation after making changes to `.bzl` files:
 
 ```bash
-# Generate all documentation
-bazel build //docs:docs
-
-# Copy generated files back to source
-cp -f bazel-bin/docs/*.md docs/
+# Generate and copy documentation
+./tools/update_docs.sh
 ```
 
 ## CI Checks

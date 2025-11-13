@@ -67,6 +67,7 @@ rules_shell_toolchains()
 load("@rules_coco//coco:repositories.bzl", "coco_repositories")
 
 coco_repositories(
+    c = True,
     cc = True,
     version = "1.5.1",
 )
