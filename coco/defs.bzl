@@ -23,6 +23,10 @@ load(
     _with_popili_version = "with_popili_version",
 )
 load(
+    "//coco/private:format.bzl",
+    _coco_fmt_test = "coco_fmt_test",
+)
+load(
     "//coco/private:licensing.bzl",
     _LICENSE_SOURCES = "LICENSE_SOURCES",
 )
@@ -32,6 +36,8 @@ coco_package = _coco_package
 coco_package_verify_test = _coco_package_verify_test
 
 coco_package_generate = _coco_package_generate
+
+coco_fmt_test = _coco_fmt_test
 
 coco_test_outputs_name = _coco_test_outputs_name
 
