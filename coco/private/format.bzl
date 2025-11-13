@@ -132,35 +132,18 @@ def coco_fmt_test(name, package, **kwargs):
     """Creates both a format test and a format binary.
 
     This macro creates two targets:
-    1. A test target (with the given name) that checks formatting
-    2. A binary target (name with _test suffix removed) that formats code
+    1. A test target (with the given name) that checks formatting via `bazel test`
+    2. A binary target (with _test suffix removed) that formats code via `bazel run`
+
+    For example, if you create `coco_fmt_test(name = "my_pkg_fmt_test", ...)`,
+    two targets are generated:
+    - `my_pkg_fmt_test`: Test that fails if code isn't formatted correctly
+    - `my_pkg_fmt`: Binary to format the code in-place
 
     Args:
         name: The name of the test target. Should typically end with '_test'.
         package: The coco_package target to check/format.
         **kwargs: Additional arguments forwarded to both rules (e.g., tags, visibility).
-
-    Example:
-        ```python
-        coco_package(
-            name = "my_pkg",
-            package = "Coco.toml",
-            srcs = glob(["src/**/*.coco"]),
-        )
-
-        coco_fmt_test(
-            name = "my_pkg_fmt_test",
-            package = ":my_pkg",
-        )
-
-        # This creates two targets:
-        # - my_pkg_fmt_test: Test that fails if code isn't formatted
-        # - my_pkg_fmt: Binary to format the code
-        #
-        # Usage:
-        # bazel test //:my_pkg_fmt_test  # Check formatting
-        # bazel run //:my_pkg_fmt        # Format code
-        ```
     """
     is_windows_select = select({
         "@platforms//os:windows": True,
