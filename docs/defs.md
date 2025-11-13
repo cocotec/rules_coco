@@ -60,6 +60,38 @@ Example:
 | <a id="with_popili_version-version"></a>version |  The popili version to use (e.g., '1.5.0', '1.4.7')   | String | required |  |
 
 
+<a id="coco_fmt_test"></a>
+
+## coco_fmt_test
+
+<pre>
+load("@rules_coco//coco:defs.bzl", "coco_fmt_test")
+
+coco_fmt_test(<a href="#coco_fmt_test-name">name</a>, <a href="#coco_fmt_test-package">package</a>, <a href="#coco_fmt_test-kwargs">**kwargs</a>)
+</pre>
+
+Creates both a format test and a format binary.
+
+This macro creates two targets:
+1. A test target (with the given name) that checks formatting via `bazel test`
+2. A binary target (with _test suffix removed) that formats code via `bazel run`
+
+For example, if you create `coco_fmt_test(name = "my_pkg_fmt_test", ...)`,
+two targets are generated:
+- `my_pkg_fmt_test`: Test that fails if code isn't formatted correctly
+- `my_pkg_fmt`: Binary to format the code in-place
+
+
+**PARAMETERS**
+
+
+| Name  | Description | Default Value |
+| :------------- | :------------- | :------------- |
+| <a id="coco_fmt_test-name"></a>name |  The name of the test target. Should typically end with '_test'.   |  none |
+| <a id="coco_fmt_test-package"></a>package |  The coco_package target to check/format.   |  none |
+| <a id="coco_fmt_test-kwargs"></a>kwargs |  Additional arguments forwarded to both rules (e.g., tags, visibility).   |  none |
+
+
 <a id="coco_package_generate"></a>
 
 ## coco_package_generate

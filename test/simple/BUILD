@@ -14,7 +14,7 @@
 
 load("@rules_cc//cc:defs.bzl", "cc_test")
 load("@rules_coco//coco:cc.bzl", "coco_cc_library", "coco_cc_test_library")
-load("@rules_coco//coco:defs.bzl", "coco_package", "coco_package_generate", "coco_package_verify_test")
+load("@rules_coco//coco:defs.bzl", "coco_fmt_test", "coco_package", "coco_package_generate", "coco_package_verify_test")
 load("@rules_shell//shell:sh_test.bzl", "sh_test")
 
 coco_package(
@@ -25,6 +25,14 @@ coco_package(
 
 coco_package_verify_test(
     name = "base_verify",
+    package = ":base",
+)
+
+# This creates two targets:
+# - base_fmt_test: Test that checks formatting (bazel test //test/simple:base_fmt_test)
+# - base_fmt: Binary that formats the code (bazel run //test/simple:base_fmt)
+coco_fmt_test(
+    name = "base_fmt_test",
     package = ":base",
 )
 

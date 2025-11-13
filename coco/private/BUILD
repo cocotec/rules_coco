@@ -72,6 +72,12 @@ bzl_library(
     srcs = ["licensing.bzl"],
 )
 
+bzl_library(
+    name = "format_bzl",
+    srcs = ["format.bzl"],
+    deps = [":coco_bzl"],
+)
+
 # Unified bzl_library aggregating all private implementation
 # Visibility restricted to //coco package only
 bzl_library(
@@ -81,6 +87,7 @@ bzl_library(
         ":bazel_tools_bzl_lib",
         ":coco_bzl",
         ":common_repositories_bzl",
+        ":format_bzl",
         ":known_shas_bzl",
         ":licensing_bzl",
         ":repositories_bzl",
