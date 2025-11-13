@@ -347,7 +347,7 @@ def _coco_package_verify(ctx):
         runfiles = ctx.runfiles(transitive_files = _coco_runfiles(ctx, ctx.attr.package, True)),
     )
 
-_coco_package_verify_test = rule(
+_coco_verify_test = rule(
     implementation = _coco_package_verify,
     attrs = dict(LICENSE_ATTRIBUTES.items() + {
         "is_windows": attr.bool(mandatory = True),
@@ -363,8 +363,8 @@ _coco_package_verify_test = rule(
     ],
 )
 
-def coco_package_verify_test(**kwargs):
-    _coco_package_verify_test(
+def coco_verify_test(**kwargs):
+    _coco_verify_test(
         is_windows = select({
             "@platforms//os:windows": True,
             "//conditions:default": False,

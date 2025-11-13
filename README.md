@@ -227,9 +227,9 @@ coco_cc_library(
 These rules can be used to create bazel test targets that execute the verification when `bazel test` is executed.
 
 ```starlark
-load("@rules_coco//coco:defs.bzl", "coco_package_verify_test")
+load("@rules_coco//coco:defs.bzl", "coco_verify_test")
 
-coco_package_verify_test(
+coco_verify_test(
     name = "my_package_test",
     package = ":my_package",
 )

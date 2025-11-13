@@ -113,14 +113,14 @@ coco_package_generate(<a href="#coco_package_generate-name">name</a>, <a href="#
 | <a id="coco_package_generate-kwargs"></a>kwargs |  <p align="center"> - </p>   |  none |
 
 
-<a id="coco_package_verify_test"></a>
+<a id="coco_verify_test"></a>
 
-## coco_package_verify_test
+## coco_verify_test
 
 <pre>
-load("@rules_coco//coco:defs.bzl", "coco_package_verify_test")
+load("@rules_coco//coco:defs.bzl", "coco_verify_test")
 
-coco_package_verify_test(<a href="#coco_package_verify_test-kwargs">**kwargs</a>)
+coco_verify_test(<a href="#coco_verify_test-kwargs">**kwargs</a>)
 </pre>
 
 
@@ -130,7 +130,7 @@ coco_package_verify_test(<a href="#coco_package_verify_test-kwargs">**kwargs</a>
 
 | Name  | Description | Default Value |
 | :------------- | :------------- | :------------- |
-| <a id="coco_package_verify_test-kwargs"></a>kwargs |  <p align="center"> - </p>   |  none |
+| <a id="coco_verify_test-kwargs"></a>kwargs |  <p align="center"> - </p>   |  none |
 
 
 <a id="coco_test_outputs_name"></a>

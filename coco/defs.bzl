@@ -18,7 +18,7 @@ load(
     "//coco/private:coco.bzl",
     _coco_package = "coco_package",
     _coco_package_generate = "coco_package_generate",
-    _coco_package_verify_test = "coco_package_verify_test",
+    _coco_verify_test = "coco_verify_test",
     _coco_test_outputs_name = "coco_test_outputs_name",
     _with_popili_version = "with_popili_version",
 )
@@ -33,7 +33,7 @@ load(
 
 coco_package = _coco_package
 
-coco_package_verify_test = _coco_package_verify_test
+coco_verify_test = _coco_verify_test
 
 coco_package_generate = _coco_package_generate
 

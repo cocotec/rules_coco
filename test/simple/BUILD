@@ -23,7 +23,7 @@ coco_package(
     package = "Coco.toml",
 )
 
-coco_package_verify_test(
+coco_verify_test(
     name = "base_verify",
     package = ":base",
 )

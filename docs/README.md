@@ -6,7 +6,7 @@ This directory contains auto-generated API documentation for rules_coco, created
 
 All API documentation is auto-generated from the source .bzl files:
 
-- [defs.md](defs.md) - Main public API (coco_package, coco_package_generate, coco_package_verify_test, etc.)
+- [defs.md](defs.md) - Main public API (coco_package, coco_package_generate, coco_verify_test, etc.)
 - [cc.md](cc.md) - C++ integration rules (coco_cc_library, coco_cc_test_library, etc.)
 - [repositories.md](repositories.md) - Repository setup rules (coco_repositories, etc.)
 
