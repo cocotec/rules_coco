@@ -127,11 +127,6 @@ def _resolve_version(version):
 def _toolchain_tag_impl(ctx):
     """Implementation of the coco module extension."""
 
-    # Set up licensing repositories
-    coco_preferences_repository(name = "io_cocotec_coco_preferences")
-    coco_fetch_license_repository(name = "io_cocotec_licensing_fetch")
-    coco_symlink_license_repository(name = "io_cocotec_licensing_local")
-
     # Collect all toolchain configurations from tags across all modules
     # Merge versions from all modules to support different modules requesting different versions
     all_versions = []
@@ -151,6 +146,14 @@ def _toolchain_tag_impl(ctx):
         if resolved not in seen:
             versions.append(resolved)
             seen[resolved] = True
+
+    # Set up licensing repositories (after collecting versions so we can determine product name)
+    coco_preferences_repository(name = "io_cocotec_coco_preferences")
+    coco_fetch_license_repository(
+        name = "io_cocotec_licensing_fetch",
+        versions = versions,
+    )
+    coco_symlink_license_repository(name = "io_cocotec_licensing_local")
 
     # Collect information for hub repository
     toolchain_names = []
