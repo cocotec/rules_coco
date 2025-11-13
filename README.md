@@ -235,6 +235,40 @@ coco_cc_library(
 )
 ```
 
+##### Output Paths
+
+Bazel has to be able to precompute the output paths of all rules. Since there are many settings in `Coco.toml` that
+can affect output paths, these settings must be repeated in the `BUILD` file. For example:
+
+```toml
+[generator.cpp]
+headerFileExtension = ".hpp"
+implementationFileExtension = ".cpp"
+fileNameMangler = "LowerUnderscore"
+```
+
+This would require the following in your `BUILD` file:
+
+```starlark
+coco_generate(
+    name = "my_package_cc_src",
+    language = "cpp",
+    package = ":my_package",
+    cpp_header_file_extension = ".hpp",        # Must match Coco.toml
+    cpp_implementation_file_extension = ".cpp", # Must match Coco.toml
+    cpp_file_name_mangler = "LowerUnderscore", # Must match Coco.toml
+)
+```
+
+| Coco.toml Setting                           | `coco_generate` Attribute           |
+| ------------------------------------------- | ----------------------------------- |
+| `generator.cpp.headerFileExtension`         | `cpp_header_file_extension`         |
+| `generator.cpp.implementationFileExtension` | `cpp_implementation_file_extension` |
+| `generator.cpp.headerFilePrefix`            | `cpp_header_file_prefix`            |
+| `generator.cpp.implementationFilePrefix`    | `cpp_implementation_file_prefix`    |
+| `generator.cpp.fileNameMangler`             | `cpp_file_name_mangler`             |
+| `generator.cpp.flatFileHierarchy`           | `cpp_flat_file_hierarchy`           |
+
 ### Verification
 
 These rules can be used to create bazel test targets that execute the verification when `bazel test` is executed.

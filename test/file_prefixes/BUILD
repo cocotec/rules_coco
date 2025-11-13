@@ -9,10 +9,10 @@ coco_package(
 
 coco_generate(
     name = "file_prefixes_test_cpp",
-    language = "cpp",
-    package = ":file_prefixes_test",
     cpp_header_file_prefix = "api_",
     cpp_implementation_file_prefix = "impl_",
+    language = "cpp",
+    package = ":file_prefixes_test",
 )
 
 coco_cc_library(

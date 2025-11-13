@@ -9,10 +9,10 @@ coco_package(
 
 coco_generate(
     name = "file_extensions_test_cpp",
-    language = "cpp",
-    package = ":file_extensions_test",
     cpp_header_file_extension = ".hpp",
     cpp_implementation_file_extension = ".cpp",
+    language = "cpp",
+    package = ":file_extensions_test",
 )
 
 coco_cc_library(

@@ -13,8 +13,12 @@
 # limitations under the License.
 
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load(":tests.bzl", "coco_test_suite")
 
 package(default_visibility = ["//coco:__pkg__"])
+
+# Unit tests for coco.bzl functions
+coco_test_suite(name = "coco_tests")
 
 # Export all Starlark files for documentation generation and external consumption
 filegroup(
