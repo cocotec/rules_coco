@@ -27,6 +27,7 @@ CocoPackageInfo = provider(
         "package_file": "The Coco.toml file for this package",
         "srcs": "All .coco files that are sources of this package or any of its transitive dependencies",
         "test_srcs": "All .coco files that are test_sources of this package or any of its transitive dependencies",
+        "typecheck_marker": "Marker file indicating typecheck passed (or None if typecheck disabled)",
     },
 )
 
@@ -207,6 +208,10 @@ def _coco_runfiles(ctx, package, is_test):
         direct.append(package[CocoPackageInfo].package_file)
         transitive.append(package[CocoPackageInfo].srcs)
         transitive.append(package[CocoPackageInfo].dep_package_files)
+
+        # Include typecheck marker if present to ensure codegen waits for typecheck
+        if package[CocoPackageInfo].typecheck_marker:
+            direct.append(package[CocoPackageInfo].typecheck_marker)
     return depset(
         direct = direct,
         transitive = transitive,
@@ -276,6 +281,87 @@ def _create_coco_wrapper_script(ctx, package, arguments):
 create_coco_wrapper_script = _create_coco_wrapper_script
 coco_runfiles = _coco_runfiles
 
+def _run_typecheck(ctx, package_file, srcs, test_srcs, dep_package_files):
+    """Run typecheck and produce a marker file on success.
+
+    Args:
+        ctx: Rule context
+        package_file: The Coco.toml file
+        srcs: Source files depset
+        test_srcs: Test source files depset
+        dep_package_files: Dependency package files depset
+
+    Returns:
+        The typecheck marker file
+    """
+
+    # Create a marker file to track typecheck completion
+    marker = ctx.actions.declare_file(ctx.label.name + ".typecheck")
+
+    # Build startup arguments similar to _coco_startup_args but for build actions
+    startup_arguments = [
+        "--no-license-server",
+        "--no-crash-reporter",
+        "--override-preferences",
+        ctx.toolchains[COCO_TOOLCHAIN_TYPE].preferences_file.path,
+        "--terminal=plain",
+    ]
+    license_file = _get_license_file_from_toolchain(ctx)
+    if license_file:
+        startup_arguments.append("--override-licenses")
+        startup_arguments.append(license_file.path)
+
+    startup_arguments += ["--package", package_file.dirname]
+    for dep_package_file in dep_package_files.to_list():
+        startup_arguments += ["--import-path", dep_package_file.dirname]
+
+    # Build typecheck command arguments
+    typecheck_arguments = ["typecheck"]
+
+    # Collect inputs
+    inputs_direct = [
+        package_file,
+        ctx.toolchains[COCO_TOOLCHAIN_TYPE].preferences_file,
+    ]
+    if license_file:
+        inputs_direct.append(license_file)
+
+    # Create wrapper script that runs typecheck and creates marker on success
+    coco_path = ctx.toolchains[COCO_TOOLCHAIN_TYPE].coco.path
+    if ctx.attr.is_windows:
+        coco_path = coco_path.replace("/", "\\")
+
+    command = " ".join([coco_path] + startup_arguments + typecheck_arguments)
+    env = _coco_env(ctx)
+
+    if ctx.attr.is_windows:
+        script = ctx.actions.declare_file(ctx.label.name + "_typecheck.bat")
+        script_lines = ["@echo off"]
+        for k, v in env.items():
+            script_lines.append("SET %s=\"%s\"" % (k, v))
+        script_lines.append("%s || exit /b 1" % command)
+        script_lines.append("type nul > \"%s\"" % marker.path.replace("/", "\\"))
+    else:
+        script = ctx.actions.declare_file(ctx.label.name + "_typecheck.sh")
+        script_lines = ["#!/bin/bash", "set -e"]
+        for k, v in env.items():
+            script_lines.append("export %s=\"%s\"" % (k, v))
+        script_lines.append(command)
+        script_lines.append("touch \"%s\"" % marker.path)
+
+    ctx.actions.write(output = script, content = "\n".join(script_lines), is_executable = True)
+
+    ctx.actions.run(
+        executable = script,
+        tools = [ctx.toolchains[COCO_TOOLCHAIN_TYPE].coco, script],
+        progress_message = "Typechecking %s" % ctx.label.name,
+        inputs = depset(direct = inputs_direct, transitive = [srcs, test_srcs, dep_package_files]),
+        outputs = [marker],
+        arguments = [],
+    )
+
+    return marker
+
 def _coco_package_impl(ctx):
     if ctx.file.package.basename != "Coco.toml":
         fail("Package must point to a file called exactly 'Coco.toml'", attr = "package")
@@ -292,6 +378,17 @@ def _coco_package_impl(ctx):
         direct = ctx.files.test_srcs,
         transitive = [dep[CocoPackageInfo].test_srcs for dep in ctx.attr.deps],
     )
+
+    # Conditionally run typecheck
+    typecheck_marker = None
+    if ctx.attr.typecheck:
+        typecheck_marker = _run_typecheck(ctx, package_file, srcs, test_srcs, dep_package_files)
+
+    # Build the list of files for DefaultInfo
+    default_files_direct = [package_file]
+    if typecheck_marker:
+        default_files_direct.append(typecheck_marker)
+
     return [
         CocoPackageInfo(
             name = ctx.attr.name,
@@ -299,15 +396,20 @@ def _coco_package_impl(ctx):
             dep_package_files = dep_package_files,
             srcs = srcs,
             test_srcs = test_srcs,
+            typecheck_marker = typecheck_marker,
         ),
-        DefaultInfo(files = depset(direct = [package_file], transitive = [srcs, test_srcs, dep_package_files])),
+        DefaultInfo(files = depset(direct = default_files_direct, transitive = [srcs, test_srcs, dep_package_files])),
     ]
 
-coco_package = rule(
+_coco_package = rule(
     implementation = _coco_package_impl,
-    attrs = {
+    attrs = dict(LICENSE_ATTRIBUTES.items() + {
         "deps": attr.label_list(
             providers = [CocoPackageInfo],
+        ),
+        "is_windows": attr.bool(
+            mandatory = True,
+            doc = "True if building for Windows platform",
         ),
         "package": attr.label(
             mandatory = True,
@@ -321,11 +423,31 @@ coco_package = rule(
             allow_files = [".coco"],
             allow_empty = True,
         ),
-    },
+        "typecheck": attr.bool(
+            default = False,
+            doc = "Run typecheck validation during package creation. When enabled, package build will fail if typecheck errors are found.",
+        ),
+    }.items()),
     toolchains = [
         COCO_TOOLCHAIN_TYPE,
     ],
 )
+
+def coco_package(name, **kwargs):
+    """Define a Coco package from Coco.toml and .coco source files.
+
+    Args:
+        name: Name of the package target
+        **kwargs: Additional arguments passed to the underlying rule
+    """
+    _coco_package(
+        name = name,
+        is_windows = select({
+            "@platforms//os:windows": True,
+            "//conditions:default": False,
+        }),
+        **kwargs
+    )
 
 def _coco_package_verify(ctx):
     # Build the verify command arguments

@@ -95,8 +95,8 @@ jobs:
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: "projects/1087051700446/locations/global/workloadIdentityPools/github-dev-pool/providers/github-cocotec"
-          service_account: "gh-cocotec-rules-coco-ki7h@dev-773ceb2b.iam.gserviceaccount.com"
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
       - name: "Upload to dl.cocotec.io"
         uses: google-github-actions/upload-cloud-storage@v2
         with:

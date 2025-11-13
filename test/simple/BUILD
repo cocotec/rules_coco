@@ -21,6 +21,7 @@ coco_package(
     name = "base",
     srcs = glob(["src/**/*.coco"]),
     package = "Coco.toml",
+    typecheck = True,
 )
 
 coco_verify_test(
