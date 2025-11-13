@@ -497,10 +497,10 @@ def coco_verify_test(**kwargs):
 def _add_outputs(ctx, outputs, mock_outputs, src):
     if ctx.attr.language == "cpp":
         if ctx.attr.mocks:
-            for ext in ["Mock.h", "Mock.cc"]:
+            for ext in ["Mock" + ctx.attr.header_extension, "Mock" + ctx.attr.impl_extension]:
                 mock_outputs.append(ctx.actions.declare_file(paths.replace_extension(src.basename, ext), sibling = src))
 
-        for ext in [".h", ".cc"]:
+        for ext in [ctx.attr.header_extension, ctx.attr.impl_extension]:
             outputs.append(ctx.actions.declare_file(paths.replace_extension(src.basename, ext), sibling = src))
     else:
         fail("unrecognised language")
@@ -586,6 +586,8 @@ _coco_generate = rule(
             providers = [CocoPackageInfo],
             mandatory = True,
         ),
+        "header_extension": attr.string(default = ".h"),
+        "impl_extension": attr.string(default = ".cc"),
     }.items()),
     toolchains = [
         COCO_TOOLCHAIN_TYPE,
