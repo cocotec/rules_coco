@@ -225,6 +225,52 @@ def _run_coco(ctx, package, verb, arguments, outputs):
         arguments = _coco_startup_args(ctx, package, False) + arguments,
     )
 
+def _create_coco_wrapper_script(ctx, package, arguments):
+    """Creates a platform-specific wrapper script for running Coco commands.
+
+    Args:
+        ctx: The rule context
+        package: The coco_package target (or None)
+        arguments: List of command arguments (after startup args)
+
+    Returns:
+        The wrapper script file
+    """
+    coco_path = ctx.toolchains[COCO_TOOLCHAIN_TYPE].coco.short_path
+    if ctx.attr.is_windows:
+        coco_path = coco_path.replace("/", "\\")
+
+    # Build the full command
+    full_arguments = [coco_path] + _coco_startup_args(ctx, package, True) + arguments
+    command = " ".join(full_arguments)
+    env = _coco_env(ctx)
+
+    # Create platform-specific wrapper script
+    if ctx.attr.is_windows:
+        wrapper_script = ctx.actions.declare_file(ctx.label.name + "-cmd.bat")
+        wrapper_lines = []
+        for k, v in env.items():
+            wrapper_lines.append("SET %s=\"%s\"" % (k, v))
+        wrapper_lines.append("")
+        wrapper_lines.append(command)
+    else:
+        wrapper_script = ctx.actions.declare_file(ctx.label.name + "-cmd.sh")
+        wrapper_lines = [
+            "#!/usr/bin/env bash",
+            "exec env \\",
+        ]
+        for k, v in env.items():
+            wrapper_lines.append("  %s=\"%s\" \\" % (k, v))
+        wrapper_lines.append(command)
+
+    ctx.actions.write(
+        output = wrapper_script,
+        content = "\n".join(wrapper_lines),
+        is_executable = True,
+    )
+
+    return wrapper_script
+
 def _coco_package_impl(ctx):
     if ctx.file.package.basename != "Coco.toml":
         fail("Package must point to a file called exactly 'Coco.toml'", attr = "package")
@@ -277,14 +323,8 @@ coco_package = rule(
 )
 
 def _coco_package_verify(ctx):
-    coco_path = ctx.toolchains[COCO_TOOLCHAIN_TYPE].coco.short_path
-    if ctx.attr.is_windows:
-        coco_path = coco_path.replace("/", "\\")
-
-    # Create the wrapper script to invoke Coco. We try and avoid using bash on Windows.
+    # Build the verify command arguments
     arguments = [
-        coco_path,
-    ] + _coco_startup_args(ctx, ctx.attr.package, True) + [
         "verify",
         "--results-junit",
         "%%XML_OUTPUT_FILE%%" if ctx.attr.is_windows else "$XML_OUTPUT_FILE",
@@ -295,31 +335,7 @@ def _coco_package_verify(ctx):
         arguments.append("--backend")
         arguments.append(backend)
 
-    command = " ".join(arguments)
-    env = _coco_env(ctx)
-    wrapper_lines = []
-    if ctx.attr.is_windows:
-        wrapper_script = ctx.actions.declare_file(ctx.label.name + "-cmd.bat")
-        wrapper_lines = []
-        for k, v in env.items():
-            wrapper_lines.append("SET %s=\"%s\"" % (k, v))
-        wrapper_lines.append("")
-        wrapper_lines.append(command)
-    else:
-        wrapper_script = ctx.actions.declare_file(ctx.label.name + "-cmd.sh")
-        wrapper_lines = [
-            "#!/usr/bin/env bash",
-            "exec env \\",
-        ]
-        for k, v in env.items():
-            wrapper_lines.append("  %s=\"%s\" \\" % (k, v))
-        wrapper_lines.append(command)
-
-    ctx.actions.write(
-        output = wrapper_script,
-        content = "\n".join(wrapper_lines),
-        is_executable = True,
-    )
+    wrapper_script = _create_coco_wrapper_script(ctx, ctx.attr.package, arguments)
 
     return DefaultInfo(
         executable = wrapper_script,
