@@ -19,6 +19,6 @@ jobs:
           git add coco/private/known_shas.bzl
           git commit --message 'build: update digests'
           git push --set-upstream origin HEAD
-          gh pr create --base develop --title 'build: update digests' --body 'Created by Github action'
+          gh pr create --base main --title 'build: update digests' --body 'Created by Github action'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
