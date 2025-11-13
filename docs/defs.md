@@ -60,6 +60,7 @@ Example:
 | <a id="with_popili_version-version"></a>version |  The popili version to use (e.g., '1.5.0', '1.4.7')   | String | required |  |
 
 
+<<<<<<< HEAD
 <a id="coco_fmt_test"></a>
 
 ## coco_fmt_test
@@ -93,13 +94,16 @@ two targets are generated:
 
 
 <a id="coco_package_generate"></a>
+=======
+<a id="coco_generate"></a>
+>>>>>>> 170be9a (Rename coco_package_generate to coco_generate)
 
-## coco_package_generate
+## coco_generate
 
 <pre>
-load("@rules_coco//coco:defs.bzl", "coco_package_generate")
+load("@rules_coco//coco:defs.bzl", "coco_generate")
 
-coco_package_generate(<a href="#coco_package_generate-name">name</a>, <a href="#coco_package_generate-kwargs">**kwargs</a>)
+coco_generate(<a href="#coco_generate-name">name</a>, <a href="#coco_generate-kwargs">**kwargs</a>)
 </pre>
 
 
@@ -109,8 +113,8 @@ coco_package_generate(<a href="#coco_package_generate-name">name</a>, <a href="#
 
 | Name  | Description | Default Value |
 | :------------- | :------------- | :------------- |
-| <a id="coco_package_generate-name"></a>name |  <p align="center"> - </p>   |  none |
-| <a id="coco_package_generate-kwargs"></a>kwargs |  <p align="center"> - </p>   |  none |
+| <a id="coco_generate-name"></a>name |  <p align="center"> - </p>   |  none |
+| <a id="coco_generate-kwargs"></a>kwargs |  <p align="center"> - </p>   |  none |
 
 
 <a id="coco_verify_test"></a>

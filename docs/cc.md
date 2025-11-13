@@ -59,7 +59,7 @@ it from the Coco toolchain.
 | Name  | Description | Default Value |
 | :------------- | :------------- | :------------- |
 | <a id="coco_cc_library-name"></a>name |  The name of the library   |  none |
-| <a id="coco_cc_library-generated_package"></a>generated_package |  The coco_package_generate target that generates C++ code   |  none |
+| <a id="coco_cc_library-generated_package"></a>generated_package |  The coco_generate target that generates C++ code   |  none |
 | <a id="coco_cc_library-srcs"></a>srcs |  Additional C++ source files   |  `[]` |
 | <a id="coco_cc_library-deps"></a>deps |  Additional dependencies   |  `[]` |
 | <a id="coco_cc_library-kwargs"></a>kwargs |  Additional arguments passed to cc_library   |  none |

@@ -455,7 +455,7 @@ def _coco_package_generate_impl(ctx):
         ),
     ]
 
-_coco_package_generate = rule(
+_coco_generate = rule(
     implementation = _coco_package_generate_impl,
     attrs = dict(LICENSE_ATTRIBUTES.items() + {
         "language": attr.string(mandatory = True, values = ["cpp"]),
@@ -490,8 +490,8 @@ _coco_test_outputs = rule(
 def coco_test_outputs_name(name):
     return "%s.tst" % name
 
-def coco_package_generate(name, **kwargs):
-    _coco_package_generate(
+def coco_generate(name, **kwargs):
+    _coco_generate(
         name = name,
         **kwargs
     )
