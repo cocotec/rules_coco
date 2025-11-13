@@ -347,7 +347,7 @@ def _coco_package_verify(ctx):
         runfiles = ctx.runfiles(transitive_files = _coco_runfiles(ctx, ctx.attr.package, True)),
     )
 
-_coco_package_verify_test = rule(
+_coco_verify_test = rule(
     implementation = _coco_package_verify,
     attrs = dict(LICENSE_ATTRIBUTES.items() + {
         "is_windows": attr.bool(mandatory = True),
@@ -363,8 +363,8 @@ _coco_package_verify_test = rule(
     ],
 )
 
-def coco_package_verify_test(**kwargs):
-    _coco_package_verify_test(
+def coco_verify_test(**kwargs):
+    _coco_verify_test(
         is_windows = select({
             "@platforms//os:windows": True,
             "//conditions:default": False,
@@ -455,7 +455,7 @@ def _coco_package_generate_impl(ctx):
         ),
     ]
 
-_coco_package_generate = rule(
+_coco_generate = rule(
     implementation = _coco_package_generate_impl,
     attrs = dict(LICENSE_ATTRIBUTES.items() + {
         "language": attr.string(mandatory = True, values = ["cpp"]),
@@ -490,8 +490,8 @@ _coco_test_outputs = rule(
 def coco_test_outputs_name(name):
     return "%s.tst" % name
 
-def coco_package_generate(name, **kwargs):
-    _coco_package_generate(
+def coco_generate(name, **kwargs):
+    _coco_generate(
         name = name,
         **kwargs
     )

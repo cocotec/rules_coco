@@ -14,7 +14,7 @@
 
 load("@rules_cc//cc:defs.bzl", "cc_test")
 load("@rules_coco//coco:cc.bzl", "coco_cc_library", "coco_cc_test_library")
-load("@rules_coco//coco:defs.bzl", "coco_package", "coco_package_generate", "coco_package_verify_test")
+load("@rules_coco//coco:defs.bzl", "coco_generate", "coco_package", "coco_verify_test")
 
 coco_package(
     name = "base",
@@ -22,12 +22,12 @@ coco_package(
     package = "Coco.toml",
 )
 
-coco_package_verify_test(
+coco_verify_test(
     name = "base_verify",
     package = ":base",
 )
 
-coco_package_generate(
+coco_generate(
     name = "base_cpp",
     language = "cpp",
     mocks = True,

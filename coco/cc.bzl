@@ -57,7 +57,7 @@ def coco_cc_library(name, generated_package, srcs = [], deps = [], **kwargs):
 
     Args:
         name: The name of the library
-        generated_package: The coco_package_generate target that generates C++ code
+        generated_package: The coco_generate target that generates C++ code
         srcs: Additional C++ source files
         deps: Additional dependencies
         **kwargs: Additional arguments passed to cc_library

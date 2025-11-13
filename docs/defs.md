@@ -92,14 +92,14 @@ two targets are generated:
 | <a id="coco_fmt_test-kwargs"></a>kwargs |  Additional arguments forwarded to both rules (e.g., tags, visibility).   |  none |
 
 
-<a id="coco_package_generate"></a>
+<a id="coco_generate"></a>
 
-## coco_package_generate
+## coco_generate
 
 <pre>
-load("@rules_coco//coco:defs.bzl", "coco_package_generate")
+load("@rules_coco//coco:defs.bzl", "coco_generate")
 
-coco_package_generate(<a href="#coco_package_generate-name">name</a>, <a href="#coco_package_generate-kwargs">**kwargs</a>)
+coco_generate(<a href="#coco_generate-name">name</a>, <a href="#coco_generate-kwargs">**kwargs</a>)
 </pre>
 
 
@@ -109,28 +109,8 @@ coco_package_generate(<a href="#coco_package_generate-name">name</a>, <a href="#
 
 | Name  | Description | Default Value |
 | :------------- | :------------- | :------------- |
-| <a id="coco_package_generate-name"></a>name |  <p align="center"> - </p>   |  none |
-| <a id="coco_package_generate-kwargs"></a>kwargs |  <p align="center"> - </p>   |  none |
-
-
-<a id="coco_package_verify_test"></a>
-
-## coco_package_verify_test
-
-<pre>
-load("@rules_coco//coco:defs.bzl", "coco_package_verify_test")
-
-coco_package_verify_test(<a href="#coco_package_verify_test-kwargs">**kwargs</a>)
-</pre>
-
-
-
-**PARAMETERS**
-
-
-| Name  | Description | Default Value |
-| :------------- | :------------- | :------------- |
-| <a id="coco_package_verify_test-kwargs"></a>kwargs |  <p align="center"> - </p>   |  none |
+| <a id="coco_generate-name"></a>name |  <p align="center"> - </p>   |  none |
+| <a id="coco_generate-kwargs"></a>kwargs |  <p align="center"> - </p>   |  none |
 
 
 <a id="coco_test_outputs_name"></a>
@@ -151,5 +131,25 @@ coco_test_outputs_name(<a href="#coco_test_outputs_name-name">name</a>)
 | Name  | Description | Default Value |
 | :------------- | :------------- | :------------- |
 | <a id="coco_test_outputs_name-name"></a>name |  <p align="center"> - </p>   |  none |
+
+
+<a id="coco_verify_test"></a>
+
+## coco_verify_test
+
+<pre>
+load("@rules_coco//coco:defs.bzl", "coco_verify_test")
+
+coco_verify_test(<a href="#coco_verify_test-kwargs">**kwargs</a>)
+</pre>
+
+
+
+**PARAMETERS**
+
+
+| Name  | Description | Default Value |
+| :------------- | :------------- | :------------- |
+| <a id="coco_verify_test-kwargs"></a>kwargs |  <p align="center"> - </p>   |  none |
 
 

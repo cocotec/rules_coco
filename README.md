@@ -133,7 +133,7 @@ There are several ways of setting the version of Popili that you would like to u
        version = "1.5.0",
    )
 
-   coco_package_generate(
+   coco_generate(
        name = "modern_cpp",
        language = "cpp",
        package = ":modern_v150",
@@ -192,9 +192,9 @@ coco_package(
 To generate C++ code:
 
 ```starlark
-load("@rules_coco//coco:defs.bzl", "coco_package_generate")
+load("@rules_coco//coco:defs.bzl", "coco_generate")
 
-coco_package_generate(
+coco_generate(
     name = "my_package_cc_src",
     language = "cpp",
     package = ":my_package",
@@ -227,9 +227,9 @@ coco_cc_library(
 These rules can be used to create bazel test targets that execute the verification when `bazel test` is executed.
 
 ```starlark
-load("@rules_coco//coco:defs.bzl", "coco_package_verify_test")
+load("@rules_coco//coco:defs.bzl", "coco_verify_test")
 
-coco_package_verify_test(
+coco_verify_test(
     name = "my_package_test",
     package = ":my_package",
 )

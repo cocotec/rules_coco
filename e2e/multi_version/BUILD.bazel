@@ -3,7 +3,7 @@
 # using the with_popili_version() wrapper
 
 load("@rules_coco//coco:cc.bzl", "coco_cc_library")
-load("@rules_coco//coco:defs.bzl", "coco_package", "coco_package_generate", "coco_package_verify_test", "with_popili_version")
+load("@rules_coco//coco:defs.bzl", "coco_generate", "coco_package", "coco_verify_test", "with_popili_version")
 
 # Modern package - uses 1.5.0
 coco_package(
@@ -18,12 +18,12 @@ with_popili_version(
     version = "1.5.0",
 )
 
-coco_package_verify_test(
+coco_verify_test(
     name = "modern_verify",
     package = ":modern_v150",
 )
 
-coco_package_generate(
+coco_generate(
     name = "modern_cpp",
     language = "cpp",
     package = ":modern_v150",
@@ -60,12 +60,12 @@ with_popili_version(
     version = "1.5.1",
 )
 
-coco_package_verify_test(
+coco_verify_test(
     name = "legacy_verify",
     package = ":legacy_v151",
 )
 
-coco_package_generate(
+coco_generate(
     name = "legacy_cpp",
     language = "cpp",
     package = ":legacy_v151",
@@ -102,12 +102,12 @@ with_popili_version(
     version = "1.5.0",
 )
 
-coco_package_verify_test(
+coco_verify_test(
     name = "flexible_verify",
     package = ":flexible_v150",
 )
 
-coco_package_generate(
+coco_generate(
     name = "flexible_cpp",
     language = "cpp",
     package = ":flexible_v150",
