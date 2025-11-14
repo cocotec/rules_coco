@@ -654,6 +654,16 @@ def _add_outputs(ctx, outputs, mock_outputs, src, root_output_dir):
             if filenames.mock_header:
                 mock_outputs.append(ctx.actions.declare_file(filenames.mock_header, sibling = src))
                 mock_outputs.append(ctx.actions.declare_file(filenames.mock_impl, sibling = src))
+    elif ctx.attr.language == "csharp":
+        # C# generation - very simple, just .cs files
+        # No header/implementation split, always hierarchical
+        base_name = src.basename.removesuffix(".coco")
+        cs_file = base_name + ".cs"
+        outputs.append(ctx.actions.declare_file(cs_file, sibling = src))
+
+        if ctx.attr.mocks:
+            mock_file = base_name + "Mock.cs"
+            mock_outputs.append(ctx.actions.declare_file(mock_file, sibling = src))
     else:
         fail("unrecognised language")
 
@@ -782,7 +792,7 @@ _coco_generate = rule(
             default = "",
             doc = """Must match Coco.toml generator.cpp.implementationFilePrefix setting.""",
         ),
-        "language": attr.string(mandatory = True, values = ["c", "cpp"]),
+        "language": attr.string(mandatory = True, values = ["cpp", "c", "csharp"]),
         "mocks": attr.bool(),
         "package": attr.label(
             providers = [CocoPackageInfo],

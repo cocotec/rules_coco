@@ -242,8 +242,6 @@ coco_cc_library(
 )
 ```
 
-# <<<<<<< HEAD
-
 #### C Code Generation
 
 To generate C code:
@@ -308,6 +306,24 @@ coco_generate(
 | `generator.cpp.implementationFilePrefix`    | `cpp_implementation_file_prefix`    |
 | `generator.cpp.fileNameMangler`             | `cpp_file_name_mangler`             |
 | `generator.cpp.flatFileHierarchy`           | `cpp_flat_file_hierarchy`           |
+
+=======
+
+#### C# Code Generation
+
+To generate C# code:
+
+```starlark
+load("@rules_coco//coco:defs.bzl", "coco_generate")
+
+coco_generate(
+    name = "my_package_csharp_src",
+    language = "csharp",
+    package = ":my_package",
+)
+```
+
+**Note:** C# code generation produces `.cs` files but does not include compilation support. Bazel's C# rules are currently too primitive to provide a good integration. The generated C# files can be consumed by other build systems or IDEs.
 
 ### Verification
 

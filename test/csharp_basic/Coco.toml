@@ -1,0 +1,12 @@
+[package]
+name = "csharp_basic_test"
+sources = ["src"]
+
+[language]
+standard = "1.2"
+profiles = ["C#"]
+
+[generator]
+defaultLanguage = "C#"
+
+[generator.csharp]
