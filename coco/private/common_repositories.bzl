@@ -192,15 +192,6 @@ cc_library(
     srcs = glob(["coco_c/src/*.c"], allow_empty = True) + glob(["coco_c/*.c"], allow_empty = True),
     visibility = ["//visibility:public"],
 )
-
-cc_library(
-    name = "testing",
-    hdrs = glob(["coco_c/testing/*.h"], allow_empty = True),
-    deps = [
-      ":runtime",
-    ],
-    visibility = ["//visibility:public"],
-)
 """)
 
 _coco_c_runtime_repository = repository_rule(

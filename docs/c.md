@@ -77,7 +77,7 @@ coco_c_test_library(<a href="#coco_c_test_library-name">name</a>, <a href="#coco
 
 Creates a C test library from Coco-generated C test code.
 
-This automatically adds the Coco C testing runtime as a dependency by accessing
+This automatically adds the Coco C runtime as a dependency by accessing
 it from the Coco toolchain.
 
 

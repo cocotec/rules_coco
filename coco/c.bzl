@@ -86,7 +86,7 @@ def coco_c_test_library(
         **kwargs):
     """Creates a C test library from Coco-generated C test code.
 
-    This automatically adds the Coco C testing runtime as a dependency by accessing
+    This automatically adds the Coco C runtime as a dependency by accessing
     it from the Coco toolchain.
 
     Args:
@@ -98,7 +98,7 @@ def coco_c_test_library(
         **kwargs: Additional arguments passed to cc_library
     """
 
-    # Create a helper target to get the testing runtime from the toolchain
+    # Create a helper target to get the runtime from the toolchain
     runtime_target = "_{}_coco_test_runtime".format(name)
     coco_c_runtime(
         name = runtime_target,
