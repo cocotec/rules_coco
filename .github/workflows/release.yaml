@@ -78,7 +78,7 @@ jobs:
           | sed 's#{sha256_base64}#${{ env.ARCHIVE_SHA256_BASE64 }}#g' \
           > ${{ github.workspace }}/.github/release_notes.txt
       - name: Create release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         id: rules_coco_release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
