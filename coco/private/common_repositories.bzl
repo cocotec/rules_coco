@@ -43,6 +43,34 @@ def _version_tuple(version):
 
     return tuple(result) if result else None
 
+def validate_minimum_version(version):
+    """Validates that a version meets the minimum requirement of 1.5.0.
+
+    Args:
+        version: Version string to validate (e.g., "1.5.0", "1.4.9-rc.1")
+
+    Returns:
+        None if version is valid, error message string if version is too old
+    """
+    MINIMUM_VERSION = (1, 5, 0)
+
+    # Skip validation for version aliases (they're validated separately)
+    if not version or "." not in version:
+        return None
+
+    parsed = _version_tuple(version)
+    if parsed == None:
+        return "Invalid version string: %s" % version
+
+    if parsed < MINIMUM_VERSION:
+        return (
+            "Popili version %s is not supported. " % version +
+            "rules_coco requires Popili 1.5.0 or higher. " +
+            "Please upgrade to a newer version."
+        )
+
+    return None
+
 def _determine_product_name(versions):
     """Determines the product name based on versions in use.
 

@@ -11,6 +11,7 @@ The rules are fully compatible with remote caching and execution.
 ## Requirements
 
 - Bazel 8.0.0 or higher.
+- Popili 1.5.0 or higher.
 - A valid Coco/Popili license.
 
 ## Setup
@@ -117,7 +118,7 @@ There are several ways of setting the version of Popili that you would like to u
    coco.toolchain(
        c = True,
        cc = True,
-       versions = ["1.5.0", "1.4.0"],  # Register both versions
+       versions = ["1.5.0", "1.5.1"],  # Register both versions
    )
    ```
 
@@ -271,6 +272,8 @@ coco_c_library(
 
 Bazel has to be able to precompute the output paths of all rules. Since there are many settings in `Coco.toml` that
 can affect output paths, these settings must be repeated in the `BUILD` file. For example:
+
+TODO: give an example of the error
 
 ```toml
 [generator.cpp]

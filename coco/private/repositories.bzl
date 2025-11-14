@@ -24,9 +24,11 @@ load(
     "coco_preferences_repository",
     "coco_symlink_license_repository",
     "download_prefix",
+    "validate_minimum_version",
     "version_to_repo_suffix",
 )
 load(":known_shas.bzl", "FILE_KEY_TO_SHA")
+load(":version_aliases.bzl", "VERSION_ALIASES")
 
 def BUILD_for_toolchain(name, parent_workspace_name, constraints):
     return """
@@ -244,6 +246,15 @@ def coco_repositories(version = "stable", **kwargs):
       version: The Coco version to use (default: "stable").
       **kwargs: Additional arguments including 'c' for C support and 'cc' for C++ support.
     """
+
+    # Resolve version aliases
+    resolved_version = VERSION_ALIASES.get(version, version)
+
+    # Validate minimum version requirement
+    error = validate_minimum_version(resolved_version)
+    if error:
+        fail(error)
+
     c = kwargs.get("c", False)
     cc = kwargs.get("cc", False)
     _coco_deps(
