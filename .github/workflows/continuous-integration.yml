@@ -22,7 +22,7 @@ jobs:
     needs: [pre-commit]
     steps:
       - uses: actions/checkout@v4
-      - uses: bazel-contrib/setup-bazel@7d9487bea505c4779367dc5b21dfc4dc6a02d21d
+      - uses: bazel-contrib/setup-bazel@4432ac8a2318fb254c5b9fe491b9d21a002d7122
       - name: Generate documentation
         run: bazel build //docs:docs
         env:
@@ -131,7 +131,7 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v4
-      - uses: bazel-contrib/setup-bazel@7d9487bea505c4779367dc5b21dfc4dc6a02d21d
+      - uses: bazel-contrib/setup-bazel@4432ac8a2318fb254c5b9fe491b9d21a002d7122
       - name: Test root workspace
         run: |
           export COCOTEC_AUTH_TOKEN="{\"external\": { \
