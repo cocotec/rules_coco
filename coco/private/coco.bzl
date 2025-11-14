@@ -224,6 +224,7 @@ def _run_coco(ctx, package, verb, arguments, outputs):
             ctx.toolchains[COCO_TOOLCHAIN_TYPE].coco,
         ],
         env = _coco_env(ctx),
+        mnemonic = "CocoGenerate",
         progress_message = "%s %s" % (verb, package[CocoPackageInfo].name),
         inputs = _coco_runfiles(ctx, package, False),
         outputs = outputs,
@@ -354,6 +355,7 @@ def _run_typecheck(ctx, package_file, srcs, test_srcs, dep_package_files):
     ctx.actions.run(
         executable = script,
         tools = [ctx.toolchains[COCO_TOOLCHAIN_TYPE].coco, script],
+        mnemonic = "CocoTypecheck",
         progress_message = "Typechecking %s" % ctx.label.name,
         inputs = depset(direct = inputs_direct, transitive = [srcs, test_srcs, dep_package_files]),
         outputs = [marker],
