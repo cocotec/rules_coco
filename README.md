@@ -96,11 +96,45 @@ Contact [Cocotec Support](https://cocotec.io/support/) to set this up or discuss
   `--@rules_coco//:license_token` must be set as well. This works with remote execution but it is only recommended when
   using workload identity federation as `COCOTEC_AUTH_TOKEN` is not a secret in that case.
 
-This can be set via a flag.
+This can be configured in three ways (in order of precedence):
 
-```bash
-bazel build --@rules_coco//:license_source=local_acquire //...
-```
+1. **Via command-line flag** (highest precedence):
+
+   ```bash
+   bazel build --@rules_coco//:license_source=local_acquire //...
+   ```
+
+2. **In MODULE.bazel** (for bzlmod users):
+
+   ```python
+   coco = use_extension("@rules_coco//coco:extensions.bzl", "coco")
+   coco.toolchain(
+       versions = ["stable"],
+       license_source = "local_acquire",  # Optional: set repository default
+       # license_token = "...",  # Optional: only needed when license_source = "token"
+   )
+   ```
+
+3. **In WORKSPACE** (for WORKSPACE users):
+   ```python
+   coco_repositories(
+       version = "stable",
+       license_source = "local_acquire",  # Optional: set repository default
+       # license_token = "...",  # Optional: only needed when license_source = "token"
+   )
+   ```
+
+The repository-level configuration (MODULE.bazel or WORKSPACE) sets a default that applies to all builds, while the
+command-line flag can be used to override it for specific builds. If neither is specified, the default is `local_user`.
+
+**⚠️ Security Warning for `license_token`:**
+
+The `license_token` parameter is available in repository configuration for convenience, but:
+
+- The `license_token` parameter should **only** be used in repository configuration when using workload identity
+  federation, where the token is not a secret.
+- For secret tokens, use the command-line flag instead: `--@rules_coco//:license_token=<token>`, or better yet ensure
+  that your bazel execution environment injects `COCOTEC_AUTH_TOKEN` directly into actions.
 
 ### Popili Version
 

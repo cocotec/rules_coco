@@ -17,8 +17,8 @@ load("@rules_coco//coco:defs.bzl", "LICENSE_SOURCES")
 
 string_flag(
     name = "license_source",
-    build_setting_default = "local_user",
-    values = LICENSE_SOURCES,
+    build_setting_default = "",
+    values = LICENSE_SOURCES + [""],
     visibility = ["//visibility:public"],
 )
 

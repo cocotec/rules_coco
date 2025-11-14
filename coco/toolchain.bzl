@@ -21,6 +21,8 @@ def _coco_toolchain_impl(ctx):
         preferences_file = ctx.file.preferences_file,
         cc_runtime = ctx.attr.cc_runtime,
         c_runtime = ctx.attr.c_runtime,
+        license_source = ctx.attr.license_source,
+        license_token = ctx.attr.license_token,
     )
     return toolchain
 
@@ -44,6 +46,14 @@ coco_toolchain = rule(
             doc = "The location of the `cocotec-licensing-server` binary. Can be a direct source or a filegroup containing one item.",
             allow_single_file = True,
             mandatory = True,
+        ),
+        "license_source": attr.string(
+            doc = "The license source mode for this toolchain. Can be 'local_user', 'local_acquire', 'token', or 'action_environment'. If not specified, defaults to 'local_user'. Can be overridden via --@rules_coco//:license_source flag.",
+            default = "",
+        ),
+        "license_token": attr.string(
+            doc = "The license token to use when license_source is 'token'. Optional.",
+            default = "",
         ),
         "preferences_file": attr.label(
             doc = "The location of the Popili `preferences.toml` file. Can be a direct source or a filegroup containing one item.",
