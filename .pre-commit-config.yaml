@@ -38,7 +38,7 @@ repos:
     rev: v3.1.0
     hooks:
       - id: prettier
-        exclude: ^docs/
+        exclude: ^(docs/|renovate\.json$)
         types_or:
           - markdown
           - yaml
