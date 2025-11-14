@@ -83,6 +83,15 @@ bzl_library(
     deps = [":coco_bzl"],
 )
 
+bzl_library(
+    name = "diagram_bzl",
+    srcs = ["diagram.bzl"],
+    deps = [
+        ":coco_bzl",
+        "@bazel_skylib//rules:common_settings",
+    ],
+)
+
 # Unified bzl_library aggregating all private implementation
 # Visibility restricted to //coco package only
 bzl_library(
@@ -92,6 +101,7 @@ bzl_library(
         ":bazel_tools_bzl_lib",
         ":coco_bzl",
         ":common_repositories_bzl",
+        ":diagram_bzl",
         ":format_bzl",
         ":known_shas_bzl",
         ":licensing_bzl",

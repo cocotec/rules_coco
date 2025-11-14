@@ -1,0 +1,6 @@
+[package]
+name = "archDiagram"
+sources = ["."]
+
+[language]
+standard = "1"

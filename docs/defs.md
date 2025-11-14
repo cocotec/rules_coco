@@ -36,6 +36,50 @@ Example:
 | <a id="with_popili_version-version"></a>version |  The popili version to use (e.g., '1.5.0', '1.4.7')   | String | required |  |
 
 
+<a id="coco_architecture_diagram"></a>
+
+## coco_architecture_diagram
+
+<pre>
+load("@rules_coco//coco:defs.bzl", "coco_architecture_diagram")
+
+coco_architecture_diagram(<a href="#coco_architecture_diagram-name">name</a>, <a href="#coco_architecture_diagram-components">components</a>, <a href="#coco_architecture_diagram-kwargs">**kwargs</a>)
+</pre>
+
+Creates an architecture diagram generation rule.
+
+**PARAMETERS**
+
+
+| Name  | Description | Default Value |
+| :------------- | :------------- | :------------- |
+| <a id="coco_architecture_diagram-name"></a>name |  Name of the diagram target   |  none |
+| <a id="coco_architecture_diagram-components"></a>components |  Dict mapping output filenames to component names (required)   |  none |
+| <a id="coco_architecture_diagram-kwargs"></a>kwargs |  Additional arguments passed to the underlying rule   |  none |
+
+
+<a id="coco_counterexample_diagram"></a>
+
+## coco_counterexample_diagram
+
+<pre>
+load("@rules_coco//coco:defs.bzl", "coco_counterexample_diagram")
+
+coco_counterexample_diagram(<a href="#coco_counterexample_diagram-name">name</a>, <a href="#coco_counterexample_diagram-counterexamples">counterexamples</a>, <a href="#coco_counterexample_diagram-kwargs">**kwargs</a>)
+</pre>
+
+Creates a counterexample diagram generation rule.
+
+**PARAMETERS**
+
+
+| Name  | Description | Default Value |
+| :------------- | :------------- | :------------- |
+| <a id="coco_counterexample_diagram-name"></a>name |  Name of the diagram target   |  none |
+| <a id="coco_counterexample_diagram-counterexamples"></a>counterexamples |  Dict mapping output filenames to target specifications. Values can be either: - A string with the target declaration name - A struct from counterexample_options(decl, assertion) for filtering   |  none |
+| <a id="coco_counterexample_diagram-kwargs"></a>kwargs |  Additional arguments passed to the underlying rule   |  none |
+
+
 <a id="coco_fmt_test"></a>
 
 ## coco_fmt_test
@@ -110,6 +154,27 @@ Define a Coco package from Coco.toml and .coco source files.
 | <a id="coco_package-kwargs"></a>kwargs |  Additional arguments passed to the underlying rule   |  none |
 
 
+<a id="coco_state_diagram"></a>
+
+## coco_state_diagram
+
+<pre>
+load("@rules_coco//coco:defs.bzl", "coco_state_diagram")
+
+coco_state_diagram(<a href="#coco_state_diagram-name">name</a>, <a href="#coco_state_diagram-kwargs">**kwargs</a>)
+</pre>
+
+Creates a state machine diagram generation rule.
+
+**PARAMETERS**
+
+
+| Name  | Description | Default Value |
+| :------------- | :------------- | :------------- |
+| <a id="coco_state_diagram-name"></a>name |  Name of the diagram target   |  none |
+| <a id="coco_state_diagram-kwargs"></a>kwargs |  Additional arguments passed to the underlying rule   |  none |
+
+
 <a id="coco_test_outputs_name"></a>
 
 ## coco_test_outputs_name
@@ -148,5 +213,30 @@ coco_verify_test(<a href="#coco_verify_test-kwargs">**kwargs</a>)
 | Name  | Description | Default Value |
 | :------------- | :------------- | :------------- |
 | <a id="coco_verify_test-kwargs"></a>kwargs |  <p align="center"> - </p>   |  none |
+
+
+<a id="counterexample_options"></a>
+
+## counterexample_options
+
+<pre>
+load("@rules_coco//coco:defs.bzl", "counterexample_options")
+
+counterexample_options(<a href="#counterexample_options-decl">decl</a>, <a href="#counterexample_options-assertion">assertion</a>)
+</pre>
+
+Specify counterexample filtering options.
+
+**PARAMETERS**
+
+
+| Name  | Description | Default Value |
+| :------------- | :------------- | :------------- |
+| <a id="counterexample_options-decl"></a>decl |  Target declaration name (required)   |  none |
+| <a id="counterexample_options-assertion"></a>assertion |  Assertion text to filter (optional, only needed if multiple counterexamples for the target)   |  `None` |
+
+**RETURNS**
+
+Struct with decl and assertion fields for use in coco_counterexample_diagram
 
 

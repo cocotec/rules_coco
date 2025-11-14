@@ -1,0 +1,65 @@
+// RUN: %coco-diagram --component=OuterEncapsulating --format=svg %s > %t.svg
+// RUN: %udiff %s.svg %t.svg
+
+port P {
+  machine M {}
+}
+
+port Log {
+  machine M {}
+}
+
+port PAlarm {
+  function arm() : Nil
+  function disarm() : Nil
+  outgoing signal alarm()
+  machine M {
+    state Disarmed {
+      arm() = setNextState(Armed)
+    }
+    state Armed {
+      disarm() = setNextState(Disarmed)
+      spontaneous = setNextState(Alarmed)
+    }
+    state Alarmed {
+      entry() = alarm()
+      disarm() = setNextState(Disarmed)
+    }
+  }
+}
+
+@runtime(.MultiThreaded)
+component Proxy {
+  val pro : Provided<P>
+  val req : Required<P>
+  val log : Required<Log>
+  init() = {
+    setAccess(log, PortAccess.Shared);
+  }
+  machine M {}
+}
+
+@runtime(.MultiThreaded)
+component Bottom {
+  val pro : Provided<P>
+  val log : Required<Log>
+  val alarm : Required<PAlarm>
+  init() = {
+    setAccess(log, PortAccess.Shared);
+    setAccess(alarm, PortAccess.Shared);
+  }
+  machine M {}
+}
+
+@runtime(.MultiThreaded)
+component Logger {
+  val log : Provided<Log>
+  machine M {}
+}
+
+@runtime(.MultiThreaded)
+component Alarm {
+  val alarm : Provided<PAlarm>
+  val log : Required<Log>
+  machine M {}
+}
