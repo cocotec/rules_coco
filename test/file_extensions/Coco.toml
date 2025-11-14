@@ -1,0 +1,15 @@
+[package]
+name = "file_extensions_test"
+sources = ["src"]
+
+[language]
+standard = "1.2"
+profiles = ["C++"]
+
+[generator]
+defaultLanguage = "C++"
+
+[generator.cpp]
+headerFileExtension = ".hpp"
+implementationFileExtension = ".cpp"
+runtimeHeaderFileExtension = ".h"

@@ -1,0 +1,14 @@
+[package]
+name = "file_prefixes_test"
+sources = ["src"]
+
+[language]
+standard = "1.2"
+profiles = ["C++"]
+
+[generator]
+defaultLanguage = "C++"
+
+[generator.cpp]
+headerFilePrefix = "api_"
+implementationFilePrefix = "impl_"

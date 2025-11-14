@@ -494,14 +494,137 @@ def coco_verify_test(**kwargs):
         **kwargs
     )
 
-def _add_outputs(ctx, outputs, mock_outputs, src):
-    if ctx.attr.language == "cpp":
-        if ctx.attr.mocks:
-            for ext in ["Mock.h", "Mock.cc"]:
-                mock_outputs.append(ctx.actions.declare_file(paths.replace_extension(src.basename, ext), sibling = src))
+def _mangle_name(name, style):
+    """Apply name mangling based on the specified style.
 
-        for ext in [".h", ".cc"]:
-            outputs.append(ctx.actions.declare_file(paths.replace_extension(src.basename, ext), sibling = src))
+    Args:
+        name: The name to mangle
+        style: One of: Unaltered, LowerCamelCase, UpperCamelCase, LowerUnderscore, UpperUnderscore, CapsUpperUnderscore
+
+    Returns:
+        The mangled name
+    """
+    if style == "Unaltered":
+        return name
+
+    # Split on uppercase letters to get word boundaries
+    words = []
+    current_word = ""
+    for i, char in enumerate(name.elems()):
+        if char.isupper() and i > 0 and current_word:
+            words.append(current_word)
+            current_word = char
+        else:
+            current_word += char
+    if current_word:
+        words.append(current_word)
+
+    if style == "LowerCamelCase":
+        if not words:
+            return name
+        return words[0].lower() + "".join([w.capitalize() for w in words[1:]])
+    elif style == "UpperCamelCase":
+        return "".join([w.capitalize() for w in words])
+    elif style == "LowerUnderscore":
+        return "_".join([w.lower() for w in words])
+    elif style == "UpperUnderscore":
+        return "_".join([w.upper() for w in words])
+    elif style == "CapsUpperUnderscore":
+        return "_".join([w.upper() for w in words])
+    else:
+        fail("Unsupported file name mangler style: %s" % style)
+
+def _compute_output_filenames(src_basename, config):
+    """Compute output filenames for a source file.
+
+    This is a pure function that computes the output filenames without declaring
+    any files. It can be unit tested.
+
+    Args:
+        src_basename: The source file basename (e.g., "ExampleName.coco")
+        config: A struct with the following fields:
+            - file_name_mangler: The name mangling style
+            - header_prefix: Prefix for header files
+            - header_extension: Extension for header files
+            - impl_prefix: Prefix for implementation files
+            - impl_extension: Extension for implementation files
+            - mocks: Whether to generate mock files
+            - flat_hierarchy: Whether to use flat file hierarchy
+            - root_output_dir: Root output directory (for flat hierarchy)
+
+    Returns:
+        A struct with the following fields:
+            - header: Regular header filename
+            - impl: Regular implementation filename
+            - mock_header: Mock header filename (or None)
+            - mock_impl: Mock implementation filename (or None)
+    """
+
+    # Get the base name without extension
+    base_name = paths.split_extension(src_basename)[0]
+
+    # Apply name mangling
+    base_name = _mangle_name(base_name, config.file_name_mangler)
+
+    # Compute regular filenames
+    header_name = config.header_prefix + base_name + config.header_extension
+    impl_name = config.impl_prefix + base_name + config.impl_extension
+
+    # Handle flat hierarchy
+    if config.flat_hierarchy:
+        if config.root_output_dir:
+            header_name = paths.join(config.root_output_dir, header_name)
+            impl_name = paths.join(config.root_output_dir, impl_name)
+
+    # Compute mock filenames if needed
+    mock_header_name = None
+    mock_impl_name = None
+    if config.mocks:
+        mock_header_name = config.header_prefix + base_name + "Mock" + config.header_extension
+        mock_impl_name = config.impl_prefix + base_name + "Mock" + config.impl_extension
+
+        if config.flat_hierarchy:
+            if config.root_output_dir:
+                mock_header_name = paths.join(config.root_output_dir, mock_header_name)
+                mock_impl_name = paths.join(config.root_output_dir, mock_impl_name)
+
+    return struct(
+        header = header_name,
+        impl = impl_name,
+        mock_header = mock_header_name,
+        mock_impl = mock_impl_name,
+    )
+
+def _add_outputs(ctx, outputs, mock_outputs, src, root_output_dir):
+    if ctx.attr.language == "cpp":
+        # Create config struct from context attributes
+        config = struct(
+            file_name_mangler = ctx.attr.cpp_file_name_mangler,
+            header_prefix = ctx.attr.cpp_header_file_prefix,
+            header_extension = ctx.attr.cpp_header_file_extension,
+            impl_prefix = ctx.attr.cpp_implementation_file_prefix,
+            impl_extension = ctx.attr.cpp_implementation_file_extension,
+            mocks = ctx.attr.mocks,
+            flat_hierarchy = ctx.attr.cpp_flat_file_hierarchy,
+            root_output_dir = root_output_dir,
+        )
+
+        # Compute output filenames using pure function
+        filenames = _compute_output_filenames(src.basename, config)
+
+        # Declare files
+        if config.flat_hierarchy:
+            outputs.append(ctx.actions.declare_file(filenames.header))
+            outputs.append(ctx.actions.declare_file(filenames.impl))
+            if filenames.mock_header:
+                mock_outputs.append(ctx.actions.declare_file(filenames.mock_header))
+                mock_outputs.append(ctx.actions.declare_file(filenames.mock_impl))
+        else:
+            outputs.append(ctx.actions.declare_file(filenames.header, sibling = src))
+            outputs.append(ctx.actions.declare_file(filenames.impl, sibling = src))
+            if filenames.mock_header:
+                mock_outputs.append(ctx.actions.declare_file(filenames.mock_header, sibling = src))
+                mock_outputs.append(ctx.actions.declare_file(filenames.mock_impl, sibling = src))
     else:
         fail("unrecognised language")
 
@@ -523,13 +646,15 @@ def _coco_package_generate_impl(ctx):
     outputs = []
     mock_outputs = []
     test_outputs = []
-    for src in srcs.to_list():
-        _add_outputs(ctx, outputs, mock_outputs, src)
-    for src in test_srcs.to_list():
-        _add_outputs(ctx, test_outputs, mock_outputs, src)
-    test_outputs += mock_outputs
 
     root_output_dir = _output_directory(package_dir, srcs)
+    test_root_output_dir = _output_directory(package_dir, test_srcs) if test_srcs else root_output_dir
+
+    for src in srcs.to_list():
+        _add_outputs(ctx, outputs, mock_outputs, src, root_output_dir)
+    for src in test_srcs.to_list():
+        _add_outputs(ctx, test_outputs, mock_outputs, src, test_root_output_dir)
+    test_outputs += mock_outputs
     output_dir = paths.join(ctx.genfiles_dir.path, package_dir, root_output_dir)
     arguments = [
         "generate-%s" % ctx.attr.language,
@@ -580,6 +705,30 @@ def _coco_package_generate_impl(ctx):
 _coco_generate = rule(
     implementation = _coco_package_generate_impl,
     attrs = dict(LICENSE_ATTRIBUTES.items() + {
+        "cpp_file_name_mangler": attr.string(
+            default = "Unaltered",
+            doc = """Must match Coco.toml generator.cpp.fileNameMangler setting.""",
+        ),
+        "cpp_flat_file_hierarchy": attr.bool(
+            default = False,
+            doc = """Must match Coco.toml generator.cpp.flatFileHierarchy setting.""",
+        ),
+        "cpp_header_file_extension": attr.string(
+            default = ".h",
+            doc = """Must match Coco.toml generator.cpp.headerFileExtension setting.""",
+        ),
+        "cpp_header_file_prefix": attr.string(
+            default = "",
+            doc = """Must match Coco.toml generator.cpp.headerFilePrefix setting.""",
+        ),
+        "cpp_implementation_file_extension": attr.string(
+            default = ".cc",
+            doc = """Must match Coco.toml generator.cpp.implementationFileExtension setting.""",
+        ),
+        "cpp_implementation_file_prefix": attr.string(
+            default = "",
+            doc = """Must match Coco.toml generator.cpp.implementationFilePrefix setting.""",
+        ),
         "language": attr.string(mandatory = True, values = ["cpp"]),
         "mocks": attr.bool(),
         "package": attr.label(
@@ -646,3 +795,7 @@ def popili_version_alias(name, **kwargs):
         name = name,
         **kwargs
     )
+
+# Exported for testing
+mangle_name = _mangle_name
+compute_output_filenames = _compute_output_filenames

@@ -1,0 +1,13 @@
+[package]
+name = "file_name_mangling_test"
+sources = ["src"]
+
+[language]
+standard = "1.2"
+profiles = ["C++"]
+
+[generator]
+defaultLanguage = "C++"
+
+[generator.cpp]
+fileNameMangler = "LowerUnderscore"

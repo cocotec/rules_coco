@@ -1,0 +1,13 @@
+[package]
+name = "flat_hierarchy_test"
+sources = ["src"]
+
+[language]
+standard = "1.2"
+profiles = ["C++"]
+
+[generator]
+defaultLanguage = "C++"
+
+[generator.cpp]
+flatFileHierarchy = true
