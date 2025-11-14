@@ -445,7 +445,6 @@ _coco_package = rule(
         ),
         "is_windows": attr.bool(
             mandatory = True,
-            doc = "True if building for Windows platform",
         ),
         "package": attr.label(
             mandatory = True,
@@ -461,7 +460,6 @@ _coco_package = rule(
         ),
         "typecheck": attr.bool(
             default = False,
-            doc = "Run typecheck validation during package creation. When enabled, package build will fail if typecheck errors are found.",
         ),
     }.items()),
     toolchains = [
@@ -469,15 +467,26 @@ _coco_package = rule(
     ],
 )
 
-def coco_package(name, **kwargs):
+def coco_package(name, package, srcs, deps = [], test_srcs = [], typecheck = False, **kwargs):
     """Define a Coco package from Coco.toml and .coco source files.
 
     Args:
         name: Name of the package target
-        **kwargs: Additional arguments passed to the underlying rule
+        package: Label pointing to the Coco.toml file for this package
+        srcs: List of .coco source files for this package
+        deps: List of other coco_package targets this package depends on
+        test_srcs: List of .coco test source files
+        typecheck: Run typecheck validation during package creation. When enabled,
+                   the build will fail if typecheck errors are found.
+        **kwargs: Additional Bazel arguments (e.g., visibility, tags)
     """
     _coco_package(
         name = name,
+        package = package,
+        srcs = srcs,
+        deps = deps,
+        test_srcs = test_srcs,
+        typecheck = typecheck,
         is_windows = select({
             "@platforms//os:windows": True,
             "//conditions:default": False,
@@ -521,8 +530,20 @@ _coco_verify_test = rule(
     ],
 )
 
-def coco_verify_test(**kwargs):
+def coco_verify_test(name, package, **kwargs):
+    """Creates a test that runs Coco verification on a package.
+
+    This test executes the `popili verify` command on the specified coco_package,
+    verifying the Coco code.
+
+    Args:
+        name: Name of the test target
+        package: The coco_package target to verify
+        **kwargs: Additional Bazel test arguments (e.g., size, timeout, tags, visibility)
+    """
     _coco_verify_test(
+        name = name,
+        package = package,
         is_windows = select({
             "@platforms//os:windows": True,
             "//conditions:default": False,
@@ -882,67 +903,52 @@ _coco_generate = rule(
         # C output path options
         "c_file_name_mangler": attr.string(
             default = "Unaltered",
-            doc = """Must match Coco.toml generator.c.fileNameMangler setting.""",
         ),
         "c_flat_file_hierarchy": attr.bool(
             default = False,
-            doc = """Must match Coco.toml generator.c.flatFileHierarchy setting.""",
         ),
         "c_header_file_extension": attr.string(
             default = ".h",
-            doc = """Must match Coco.toml generator.c.headerFileExtension setting.""",
         ),
         "c_header_file_prefix": attr.string(
             default = "",
-            doc = """Must match Coco.toml generator.c.headerFilePrefix setting.""",
         ),
         "c_implementation_file_extension": attr.string(
             default = ".c",
-            doc = """Must match Coco.toml generator.c.implementationFileExtension setting.""",
         ),
         "c_implementation_file_prefix": attr.string(
             default = "",
-            doc = """Must match Coco.toml generator.c.implementationFilePrefix setting.""",
         ),
         "c_regenerate_packages": attr.label_list(
             providers = [CocoPackageInfo],
             default = [],
-            doc = """List of coco_package targets to regenerate with current package's C generator settings.""",
         ),
         # C++ output path options
         "cpp_file_name_mangler": attr.string(
             default = "Unaltered",
-            doc = """Must match Coco.toml generator.cpp.fileNameMangler setting.""",
         ),
         "cpp_flat_file_hierarchy": attr.bool(
             default = False,
-            doc = """Must match Coco.toml generator.cpp.flatFileHierarchy setting.""",
         ),
         "cpp_header_file_extension": attr.string(
             default = ".h",
-            doc = """Must match Coco.toml generator.cpp.headerFileExtension setting.""",
         ),
         "cpp_header_file_prefix": attr.string(
             default = "",
-            doc = """Must match Coco.toml generator.cpp.headerFilePrefix setting.""",
         ),
         "cpp_implementation_file_extension": attr.string(
             default = ".cc",
-            doc = """Must match Coco.toml generator.cpp.implementationFileExtension setting.""",
         ),
         "cpp_implementation_file_prefix": attr.string(
             default = "",
-            doc = """Must match Coco.toml generator.cpp.implementationFilePrefix setting.""",
         ),
         "cpp_regenerate_packages": attr.label_list(
             providers = [CocoPackageInfo],
             default = [],
-            doc = """List of coco_package targets to regenerate with current package's C++ generator settings.""",
         ),
         "csharp_regenerate_packages": attr.label_list(
             providers = [CocoPackageInfo],
             default = [],
-            doc = """List of coco_package targets to regenerate with current package's C# generator settings.""",
         ),
         "language": attr.string(mandatory = True, values = ["cpp", "c", "csharp"]),
         "mocks": attr.bool(),
@@ -976,9 +982,88 @@ _coco_test_outputs = rule(
 def coco_test_outputs_name(name):
     return "%s.tst" % name
 
-def coco_generate(name, **kwargs):
+def coco_generate(
+        name,
+        package,
+        language,
+        mocks = False,
+        c_file_name_mangler = "Unaltered",
+        c_flat_file_hierarchy = False,
+        c_header_file_extension = ".h",
+        c_header_file_prefix = "",
+        c_implementation_file_extension = ".c",
+        c_implementation_file_prefix = "",
+        c_regenerate_packages = [],
+        cpp_file_name_mangler = "Unaltered",
+        cpp_flat_file_hierarchy = False,
+        cpp_header_file_extension = ".h",
+        cpp_header_file_prefix = "",
+        cpp_implementation_file_extension = ".cc",
+        cpp_implementation_file_prefix = "",
+        cpp_regenerate_packages = [],
+        csharp_regenerate_packages = [],
+        **kwargs):
+    """Generate C, C++, or C# code from a Coco package.
+
+    This macro generates code from Coco source files in the specified language.
+    The generated files can then be compiled into libraries or executables using
+    standard build rules (e.g., cc_library for C/C++).
+
+    The generator configuration options (file extensions, prefixes, etc.) must match
+    the settings in your Coco.toml file under the corresponding generator section
+    (e.g., [generator.cpp] for C++, [generator.c] for C).
+
+    Args:
+        name: Name of the code generation target
+        package: The coco_package target containing the source files to generate from
+        language: Target language for code generation: "cpp", "c", or "csharp"
+        mocks: Generate mock implementations for testing (default: False)
+        c_file_name_mangler: C file naming style - must match Coco.toml generator.c.fileNameMangler.
+                             Options: "Unaltered", "LowerCamelCase", "UpperCamelCase",
+                             "LowerUnderscore", "UpperUnderscore", "CapsUpperUnderscore"
+        c_flat_file_hierarchy: Use flat directory structure for C files - must match
+                               Coco.toml generator.c.flatFileHierarchy
+        c_header_file_extension: File extension for C headers (default: ".h")
+        c_header_file_prefix: Prefix for C header file names (default: "")
+        c_implementation_file_extension: File extension for C implementation files (default: ".c")
+        c_implementation_file_prefix: Prefix for C implementation file names (default: "")
+        c_regenerate_packages: List of other coco_package targets to regenerate with this
+                               target's C generator settings
+        cpp_file_name_mangler: C++ file naming style - must match Coco.toml generator.cpp.fileNameMangler.
+                               Options: "Unaltered", "LowerCamelCase", "UpperCamelCase",
+                               "LowerUnderscore", "UpperUnderscore", "CapsUpperUnderscore"
+        cpp_flat_file_hierarchy: Use flat directory structure for C++ files - must match
+                                 Coco.toml generator.cpp.flatFileHierarchy
+        cpp_header_file_extension: File extension for C++ headers (default: ".h")
+        cpp_header_file_prefix: Prefix for C++ header file names (default: "")
+        cpp_implementation_file_extension: File extension for C++ implementation files (default: ".cc")
+        cpp_implementation_file_prefix: Prefix for C++ implementation file names (default: "")
+        cpp_regenerate_packages: List of other coco_package targets to regenerate with this
+                                 target's C++ generator settings
+        csharp_regenerate_packages: List of other coco_package targets to regenerate with this
+                                    target's C# generator settings
+        **kwargs: Additional Bazel arguments (e.g., visibility, tags)
+    """
     _coco_generate(
         name = name,
+        package = package,
+        language = language,
+        mocks = mocks,
+        c_file_name_mangler = c_file_name_mangler,
+        c_flat_file_hierarchy = c_flat_file_hierarchy,
+        c_header_file_extension = c_header_file_extension,
+        c_header_file_prefix = c_header_file_prefix,
+        c_implementation_file_extension = c_implementation_file_extension,
+        c_implementation_file_prefix = c_implementation_file_prefix,
+        c_regenerate_packages = c_regenerate_packages,
+        cpp_file_name_mangler = cpp_file_name_mangler,
+        cpp_flat_file_hierarchy = cpp_flat_file_hierarchy,
+        cpp_header_file_extension = cpp_header_file_extension,
+        cpp_header_file_prefix = cpp_header_file_prefix,
+        cpp_implementation_file_extension = cpp_implementation_file_extension,
+        cpp_implementation_file_prefix = cpp_implementation_file_prefix,
+        cpp_regenerate_packages = cpp_regenerate_packages,
+        csharp_regenerate_packages = csharp_regenerate_packages,
         **kwargs
     )
     _coco_test_outputs(
@@ -1006,6 +1091,20 @@ _popili_version_alias = rule(
 )
 
 def popili_version_alias(name, **kwargs):
+    """Creates a target that provides access to the Coco toolchain via template variables.
+
+    This rule creates template variables that can be used in genrules or other rules
+    to access popili and its startup arguments:
+    - $(POPILI): Path to the popili executable
+    - $(POPILI_STARTUP_ARGS): Standard startup arguments for popili
+
+    This is typically used for custom build rules that need direct access to the
+    Coco toolchain.
+
+    Args:
+        name: Name of the alias target
+        **kwargs: Additional Bazel arguments (e.g., visibility, tags)
+    """
     _popili_version_alias(
         name = name,
         **kwargs
