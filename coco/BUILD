@@ -51,6 +51,7 @@ bzl_library(
     srcs = ["defs.bzl"],
     deps = [
         "//coco/private:coco_bzl",
+        "//coco/private:diagram_bzl",
         "//coco/private:format_bzl",
         "//coco/private:licensing_bzl",
     ],

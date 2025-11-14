@@ -23,6 +23,13 @@ load(
     _with_popili_version = "with_popili_version",
 )
 load(
+    "//coco/private:diagram.bzl",
+    _coco_architecture_diagram = "coco_architecture_diagram",
+    _coco_counterexample_diagram = "coco_counterexample_diagram",
+    _coco_state_diagram = "coco_state_diagram",
+    _counterexample_options = "counterexample_options",
+)
+load(
     "//coco/private:format.bzl",
     _coco_fmt_test = "coco_fmt_test",
 )
@@ -42,5 +49,13 @@ coco_fmt_test = _coco_fmt_test
 coco_test_outputs_name = _coco_test_outputs_name
 
 with_popili_version = _with_popili_version
+
+coco_architecture_diagram = _coco_architecture_diagram
+
+coco_state_diagram = _coco_state_diagram
+
+coco_counterexample_diagram = _coco_counterexample_diagram
+
+counterexample_options = _counterexample_options
 
 LICENSE_SOURCES = _LICENSE_SOURCES

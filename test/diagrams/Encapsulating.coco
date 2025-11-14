@@ -1,0 +1,47 @@
+import unqualified LoggerAndAlarm
+
+@runtime(.MultiThreaded)
+component OuterEncapsulating {
+  val p1 : Provided<P>
+  val b1 : Bottom
+  val logger : Logger
+  val alarm : Alarm
+  val inner : InnerEncapsulating
+  val p : Array<Provided<P>, 4>
+  init() = {
+    connect(p1, b1.pro);
+    connect(logger.log, b1.log);
+    connect(alarm.alarm, b1.alarm);
+    connect(alarm.log, logger.log);
+
+    connect(p[0], inner.p[0]);
+    connect(p[1], inner.p[1]);
+    connect(p[2], inner.p[2]);
+    connect(p[3], inner.p[3]);
+    connect(inner.log, logger.log);
+    connect(inner.alarm, alarm.alarm);
+  }
+}
+
+@runtime(.MultiThreaded)
+component InnerEncapsulating {
+  val p : Array<Provided<P>, 4>
+  val b : Array<Bottom, 4>
+  val log : Required<Log>
+  val alarm : Required<PAlarm>
+
+  init() = {
+    connect(p[0], b[0].pro);
+    connect(b[0].log, log);
+    connect(b[0].alarm, alarm);
+    connect(p[1], b[1].pro);
+    connect(b[1].log, log);
+    connect(b[1].alarm, alarm);
+    connect(p[2], b[2].pro);
+    connect(b[2].log, log);
+    connect(b[2].alarm, alarm);
+    connect(p[3], b[3].pro);
+    connect(b[3].log, log);
+    connect(b[3].alarm, alarm);
+  }
+}

@@ -255,14 +255,14 @@ def _coco_runfiles(ctx, package, is_test):
         transitive = transitive,
     )
 
-def _run_coco(ctx, package, verb, arguments, outputs):
+def _run_coco(ctx, package, verb, mnemonic, arguments, outputs):
     ctx.actions.run(
         executable = ctx.toolchains[COCO_TOOLCHAIN_TYPE].coco,
         tools = [
             ctx.toolchains[COCO_TOOLCHAIN_TYPE].coco,
         ],
         env = _coco_env(ctx),
-        mnemonic = "CocoGenerate",
+        mnemonic = mnemonic,
         progress_message = "%s %s" % (verb, package[CocoPackageInfo].name),
         inputs = _coco_runfiles(ctx, package, False),
         outputs = outputs,
@@ -315,10 +315,14 @@ def _create_coco_wrapper_script(ctx, package, arguments):
 
     return wrapper_script
 
-# Export helper functions for use by other private modules (e.g., format.bzl)
+# Export helper functions for use by other private modules (e.g., format.bzl, diagram.bzl)
 # These are implementation details and should not be used by end users
 create_coco_wrapper_script = _create_coco_wrapper_script
 coco_runfiles = _coco_runfiles
+run_coco = _run_coco
+coco_startup_args = _coco_startup_args
+coco_env = _coco_env
+get_license_file_from_toolchain = _get_license_file_from_toolchain
 
 def _run_typecheck(ctx, package, srcs, test_srcs):
     """Run typecheck and produce a marker file on success.
@@ -855,6 +859,7 @@ def _coco_package_generate_impl(ctx):
         ctx = ctx,
         package = package,
         verb = "Generating %s" % ctx.attr.language,
+        mnemonic = "CocoGenerate",
         arguments = arguments,
         outputs = outputs + test_outputs,
     )
