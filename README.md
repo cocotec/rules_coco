@@ -329,22 +329,23 @@ coco_generate(
 )
 ```
 
-| Coco.toml Setting                           | `coco_generate` Attribute           |
-| ------------------------------------------- | ----------------------------------- |
-| `generator.c.headerFileExtension`           | `c_header_file_extension`           |
-| `generator.c.implementationFileExtension`   | `c_implementation_file_extension`   |
-| `generator.c.headerFilePrefix`              | `c_header_file_prefix`              |
-| `generator.c.implementationFilePrefix`      | `c_implementation_file_prefix`      |
-| `generator.c.fileNameMangler`               | `c_file_name_mangler`               |
-| `generator.c.flatFileHierarchy`             | `c_flat_file_hierarchy`             |
-| `generator.cpp.headerFileExtension`         | `cpp_header_file_extension`         |
-| `generator.cpp.implementationFileExtension` | `cpp_implementation_file_extension` |
-| `generator.cpp.headerFilePrefix`            | `cpp_header_file_prefix`            |
-| `generator.cpp.implementationFilePrefix`    | `cpp_implementation_file_prefix`    |
-| `generator.cpp.fileNameMangler`             | `cpp_file_name_mangler`             |
-| `generator.cpp.flatFileHierarchy`           | `cpp_flat_file_hierarchy`           |
-
-=======
+| Coco.toml Setting                           | `coco_generate` Attribute           | Notes                                       |
+| ------------------------------------------- | ----------------------------------- | ------------------------------------------- |
+| `generator.c.headerFileExtension`           | `c_header_file_extension`           |                                             |
+| `generator.c.implementationFileExtension`   | `c_implementation_file_extension`   |                                             |
+| `generator.c.headerFilePrefix`              | `c_header_file_prefix`              |                                             |
+| `generator.c.implementationFilePrefix`      | `c_implementation_file_prefix`      |                                             |
+| `generator.c.fileNameMangler`               | `c_file_name_mangler`               |                                             |
+| `generator.c.flatFileHierarchy`             | `c_flat_file_hierarchy`             |                                             |
+| `generator.c.regeneratePackages`            | `c_regenerate_packages`             | List of `coco_package` labels to regenerate |
+| `generator.cpp.headerFileExtension`         | `cpp_header_file_extension`         |                                             |
+| `generator.cpp.implementationFileExtension` | `cpp_implementation_file_extension` |                                             |
+| `generator.cpp.headerFilePrefix`            | `cpp_header_file_prefix`            |                                             |
+| `generator.cpp.implementationFilePrefix`    | `cpp_implementation_file_prefix`    |                                             |
+| `generator.cpp.fileNameMangler`             | `cpp_file_name_mangler`             |                                             |
+| `generator.cpp.flatFileHierarchy`           | `cpp_flat_file_hierarchy`           |                                             |
+| `generator.cpp.regeneratePackages`          | `cpp_regenerate_packages`           | List of `coco_package` labels to regenerate |
+| `generator.csharp.regeneratePackages`       | `csharp_regenerate_packages`        | List of `coco_package` labels to regenerate |
 
 #### C# Code Generation
 

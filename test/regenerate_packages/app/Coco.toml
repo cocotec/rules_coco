@@ -1,0 +1,23 @@
+[package]
+name = "app"
+sources = ["sources"]
+
+[language]
+standard = "1.2"
+profiles = ["C++", "C"]
+
+[generator.cpp]
+headerFileExtension = ".hpp"
+regeneratePackages = ["base"]
+runtimeHeaderFileExtension = ".h"
+
+[generator.c]
+headerFileExtension = ".hh"
+regeneratePackages = ["base"]
+runtimeHeaderFileExtension = ".h"
+
+[generator.csharp]
+regeneratePackages = ["base"]
+
+[dependencies]
+base = "*"

@@ -10,5 +10,6 @@ profiles = ["C"]
 defaultLanguage = "C"
 
 [generator.c]
-headerFileExtension = ".h"
-implementationFileExtension = ".c"
+headerFileExtension = ".hh"
+implementationFileExtension = ".cc"
+runtimeHeaderFileExtension = ".h"

@@ -1,0 +1,7 @@
+[package]
+name = "base"
+sources = ["source"]
+
+[language]
+standard = "1.2"
+profiles = ["C++", "C"]

@@ -1,0 +1,8 @@
+import unqualified IBase
+import unqualified geometry.Dims
+
+struct Rectangle {
+  var topLeft : Point
+  var bottomRight : Point
+  var size : Dims
+}
