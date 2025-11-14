@@ -134,12 +134,20 @@ def _toolchain_tag_impl(ctx):
     all_versions = []
     cc = False
     c = False
+    license_source = ""
+    license_token = ""
 
     for mod in ctx.modules:
         for toolchain in mod.tags.toolchain:
             all_versions.extend(toolchain.versions)
             cc = cc or toolchain.cc
             c = c or toolchain.c
+
+            # Take the first non-empty license configuration
+            if not license_source and toolchain.license_source:
+                license_source = toolchain.license_source
+            if not license_token and toolchain.license_token:
+                license_token = toolchain.license_token
 
     # Resolve version aliases (like "stable" -> "1.5.1") and deduplicate
     # Keep track of both original and resolved versions for config_settings
@@ -220,6 +228,8 @@ def _toolchain_tag_impl(ctx):
                 version = version,
                 cc_runtime_label = cc_runtime_label,
                 c_runtime_label = c_runtime_label,
+                license_source = license_source,
+                license_token = license_token,
             )
 
             constraints = [
@@ -266,6 +276,14 @@ _toolchain_tag = tag_class(
         "cc": attr.bool(
             default = False,
             doc = "Whether to include C++ runtime support",
+        ),
+        "license_source": attr.string(
+            doc = "Optional default license source mode for all toolchains (e.g., 'local_user', 'local_acquire', 'token', 'action_environment'). Can be overridden via --@rules_coco//:license_source flag.",
+            default = "",
+        ),
+        "license_token": attr.string(
+            doc = "Optional default license token for all toolchains when license_source is 'token'.",
+            default = "",
         ),
         "versions": attr.string_list(
             default = ["stable"],

@@ -44,13 +44,15 @@ toolchain(
         parent_workspace_name = parent_workspace_name,
     )
 
-def BUILD_for_coco_toolchain(name, cc_runtime_label = None, c_runtime_label = None):
+def BUILD_for_coco_toolchain(name, cc_runtime_label = None, c_runtime_label = None, license_source = None, license_token = None):
     """Emits a toolchain declaration to match an existing compiler and stdlib.
 
     Args:
       name: The name of the toolchain declaration
       cc_runtime_label: Optional label to the C++ runtime library (can be a Label object or string)
       c_runtime_label: Optional label to the C runtime library (can be a Label object or string)
+      license_source: Optional license source mode (e.g., "local_user", "local_acquire", "token", "action_environment")
+      license_token: Optional license token string
 
     Returns:
       A string containing BUILD file content for the toolchain.
@@ -66,17 +68,27 @@ def BUILD_for_coco_toolchain(name, cc_runtime_label = None, c_runtime_label = No
     if c_runtime_label:
         c_runtime_attr = '\n    c_runtime = "{}",'.format(str(c_runtime_label))
 
+    license_source_attr = ""
+    if license_source and license_source != "":
+        license_source_attr = '\n    license_source = "{}",'.format(license_source)
+
+    license_token_attr = ""
+    if license_token and license_token != "":
+        license_token_attr = '\n    license_token = "{}",'.format(license_token)
+
     return """
 coco_toolchain(
     name = "{toolchain_name}_impl",
     coco = "//:coco",
-    cocotec_licensing_server = "//:cocotec_licensing_server",{cc_runtime_attr}{c_runtime_attr}
+    cocotec_licensing_server = "//:cocotec_licensing_server",{cc_runtime_attr}{c_runtime_attr}{license_source_attr}{license_token_attr}
     visibility = ["//visibility:public"],
 )
 """.format(
         toolchain_name = name,
         cc_runtime_attr = cc_runtime_attr,
         c_runtime_attr = c_runtime_attr,
+        license_source_attr = license_source_attr,
+        license_token_attr = license_token_attr,
     )
 
 def BUILD_for_coco_archive(binary_ext, product):
@@ -137,6 +149,8 @@ def _coco_toolchain_repository_impl(ctx):
             name = "toolchain",
             cc_runtime_label = ctx.attr.cc_runtime_label,
             c_runtime_label = ctx.attr.c_runtime_label,
+            license_source = ctx.attr.license_source,
+            license_token = ctx.attr.license_token,
         ),
     ]))
 
@@ -163,6 +177,14 @@ coco_toolchain_repository = repository_rule(
             doc = "Optional label to the C++ runtime library",
             default = None,
         ),
+        "license_source": attr.string(
+            doc = "Optional license source mode (e.g., 'local_user', 'local_acquire', 'token', 'action_environment')",
+            default = "",
+        ),
+        "license_token": attr.string(
+            doc = "Optional license token string",
+            default = "",
+        ),
         "os": attr.string(mandatory = True),
         "version": attr.string(mandatory = True),
     },
@@ -180,7 +202,7 @@ coco_toolchain_repository_proxy = repository_rule(
     configure = True,
 )
 
-def coco_repository_set(name, version, os, arch, constraints, cc_runtime_label = None, c_runtime_label = None):
+def coco_repository_set(name, version, os, arch, constraints, cc_runtime_label = None, c_runtime_label = None, license_source = None, license_token = None):
     coco_toolchain_repository(
         arch = arch,
         os = os,
@@ -188,6 +210,8 @@ def coco_repository_set(name, version, os, arch, constraints, cc_runtime_label =
         version = version,
         cc_runtime_label = cc_runtime_label,
         c_runtime_label = c_runtime_label,
+        license_source = license_source,
+        license_token = license_token,
     )
 
     coco_toolchain_repository_proxy(
@@ -244,7 +268,11 @@ def coco_repositories(version = "stable", **kwargs):
 
     Args:
       version: The Coco version to use (default: "stable").
-      **kwargs: Additional arguments including 'c' for C support and 'cc' for C++ support.
+      **kwargs: Additional arguments including:
+        - 'c' (bool): Enable C support
+        - 'cc' (bool): Enable C++ support
+        - 'license_source' (str): Optional license source mode
+        - 'license_token' (str): Optional license token
     """
 
     # Resolve version aliases
@@ -257,6 +285,8 @@ def coco_repositories(version = "stable", **kwargs):
 
     c = kwargs.get("c", False)
     cc = kwargs.get("cc", False)
+    license_source = kwargs.get("license_source", None)
+    license_token = kwargs.get("license_token", None)
     _coco_deps(
         version = version,
         c = c,
@@ -293,6 +323,8 @@ def coco_repositories(version = "stable", **kwargs):
             ],
             c_runtime_label = c_runtime_label,
             cc_runtime_label = cc_runtime_label,
+            license_source = license_source,
+            license_token = license_token,
         )
 
 def coco_local_repository_set(name, path):

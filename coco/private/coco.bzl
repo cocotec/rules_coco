@@ -175,25 +175,40 @@ def _coco_startup_args(ctx, package, is_test):
             arguments += ["--import-path", package_file.dirname]
     return arguments
 
+def _get_license_source(ctx):
+    cli_license_source = ctx.attr._license_source[BuildSettingInfo].value
+    if cli_license_source:
+        return cli_license_source
+    toolchain_license_source = ctx.toolchains[COCO_TOOLCHAIN_TYPE].license_source
+    if toolchain_license_source:
+        return toolchain_license_source
+    return "local_user"
+
 def _get_license_file_from_toolchain(ctx):
     """Get the appropriate license file based on license_source.
 
-    Note: Despite the name, this doesn't actually use the toolchain - it
-    accesses well-known license repositories to avoid circular dependencies.
+    Reads license_source from the toolchain (repository default) with optional
+    CLI override via --@rules_coco//:license_source flag.
     """
-    license_source = ctx.attr._license_source[BuildSettingInfo].value
+
+    license_source = _get_license_source(ctx)
     if license_source == "local_acquire":
         files = ctx.attr._license_file_fetch[DefaultInfo].files.to_list()
         return files[0] if files else None
-    elif license_source == "local_user":
+    if license_source == "local_user":
         files = ctx.attr._license_file_local[DefaultInfo].files.to_list()
         return files[0] if files else None
     return None
 
 def _coco_env(ctx):
     env = {}
-    if ctx.attr._license_source[BuildSettingInfo].value == "token":
-        env["COCOTEC_AUTH_TOKEN"] = ctx.attr._license_token[BuildSettingInfo].value
+
+    license_source = _get_license_source(ctx)
+    if license_source == "token":
+        cli_license_token = ctx.attr._license_token[BuildSettingInfo].value
+        toolchain_license_token = ctx.toolchains[COCO_TOOLCHAIN_TYPE].license_token
+        env["COCOTEC_AUTH_TOKEN"] = cli_license_token if cli_license_token else (toolchain_license_token if toolchain_license_token else "")
+
     return env
 
 def _coco_runfiles(ctx, package, is_test):
