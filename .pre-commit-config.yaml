@@ -44,6 +44,6 @@ repos:
           - yaml
           - json
   - repo: https://github.com/crate-ci/typos
-    rev: v1.38.1
+    rev: v1.39.2
     hooks:
       - id: typos
