@@ -23,6 +23,8 @@ CocoPackageInfo = provider(
     doc = "Information about a Coco package",
     fields = {
         "dep_package_files": "All Coco.toml files for all transitive dependencies",
+        "direct_srcs": "The .coco files that are direct sources of this package only",
+        "direct_test_srcs": "The .coco files that are direct test_sources of this package only",
         "name": "The name of the package",
         "package_file": "The Coco.toml file for this package",
         "srcs": "All .coco files that are sources of this package or any of its transitive dependencies",
@@ -396,6 +398,8 @@ def _coco_package_impl(ctx):
             name = ctx.attr.name,
             package_file = package_file,
             dep_package_files = dep_package_files,
+            direct_srcs = depset(ctx.files.srcs),
+            direct_test_srcs = depset(ctx.files.test_srcs),
             srcs = srcs,
             test_srcs = test_srcs,
             typecheck_marker = typecheck_marker,
@@ -680,8 +684,8 @@ def _output_directory(package_dir, srcs):
 def _coco_package_generate_impl(ctx):
     # When using configuration transitions, ctx.attr.package becomes a list
     package = ctx.attr.package[0] if type(ctx.attr.package) == type([]) else ctx.attr.package
-    srcs = package[CocoPackageInfo].srcs
-    test_srcs = package[CocoPackageInfo].test_srcs
+    srcs = package[CocoPackageInfo].direct_srcs
+    test_srcs = package[CocoPackageInfo].direct_test_srcs
     package_dir = package[CocoPackageInfo].package_file.dirname
 
     outputs = []
