@@ -15,19 +15,21 @@ repos:
         args: [--unsafe] # Allow custom YAML tags
       - id: check-toml
       - id: end-of-file-fixer
-        exclude: ^docs/
+        exclude: ^(docs/|coco/private/known_shas\.bzl$)
       - id: mixed-line-ending
         args: [--fix=lf]
       - id: trailing-whitespace
-        exclude: ^docs/
+        exclude: ^(docs/|coco/private/known_shas\.bzl$)
   - repo: https://github.com/keith/pre-commit-buildifier
     rev: 8.2.1
     hooks:
       - id: buildifier
         args: &args
           - --warnings=all
+        exclude: ^coco/private/known_shas\.bzl$
       - id: buildifier-lint
         args: *args
+        exclude: ^coco/private/known_shas\.bzl$
   - repo: https://github.com/commitizen-tools/commitizen
     rev: v4.2.1
     hooks:

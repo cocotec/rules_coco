@@ -21,6 +21,7 @@ load(
     "coco_fetch_license_repository",
     "coco_preferences_repository",
     "coco_symlink_license_repository",
+    "validate_minimum_version",
     "version_to_repo_suffix",
 )
 load(
@@ -146,6 +147,12 @@ def _toolchain_tag_impl(ctx):
     seen = {}
     for v in all_versions:
         resolved = _resolve_version(v)
+
+        # Validate minimum version requirement
+        error = validate_minimum_version(resolved)
+        if error:
+            fail(error)
+
         if resolved not in seen:
             versions.append(resolved)
             seen[resolved] = True

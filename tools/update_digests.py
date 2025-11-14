@@ -17,11 +17,31 @@
 import argparse
 import json
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Tuple, Optional
 from urllib.error import HTTPError
 from urllib.request import urlopen
 
 tools_dir = Path(__file__).resolve().parent
+
+# Minimum supported version (rules_coco requires Popili 1.5.0 or higher)
+MINIMUM_VERSION = (1, 5, 0)
+
+
+def parse_version(version: str) -> Optional[Tuple[int, ...]]:
+    """Parse a version string like '1.5.0' or '1.5.0-rc.1' into a tuple."""
+    try:
+        base_version = version.split("-")[0]
+        return tuple(int(p) for p in base_version.split("."))
+    except (ValueError, AttributeError):
+        return None
+
+
+def is_version_supported(version: str) -> bool:
+    """Check if a version meets the minimum requirement."""
+    parsed = parse_version(version)
+    if parsed is None:
+        return False
+    return parsed >= MINIMUM_VERSION
 
 
 def read_url(url: str) -> str:
@@ -40,6 +60,11 @@ def create_digest_dictionary(versions_file: str) -> Dict[str, str]:
     result: Dict[str, str] = {}
     for version in json.loads(versions_file)["all"]:
         version = version["name"]
+
+        # Skip versions older than 1.5.0
+        if not is_version_supported(version):
+            continue
+
         try:
             for file, digest in download_sha_file(
                     f'https://dl.cocotec.io/popili/archive/{version}/sha256sums.txt'

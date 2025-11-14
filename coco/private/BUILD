@@ -52,6 +52,7 @@ bzl_library(
         ":bazel_tools_bzl_lib",
         ":common_repositories_bzl",
         ":known_shas_bzl",
+        ":version_aliases_bzl",
     ],
 )
 
