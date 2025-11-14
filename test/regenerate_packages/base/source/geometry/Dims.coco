@@ -1,0 +1,5 @@
+// A dimensions type from a subdirectory
+struct Dims {
+  var width : Int32
+  var height : Int32
+}

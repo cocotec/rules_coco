@@ -627,10 +627,19 @@ def _compute_output_filenames(src_basename, config):
         mock_impl = mock_impl_name,
     )
 
-def _add_outputs(ctx, outputs, mock_outputs, src, root_output_dir):
-    if ctx.attr.language == "cpp":
-        # Create config struct from context attributes
-        config = struct(
+def _build_language_config(ctx, language, root_output_dir):
+    """Build configuration struct for code generation.
+
+    Args:
+        ctx: Rule context
+        language: Language string ("cpp", "c", or "csharp")
+        root_output_dir: Root output directory
+
+    Returns:
+        Struct containing language-specific configuration, or None for C#
+    """
+    if language == "cpp":
+        return struct(
             file_name_mangler = ctx.attr.cpp_file_name_mangler,
             header_prefix = ctx.attr.cpp_header_file_prefix,
             header_extension = ctx.attr.cpp_header_file_extension,
@@ -640,26 +649,8 @@ def _add_outputs(ctx, outputs, mock_outputs, src, root_output_dir):
             flat_hierarchy = ctx.attr.cpp_flat_file_hierarchy,
             root_output_dir = root_output_dir,
         )
-
-        # Compute output filenames using pure function
-        filenames = _compute_output_filenames(src.basename, config)
-
-        # Declare files
-        if config.flat_hierarchy:
-            outputs.append(ctx.actions.declare_file(filenames.header))
-            outputs.append(ctx.actions.declare_file(filenames.impl))
-            if filenames.mock_header:
-                mock_outputs.append(ctx.actions.declare_file(filenames.mock_header))
-                mock_outputs.append(ctx.actions.declare_file(filenames.mock_impl))
-        else:
-            outputs.append(ctx.actions.declare_file(filenames.header, sibling = src))
-            outputs.append(ctx.actions.declare_file(filenames.impl, sibling = src))
-            if filenames.mock_header:
-                mock_outputs.append(ctx.actions.declare_file(filenames.mock_header, sibling = src))
-                mock_outputs.append(ctx.actions.declare_file(filenames.mock_impl, sibling = src))
-    elif ctx.attr.language == "c":
-        # Create config struct from context attributes
-        config = struct(
+    elif language == "c":
+        return struct(
             file_name_mangler = ctx.attr.c_file_name_mangler,
             header_prefix = ctx.attr.c_header_file_prefix,
             header_extension = ctx.attr.c_header_file_extension,
@@ -669,35 +660,127 @@ def _add_outputs(ctx, outputs, mock_outputs, src, root_output_dir):
             flat_hierarchy = ctx.attr.c_flat_file_hierarchy,
             root_output_dir = root_output_dir,
         )
+    elif language == "csharp":
+        return None  # C# doesn't use config struct
+    else:
+        fail("unrecognised language: " + language)
 
-        # Compute output filenames using pure function
+def _make_sibling_path_builder(ctx, src, flat_hierarchy):
+    """Create a path builder function for sibling-based file declaration.
+
+    Args:
+        ctx: Rule context
+        src: Source file (used as sibling)
+        flat_hierarchy: Whether to use flat hierarchy
+
+    Returns:
+        Function(filename) -> declared file
+    """
+    if flat_hierarchy:
+        return lambda filename: ctx.actions.declare_file(filename)
+    else:
+        return lambda filename: ctx.actions.declare_file(filename, sibling = src)
+
+def _make_explicit_path_builder(ctx, package_relative_dir, root_output_dir, src_subdir):
+    """Create a path builder function for explicit path-based file declaration.
+
+    Args:
+        ctx: Rule context
+        package_relative_dir: Path from BUILD file to package directory
+        root_output_dir: Root output directory
+        src_subdir: Subdirectory within source tree (may be empty string)
+
+    Returns:
+        Function(filename) -> declared file
+    """
+    if src_subdir:
+        return lambda filename: ctx.actions.declare_file(
+            paths.join(package_relative_dir, root_output_dir, src_subdir, filename),
+        )
+    else:
+        return lambda filename: ctx.actions.declare_file(
+            paths.join(package_relative_dir, root_output_dir, filename),
+        )
+
+def _declare_language_outputs(ctx, outputs, mock_outputs, src, config, path_builder):
+    """Core logic for declaring output files.
+
+    Args:
+        ctx: Rule context
+        outputs: List to append regular outputs to
+        mock_outputs: List to append mock outputs to
+        src: Source file
+        config: Configuration struct (or None for C#)
+        path_builder: Function(filename) -> declared file
+    """
+    if ctx.attr.language == "cpp" or ctx.attr.language == "c":
+        # C and C++ use header/implementation file split
         filenames = _compute_output_filenames(src.basename, config)
 
-        # Declare files
-        if config.flat_hierarchy:
-            outputs.append(ctx.actions.declare_file(filenames.header))
-            outputs.append(ctx.actions.declare_file(filenames.impl))
-            if filenames.mock_header:
-                mock_outputs.append(ctx.actions.declare_file(filenames.mock_header))
-                mock_outputs.append(ctx.actions.declare_file(filenames.mock_impl))
-        else:
-            outputs.append(ctx.actions.declare_file(filenames.header, sibling = src))
-            outputs.append(ctx.actions.declare_file(filenames.impl, sibling = src))
-            if filenames.mock_header:
-                mock_outputs.append(ctx.actions.declare_file(filenames.mock_header, sibling = src))
-                mock_outputs.append(ctx.actions.declare_file(filenames.mock_impl, sibling = src))
+        outputs.append(path_builder(filenames.header))
+        outputs.append(path_builder(filenames.impl))
+
+        if filenames.mock_header:
+            mock_outputs.append(path_builder(filenames.mock_header))
+            mock_outputs.append(path_builder(filenames.mock_impl))
     elif ctx.attr.language == "csharp":
-        # C# generation - very simple, just .cs files
-        # No header/implementation split, always hierarchical
+        # C# generation - simple .cs files, always hierarchical
         base_name = src.basename.removesuffix(".coco")
         cs_file = base_name + ".cs"
-        outputs.append(ctx.actions.declare_file(cs_file, sibling = src))
+        outputs.append(path_builder(cs_file))
 
         if ctx.attr.mocks:
             mock_file = base_name + "Mock.cs"
-            mock_outputs.append(ctx.actions.declare_file(mock_file, sibling = src))
+            mock_outputs.append(path_builder(mock_file))
     else:
         fail("unrecognised language")
+
+def _add_outputs(ctx, outputs, mock_outputs, src, root_output_dir):
+    """Add outputs for source files from the current package.
+
+    Uses sibling-based file declaration for hierarchical layouts.
+
+    Args:
+        ctx: Rule context
+        outputs: List to append regular outputs to
+        mock_outputs: List to append mock outputs to
+        src: Source file from the current package
+        root_output_dir: Root output directory
+    """
+    config = _build_language_config(ctx, ctx.attr.language, root_output_dir)
+    flat_hierarchy = config.flat_hierarchy if config else False
+    path_builder = _make_sibling_path_builder(ctx, src, flat_hierarchy)
+    _declare_language_outputs(ctx, outputs, mock_outputs, src, config, path_builder)
+
+def _add_regenerated_outputs(ctx, outputs, mock_outputs, src, package_relative_dir, root_output_dir, regen_pkg_dir, regen_root_output_dir):
+    """Add outputs for regenerated package files.
+
+    Regenerated files are placed in the current package's output directory,
+    not in the original package's directory. This function computes the correct
+    output paths without using the sibling relationship, preserving subdirectory structure.
+
+    Args:
+        ctx: Rule context
+        outputs: List to append regular outputs to
+        mock_outputs: List to append mock outputs to
+        src: Source file from the regenerated package
+        package_relative_dir: Path from BUILD file to package directory (e.g., "app")
+        root_output_dir: Root output directory for the current package (e.g., "sources")
+        regen_pkg_dir: Regenerated package directory (e.g., "test/regenerate_packages/base")
+        regen_root_output_dir: Regenerated package's root output dir (e.g., "source")
+    """
+
+    # Compute subdirectory within regenerated package's source directory
+    # E.g., for "test/regenerate_packages/base/source/types/Dimension.coco"
+    # relative to "test/regenerate_packages/base" is "source/types/Dimension.coco"
+    # relative to "source" is "types/Dimension.coco", dirname is "types"
+    src_relative_to_pkg = paths.relativize(src.path, regen_pkg_dir)
+    src_relative_to_root = paths.relativize(src_relative_to_pkg, regen_root_output_dir)
+    src_subdir = paths.dirname(src_relative_to_root)  # e.g., "types" or ""
+
+    config = _build_language_config(ctx, ctx.attr.language, root_output_dir)
+    path_builder = _make_explicit_path_builder(ctx, package_relative_dir, root_output_dir, src_subdir)
+    _declare_language_outputs(ctx, outputs, mock_outputs, src, config, path_builder)
 
 def _output_directory(package_dir, srcs):
     root_output_dir = None
@@ -720,6 +803,23 @@ def _coco_package_generate_impl(ctx):
 
     root_output_dir = _output_directory(package_dir, srcs)
     test_root_output_dir = _output_directory(package_dir, test_srcs) if test_srcs else root_output_dir
+
+    # Get the list of packages to regenerate based on language
+    regenerate_pkgs = {
+        "c": ctx.attr.c_regenerate_packages,
+        "cpp": ctx.attr.cpp_regenerate_packages,
+        "csharp": ctx.attr.csharp_regenerate_packages,
+    }.get(ctx.attr.language, [])
+
+    # Add outputs for regenerated packages (using current package's settings)
+    # Regenerated files go into the current package's output directory
+    # Compute path relative to BUILD file: from ctx.label.package to package_dir
+    package_relative_dir = paths.relativize(package_dir, ctx.label.package) if ctx.label.package else package_dir
+    for regen_pkg in regenerate_pkgs:
+        regen_pkg_dir = regen_pkg[CocoPackageInfo].package_file.dirname
+        regen_root_output_dir = _output_directory(regen_pkg_dir, regen_pkg[CocoPackageInfo].direct_srcs)
+        for src in regen_pkg[CocoPackageInfo].direct_srcs.to_list():
+            _add_regenerated_outputs(ctx, outputs, mock_outputs, src, package_relative_dir, root_output_dir, regen_pkg_dir, regen_root_output_dir)
 
     for src in srcs.to_list():
         _add_outputs(ctx, outputs, mock_outputs, src, root_output_dir)
@@ -799,6 +899,11 @@ _coco_generate = rule(
             default = "",
             doc = """Must match Coco.toml generator.c.implementationFilePrefix setting.""",
         ),
+        "c_regenerate_packages": attr.label_list(
+            providers = [CocoPackageInfo],
+            default = [],
+            doc = """List of coco_package targets to regenerate with current package's C generator settings.""",
+        ),
         # C++ output path options
         "cpp_file_name_mangler": attr.string(
             default = "Unaltered",
@@ -823,6 +928,16 @@ _coco_generate = rule(
         "cpp_implementation_file_prefix": attr.string(
             default = "",
             doc = """Must match Coco.toml generator.cpp.implementationFilePrefix setting.""",
+        ),
+        "cpp_regenerate_packages": attr.label_list(
+            providers = [CocoPackageInfo],
+            default = [],
+            doc = """List of coco_package targets to regenerate with current package's C++ generator settings.""",
+        ),
+        "csharp_regenerate_packages": attr.label_list(
+            providers = [CocoPackageInfo],
+            default = [],
+            doc = """List of coco_package targets to regenerate with current package's C# generator settings.""",
         ),
         "language": attr.string(mandatory = True, values = ["cpp", "c", "csharp"]),
         "mocks": attr.bool(),

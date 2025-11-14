@@ -1,0 +1,11 @@
+enum Color {
+  case RED
+  case GREEN
+  case BLUE
+}
+
+struct Point {
+  var x : Int32
+  var y : Int32
+  var color : Color
+}

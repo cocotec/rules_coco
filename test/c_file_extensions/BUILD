@@ -9,8 +9,8 @@ coco_package(
 
 coco_generate(
     name = "c_file_extensions_test_c",
-    c_header_file_extension = ".h",
-    c_implementation_file_extension = ".c",
+    c_header_file_extension = ".hh",
+    c_implementation_file_extension = ".cc",
     language = "c",
     package = ":c_file_extensions_test",
 )
