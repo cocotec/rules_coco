@@ -1,0 +1,7 @@
+@runtime(.MultiThreaded)
+component Simple {
+  machine M {
+    state Idle {
+    }
+  }
+}
