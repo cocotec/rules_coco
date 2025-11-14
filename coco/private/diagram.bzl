@@ -102,87 +102,39 @@ _coco_architecture_diagram = rule(
     attrs = dict(LICENSE_ATTRIBUTES.items() + {
         "component_filenames": attr.string_list(
             mandatory = True,
-            doc = "List of output filenames (internal use - populated by macro)",
         ),
         "component_names": attr.bool(
             default = False,
-            doc = "Show instance name of child components",
         ),
         "component_targets": attr.string_list(
             mandatory = True,
-            doc = "List of component names to generate diagrams for (internal use - populated by macro)",
         ),
         "component_types": attr.bool(
             default = True,
-            doc = "Show type of each component",
         ),
-        # Layout options
         "depth": attr.string(
             default = "",
-            doc = "Recursive drawing depth: integer, 'auto', or 'max'. Empty string uses default.",
         ),
         "hide_ports": attr.bool(
             default = False,
-            doc = "Draw simpler diagrams for encapsulating components",
         ),
         "only_encapsulating": attr.bool(
             default = True,
-            doc = "Don't draw implementation/external components",
         ),
         "only_roots": attr.bool(
             default = False,
-            doc = "Only draw root components",
         ),
         "package": attr.label(
             providers = [CocoPackageInfo],
             mandatory = True,
-            doc = "The coco_package target to generate architecture diagrams for",
         ),
-        # Display options
         "port_names": attr.bool(
             default = False,
-            doc = "Show instance name of each port",
         ),
         "port_types": attr.bool(
             default = True,
-            doc = "Show type of each port",
         ),
     }.items()),
-    doc = """Generates architecture diagrams for Coco components.
-
-This rule generates SVG diagrams showing component architecture using `popili graph-component`.
-
-Example (single component):
-    ```python
-    coco_package(
-        name = "my_pkg",
-        package = "Coco.toml",
-        srcs = glob(["src/**/*.coco"]),
-    )
-
-    coco_architecture_diagram(
-        name = "my_component_arch",
-        package = ":my_pkg",
-        components = {
-            "my_component.svg": "MyComponent",
-        },
-        port_names = True,
-        port_types = True,
-    )
-    ```
-
-Example (multiple components):
-    ```python
-    coco_architecture_diagram(
-        name = "all_architectures",
-        package = ":my_pkg",
-        components = {
-            "component1.svg": "Component1",
-            "component2.svg": "Component2",
-        },
-    )
-    ```
-""",
     toolchains = [COCO_TOOLCHAIN_TYPE],
 )
 
@@ -244,48 +196,14 @@ _coco_state_diagram = rule(
         "package": attr.label(
             providers = [CocoPackageInfo],
             mandatory = True,
-            doc = "The coco_package target to generate state diagrams for",
         ),
         "separate_edges": attr.bool(
             default = False,
-            doc = "Layout option for state transitions",
         ),
         "targets": attr.string_list(
             default = [],
-            doc = "List of fully qualified names of state machines/components/ports to generate diagrams for. If empty, generates diagrams for all state machines.",
         ),
     }.items()),
-    doc = """Generates state machine diagrams for Coco state machines.
-
-This rule generates SVG diagrams showing state machine structure using `popili graph-states`.
-
-Example:
-    ```python
-    coco_package(
-        name = "my_pkg",
-        package = "Coco.toml",
-        srcs = glob(["src/**/*.coco"]),
-    )
-
-    coco_state_diagram(
-        name = "my_state_machine",
-        package = ":my_pkg",
-        targets = ["MyComponent.myPort.stateMachine"],
-    )
-    ```
-
-For multiple state machines:
-    ```python
-    coco_state_diagram(
-        name = "all_states",
-        package = ":my_pkg",
-        targets = [
-            "Component1.port1.states",
-            "Component2.port2.states",
-        ],
-    )
-    ```
-""",
     toolchains = [COCO_TOOLCHAIN_TYPE],
 )
 
@@ -355,94 +273,60 @@ _coco_counterexample_diagram = rule(
     attrs = dict(LICENSE_ATTRIBUTES.items() + {
         "counterexample_assertions": attr.string_list(
             default = [],
-            doc = "List of assertion filters (internal use - populated by macro)",
         ),
         "counterexample_filenames": attr.string_list(
             mandatory = True,
-            doc = "List of output filenames (internal use - populated by macro)",
         ),
         "counterexample_targets": attr.string_list(
             mandatory = True,
-            doc = "List of target declaration names (internal use - populated by macro)",
         ),
         "deterministic": attr.bool(
             default = True,
-            doc = "Ensure reproducible output",
         ),
         "draw_title": attr.bool(
             default = True,
-            doc = "Draw border and title on diagrams",
         ),
         "package": attr.label(
             providers = [CocoPackageInfo],
             mandatory = True,
-            doc = "The coco_package target to generate counterexample diagrams for",
         ),
         "_verification_backend": attr.label(default = Label("//:verification_backend")),
     }.items()),
-    doc = """Generates counterexample diagrams for Coco verification failures.
-
-This rule runs `popili verify` and generates individual SVG files for each expected counterexample.
-You must specify the expected counterexamples as a dict mapping filenames to target specifications.
-
-Example (basic):
-    ```python
-    coco_package(
-        name = "my_pkg",
-        package = "Coco.toml",
-        srcs = glob(["src/**/*.coco"]),
-    )
-
-    coco_counterexample_diagram(
-        name = "my_counterexamples",
-        package = ":my_pkg",
-        counterexamples = {
-            "alarm.svg": "Alarm",
-            "bottom.svg": "Bottom",
-        },
-        deterministic = True,
-    )
-    ```
-
-This generates:
-- `alarm.svg` (counterexamples from Alarm component)
-- `bottom.svg` (counterexamples from Bottom component)
-
-Example (with assertion filtering):
-    ```python
-    load("@rules_coco//coco:defs.bzl", "coco_counterexample_diagram", "counterexample_options")
-
-    coco_counterexample_diagram(
-        name = "specific_failures",
-        package = ":my_pkg",
-        counterexamples = {
-            "safety.svg": counterexample_options(
-                decl = "SafetyChecker",
-                assertion = "safetyProperty",
-            ),
-            "liveness.svg": counterexample_options(
-                decl = "LivenessChecker",
-                assertion = "livenessProperty",
-            ),
-        },
-    )
-    ```
-
-Note: This rule succeeds even when verification fails (since that's when counterexamples are generated).
-Use coco_verify_test for actual verification testing.
-""",
     toolchains = [COCO_TOOLCHAIN_TYPE],
 )
 
 # Public macros with platform selection
 
-def coco_architecture_diagram(name, components, **kwargs):
-    """Creates an architecture diagram generation rule.
+def coco_architecture_diagram(
+        name,
+        package,
+        components,
+        port_names = False,
+        port_types = True,
+        component_names = False,
+        component_types = True,
+        depth = "",
+        hide_ports = False,
+        only_encapsulating = True,
+        only_roots = False,
+        **kwargs):
+    """Creates architecture diagrams.
+
+    Generates SVG diagrams showing component architecture using `popili graph-component`.
 
     Args:
         name: Name of the diagram target
-        components: Dict mapping output filenames to component names (required)
-        **kwargs: Additional arguments passed to the underlying rule
+        package: The coco_package target to generate architecture diagrams for
+        components: Dict mapping output filenames to component names (e.g., {"my_component.svg": "MyComponent"})
+        port_names: Show instance name of each port (default: False)
+        port_types: Show type of each port (default: True)
+        component_names: Show instance name of child components (default: False)
+        component_types: Show type of each component (default: True)
+        depth: Recursive drawing depth: integer string, 'auto', 'max', or empty for default
+        hide_ports: Hide ports in diagrams (default: False)
+        only_encapsulating: Don't draw implementation/external components (default: True)
+        only_roots: Only draw root components (default: False)
+        **kwargs: Additional Bazel arguments (e.g., visibility, tags)
     """
     if not components:
         fail("components must specify at least one component to diagram")
@@ -457,33 +341,62 @@ def coco_architecture_diagram(name, components, **kwargs):
 
     _coco_architecture_diagram(
         name = name,
+        package = package,
         component_filenames = filenames,
         component_targets = targets,
+        port_names = port_names,
+        port_types = port_types,
+        component_names = component_names,
+        component_types = component_types,
+        depth = depth,
+        hide_ports = hide_ports,
+        only_encapsulating = only_encapsulating,
+        only_roots = only_roots,
         **kwargs
     )
 
-def coco_state_diagram(name, **kwargs):
-    """Creates a state machine diagram generation rule.
+def coco_state_diagram(name, package, targets = [], separate_edges = False, **kwargs):
+    """Creates state machine diagrams.
+
+    Generates SVG diagrams showing state machine structure using `popili graph-states`.
 
     Args:
         name: Name of the diagram target
-        **kwargs: Additional arguments passed to the underlying rule
+        package: The coco_package target to generate state diagrams for
+        targets: List of fully qualified names of state machines/components/ports to generate diagrams for. If empty, generates diagrams for all state machines (e.g., ["MyComponent.myPort.stateMachine"])
+        separate_edges: Layout option for state transitions (default: False)
+        **kwargs: Additional Bazel arguments (e.g., visibility, tags)
     """
     _coco_state_diagram(
         name = name,
+        package = package,
+        targets = targets,
+        separate_edges = separate_edges,
         **kwargs
     )
 
-def coco_counterexample_diagram(name, counterexamples, **kwargs):
-    """Creates a counterexample diagram generation rule.
+def coco_counterexample_diagram(
+        name,
+        package,
+        counterexamples,
+        draw_title = True,
+        deterministic = True,
+        **kwargs):
+    """Creates counterexample diagrams.
+
+    Generates SVG diagrams for verification counterexamples using `popili verify`.
+    This rule succeeds even when verification fails (since that's when counterexamples
+    are generated). Use coco_verify_test for actual verification testing.
 
     Args:
         name: Name of the diagram target
-        counterexamples: Dict mapping output filenames to target specifications.
-            Values can be either:
-            - A string with the target declaration name
-            - A struct from counterexample_options(decl, assertion) for filtering
-        **kwargs: Additional arguments passed to the underlying rule
+        package: The coco_package target to generate counterexample diagrams for
+        counterexamples: Dict mapping output filenames to target specifications. Values can be either a string with the
+          target declaration name, or a struct from counterexample_options(decl, assertion) for filtering
+          (e.g., {"alarm.svg": "Alarm"} or {"safety.svg": counterexample_options(decl="Checker", assertion="prop")})
+        draw_title: Draw border and title on diagrams (default: True)
+        deterministic: Ensure reproducible output (default: True)
+        **kwargs: Additional Bazel arguments (e.g., visibility, tags)
     """
     if not counterexamples:
         fail("counterexamples must specify at least one expected counterexample")
@@ -510,8 +423,11 @@ def coco_counterexample_diagram(name, counterexamples, **kwargs):
 
     _coco_counterexample_diagram(
         name = name,
+        package = package,
         counterexample_filenames = filenames,
         counterexample_targets = targets,
         counterexample_assertions = assertions,
+        draw_title = draw_title,
+        deterministic = deterministic,
         **kwargs
     )
