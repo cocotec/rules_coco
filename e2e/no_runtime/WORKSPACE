@@ -1,0 +1,20 @@
+# E2E test WORKSPACE for C runtime without C++ runtime
+
+workspace(name = "rules_coco_no_cc_runtime_test")
+
+load("@bazel_tools//tools/build_defs/repo:local.bzl", "local_repository")
+
+# Use local development version of rules_coco
+local_repository(
+    name = "rules_coco",
+    path = "../..",
+)
+
+load("@rules_coco//coco:repositories.bzl", "coco_repositories")
+
+# Register coco toolchain with C only (no C++ runtime)
+coco_repositories(
+    c = True,
+    cc = False,
+    version = "1.5.1",
+)

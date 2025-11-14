@@ -6,46 +6,32 @@ import subprocess
 import sys
 
 
-def run_test(bazel_version, build_system):
-    """Run tests for a specific Bazel version and build system."""
+def run_bazel_test(name, bazel_version, build_system, cwd=None):
+    """Run bazel test for a given configuration."""
     print(f"\n{'=' * 70}")
-    print(f"Testing root workspace: Bazel {bazel_version} with {build_system} mode")
+    print(f"Testing {name}: Bazel {bazel_version} with {build_system} mode")
     print('=' * 70)
 
     env = os.environ.copy()
     env['USE_BAZEL_VERSION'] = bazel_version
-
     cmd = ['bazel', 'test', f'--config={build_system}', '//...']
 
-    result = subprocess.run(cmd, env=env)
+    result = subprocess.run(cmd, env=env, cwd=cwd)
+    status = "✓ PASSED" if result.returncode == 0 else "✗ FAILED"
+    print(f"\n{status}: {name} with Bazel {bazel_version} and {build_system}")
 
-    if result.returncode != 0:
-        print(f"\n✗ FAILED: Root workspace with Bazel {bazel_version} and {build_system}")
-        return False
-
-    print(f"\n✓ PASSED: Root workspace with Bazel {bazel_version} and {build_system}")
-    return True
+    return result.returncode == 0
 
 
-def run_e2e_test(directory, bazel_version, build_system):
-    """Run e2e tests in a specific directory."""
-    print(f"\n{'=' * 70}")
-    print(f"Testing {directory}: Bazel {bazel_version} with {build_system} mode")
-    print('=' * 70)
-
-    env = os.environ.copy()
-    env['USE_BAZEL_VERSION'] = bazel_version
-
-    cmd = ['bazel', 'test', f'--config={build_system}', '//...']
-
-    result = subprocess.run(cmd, cwd=directory, env=env)
-
-    if result.returncode != 0:
-        print(f"\n✗ FAILED: {directory} with Bazel {bazel_version} and {build_system}")
-        return False
-
-    print(f"\n✓ PASSED: {directory} with Bazel {bazel_version} and {build_system}")
-    return True
+def discover_e2e_dirs():
+    """Discover all e2e test directories."""
+    if not os.path.isdir('e2e'):
+        return []
+    return sorted([
+        os.path.join('e2e', d)
+        for d in os.listdir('e2e')
+        if os.path.isdir(os.path.join('e2e', d))
+    ])
 
 
 def main():
@@ -56,30 +42,20 @@ def main():
         ('9.0.0rc2', 'bzlmod'),
     ]
 
+    e2e_dirs = discover_e2e_dirs()
     passed = 0
-    failed = 0
 
     for version, mode in configs:
-        # Run root workspace tests
-        if not run_test(version, mode):
-            failed += 1
-            print(f"\nStopping due to failure.")
+        # Run root workspace and all e2e tests
+        test_dirs = [('root workspace', None)] + [(d, d) for d in e2e_dirs]
+
+        if all(run_bazel_test(name, version, mode, cwd) for name, cwd in test_dirs):
+            passed += 1
+        else:
+            print("\nStopping due to failure.")
             break
 
-        # Run e2e/smoke tests
-        if not run_e2e_test('e2e/smoke', version, mode):
-            failed += 1
-            print(f"\nStopping due to failure.")
-            break
-
-        # Run e2e/multi_version tests
-        if not run_e2e_test('e2e/multi_version', version, mode):
-            failed += 1
-            print(f"\nStopping due to failure.")
-            break
-
-        passed += 1
-
+    failed = len(configs) - passed
     print(f"\n{'=' * 70}")
     print(f"Summary: {passed} configurations passed, {failed} failed")
     print('=' * 70)

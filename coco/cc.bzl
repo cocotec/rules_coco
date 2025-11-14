@@ -12,42 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""C++ integration rules for Coco-generated code."""
+"""C++ integration macros for Coco-generated code."""
 
-load("@rules_cc//cc:defs.bzl", "CcInfo", "cc_library")
-load("@rules_coco//coco:defs.bzl", "coco_test_outputs_name")
-
-def _coco_cc_runtime_impl(ctx):
-    """Helper rule that provides the C++ runtime from the toolchain."""
-    toolchain = ctx.toolchains["@rules_coco//coco:toolchain_type"]
-    if not toolchain.cc_runtime:
-        fail("C++ runtime not available. Did you enable cc=True in coco.toolchain()?")
-
-    # Forward the cc_runtime target's providers
-    return [toolchain.cc_runtime[CcInfo], toolchain.cc_runtime[DefaultInfo]]
-
-coco_cc_runtime = rule(
-    implementation = _coco_cc_runtime_impl,
-    attrs = {},
-    toolchains = ["@rules_coco//coco:toolchain_type"],
-    doc = """Helper rule that provides the C++ runtime from the Coco toolchain.
-
-    This rule is typically not used directly by users. Instead, use `coco_cc_library`
-    or `coco_cc_test_library` which automatically add the C++ runtime as a dependency.
-
-    Example:
-        coco_cc_runtime(name = "runtime")
-
-        cc_library(
-            name = "my_lib",
-            srcs = ["my_code.cc"],
-            deps = [":runtime"],
-        )
-
-    Note: The C++ runtime must be enabled in your workspace by setting `cc=True` in
-    `coco_repositories()` (WORKSPACE) or `coco.toolchain(cc=True)` (bzlmod).
-    """,
-)
+load("@rules_cc//cc:defs.bzl", "cc_library")
+load(":defs.bzl", "coco_test_outputs_name")
 
 def coco_cc_library(name, generated_package, srcs = [], deps = [], **kwargs):
     """Creates a C++ library from Coco-generated C++ code.
@@ -63,17 +31,10 @@ def coco_cc_library(name, generated_package, srcs = [], deps = [], **kwargs):
         **kwargs: Additional arguments passed to cc_library
     """
 
-    # Create a helper target to get the runtime from the toolchain
-    runtime_target = "_{}_coco_runtime".format(name)
-    coco_cc_runtime(
-        name = runtime_target,
-        visibility = ["//visibility:private"],
-    )
-
     cc_library(
         name = name,
         srcs = srcs + [generated_package],
-        deps = deps + [":{}".format(runtime_target)],
+        deps = deps + [Label("//coco:cc_runtime")],
         **kwargs
     )
 
@@ -98,16 +59,9 @@ def coco_cc_test_library(
         **kwargs: Additional arguments passed to cc_library
     """
 
-    # Create a helper target to get the testing runtime from the toolchain
-    runtime_target = "_{}_coco_test_runtime".format(name)
-    coco_cc_runtime(
-        name = runtime_target,
-        visibility = ["//visibility:private"],
-    )
-
     cc_library(
         name = name,
         srcs = srcs + [coco_test_outputs_name(generated_package)],
-        deps = deps + [gmock, ":{}".format(runtime_target)],
+        deps = deps + [gmock, Label("//coco:cc_runtime")],
         **kwargs
     )
