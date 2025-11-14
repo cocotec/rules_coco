@@ -1,0 +1,16 @@
+[package]
+name = "no_auto_download_test"
+sources = ["src"]
+
+[tool]
+selectedVersion = "1.2.0"
+
+[language]
+standard = "2024"
+profiles = ["C++"]
+
+[generator]
+defaultLanguage = "C++"
+
+[generator.cpp]
+generateMocks = "GMock"

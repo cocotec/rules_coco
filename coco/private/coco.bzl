@@ -155,9 +155,21 @@ def _runtime_path(file, is_test):
     return file.short_path if is_test else file.path
 
 def _coco_startup_args(ctx, package, is_test):
+    """Build startup arguments for popili.
+
+    Args:
+        ctx: Rule context
+        package: The coco_package target with CocoPackageInfo, a struct with package_file
+                 and dep_package_files fields, or None for base args only
+        is_test: Whether this is for a test (affects path resolution)
+
+    Returns:
+        List of startup arguments
+    """
     arguments = [
         "--no-license-server",
         "--no-crash-reporter",
+        "--no-auto-download",
         "--override-preferences",
         _runtime_path(ctx.toolchains[COCO_TOOLCHAIN_TYPE].preferences_file, is_test),
         "--terminal=plain",
@@ -167,12 +179,21 @@ def _coco_startup_args(ctx, package, is_test):
         arguments.append("--override-licenses")
         arguments.append(_runtime_path(license_file, is_test))
     if package:
+        # Support both CocoPackageInfo providers (targets) and structs with the same fields
+        if hasattr(package, "package_file"):
+            # It's a struct
+            package_file = package.package_file
+            dep_package_files = package.dep_package_files
+        else:
+            # It's a target with CocoPackageInfo provider
+            package_file = package[CocoPackageInfo].package_file
+            dep_package_files = package[CocoPackageInfo].dep_package_files
         arguments += [
             "--package",
-            package[CocoPackageInfo].package_file.dirname,
+            package_file.dirname,
         ]
-        for package_file in package[CocoPackageInfo].dep_package_files.to_list():
-            arguments += ["--import-path", package_file.dirname]
+        for dep_file in dep_package_files.to_list():
+            arguments += ["--import-path", dep_file.dirname]
     return arguments
 
 def _get_license_file_from_toolchain(ctx):
@@ -284,15 +305,14 @@ def _create_coco_wrapper_script(ctx, package, arguments):
 create_coco_wrapper_script = _create_coco_wrapper_script
 coco_runfiles = _coco_runfiles
 
-def _run_typecheck(ctx, package_file, srcs, test_srcs, dep_package_files):
+def _run_typecheck(ctx, package, srcs, test_srcs):
     """Run typecheck and produce a marker file on success.
 
     Args:
         ctx: Rule context
-        package_file: The Coco.toml file
+        package: Struct with package_file and dep_package_files fields
         srcs: Source files depset
         test_srcs: Test source files depset
-        dep_package_files: Dependency package files depset
 
     Returns:
         The typecheck marker file
@@ -301,29 +321,16 @@ def _run_typecheck(ctx, package_file, srcs, test_srcs, dep_package_files):
     # Create a marker file to track typecheck completion
     marker = ctx.actions.declare_file(ctx.label.name + ".typecheck")
 
-    # Build startup arguments similar to _coco_startup_args but for build actions
-    startup_arguments = [
-        "--no-license-server",
-        "--no-crash-reporter",
-        "--override-preferences",
-        ctx.toolchains[COCO_TOOLCHAIN_TYPE].preferences_file.path,
-        "--terminal=plain",
-    ]
-    license_file = _get_license_file_from_toolchain(ctx)
-    if license_file:
-        startup_arguments.append("--override-licenses")
-        startup_arguments.append(license_file.path)
-
-    startup_arguments += ["--package", package_file.dirname]
-    for dep_package_file in dep_package_files.to_list():
-        startup_arguments += ["--import-path", dep_package_file.dirname]
+    # Build startup arguments using the shared function
+    startup_arguments = _coco_startup_args(ctx, package = package, is_test = False)
 
     # Build typecheck command arguments
     typecheck_arguments = ["typecheck"]
 
     # Collect inputs
+    license_file = _get_license_file_from_toolchain(ctx)
     inputs_direct = [
-        package_file,
+        package.package_file,
         ctx.toolchains[COCO_TOOLCHAIN_TYPE].preferences_file,
     ]
     if license_file:
@@ -359,7 +366,7 @@ def _run_typecheck(ctx, package_file, srcs, test_srcs, dep_package_files):
         tools = [ctx.toolchains[COCO_TOOLCHAIN_TYPE].coco, script],
         mnemonic = "CocoTypecheck",
         progress_message = "Typechecking %s" % ctx.label.name,
-        inputs = depset(direct = inputs_direct, transitive = [srcs, test_srcs, dep_package_files]),
+        inputs = depset(direct = inputs_direct, transitive = [srcs, test_srcs, package.dep_package_files]),
         outputs = [marker],
         arguments = [],
     )
@@ -386,7 +393,11 @@ def _coco_package_impl(ctx):
     # Conditionally run typecheck
     typecheck_marker = None
     if ctx.attr.typecheck:
-        typecheck_marker = _run_typecheck(ctx, package_file, srcs, test_srcs, dep_package_files)
+        package_struct = struct(
+            package_file = package_file,
+            dep_package_files = dep_package_files,
+        )
+        typecheck_marker = _run_typecheck(ctx, package_struct, srcs, test_srcs)
 
     # Build the list of files for DefaultInfo
     default_files_direct = [package_file]
