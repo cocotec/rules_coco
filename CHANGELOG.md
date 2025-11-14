@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.1.0] - 2024
+## [0.1.0] - 2025/11/14
 
 Initial public release of Bazel rules for Popili.
 
@@ -15,13 +15,36 @@ Initial public release of Bazel rules for Popili.
 
 #### Core Rules
 
+##### Package and Code Generation
+
 - `coco_package` - Define Coco packages from Coco.toml and .coco source files (supports `typecheck` attribute)
-- `coco_generate` - Generate code from Coco packages
+- `coco_generate` - Generate code from Coco packages (supports C++, C, and C# output)
+
+##### C++ Language Support
+
 - `coco_cc_library` - Build C++ libraries from generated code (includes runtime automatically)
-- `coco_cc_test_library` - Build C++ test libraries with gMocks.
-- `coco_verify_test` - Run Popili verification as a Bazel test
+- `coco_cc_test_library` - Build C++ test libraries with gMocks
+
+##### C Language Support
+
+- `coco_c_library` - Build C libraries from generated code (includes C runtime automatically)
+- `coco_c_test_library` - Build C test libraries
+
+##### Diagram Generation
+
+- `coco_architecture_diagram` - Generate architecture diagrams from Coco packages
+- `coco_counterexample_diagram` - Generate counterexample diagrams from verification results
+- `coco_state_diagram` - Generate state machine diagrams
+- `counterexample_options` - Helper for filtering counterexample diagrams
+
+##### Testing and Verification
+
 - `coco_fmt_test` - Check formatting and format code in-place
-- `with_popili_version` - Build targets with specific Popili versions
+- `coco_verify_test` - Run Popili verification as a Bazel test
+
+##### Version Management
+
+- `with_popili_version` - Allows multiple Popili versions to be used side-by-side.
 
 #### Build System Support
 
@@ -34,12 +57,6 @@ Initial public release of Bazel rules for Popili.
 - Linux: x86_64, aarch64
 - macOS: aarch64
 - Windows: x86_64
-
-#### Configuration
-
-- Licensing mode configuration via `--@rules_coco//:license_source`
-- Version selection via `--@rules_coco//:version` flag
-- Verification backend selection via `--@rules_coco//:verification_backend`
 
 [Unreleased]: https://github.com/cocotec/rules_coco/compare/0.1.0...HEAD
 [0.1.0]: https://github.com/cocotec/rules_coco/releases/tag/0.1.0
