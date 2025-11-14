@@ -1,0 +1,14 @@
+[package]
+name = "c_file_prefixes_test"
+sources = ["src"]
+
+[language]
+standard = "1.2"
+profiles = ["C"]
+
+[generator]
+defaultLanguage = "C"
+
+[generator.c]
+headerFilePrefix = "api_"
+implementationFilePrefix = "impl_"

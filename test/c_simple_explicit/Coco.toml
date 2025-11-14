@@ -1,0 +1,13 @@
+[package]
+name = "c_simple_explicit_test"
+sources = ["src"]
+
+[language]
+standard = "1.2"
+profiles = ["C"]
+
+[generator]
+defaultLanguage = "C"
+
+[generator.c]
+style = "Simple"

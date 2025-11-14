@@ -20,12 +20,17 @@ def _coco_toolchain_impl(ctx):
         cocotec_licensing_server = ctx.file.cocotec_licensing_server,
         preferences_file = ctx.file.preferences_file,
         cc_runtime = ctx.attr.cc_runtime,
+        c_runtime = ctx.attr.c_runtime,
     )
     return toolchain
 
 coco_toolchain = rule(
     _coco_toolchain_impl,
     attrs = {
+        "c_runtime": attr.label(
+            doc = "The C runtime library for Coco. Optional - only needed when using coco_c_library.",
+            default = None,
+        ),
         "cc_runtime": attr.label(
             doc = "The C++ runtime library for Coco. Optional - only needed when using coco_cc_library.",
             default = None,

@@ -18,6 +18,7 @@ load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load(
     ":common_repositories.bzl",
     "KNOWN_VERSION_SUFFIXES",
+    "coco_c_runtime_repository",
     "coco_cc_repositories",
     "coco_fetch_license_repository",
     "coco_preferences_repository",
@@ -41,12 +42,13 @@ toolchain(
         parent_workspace_name = parent_workspace_name,
     )
 
-def BUILD_for_coco_toolchain(name, cc_runtime_label = None):
+def BUILD_for_coco_toolchain(name, cc_runtime_label = None, c_runtime_label = None):
     """Emits a toolchain declaration to match an existing compiler and stdlib.
 
     Args:
       name: The name of the toolchain declaration
       cc_runtime_label: Optional label to the C++ runtime library (can be a Label object or string)
+      c_runtime_label: Optional label to the C runtime library (can be a Label object or string)
 
     Returns:
       A string containing BUILD file content for the toolchain.
@@ -58,16 +60,21 @@ def BUILD_for_coco_toolchain(name, cc_runtime_label = None):
     if cc_runtime_label:
         cc_runtime_attr = '\n    cc_runtime = "{}",'.format(str(cc_runtime_label))
 
+    c_runtime_attr = ""
+    if c_runtime_label:
+        c_runtime_attr = '\n    c_runtime = "{}",'.format(str(c_runtime_label))
+
     return """
 coco_toolchain(
     name = "{toolchain_name}_impl",
     coco = "//:coco",
-    cocotec_licensing_server = "//:cocotec_licensing_server",{cc_runtime_attr}
+    cocotec_licensing_server = "//:cocotec_licensing_server",{cc_runtime_attr}{c_runtime_attr}
     visibility = ["//visibility:public"],
 )
 """.format(
         toolchain_name = name,
         cc_runtime_attr = cc_runtime_attr,
+        c_runtime_attr = c_runtime_attr,
     )
 
 def BUILD_for_coco_archive(binary_ext, product):
@@ -127,6 +134,7 @@ def _coco_toolchain_repository_impl(ctx):
         BUILD_for_coco_toolchain(
             name = "toolchain",
             cc_runtime_label = ctx.attr.cc_runtime_label,
+            c_runtime_label = ctx.attr.c_runtime_label,
         ),
     ]))
 
@@ -145,6 +153,10 @@ def _coco_toolchain_repository_proxy_impl(ctx):
 coco_toolchain_repository = repository_rule(
     attrs = {
         "arch": attr.string(mandatory = True),
+        "c_runtime_label": attr.label(
+            doc = "Optional label to the C runtime library",
+            default = None,
+        ),
         "cc_runtime_label": attr.label(
             doc = "Optional label to the C++ runtime library",
             default = None,
@@ -166,13 +178,14 @@ coco_toolchain_repository_proxy = repository_rule(
     configure = True,
 )
 
-def coco_repository_set(name, version, os, arch, constraints, cc_runtime_label = None):
+def coco_repository_set(name, version, os, arch, constraints, cc_runtime_label = None, c_runtime_label = None):
     coco_toolchain_repository(
         arch = arch,
         os = os,
         name = name,
         version = version,
         cc_runtime_label = cc_runtime_label,
+        c_runtime_label = c_runtime_label,
     )
 
     coco_toolchain_repository_proxy(
@@ -186,7 +199,7 @@ def coco_repository_set(name, version, os, arch, constraints, cc_runtime_label =
         name = name,
     ))
 
-def _coco_deps(version, cc = False):
+def _coco_deps(version, c = False, cc = False):
     if not "bazel_skylib" in native.existing_rules():
         http_archive(
             name = "bazel_skylib",
@@ -207,6 +220,13 @@ def _coco_deps(version, cc = False):
             sha256 = "3384eb1c30762704fbe38e440204e114154086c8fc8a8c2e3e28441028c019a8",
         )
 
+    if c:
+        version_suffix = version_to_repo_suffix(version)
+        coco_c_runtime_repository(
+            name = "io_cocotec_coco_c_runtime__%s" % version_suffix,
+            version = version,
+        )
+
     if cc:
         coco_cc_repositories(version = version)
 
@@ -222,18 +242,26 @@ def coco_repositories(version = "stable", **kwargs):
 
     Args:
       version: The Coco version to use (default: "stable").
-      **kwargs: Additional arguments including 'cc' for C++ support.
+      **kwargs: Additional arguments including 'c' for C support and 'cc' for C++ support.
     """
+    c = kwargs.get("c", False)
     cc = kwargs.get("cc", False)
     _coco_deps(
         version = version,
-        **kwargs
+        c = c,
+        cc = cc,
     )
+
+    version_suffix = version_to_repo_suffix(version)
+
+    # Determine c_runtime_label if C support is enabled
+    c_runtime_label = None
+    if c:
+        c_runtime_label = "@io_cocotec_coco_c_runtime__%s//:runtime" % version_suffix
 
     # Determine cc_runtime_label if CC support is enabled
     cc_runtime_label = None
     if cc:
-        version_suffix = version_to_repo_suffix(version)
         cc_runtime_label = "@io_cocotec_coco_cc_runtime__%s//:runtime" % version_suffix
 
     for (os, arch) in [
@@ -252,6 +280,7 @@ def coco_repositories(version = "stable", **kwargs):
                 "@platforms//os:%s" % os,
                 "@platforms//cpu:%s" % arch,
             ],
+            c_runtime_label = c_runtime_label,
             cc_runtime_label = cc_runtime_label,
         )
 

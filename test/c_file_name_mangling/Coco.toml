@@ -1,0 +1,13 @@
+[package]
+name = "c_file_name_mangling_test"
+sources = ["src"]
+
+[language]
+standard = "1.2"
+profiles = ["C"]
+
+[generator]
+defaultLanguage = "C"
+
+[generator.c]
+fileNameMangler = "LowerUnderscore"

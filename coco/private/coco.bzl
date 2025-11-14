@@ -625,6 +625,35 @@ def _add_outputs(ctx, outputs, mock_outputs, src, root_output_dir):
             if filenames.mock_header:
                 mock_outputs.append(ctx.actions.declare_file(filenames.mock_header, sibling = src))
                 mock_outputs.append(ctx.actions.declare_file(filenames.mock_impl, sibling = src))
+    elif ctx.attr.language == "c":
+        # Create config struct from context attributes
+        config = struct(
+            file_name_mangler = ctx.attr.c_file_name_mangler,
+            header_prefix = ctx.attr.c_header_file_prefix,
+            header_extension = ctx.attr.c_header_file_extension,
+            impl_prefix = ctx.attr.c_implementation_file_prefix,
+            impl_extension = ctx.attr.c_implementation_file_extension,
+            mocks = ctx.attr.mocks,
+            flat_hierarchy = ctx.attr.c_flat_file_hierarchy,
+            root_output_dir = root_output_dir,
+        )
+
+        # Compute output filenames using pure function
+        filenames = _compute_output_filenames(src.basename, config)
+
+        # Declare files
+        if config.flat_hierarchy:
+            outputs.append(ctx.actions.declare_file(filenames.header))
+            outputs.append(ctx.actions.declare_file(filenames.impl))
+            if filenames.mock_header:
+                mock_outputs.append(ctx.actions.declare_file(filenames.mock_header))
+                mock_outputs.append(ctx.actions.declare_file(filenames.mock_impl))
+        else:
+            outputs.append(ctx.actions.declare_file(filenames.header, sibling = src))
+            outputs.append(ctx.actions.declare_file(filenames.impl, sibling = src))
+            if filenames.mock_header:
+                mock_outputs.append(ctx.actions.declare_file(filenames.mock_header, sibling = src))
+                mock_outputs.append(ctx.actions.declare_file(filenames.mock_impl, sibling = src))
     else:
         fail("unrecognised language")
 
@@ -661,6 +690,7 @@ def _coco_package_generate_impl(ctx):
         "--output",
         output_dir,
         "--output-empty-files",
+        "--output-runtime=false",
     ]
     if test_srcs:
         arguments += [
@@ -677,10 +707,7 @@ def _coco_package_generate_impl(ctx):
         arguments += [
             "--include-prefix",
             paths.join(package_dir, root_output_dir),
-            "--output-runtime-header=false",
         ]
-    else:
-        fail("unrecognised language")
 
     _run_coco(
         ctx = ctx,
@@ -705,6 +732,32 @@ def _coco_package_generate_impl(ctx):
 _coco_generate = rule(
     implementation = _coco_package_generate_impl,
     attrs = dict(LICENSE_ATTRIBUTES.items() + {
+        # C output path options
+        "c_file_name_mangler": attr.string(
+            default = "Unaltered",
+            doc = """Must match Coco.toml generator.c.fileNameMangler setting.""",
+        ),
+        "c_flat_file_hierarchy": attr.bool(
+            default = False,
+            doc = """Must match Coco.toml generator.c.flatFileHierarchy setting.""",
+        ),
+        "c_header_file_extension": attr.string(
+            default = ".h",
+            doc = """Must match Coco.toml generator.c.headerFileExtension setting.""",
+        ),
+        "c_header_file_prefix": attr.string(
+            default = "",
+            doc = """Must match Coco.toml generator.c.headerFilePrefix setting.""",
+        ),
+        "c_implementation_file_extension": attr.string(
+            default = ".c",
+            doc = """Must match Coco.toml generator.c.implementationFileExtension setting.""",
+        ),
+        "c_implementation_file_prefix": attr.string(
+            default = "",
+            doc = """Must match Coco.toml generator.c.implementationFilePrefix setting.""",
+        ),
+        # C++ output path options
         "cpp_file_name_mangler": attr.string(
             default = "Unaltered",
             doc = """Must match Coco.toml generator.cpp.fileNameMangler setting.""",
@@ -729,7 +782,7 @@ _coco_generate = rule(
             default = "",
             doc = """Must match Coco.toml generator.cpp.implementationFilePrefix setting.""",
         ),
-        "language": attr.string(mandatory = True, values = ["cpp"]),
+        "language": attr.string(mandatory = True, values = ["c", "cpp"]),
         "mocks": attr.bool(),
         "package": attr.label(
             providers = [CocoPackageInfo],
