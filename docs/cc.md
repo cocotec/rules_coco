@@ -1,41 +1,6 @@
 <!-- Generated with Stardoc: http://skydoc.bazel.build -->
 
-C++ integration rules for Coco-generated code.
-
-<a id="coco_cc_runtime"></a>
-
-## coco_cc_runtime
-
-<pre>
-load("@rules_coco//coco:cc.bzl", "coco_cc_runtime")
-
-coco_cc_runtime(<a href="#coco_cc_runtime-name">name</a>)
-</pre>
-
-Helper rule that provides the C++ runtime from the Coco toolchain.
-
-This rule is typically not used directly by users. Instead, use `coco_cc_library`
-or `coco_cc_test_library` which automatically add the C++ runtime as a dependency.
-
-Example:
-    coco_cc_runtime(name = "runtime")
-
-    cc_library(
-        name = "my_lib",
-        srcs = ["my_code.cc"],
-        deps = [":runtime"],
-    )
-
-Note: The C++ runtime must be enabled in your workspace by setting `cc=True` in
-`coco_repositories()` (WORKSPACE) or `coco.toolchain(cc=True)` (bzlmod).
-
-**ATTRIBUTES**
-
-
-| Name  | Description | Type | Mandatory | Default |
-| :------------- | :------------- | :------------- | :------------- | :------------- |
-| <a id="coco_cc_runtime-name"></a>name |  A unique name for this target.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
-
+C++ integration macros for Coco-generated code.
 
 <a id="coco_cc_library"></a>
 

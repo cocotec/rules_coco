@@ -1,0 +1,39 @@
+# E2E test BUILD file for C runtime without C++ runtime
+# This verifies that C works while C++ runtime is disabled
+
+load("@rules_cc//cc:defs.bzl", "cc_test")
+load("@rules_coco//coco:c.bzl", "coco_c_library")
+load("@rules_coco//coco:defs.bzl", "coco_generate", "coco_package", "coco_verify_test")
+
+# Define Coco package
+coco_package(
+    name = "simple",
+    srcs = glob(["src/**/*.coco"]),
+    package = "Coco.toml",
+)
+
+# Verify the Coco package
+coco_verify_test(
+    name = "simple_verify",
+    package = ":simple",
+)
+
+# Generate C code from Coco
+coco_generate(
+    name = "simple_c",
+    language = "c",
+    package = ":simple",
+)
+
+# Create C library from generated code
+coco_c_library(
+    name = "simple_c_lib",
+    generated_package = ":simple_c",
+)
+
+# C test that uses the generated code
+cc_test(
+    name = "add_test",
+    srcs = ["test/add_test.c"],
+    deps = [":simple_c_lib"],
+)
