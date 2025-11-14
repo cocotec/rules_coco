@@ -102,7 +102,7 @@ jobs:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
       - name: "Upload to dl.cocotec.io"
-        uses: google-github-actions/upload-cloud-storage@v2
+        uses: google-github-actions/upload-cloud-storage@v3
         with:
           path: "${{ github.workspace }}/.github/rules_coco_${{ env.RELEASE_VERSION }}.tar.gz"
           destination: "cocotec-downloads/rules_coco"
