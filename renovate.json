@@ -1,7 +1,11 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:recommended"],
-  "labels": ["dependencies"],
+  "extends": [
+    "config:recommended"
+  ],
+  "labels": [
+    "dependencies"
+  ],
   "dependencyDashboard": true,
   "dependencyDashboardTitle": "Renovate Dashboard",
   "semanticCommits": "enabled",
@@ -12,20 +16,30 @@
   },
   "packageRules": [
     {
-      "matchManagers": ["bazel"],
-      "matchFiles": ["MODULE.bazel"],
+      "matchManagers": [
+        "bazel"
+      ],
+      "matchFileNames": [
+        "MODULE.bazel"
+      ],
       "enabled": false,
       "description": "Disable automatic updates for MODULE.bazel - handle manually due to version coordination"
     },
     {
-      "matchManagers": ["github-actions"],
+      "matchManagers": [
+        "github-actions"
+      ],
       "semanticCommitType": "ci",
       "automerge": true
     },
     {
-      "matchDepTypes": ["devDependencies"],
+      "matchDepTypes": [
+        "devDependencies"
+      ],
       "automerge": true
     }
   ],
-  "schedule": ["every weekend"]
+  "schedule": [
+    "every weekend"
+  ]
 }
