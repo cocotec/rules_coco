@@ -33,6 +33,8 @@ def _fetch_license_impl(ctx):
         executable = ctx.toolchains[COCO_TOOLCHAIN_TYPE].cocotec_licensing_server,
         arguments = arguments,
         tools = [ctx.toolchains[COCO_TOOLCHAIN_TYPE].cocotec_licensing_server],
+        mnemonic = "CocoFetchLicense",
+        progress_message = "Acquiring Coco license",
         inputs = [ctx.file.auth_token],
         outputs = [output],
     )
