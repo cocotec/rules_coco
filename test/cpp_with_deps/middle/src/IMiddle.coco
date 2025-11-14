@@ -1,0 +1,22 @@
+import unqualified IBase
+
+enum Priority {
+  case LOW
+  case MEDIUM
+  case HIGH
+}
+
+struct Task {
+  var config : Config
+  var priority : Priority
+}
+
+port IMiddle {
+  function getDefaultPriority() : Priority
+  function getDefaultStatus() : Status
+
+  machine {
+    getDefaultPriority() = Priority.MEDIUM
+    getDefaultStatus() = Status.OK
+  }
+}

@@ -1,0 +1,20 @@
+enum Status {
+  case OK
+  case ERROR
+  case PENDING
+}
+
+struct Config {
+  var timeout : Int32
+  var status : Status
+}
+
+port IBase {
+  function getConfig() : Config
+  function getStatus() : Status
+
+  machine {
+    getConfig() = Config{ timeout = 0, status = Status.OK }
+    getStatus() = Status.OK
+  }
+}
