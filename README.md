@@ -277,6 +277,10 @@ coco_cc_library(
 )
 ```
 
+> [!IMPORTANT]
+> Your Coco.toml file must set `generator.cpp.runtimeHeaderFileExtension` to `.h` if you use a custom value for
+> `generator.cpp.headerFileExtension`.
+
 #### C Code Generation
 
 To generate C code:
@@ -302,12 +306,23 @@ coco_c_library(
 )
 ```
 
+> [!IMPORTANT]
+> Your Coco.toml file must set `generator.c.runtimeHeaderFileExtension` to `.h` if you use a custom value for
+> `generator.c.headerFileExtension`.
+
 ##### Output Paths
 
 Bazel has to be able to precompute the output paths of all rules. Since there are many settings in `Coco.toml` that
-can affect output paths, these settings must be repeated in the `BUILD` file. For example:
+can affect output paths, these settings must be repeated in the `BUILD` file. If you forget to do this, you will get
+errors when running `coco_generate` such as:
 
-TODO: give an example of the error
+```
+ERROR: example/BUILD:10:14: output 'example/src/Example.h' was not created
+ERROR: example/BUILD:10:14: Generating cpp example_test failed: not all outputs were created or valid
+```
+
+If you see these errors then you need to make sure that the `BUILD` files contain mirrors of the settings in the
+`Coco.toml` file. For example, suppose you have the following `Coco.toml` file.
 
 ```toml
 [generator.cpp]
@@ -316,7 +331,7 @@ implementationFileExtension = ".cpp"
 fileNameMangler = "LowerUnderscore"
 ```
 
-This would require the following in your `BUILD` file:
+Then this would require the following in your `BUILD` file:
 
 ```starlark
 coco_generate(
@@ -329,23 +344,23 @@ coco_generate(
 )
 ```
 
-| Coco.toml Setting                           | `coco_generate` Attribute           | Notes                                       |
-| ------------------------------------------- | ----------------------------------- | ------------------------------------------- |
-| `generator.c.headerFileExtension`           | `c_header_file_extension`           |                                             |
-| `generator.c.implementationFileExtension`   | `c_implementation_file_extension`   |                                             |
-| `generator.c.headerFilePrefix`              | `c_header_file_prefix`              |                                             |
-| `generator.c.implementationFilePrefix`      | `c_implementation_file_prefix`      |                                             |
-| `generator.c.fileNameMangler`               | `c_file_name_mangler`               |                                             |
-| `generator.c.flatFileHierarchy`             | `c_flat_file_hierarchy`             |                                             |
-| `generator.c.regeneratePackages`            | `c_regenerate_packages`             | List of `coco_package` labels to regenerate |
-| `generator.cpp.headerFileExtension`         | `cpp_header_file_extension`         |                                             |
-| `generator.cpp.implementationFileExtension` | `cpp_implementation_file_extension` |                                             |
-| `generator.cpp.headerFilePrefix`            | `cpp_header_file_prefix`            |                                             |
-| `generator.cpp.implementationFilePrefix`    | `cpp_implementation_file_prefix`    |                                             |
-| `generator.cpp.fileNameMangler`             | `cpp_file_name_mangler`             |                                             |
-| `generator.cpp.flatFileHierarchy`           | `cpp_flat_file_hierarchy`           |                                             |
-| `generator.cpp.regeneratePackages`          | `cpp_regenerate_packages`           | List of `coco_package` labels to regenerate |
-| `generator.csharp.regeneratePackages`       | `csharp_regenerate_packages`        | List of `coco_package` labels to regenerate |
+| Coco.toml Setting                           | `coco_generate` Attribute           |
+| ------------------------------------------- | ----------------------------------- |
+| `generator.c.headerFileExtension`           | `c_header_file_extension`           |
+| `generator.c.implementationFileExtension`   | `c_implementation_file_extension`   |
+| `generator.c.headerFilePrefix`              | `c_header_file_prefix`              |
+| `generator.c.implementationFilePrefix`      | `c_implementation_file_prefix`      |
+| `generator.c.fileNameMangler`               | `c_file_name_mangler`               |
+| `generator.c.flatFileHierarchy`             | `c_flat_file_hierarchy`             |
+| `generator.c.regeneratePackages`            | `c_regenerate_packages`             |
+| `generator.cpp.headerFileExtension`         | `cpp_header_file_extension`         |
+| `generator.cpp.implementationFileExtension` | `cpp_implementation_file_extension` |
+| `generator.cpp.headerFilePrefix`            | `cpp_header_file_prefix`            |
+| `generator.cpp.implementationFilePrefix`    | `cpp_implementation_file_prefix`    |
+| `generator.cpp.fileNameMangler`             | `cpp_file_name_mangler`             |
+| `generator.cpp.flatFileHierarchy`           | `cpp_flat_file_hierarchy`           |
+| `generator.cpp.regeneratePackages`          | `cpp_regenerate_packages`           |
+| `generator.csharp.regeneratePackages`       | `csharp_regenerate_packages`        |
 
 #### C# Code Generation
 
@@ -484,6 +499,16 @@ coco_counterexample_diagram(
     },
 )
 ```
+
+## API Reference
+
+For detailed API documentation of all rules, macros, and their attributes, see the auto-generated documentation:
+
+- **[defs.md](docs/defs.md)** - Core rules and macros
+- **[cc.md](docs/cc.md)** - C++ integration
+- **[c.md](docs/c.md)** - C integration
+- **[extensions.md](docs/extensions.md)** - Module extension (bzlmod setup)
+- **[repositories.md](docs/repositories.md)** - Repository setup (WORKSPACE mode)
 
 ## License
 

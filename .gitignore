@@ -1,6 +1,5 @@
 # Bazel outputs
 /bazel-*
-/examples/bazel-*
 /e2e/*/bazel-*
 
 # User-specific Bazel configuration
