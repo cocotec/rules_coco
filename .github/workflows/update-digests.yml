@@ -3,22 +3,48 @@ on:
   workflow_dispatch:
 permissions:
   contents: write
-  pull-requests: write
+  id-token: write
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Generate GitHub App Token
+        id: generate_token
+        shell: bash
+        run: |
+          TOKEN=$(python3 .github/scripts/github_app_token.py)
+          echo "::add-mask::$TOKEN"
+          echo "token=$TOKEN" >> $GITHUB_OUTPUT
+        env:
+          COCOTEC_BOT_APP_ID: ${{ secrets.COCOTEC_BOT_APP_ID }}
+          COCOTEC_BOT_INSTALLATION_ID: ${{ secrets.COCOTEC_BOT_INSTALLATION_ID }}
+          GCP_KMS_PROJECT: ${{ secrets.GCP_KMS_PROJECT }}
+          GCP_KMS_LOCATION: ${{ secrets.GCP_KMS_LOCATION }}
+          GCP_KMS_KEYRING: ${{ secrets.GCP_KMS_KEYRING }}
+          GCP_KMS_KEY: ${{ secrets.GCP_KMS_KEY }}
+          GCP_KMS_KEY_VERSION: ${{ secrets.GCP_KMS_KEY_VERSION }}
+
       - name: Update Digests
         run: "python3 tools/update_digests.py"
+
       - name: "Create Pull Request"
         run: |
           git checkout -b 'chore/update-digests-${{github.run_number}}-${{github.run_attempt}}'
-          git config user.name github-actions
-          git config user.email github-actions@github.com
-          git add coco/private/known_shas.bzl
-          git commit --message 'build: update digests'
+          git config user.name "cocotec-automation[bot]"
+          git config user.email "244153713+cocotec-automation[bot]@users.noreply.github.com"
+          git add coco/private/known_shas.bzl coco/private/version_aliases.bzl
+          git commit --message 'chore(deps): update popili digests'
           git push --set-upstream origin HEAD
-          gh pr create --base main --title 'build: update digests' --body 'Created by Github action'
+          gh pr create --base main --title 'chore(deps): update popili digests' --body 'Created by Github action'
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.generate_token.outputs.token }}
