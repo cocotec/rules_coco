@@ -45,6 +45,13 @@ stardoc(
     deps = ["//coco:repositories"],
 )
 
+stardoc(
+    name = "extensions",
+    out = "extensions.md",
+    input = "//coco:extensions.bzl",
+    deps = ["//coco:extensions"],
+)
+
 # Generate index/overview documentation
 filegroup(
     name = "docs",
@@ -52,6 +59,7 @@ filegroup(
         "c.md",
         "cc.md",
         "defs.md",
+        "extensions.md",
         "repositories.md",
     ],
     visibility = ["//visibility:public"],

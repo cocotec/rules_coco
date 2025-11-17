@@ -81,6 +81,16 @@ bzl_library(
     deps = ["//coco/private:repositories_bzl"],
 )
 
+bzl_library(
+    name = "extensions",
+    srcs = ["extensions.bzl"],
+    deps = [
+        "//coco/private:common_repositories_bzl",
+        "//coco/private:repositories_bzl",
+        "//coco/private:version_aliases_bzl",
+    ],
+)
+
 # Unified public bzl_library for external rules to depend on
 # This aggregates all public Starlark APIs
 bzl_library(
@@ -90,6 +100,7 @@ bzl_library(
         ":c",
         ":cc",
         ":defs",
+        ":extensions",
         ":repositories",
         "//coco/private:bzl_lib",
     ],
