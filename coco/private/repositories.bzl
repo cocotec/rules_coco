@@ -267,12 +267,16 @@ def coco_repositories(version = "stable", **kwargs):
     """Sets up Coco toolchain repositories for WORKSPACE mode.
 
     Args:
-      version: The Coco version to use (default: "stable").
-      **kwargs: Additional arguments including:
-        - 'c' (bool): Enable C support
-        - 'cc' (bool): Enable C++ support
-        - 'license_source' (str): Optional license source mode
-        - 'license_token' (str): Optional license token
+      version: The Coco version to use. Use version aliases like 'stable' or explicit versions like '1.5.1'. Default is "stable".
+      **kwargs: Additional arguments:
+
+          c (bool): Whether to include C runtime support.
+
+          cc (bool): Whether to include C++ runtime support.
+
+          license_source (str): Optional default license source mode for all toolchains (e.g., 'local_user', 'local_acquire', 'token', 'action_environment'). Can be overridden via --@rules_coco//:license_source flag.
+
+          license_token (str): Optional default license token for all toolchains when license_source is 'token'.
     """
 
     # Resolve version aliases
