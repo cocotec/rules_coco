@@ -107,3 +107,16 @@ jobs:
           path: "${{ github.workspace }}/.github/rules_coco_${{ env.RELEASE_VERSION }}.tar.gz"
           destination: "cocotec-downloads/rules_coco"
           process_gcloudignore: false
+      - name: Generate renovate_versions.json
+        run: |
+          python3 ${{ github.workspace }}/tools/generate_renovate_versions.py \
+            --bucket cocotec-downloads \
+            --prefix rules_coco \
+            --out ${{ github.workspace }}/.github/renovate_versions.json \
+            --pretty
+      - name: "Upload renovate_versions.json to dl.cocotec.io"
+        uses: google-github-actions/upload-cloud-storage@v3
+        with:
+          path: "${{ github.workspace }}/.github/renovate_versions.json"
+          destination: "cocotec-downloads/rules_coco"
+          process_gcloudignore: false

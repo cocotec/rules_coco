@@ -16,6 +16,8 @@ The rules are fully compatible with remote caching and execution.
 
 ## Setup
 
+Follow the installation instructions from the [latest release](https://github.com/cocotec/rules_coco/releases/latest).
+
 ### bzlmod (Recommended)
 
 Add the following to your `MODULE.bazel` file:
@@ -25,10 +27,10 @@ bazel_dep(name = "rules_coco")
 archive_override(
     module_name = "rules_coco",
     urls = [
-        "https://github.com/cocotec/rules_coco/releases/download/v0.1.0/rules_coco_v0.1.0.tar.gz",
-        "https://dl.cocotec.io/rules_coco/rules_coco_v0.1.0.tar.gz",
+        "https://github.com/cocotec/rules_coco/releases/download/VERSION/rules_coco_VERSION.tar.gz",
+        "https://dl.cocotec.io/rules_coco/rules_coco_VERSION.tar.gz",
     ],
-    integrity = "sha256-<integrity-hash>",  # Replace with actual hash
+    integrity = "sha256-HASH",  # See releases page
 )
 
 coco = use_extension("@rules_coco//coco:extensions.bzl", "coco")
@@ -38,6 +40,8 @@ coco.toolchain(
     cc = True,  # Enable C++ runtime (for coco_cc_library)
 )
 ```
+
+**Get the exact version and integrity hash from the [releases page](https://github.com/cocotec/rules_coco/releases).**
 
 ### WORKSPACE (Deprecated)
 
@@ -50,10 +54,10 @@ load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 http_archive(
     name = "rules_coco",
-    integrity = "sha256-<integrity-hash>",  # Replace with actual hash
+    integrity = "sha256-HASH",  # See releases page
     urls = [
-        "https://github.com/cocotec/rules_coco/releases/download/v0.1.0/rules_coco_v0.1.0.tar.gz",
-        "https://dl.cocotec.io/rules_coco/rules_coco_v0.1.0.tar.gz",
+        "https://github.com/cocotec/rules_coco/releases/download/VERSION/rules_coco_VERSION.tar.gz",
+        "https://dl.cocotec.io/rules_coco/rules_coco_VERSION.tar.gz",
     ],
 )
 
@@ -65,6 +69,8 @@ coco_repositories(
     cc = True,  # Enable C++ runtime (for coco_cc_library)
 )
 ```
+
+**Get the exact version and integrity hash from the [releases page](https://github.com/cocotec/rules_coco/releases).**
 
 ## Configuration
 
@@ -513,6 +519,7 @@ For detailed API documentation of all rules, macros, and their attributes, see t
 - **[c.md](docs/c.md)** - C integration
 - **[extensions.md](docs/extensions.md)** - Module extension (bzlmod setup)
 - **[repositories.md](docs/repositories.md)** - Repository setup (WORKSPACE mode)
+- **[renovate.md](docs/renovate.md)** - Using Renovate for automatic updates (including offline/firewall scenarios)
 
 ## License
 
