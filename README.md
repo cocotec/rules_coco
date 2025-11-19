@@ -24,8 +24,10 @@ Add the following to your `MODULE.bazel` file:
 bazel_dep(name = "rules_coco")
 archive_override(
     module_name = "rules_coco",
-    urls = ["https://github.com/cocotec/rules_coco/archive/refs/tags/v0.1.0.tar.gz"],
-    strip_prefix = "rules_coco-0.1.0",
+    urls = [
+        "https://github.com/cocotec/rules_coco/releases/download/v0.1.0/rules_coco_v0.1.0.tar.gz",
+        "https://dl.cocotec.io/rules_coco/rules_coco_v0.1.0.tar.gz",
+    ],
     integrity = "sha256-<integrity-hash>",  # Replace with actual hash
 )
 
@@ -48,9 +50,11 @@ load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 http_archive(
     name = "rules_coco",
-    sha256 = "<sha256>",
-    urls = ["https://github.com/cocotec/rules_coco/archive/refs/tags/v0.1.0.tar.gz"],
-    strip_prefix = "rules_coco-0.1.0",
+    integrity = "sha256-<integrity-hash>",  # Replace with actual hash
+    urls = [
+        "https://github.com/cocotec/rules_coco/releases/download/v0.1.0/rules_coco_v0.1.0.tar.gz",
+        "https://dl.cocotec.io/rules_coco/rules_coco_v0.1.0.tar.gz",
+    ],
 )
 
 load("@rules_coco//coco:repositories.bzl", "coco_repositories")
