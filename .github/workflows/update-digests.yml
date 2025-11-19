@@ -37,14 +37,17 @@ jobs:
       - name: Update Digests
         run: "python3 tools/update_digests.py"
 
+      - name: Bump Version
+        run: python3 tools/release.py --bump patch
+
       - name: "Create Pull Request"
         run: |
           git checkout -b 'chore/update-digests-${{github.run_number}}-${{github.run_attempt}}'
           git config user.name "cocotec-automation[bot]"
           git config user.email "244153713+cocotec-automation[bot]@users.noreply.github.com"
-          git add coco/private/known_shas.bzl coco/private/version_aliases.bzl
-          git commit --message 'chore(deps): update popili digests'
+          git add coco/private/known_shas.bzl coco/private/version_aliases.bzl version.bzl MODULE.bazel
+          git commit --message 'chore(deps): update popili digests and bump version'
           git push --set-upstream origin HEAD
-          gh pr create --base main --title 'chore(deps): update popili digests' --body 'Created by Github action'
+          gh pr create --base main --title 'chore(deps): update popili digests and bump version' --body 'Updates Popili digests and bumps patch version. When merged, this will automatically trigger a release.'
         env:
           GITHUB_TOKEN: ${{ steps.generate_token.outputs.token }}
