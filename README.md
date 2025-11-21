@@ -98,6 +98,13 @@ Contact [Cocotec Support](https://cocotec.io/support/) to set this up or discuss
   This is the recommended mode when using remote execution, as it will not interfere with bazel's cache, and also keeps
   the license token most secure.
 
+- `action_file`: An auth token file path is provided that is guaranteed to be available in the execution environment of
+  each action (e.g., mounted on remote runners). The path must be specified via `--@rules_coco//:auth_token_path` or in
+  the toolchain configuration. Popili will be invoked with `--machine-auth-token` pointing to this file.
+
+  This mode is suitable for remote execution environments where auth token files are pre-mounted or made available through
+  other mechanisms. **Requires popili 1.5.2 or later.**
+
 - `local_acquire`: A license will be acquired on the local machine as part of the build using `COCOTEC_AUTH_TOKEN`.
   This is not compatible with remote execution.
 - `local_user`: The user's existing license on this machine will be reused. This is not compatible with remote
@@ -112,6 +119,9 @@ This can be configured in three ways (in order of precedence):
 
    ```bash
    bazel build --@rules_coco//:license_source=local_acquire //...
+
+   # For action_file mode, also specify the auth token path:
+   bazel build --@rules_coco//:license_source=action_file --@rules_coco//:auth_token_path=/path/to/token //...
    ```
 
 2. **In MODULE.bazel** (for bzlmod users):
@@ -122,6 +132,7 @@ This can be configured in three ways (in order of precedence):
        versions = ["stable"],
        license_source = "local_acquire",  # Optional: set repository default
        # license_token = "...",  # Optional: only needed when license_source = "token"
+       # auth_token_path = "/path/to/token",  # Optional: only needed when license_source = "action_file"
    )
    ```
 
@@ -131,6 +142,7 @@ This can be configured in three ways (in order of precedence):
        version = "stable",
        license_source = "local_acquire",  # Optional: set repository default
        # license_token = "...",  # Optional: only needed when license_source = "token"
+       # auth_token_path = "/path/to/token",  # Optional: only needed when license_source = "action_file"
    )
    ```
 

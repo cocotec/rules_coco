@@ -29,6 +29,12 @@ string_flag(
 )
 
 string_flag(
+    name = "auth_token_path",
+    build_setting_default = "",
+    visibility = ["//visibility:public"],
+)
+
+string_flag(
     name = "verification_backend",
     build_setting_default = "",
     values = [

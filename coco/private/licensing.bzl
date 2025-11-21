@@ -66,6 +66,12 @@ LICENSE_SOURCES = [
     # non-bazel mechanism.
     "action_environment",
 
+    # An auth token file path will be provided that is available in the execution environment of each action.
+    # The file path should be specified via --@rules_coco//:auth_token_path or in the toolchain configuration.
+    # Popili will be invoked with --machine-auth-token pointing to this file.
+    # Requires popili 1.5.2 or later.
+    "action_file",
+
     # A license will be acquired on the local machine as part of the build using COCOTEC_AUTH_TOKEN.
     #
     # This is not compatible with remote execution.

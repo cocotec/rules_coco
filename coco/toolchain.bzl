@@ -23,12 +23,17 @@ def _coco_toolchain_impl(ctx):
         c_runtime = ctx.attr.c_runtime,
         license_source = ctx.attr.license_source,
         license_token = ctx.attr.license_token,
+        auth_token_path = ctx.attr.auth_token_path,
     )
     return toolchain
 
 coco_toolchain = rule(
     _coco_toolchain_impl,
     attrs = {
+        "auth_token_path": attr.string(
+            doc = "The path to auth token file to use when license_source is 'action_file'. The file must be available in the execution environment. Optional.",
+            default = "",
+        ),
         "c_runtime": attr.label(
             doc = "The C runtime library for Coco. Optional - only needed when using coco_c_library.",
             default = None,
@@ -48,7 +53,7 @@ coco_toolchain = rule(
             mandatory = True,
         ),
         "license_source": attr.string(
-            doc = "The license source mode for this toolchain. Can be 'local_user', 'local_acquire', 'token', or 'action_environment'. If not specified, defaults to 'local_user'. Can be overridden via --@rules_coco//:license_source flag.",
+            doc = "The license source mode for this toolchain. Can be 'local_user', 'local_acquire', 'token', 'action_environment', or 'action_file'. If not specified, defaults to 'local_user'. Can be overridden via --@rules_coco//:license_source flag.",
             default = "",
         ),
         "license_token": attr.string(
