@@ -176,6 +176,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     needs: [pre-commit, docs, test]
+    if: always()
     steps:
       - name: Successful build
         if: ${{ !(contains(needs.*.result, 'failure')) }}
