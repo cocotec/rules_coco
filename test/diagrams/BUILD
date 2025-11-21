@@ -18,6 +18,7 @@ load(
     "coco_counterexample_diagram",
     "coco_fmt_test",
     "coco_package",
+    "coco_state_diagram",
     "counterexample_options",
 )
 
@@ -74,4 +75,27 @@ coco_counterexample_diagram(
 coco_fmt_test(
     name = "diagrams_fmt_test",
     package = ":diagrams",
+)
+
+coco_state_diagram(
+    name = "alarm_state_diagram",
+    package = ":diagrams",
+    targets = ["PAlarm.M"],
+)
+
+coco_state_diagram(
+    name = "multiple_state_diagrams",
+    package = ":diagrams",
+    targets = [
+        "PAlarm.M",
+        "P.M",
+        "Log.M",
+    ],
+)
+
+coco_state_diagram(
+    name = "separate_edges_state_diagram",
+    package = ":diagrams",
+    separate_edges = True,
+    targets = ["PAlarm.M"],
 )
