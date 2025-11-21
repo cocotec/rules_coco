@@ -41,11 +41,11 @@ string_flag(
 )
 
 # Build flag for selecting the coco toolchain version
-# The default value is set by the extension based on the first registered version
-# If no versions are registered, it defaults to the current stable version (1.5.1)
+# Empty string means use the first registered version (default)
+# Set explicitly to select a specific version when multiple are registered
 string_flag(
     name = "version",
-    build_setting_default = "1.5.1",
+    build_setting_default = "",
     visibility = ["//visibility:public"],
 )
 

@@ -58,14 +58,25 @@ config_setting(
 )
 """
 
+# Config setting for when no version is explicitly specified (empty string default)
+_VERSION_DEFAULT_CONFIG_SETTING = """
+config_setting(
+    name = "version_default",
+    flag_values = {
+        "@rules_coco//:version": "",
+    },
+    visibility = ["//visibility:public"],
+)
+"""
+
 def _coco_toolchain_hub_impl(repository_ctx):
     """Implementation of the coco toolchain hub repository rule."""
     repository_ctx.file("WORKSPACE.bazel", """workspace(name = "{}")""".format(
         repository_ctx.name,
     ))
 
-    # Generate config_settings for all resolved versions
-    config_settings = "\n".join([
+    # Generate config_settings for all resolved versions plus default
+    config_settings = _VERSION_DEFAULT_CONFIG_SETTING + "\n".join([
         _VERSION_CONFIG_SETTING_TEMPLATE.format(
             version = version,
             config_name = version_suffix,
@@ -251,6 +262,15 @@ def _toolchain_tag_impl(ctx):
             exec_compatible_with[toolchain_name] = constraints
             target_compatible_with[toolchain_name] = constraints
             target_settings[toolchain_name] = ["@coco_toolchains//:version_%s" % version_suffix]
+
+            # For the first version, also register default toolchains (match when version flag is empty)
+            if version == versions[0]:
+                default_toolchain_name = "%s_%s__default" % (os, arch)
+                toolchain_names.append(default_toolchain_name)
+                toolchain_labels[default_toolchain_name] = "@%s//:toolchain_impl" % repo_name
+                exec_compatible_with[default_toolchain_name] = constraints
+                target_compatible_with[default_toolchain_name] = constraints
+                target_settings[default_toolchain_name] = ["@coco_toolchains//:version_default"]
 
     # Create hub repository that aggregates all toolchains
     _coco_toolchain_hub(
