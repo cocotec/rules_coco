@@ -69,7 +69,7 @@ load("@rules_coco//coco:repositories.bzl", "coco_repositories")
 coco_repositories(
     c = True,
     cc = True,
-    version = "1.5.1",
+    version = "stable",
 )
 
 http_archive(

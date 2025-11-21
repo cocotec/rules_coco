@@ -44,15 +44,16 @@ toolchain(
         parent_workspace_name = parent_workspace_name,
     )
 
-def BUILD_for_coco_toolchain(name, cc_runtime_label = None, c_runtime_label = None, license_source = None, license_token = None):
+def BUILD_for_coco_toolchain(name, cc_runtime_label = None, c_runtime_label = None, license_source = None, license_token = None, auth_token_path = None):
     """Emits a toolchain declaration to match an existing compiler and stdlib.
 
     Args:
       name: The name of the toolchain declaration
       cc_runtime_label: Optional label to the C++ runtime library (can be a Label object or string)
       c_runtime_label: Optional label to the C runtime library (can be a Label object or string)
-      license_source: Optional license source mode (e.g., "local_user", "local_acquire", "token", "action_environment")
+      license_source: Optional license source mode (e.g., "local_user", "local_acquire", "token", "action_environment", "action_file")
       license_token: Optional license token string
+      auth_token_path: Optional auth token file path string
 
     Returns:
       A string containing BUILD file content for the toolchain.
@@ -76,11 +77,15 @@ def BUILD_for_coco_toolchain(name, cc_runtime_label = None, c_runtime_label = No
     if license_token and license_token != "":
         license_token_attr = '\n    license_token = "{}",'.format(license_token)
 
+    auth_token_path_attr = ""
+    if auth_token_path and auth_token_path != "":
+        auth_token_path_attr = '\n    auth_token_path = "{}",'.format(auth_token_path)
+
     return """
 coco_toolchain(
     name = "{toolchain_name}_impl",
     coco = "//:coco",
-    cocotec_licensing_server = "//:cocotec_licensing_server",{cc_runtime_attr}{c_runtime_attr}{license_source_attr}{license_token_attr}
+    cocotec_licensing_server = "//:cocotec_licensing_server",{cc_runtime_attr}{c_runtime_attr}{license_source_attr}{license_token_attr}{auth_token_path_attr}
     visibility = ["//visibility:public"],
 )
 """.format(
@@ -89,6 +94,7 @@ coco_toolchain(
         c_runtime_attr = c_runtime_attr,
         license_source_attr = license_source_attr,
         license_token_attr = license_token_attr,
+        auth_token_path_attr = auth_token_path_attr,
     )
 
 def BUILD_for_coco_archive(binary_ext, product):
@@ -151,6 +157,7 @@ def _coco_toolchain_repository_impl(ctx):
             c_runtime_label = ctx.attr.c_runtime_label,
             license_source = ctx.attr.license_source,
             license_token = ctx.attr.license_token,
+            auth_token_path = ctx.attr.auth_token_path,
         ),
     ]))
 
@@ -169,6 +176,10 @@ def _coco_toolchain_repository_proxy_impl(ctx):
 coco_toolchain_repository = repository_rule(
     attrs = {
         "arch": attr.string(mandatory = True),
+        "auth_token_path": attr.string(
+            doc = "Optional auth token file path string",
+            default = "",
+        ),
         "c_runtime_label": attr.label(
             doc = "Optional label to the C runtime library",
             default = None,
@@ -178,7 +189,7 @@ coco_toolchain_repository = repository_rule(
             default = None,
         ),
         "license_source": attr.string(
-            doc = "Optional license source mode (e.g., 'local_user', 'local_acquire', 'token', 'action_environment')",
+            doc = "Optional license source mode (e.g., 'local_user', 'local_acquire', 'token', 'action_environment', 'action_file')",
             default = "",
         ),
         "license_token": attr.string(
@@ -202,7 +213,7 @@ coco_toolchain_repository_proxy = repository_rule(
     configure = True,
 )
 
-def coco_repository_set(name, version, os, arch, constraints, cc_runtime_label = None, c_runtime_label = None, license_source = None, license_token = None):
+def coco_repository_set(name, version, os, arch, constraints, cc_runtime_label = None, c_runtime_label = None, license_source = None, license_token = None, auth_token_path = None):
     coco_toolchain_repository(
         arch = arch,
         os = os,
@@ -212,6 +223,7 @@ def coco_repository_set(name, version, os, arch, constraints, cc_runtime_label =
         c_runtime_label = c_runtime_label,
         license_source = license_source,
         license_token = license_token,
+        auth_token_path = auth_token_path,
     )
 
     coco_toolchain_repository_proxy(
@@ -274,9 +286,11 @@ def coco_repositories(version = "stable", **kwargs):
 
           cc (bool): Whether to include C++ runtime support.
 
-          license_source (str): Optional default license source mode for all toolchains (e.g., 'local_user', 'local_acquire', 'token', 'action_environment'). Can be overridden via --@rules_coco//:license_source flag.
+          license_source (str): Optional default license source mode for all toolchains (e.g., 'local_user', 'local_acquire', 'token', 'action_environment', 'action_file'). Can be overridden via --@rules_coco//:license_source flag.
 
           license_token (str): Optional default license token for all toolchains when license_source is 'token'.
+
+          auth_token_path (str): Optional path to auth token file for all toolchains when license_source is 'action_file'. The file must be available in the execution environment.
     """
 
     # Resolve version aliases
@@ -291,13 +305,14 @@ def coco_repositories(version = "stable", **kwargs):
     cc = kwargs.get("cc", False)
     license_source = kwargs.get("license_source", None)
     license_token = kwargs.get("license_token", None)
+    auth_token_path = kwargs.get("auth_token_path", None)
     _coco_deps(
-        version = version,
+        version = resolved_version,
         c = c,
         cc = cc,
     )
 
-    version_suffix = version_to_repo_suffix(version)
+    version_suffix = version_to_repo_suffix(resolved_version)
 
     # Determine c_runtime_label if C support is enabled
     c_runtime_label = None
@@ -320,7 +335,7 @@ def coco_repositories(version = "stable", **kwargs):
             name = "io_cocotec_coco_%s_%s" % (os, arch),
             os = os,
             arch = arch,
-            version = version,
+            version = resolved_version,
             constraints = [
                 "@platforms//os:%s" % os,
                 "@platforms//cpu:%s" % arch,
@@ -329,6 +344,7 @@ def coco_repositories(version = "stable", **kwargs):
             cc_runtime_label = cc_runtime_label,
             license_source = license_source,
             license_token = license_token,
+            auth_token_path = auth_token_path,
         )
 
 def coco_local_repository_set(name, path):

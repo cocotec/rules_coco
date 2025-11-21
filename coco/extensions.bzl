@@ -147,6 +147,7 @@ def _toolchain_tag_impl(ctx):
     c = False
     license_source = ""
     license_token = ""
+    auth_token_path = ""
 
     for mod in ctx.modules:
         for toolchain in mod.tags.toolchain:
@@ -159,6 +160,8 @@ def _toolchain_tag_impl(ctx):
                 license_source = toolchain.license_source
             if not license_token and toolchain.license_token:
                 license_token = toolchain.license_token
+            if not auth_token_path and toolchain.auth_token_path:
+                auth_token_path = toolchain.auth_token_path
 
     # Resolve version aliases (like "stable" -> "1.5.1") and deduplicate
     # Keep track of both original and resolved versions for config_settings
@@ -241,6 +244,7 @@ def _toolchain_tag_impl(ctx):
                 c_runtime_label = c_runtime_label,
                 license_source = license_source,
                 license_token = license_token,
+                auth_token_path = auth_token_path,
             )
 
             constraints = [
@@ -289,6 +293,10 @@ def _toolchain_tag_impl(ctx):
 
 _toolchain_tag = tag_class(
     attrs = {
+        "auth_token_path": attr.string(
+            doc = "Optional path to auth token file for all toolchains when license_source is 'action_file'. The file must be available in the execution environment.",
+            default = "",
+        ),
         "c": attr.bool(
             default = False,
             doc = "Whether to include C runtime support",
@@ -298,7 +306,7 @@ _toolchain_tag = tag_class(
             doc = "Whether to include C++ runtime support",
         ),
         "license_source": attr.string(
-            doc = "Optional default license source mode for all toolchains (e.g., 'local_user', 'local_acquire', 'token', 'action_environment'). Can be overridden via --@rules_coco//:license_source flag.",
+            doc = "Optional default license source mode for all toolchains (e.g., 'local_user', 'local_acquire', 'token', 'action_environment', 'action_file'). Can be overridden via --@rules_coco//:license_source flag.",
             default = "",
         ),
         "license_token": attr.string(

@@ -46,11 +46,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Strategic test matrix (12 jobs total):
+        # Strategic test matrix (13 jobs total):
         # - WORKSPACE mode: Bazel 8.4.2 (deprecated but supported on current LTS)
         # - bzlmod mode: Bazel 8.4.2 (current LTS) and 9.0.0rc2 (next major)
         # - All 3 OSes (ubuntu, macos, windows) with remote verification (9 jobs)
         # - Ubuntu only with local verification (3 jobs)
+        # - Ubuntu with action_file license mode (1 job)
         include:
           # Remote verification: all OSes, all configs (9 jobs)
           - {
@@ -58,54 +59,72 @@ jobs:
               bazel_version: "8.4.2",
               build_system: "workspace",
               verification_backend: "remote",
+              license_source: "local_acquire",
+              auth_token_path: "",
             }
           - {
               os: macos-latest,
               bazel_version: "8.4.2",
               build_system: "workspace",
               verification_backend: "remote",
+              license_source: "local_acquire",
+              auth_token_path: "",
             }
           - {
               os: windows-latest,
               bazel_version: "8.4.2",
               build_system: "workspace",
               verification_backend: "remote",
+              license_source: "local_acquire",
+              auth_token_path: "",
             }
           - {
               os: ubuntu-latest,
               bazel_version: "8.4.2",
               build_system: "bzlmod",
               verification_backend: "remote",
+              license_source: "local_acquire",
+              auth_token_path: "",
             }
           - {
               os: macos-latest,
               bazel_version: "8.4.2",
               build_system: "bzlmod",
               verification_backend: "remote",
+              license_source: "local_acquire",
+              auth_token_path: "",
             }
           - {
               os: windows-latest,
               bazel_version: "8.4.2",
               build_system: "bzlmod",
               verification_backend: "remote",
+              license_source: "local_acquire",
+              auth_token_path: "",
             }
           - {
               os: ubuntu-latest,
               bazel_version: "9.0.0rc2",
               build_system: "bzlmod",
               verification_backend: "remote",
+              license_source: "local_acquire",
+              auth_token_path: "",
             }
           - {
               os: macos-latest,
               bazel_version: "9.0.0rc2",
               build_system: "bzlmod",
               verification_backend: "remote",
+              license_source: "local_acquire",
+              auth_token_path: "",
             }
           - {
               os: windows-latest,
               bazel_version: "9.0.0rc2",
               build_system: "bzlmod",
               verification_backend: "remote",
+              license_source: "local_acquire",
+              auth_token_path: "",
             }
           # Local verification: ubuntu only, all configs (3 jobs)
           - {
@@ -113,18 +132,33 @@ jobs:
               bazel_version: "8.4.2",
               build_system: "workspace",
               verification_backend: "local",
+              license_source: "local_acquire",
+              auth_token_path: "",
             }
           - {
               os: ubuntu-latest,
               bazel_version: "8.4.2",
               build_system: "bzlmod",
               verification_backend: "local",
+              license_source: "local_acquire",
+              auth_token_path: "",
             }
           - {
               os: ubuntu-latest,
               bazel_version: "9.0.0rc2",
               build_system: "bzlmod",
               verification_backend: "local",
+              license_source: "local_acquire",
+              auth_token_path: "",
+            }
+          # Test action_file license mode (1 job)
+          - {
+              os: ubuntu-latest,
+              bazel_version: "8.4.2",
+              build_system: "bzlmod",
+              verification_backend: "remote",
+              license_source: "action_file",
+              auth_token_path: "/tmp/coco-auth-token",
             }
     permissions:
       contents: read
@@ -132,6 +166,17 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: bazel-contrib/setup-bazel@4432ac8a2318fb254c5b9fe491b9d21a002d7122
+      - name: Create auth token file for action_file mode
+        if: matrix.auth_token_path != ''
+        run: |
+          AUTH_TOKEN="{\"external\": { \
+            \"connection_id\": \"6143ef52-0286-4d9e-9176-92ab2020bbd3\", \
+            \"github\": { \
+              \"url\": \"${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=\${audience}\", \
+              \"authorization\": \"bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}\" \
+            }}}"
+          echo "$AUTH_TOKEN" > ${{ matrix.auth_token_path }}
+        shell: bash
       - name: Test root workspace
         run: |
           export COCOTEC_AUTH_TOKEN="{\"external\": { \
@@ -140,7 +185,15 @@ jobs:
               \"url\": \"${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=\${audience}\", \
               \"authorization\": \"bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}\" \
             }}}"
-          bazel test --config=ci --config=${{ matrix.build_system }} --repo_env=COCOTEC_AUTH_TOKEN --color=yes --keep_going --test_output=errors --@rules_coco//:license_source=local_acquire --@rules_coco//:verification_backend=${{ matrix.verification_backend }} //...
+          bazel test --config=ci --config=${{ matrix.build_system }} \
+            --repo_env=COCOTEC_AUTH_TOKEN \
+            --color=yes \
+            --keep_going \
+            --test_output=errors \
+            --@rules_coco//:license_source=${{ matrix.license_source }} \
+            --@rules_coco//:auth_token_path=${{ matrix.auth_token_path }} \
+            --@rules_coco//:verification_backend=${{ matrix.verification_backend }} \
+            //...
         shell: bash
         env:
           USE_BAZEL_VERSION: ${{ matrix.bazel_version }}
@@ -157,6 +210,14 @@ jobs:
           # Run tests for each e2e scenario (auto-discover subdirectories)
           for dir in e2e/*/; do
             dir=${dir%/}  # Remove trailing slash
+
+            # Skip multi_version for action_file mode - it uses popili 1.5.0
+            # which doesn't support --machine-auth-token (requires 1.5.2+)
+            if [ "${{ matrix.license_source }}" = "action_file" ] && [ "$dir" = "e2e/multi_version" ]; then
+              echo "Skipping ${dir} (uses popili 1.5.0, action_file requires 1.5.2+)"
+              continue
+            fi
+
             echo "Testing ${dir}..."
             (cd "${dir}" && bazel test \
               --config=${{ matrix.build_system }} \
@@ -164,7 +225,8 @@ jobs:
               --color=yes \
               --keep_going \
               --test_output=errors \
-              --@rules_coco//:license_source=local_acquire \
+              --@rules_coco//:license_source=${{ matrix.license_source }} \
+              --@rules_coco//:auth_token_path=${{ matrix.auth_token_path }} \
               --@rules_coco//:verification_backend=${{ matrix.verification_backend }} \
               //...) || exit 1
           done

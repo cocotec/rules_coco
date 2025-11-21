@@ -42,6 +42,7 @@ CocoGeneratedCodeInfo = provider(
 )
 
 LICENSE_ATTRIBUTES = {
+    "_auth_token_path": attr.label(default = Label("//:auth_token_path")),
     "_license_file_fetch": attr.label(default = Label("@io_cocotec_licensing_fetch//:licenses")),
     "_license_file_local": attr.label(default = Label("@io_cocotec_licensing_local//:licenses")),
     "_license_source": attr.label(default = Label("//:license_source")),
@@ -174,10 +175,20 @@ def _coco_startup_args(ctx, package, is_test):
         _runtime_path(ctx.toolchains[COCO_TOOLCHAIN_TYPE].preferences_file, is_test),
         "--terminal=plain",
     ]
-    license_file = _get_license_file_from_toolchain(ctx)
-    if license_file:
-        arguments.append("--override-licenses")
-        arguments.append(_runtime_path(license_file, is_test))
+
+    # Handle auth token file for action_file mode
+    license_source = _get_license_source(ctx)
+    if license_source == "action_file":
+        auth_token_path = _get_auth_token_path(ctx)
+        if auth_token_path:
+            arguments.append("--machine-auth-token")
+            arguments.append(auth_token_path)
+    else:
+        # Handle license file for other modes
+        license_file = _get_license_file_from_toolchain(ctx)
+        if license_file:
+            arguments.append("--override-licenses")
+            arguments.append(_runtime_path(license_file, is_test))
     if package:
         # Support both CocoPackageInfo providers (targets) and structs with the same fields
         if hasattr(package, "package_file"):
@@ -204,6 +215,19 @@ def _get_license_source(ctx):
     if toolchain_license_source:
         return toolchain_license_source
     return "local_user"
+
+def _get_auth_token_path(ctx):
+    """Get the auth token file path from CLI flag or toolchain.
+
+    Returns the path string (not a File object) for use with action_file licensing mode.
+    """
+    cli_auth_token_path = ctx.attr._auth_token_path[BuildSettingInfo].value
+    if cli_auth_token_path:
+        return cli_auth_token_path
+    toolchain_auth_token_path = ctx.toolchains[COCO_TOOLCHAIN_TYPE].auth_token_path
+    if toolchain_auth_token_path:
+        return toolchain_auth_token_path
+    return ""
 
 def _get_license_file_from_toolchain(ctx):
     """Get the appropriate license file based on license_source.
