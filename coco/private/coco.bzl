@@ -893,7 +893,7 @@ def _coco_package_generate_impl(ctx):
             "--test-output",
             output_dir,
         ]
-    if ctx.attr.language == "cpp":
+    if ctx.attr.language == "cpp" or ctx.attr.language == "c":
         # Make all include paths absolute within the workspace to avoid the need for includes
         arguments += [
             "--include-prefix",

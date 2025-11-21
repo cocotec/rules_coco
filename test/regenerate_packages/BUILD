@@ -13,6 +13,7 @@
 # limitations under the License.
 
 load("@rules_cc//cc:defs.bzl", "cc_test")
+load("@rules_coco//coco:c.bzl", "coco_c_library")
 load("@rules_coco//coco:cc.bzl", "coco_cc_library")
 load("@rules_coco//coco:defs.bzl", "coco_fmt_test", "coco_generate", "coco_package", "coco_verify_test")
 
@@ -61,27 +62,26 @@ cc_test(
     ],
 )
 
-# Commented out pending Popili support for --include-prefix in C
-# coco_generate(
-#     name = "app_c",
-#     c_header_file_extension = ".hh",
-#     c_regenerate_packages = [":base"],
-#     language = "c",
-#     package = ":app",
-# )
-#
-# coco_c_library(
-#     name = "app_c_lib",
-#     generated_package = ":app_c",
-# )
-#
-# cc_test(
-#     name = "c_test",
-#     srcs = ["app/test/c_test.c"],
-#     deps = [
-#         ":app_c_lib",
-#     ],
-# )
+coco_generate(
+    name = "app_c",
+    c_header_file_extension = ".hh",
+    c_regenerate_packages = [":base"],
+    language = "c",
+    package = ":app",
+)
+
+coco_c_library(
+    name = "app_c_lib",
+    generated_package = ":app_c",
+)
+
+cc_test(
+    name = "c_test",
+    srcs = ["app/test/c_test.c"],
+    deps = [
+        ":app_c_lib",
+    ],
+)
 
 coco_generate(
     name = "app_csharp",
