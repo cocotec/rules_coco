@@ -100,6 +100,7 @@ jobs:
         uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
       - name: "Upload to dl.cocotec.io"
         uses: google-github-actions/upload-cloud-storage@v3
         with:
