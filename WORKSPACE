@@ -74,7 +74,7 @@ coco_repositories(
 
 http_archive(
     name = "googletest",
-    sha256 = "12ef65654dc01ab40f6f33f9d02c04f2097d2cd9fbe48dc6001b29543583b0ad",
-    strip_prefix = "googletest-8d51ffdfab10b3fba636ae69bc03da4b54f8c235",
-    urls = ["https://github.com/google/googletest/archive/8d51ffdfab10b3fba636ae69bc03da4b54f8c235.zip"],
+    sha256 = "8a8a6c08055ab17563986c14041511801ea9251e318924c7c8160bb3f34f8651",
+    strip_prefix = "googletest-065127f1e4b46c5f14fc73cf8d323c221f9dc68e",
+    urls = ["https://github.com/google/googletest/archive/065127f1e4b46c5f14fc73cf8d323c221f9dc68e.zip"],
 )
