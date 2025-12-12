@@ -22,7 +22,7 @@ jobs:
     needs: [pre-commit]
     steps:
       - uses: actions/checkout@v6
-      - uses: bazel-contrib/setup-bazel@4432ac8a2318fb254c5b9fe491b9d21a002d7122
+      - uses: bazel-contrib/setup-bazel@5528b8082a800fc1dcf8ff0de93a30fa1c061239
       - name: Generate documentation
         run: bazel build //docs:docs
         env:
@@ -165,7 +165,7 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v6
-      - uses: bazel-contrib/setup-bazel@4432ac8a2318fb254c5b9fe491b9d21a002d7122
+      - uses: bazel-contrib/setup-bazel@5528b8082a800fc1dcf8ff0de93a30fa1c061239
       - name: Create auth token file for action_file mode
         if: matrix.auth_token_path != ''
         run: |
