@@ -31,7 +31,7 @@ repos:
         args: *args
         exclude: ^coco/private/known_shas\.bzl$
   - repo: https://github.com/commitizen-tools/commitizen
-    rev: v4.10.0
+    rev: v4.10.1
     hooks:
       - id: commitizen
   - repo: https://github.com/pre-commit/mirrors-prettier
