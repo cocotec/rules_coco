@@ -1093,6 +1093,7 @@ def coco_generate(
     _coco_test_outputs(
         name = coco_test_outputs_name(name),
         package = name,
+        **kwargs
     )
 
 def _popili_version_alias_impl(ctx):

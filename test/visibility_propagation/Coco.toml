@@ -1,0 +1,7 @@
+[package]
+name = "simple"
+sources = ["src"]
+
+[language]
+standard = "2024"
+profiles = ["C++"]
