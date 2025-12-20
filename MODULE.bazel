@@ -29,7 +29,7 @@ bazel_dep(name = "rules_shell", version = "0.6.1", dev_dependency = True)
 bazel_dep(name = "googletest", version = "1.17.0.bcr.2", dev_dependency = True)
 
 # TODO: this is only here to get a version of protobuf that is compatible with the version of abseil used by googletest
-bazel_dep(name = "protobuf", version = "33.1", dev_dependency = True)
+bazel_dep(name = "protobuf", version = "33.2", dev_dependency = True)
 bazel_dep(name = "stardoc", version = "0.8.0", dev_dependency = True)
 
 # Coco toolchain extension
