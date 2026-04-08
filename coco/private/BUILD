@@ -78,6 +78,15 @@ bzl_library(
 )
 
 bzl_library(
+    name = "cc_library_bzl",
+    srcs = ["cc_library.bzl"],
+    deps = [
+        ":coco_bzl",
+        "@rules_cc//cc:defs_bzl",
+    ],
+)
+
+bzl_library(
     name = "format_bzl",
     srcs = ["format.bzl"],
     deps = [":coco_bzl"],
@@ -99,6 +108,7 @@ bzl_library(
     srcs = glob(["*.bzl"]),
     deps = [
         ":bazel_tools_bzl_lib",
+        ":cc_library_bzl",
         ":coco_bzl",
         ":common_repositories_bzl",
         ":diagram_bzl",

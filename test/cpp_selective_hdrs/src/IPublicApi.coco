@@ -1,0 +1,12 @@
+enum ApiStatus {
+  case OK
+  case FAIL
+}
+
+port IPublicApi {
+  function getStatus() : ApiStatus
+
+  machine {
+    getStatus() = ApiStatus.OK
+  }
+}

@@ -1,0 +1,6 @@
+import unqualified IPublicApi
+
+@runtime(.MultiThreaded)
+external component InternalComp {
+  val api : Provided<IPublicApi>
+}

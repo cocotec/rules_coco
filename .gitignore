@@ -1,6 +1,7 @@
 # Bazel outputs
 /bazel-*
 /e2e/*/bazel-*
+/e2e/*/MODULE.bazel.lock
 
 # User-specific Bazel configuration
 .bazelrc.user

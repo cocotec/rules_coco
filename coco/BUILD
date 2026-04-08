@@ -61,8 +61,7 @@ bzl_library(
     name = "c",
     srcs = ["c.bzl"],
     deps = [
-        ":defs",
-        "@rules_cc//cc:defs_bzl",
+        "//coco/private:cc_library_bzl",
     ],
 )
 
@@ -70,8 +69,7 @@ bzl_library(
     name = "cc",
     srcs = ["cc.bzl"],
     deps = [
-        ":defs",
-        "@rules_cc//cc:defs_bzl",
+        "//coco/private:cc_library_bzl",
     ],
 )
 
