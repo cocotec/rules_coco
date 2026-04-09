@@ -77,25 +77,16 @@ jobs:
           sed 's#{version}#${{ env.RELEASE_VERSION }}#g' ${{ github.workspace }}/.github/release_notes.template \
           | sed 's#{sha256_base64}#${{ env.ARCHIVE_SHA256_BASE64 }}#g' \
           > ${{ github.workspace }}/.github/release_notes.txt
-      - name: Create release
-        uses: softprops/action-gh-release@v2
-        id: rules_coco_release
+      - name: Create release and upload archive
+        run: |
+          gh release create "$RELEASE_VERSION" \
+            "${{ github.workspace }}/.github/rules_coco_${RELEASE_VERSION}.tar.gz" \
+            --title "$RELEASE_VERSION" \
+            --notes-file "${{ github.workspace }}/.github/release_notes.txt" \
+            --generate-notes \
+            --target "${{ github.sha }}"
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          generate_release_notes: true
-          tag_name: ${{ env.RELEASE_VERSION }}
-          body_path: ${{ github.workspace }}/.github/release_notes.txt
-          target_commitish: ${{ github.base_ref }}
-      - name: "Upload the rules archive"
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.rules_coco_release.outputs.upload_url }}
-          asset_name: rules_coco_${{ env.RELEASE_VERSION }}.tar.gz
-          asset_path: ${{ github.workspace }}/.github/rules_coco_${{ env.RELEASE_VERSION }}.tar.gz
-          asset_content_type: application/gzip
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v3
         with:
