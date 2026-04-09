@@ -48,7 +48,7 @@ jobs:
       matrix:
         # Strategic test matrix (13 jobs total):
         # - WORKSPACE mode: Bazel 8.4.2 (deprecated but supported on current LTS)
-        # - bzlmod mode: Bazel 8.4.2 (current LTS) and 9.0.0rc2 (next major)
+        # - bzlmod mode: Bazel 8.4.2 (current LTS) and 9.0.1 (next major)
         # - All 3 OSes (ubuntu, macos, windows) with remote verification (9 jobs)
         # - Ubuntu only with local verification (3 jobs)
         # - Ubuntu with action_file license mode (1 job)
@@ -104,7 +104,7 @@ jobs:
             }
           - {
               os: ubuntu-latest,
-              bazel_version: "9.0.0rc2",
+              bazel_version: "9.0.1",
               build_system: "bzlmod",
               verification_backend: "remote",
               license_source: "local_acquire",
@@ -112,7 +112,7 @@ jobs:
             }
           - {
               os: macos-latest,
-              bazel_version: "9.0.0rc2",
+              bazel_version: "9.0.1",
               build_system: "bzlmod",
               verification_backend: "remote",
               license_source: "local_acquire",
@@ -120,7 +120,7 @@ jobs:
             }
           - {
               os: windows-latest,
-              bazel_version: "9.0.0rc2",
+              bazel_version: "9.0.1",
               build_system: "bzlmod",
               verification_backend: "remote",
               license_source: "local_acquire",
@@ -145,7 +145,7 @@ jobs:
             }
           - {
               os: ubuntu-latest,
-              bazel_version: "9.0.0rc2",
+              bazel_version: "9.0.1",
               build_system: "bzlmod",
               verification_backend: "local",
               license_source: "local_acquire",
