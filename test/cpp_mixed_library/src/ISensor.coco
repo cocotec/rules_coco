@@ -1,0 +1,13 @@
+enum SensorState {
+  case IDLE
+  case ACTIVE
+  case ERROR
+}
+
+port ISensor {
+  function getState() : SensorState
+
+  machine {
+    getState() = SensorState.IDLE
+  }
+}

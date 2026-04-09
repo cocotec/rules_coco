@@ -1,0 +1,12 @@
+enum ActuatorState {
+  case OFF
+  case ON
+}
+
+port IActuator {
+  function getState() : ActuatorState
+
+  machine {
+    getState() = ActuatorState.OFF
+  }
+}

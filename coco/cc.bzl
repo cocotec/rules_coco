@@ -14,54 +14,97 @@
 
 """C++ integration macros for Coco-generated code."""
 
-load("@rules_cc//cc:defs.bzl", "cc_library")
-load(":defs.bzl", "coco_test_outputs_name")
+load("//coco/private:cc_library.bzl", "coco_library", "coco_test_library")
 
-def coco_cc_library(name, generated_package, srcs = [], deps = [], **kwargs):
+_CC_RUNTIME = Label("//coco:cc_runtime")
+
+def coco_cc_library(
+        name,
+        generated_package = None,
+        generated_packages = [],
+        srcs = [],
+        hdrs = [],
+        deps = [],
+        public_hdrs = None,
+        **kwargs):
     """Creates a C++ library from Coco-generated C++ code.
 
-    This automatically adds the Coco C++ runtime as a dependency by accessing
-    it from the Coco toolchain.
+    This automatically adds the Coco C++ runtime as a dependency.
+
+    Generated headers are made available to downstream targets via CcInfo.
+    The `public_hdrs` parameter controls which generated headers are public:
+
+    - None (default): all generated headers are public
+    - ["ISensor.h", "Types.h"]: only listed headers are public, rest are private
+    - []: no generated headers are public (all private)
+
+    Use bare filenames to match by name, or path suffixes (e.g., "src/ISensor.h")
+    to disambiguate when multiple generated files share a name.
 
     Args:
         name: The name of the library
-        generated_package: The coco_generate target that generates C++ code
+        generated_package: A coco_generate target (mutually exclusive with generated_packages)
+        generated_packages: Multiple coco_generate targets to merge into one library
         srcs: Additional C++ source files
+        hdrs: Additional C++ header files
         deps: Additional dependencies
+        public_hdrs: List of generated header names to make public, or None for all
         **kwargs: Additional arguments passed to cc_library
     """
-
-    cc_library(
+    coco_library(
         name = name,
-        srcs = srcs + [generated_package],
-        deps = deps + [Label("//coco:cc_runtime")],
+        runtime = _CC_RUNTIME,
+        generated_package = generated_package,
+        generated_packages = generated_packages,
+        srcs = srcs,
+        hdrs = hdrs,
+        deps = deps,
+        public_hdrs = public_hdrs,
         **kwargs
     )
 
 def coco_cc_test_library(
         name,
-        generated_package,
+        generated_package = None,
+        generated_packages = [],
         srcs = [],
+        hdrs = [],
         deps = [],
+        public_hdrs = None,
         gmock = "@googletest//:gtest",
         **kwargs):
     """Creates a C++ test library from Coco-generated C++ test code.
 
-    This automatically adds the Coco C++ testing runtime as a dependency by accessing
-    it from the Coco toolchain.
+    This automatically adds the Coco C++ runtime and GoogleTest as dependencies.
+
+    Generated test headers are made available to downstream targets via CcInfo.
+    The `public_hdrs` parameter controls which generated test headers are public:
+
+    - None (default): all generated test headers are public
+    - ["RunnableMock.h"]: only listed headers are public, rest are private
+    - []: no generated test headers are public (all private)
 
     Args:
         name: The name of the test library
-        generated_package: The coco_package target that generates C++ test code
+        generated_package: A coco_generate target with mocks enabled (mutually exclusive with generated_packages)
+        generated_packages: Multiple coco_generate targets to merge into one library
         srcs: Additional C++ source files
+        hdrs: Additional C++ header files
         deps: Additional dependencies
-        gmock: The GoogleTest/GoogleMock library to use (default: @googletest//:gtest)
+        public_hdrs: List of generated test header names to make public, or None for all
+        gmock: The GoogleTest/GoogleMock library (default: @googletest//:gtest).
+               Set to None to omit.
         **kwargs: Additional arguments passed to cc_library
     """
-
-    cc_library(
+    coco_test_library(
         name = name,
-        srcs = srcs + [coco_test_outputs_name(generated_package)],
-        deps = deps + [gmock, Label("//coco:cc_runtime")],
+        runtime = _CC_RUNTIME,
+        generated_package = generated_package,
+        generated_packages = generated_packages,
+        srcs = srcs,
+        hdrs = hdrs,
+        deps = deps,
+        public_hdrs = public_hdrs,
+        gmock = gmock,
         **kwargs
     )

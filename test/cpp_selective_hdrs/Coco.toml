@@ -1,0 +1,10 @@
+[package]
+name = "selective"
+sources = ["src"]
+
+[language]
+standard = "1.2"
+profiles = ["C++"]
+
+[generator]
+defaultLanguage = "C++"

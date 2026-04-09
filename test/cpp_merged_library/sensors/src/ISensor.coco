@@ -1,0 +1,12 @@
+enum SensorType {
+  case TEMPERATURE
+  case PRESSURE
+}
+
+port ISensor {
+  function getType() : SensorType
+
+  machine {
+    getType() = SensorType.TEMPERATURE
+  }
+}

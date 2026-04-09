@@ -16,6 +16,7 @@
 
 load("@bazel_skylib//lib:paths.bzl", "paths")
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
+load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
 load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load(":version_aliases.bzl", "VERSION_ALIASES")
 
@@ -33,11 +34,21 @@ CocoPackageInfo = provider(
     },
 )
 
-CocoGeneratedCodeInfo = provider(
-    doc = "Information about a Coco package",
+CocoCcGeneratedInfo = provider(
+    doc = "Generated C/C++ code from a Coco package",
     fields = {
-        "outputs": "Code ",
-        "test_outputs": "The Coco.toml file for this package",
+        "headers": "Generated header files as a depset",
+        "sources": "Generated implementation files as a depset",
+        "test_headers": "Generated test/mock header files as a depset",
+        "test_sources": "Generated test/mock implementation files as a depset",
+    },
+)
+
+CocoCSharpGeneratedInfo = provider(
+    doc = "Generated C# code from a Coco package",
+    fields = {
+        "sources": "Generated .cs files as a depset",
+        "test_sources": "Generated test/mock .cs files as a depset",
     },
 )
 
@@ -107,9 +118,11 @@ def _with_popili_version_impl(ctx):
     if CocoPackageInfo in target:
         providers.append(target[CocoPackageInfo])
 
-    # Forward CocoGeneratedCodeInfo if present
-    if CocoGeneratedCodeInfo in target:
-        providers.append(target[CocoGeneratedCodeInfo])
+    # Forward language-specific generated code providers if present
+    if CocoCcGeneratedInfo in target:
+        providers.append(target[CocoCcGeneratedInfo])
+    if CocoCSharpGeneratedInfo in target:
+        providers.append(target[CocoCSharpGeneratedInfo])
 
     # Forward CcInfo if present
     if CcInfo in target:
@@ -751,13 +764,15 @@ def _make_explicit_path_builder(ctx, package_relative_dir, root_output_dir, src_
             paths.join(package_relative_dir, root_output_dir, filename),
         )
 
-def _declare_language_outputs(ctx, outputs, mock_outputs, src, config, path_builder):
+def _declare_language_outputs(ctx, headers, sources, mock_headers, mock_sources, src, config, path_builder):
     """Core logic for declaring output files.
 
     Args:
         ctx: Rule context
-        outputs: List to append regular outputs to
-        mock_outputs: List to append mock outputs to
+        headers: List to append regular header outputs to
+        sources: List to append regular source outputs to
+        mock_headers: List to append mock header outputs to
+        mock_sources: List to append mock source outputs to
         src: Source file
         config: Configuration struct (or None for C#)
         path_builder: Function(filename) -> declared file
@@ -766,42 +781,44 @@ def _declare_language_outputs(ctx, outputs, mock_outputs, src, config, path_buil
         # C and C++ use header/implementation file split
         filenames = _compute_output_filenames(src.basename, config)
 
-        outputs.append(path_builder(filenames.header))
-        outputs.append(path_builder(filenames.impl))
+        headers.append(path_builder(filenames.header))
+        sources.append(path_builder(filenames.impl))
 
         if filenames.mock_header:
-            mock_outputs.append(path_builder(filenames.mock_header))
-            mock_outputs.append(path_builder(filenames.mock_impl))
+            mock_headers.append(path_builder(filenames.mock_header))
+            mock_sources.append(path_builder(filenames.mock_impl))
     elif ctx.attr.language == "csharp":
         # C# generation - simple .cs files, always hierarchical
         base_name = src.basename.removesuffix(".coco")
         cs_file = base_name + ".cs"
-        outputs.append(path_builder(cs_file))
+        sources.append(path_builder(cs_file))
 
         if ctx.attr.mocks:
             mock_file = base_name + "Mock.cs"
-            mock_outputs.append(path_builder(mock_file))
+            mock_sources.append(path_builder(mock_file))
     else:
         fail("unrecognised language")
 
-def _add_outputs(ctx, outputs, mock_outputs, src, root_output_dir):
+def _add_outputs(ctx, headers, sources, mock_headers, mock_sources, src, root_output_dir):
     """Add outputs for source files from the current package.
 
     Uses sibling-based file declaration for hierarchical layouts.
 
     Args:
         ctx: Rule context
-        outputs: List to append regular outputs to
-        mock_outputs: List to append mock outputs to
+        headers: List to append regular header outputs to
+        sources: List to append regular source outputs to
+        mock_headers: List to append mock header outputs to
+        mock_sources: List to append mock source outputs to
         src: Source file from the current package
         root_output_dir: Root output directory
     """
     config = _build_language_config(ctx, ctx.attr.language, root_output_dir)
     flat_hierarchy = config.flat_hierarchy if config else False
     path_builder = _make_sibling_path_builder(ctx, src, flat_hierarchy)
-    _declare_language_outputs(ctx, outputs, mock_outputs, src, config, path_builder)
+    _declare_language_outputs(ctx, headers, sources, mock_headers, mock_sources, src, config, path_builder)
 
-def _add_regenerated_outputs(ctx, outputs, mock_outputs, src, package_relative_dir, root_output_dir, regen_pkg_dir, regen_root_output_dir):
+def _add_regenerated_outputs(ctx, headers, sources, mock_headers, mock_sources, src, package_relative_dir, root_output_dir, regen_pkg_dir, regen_root_output_dir):
     """Add outputs for regenerated package files.
 
     Regenerated files are placed in the current package's output directory,
@@ -810,8 +827,10 @@ def _add_regenerated_outputs(ctx, outputs, mock_outputs, src, package_relative_d
 
     Args:
         ctx: Rule context
-        outputs: List to append regular outputs to
-        mock_outputs: List to append mock outputs to
+        headers: List to append regular header outputs to
+        sources: List to append regular source outputs to
+        mock_headers: List to append mock header outputs to
+        mock_sources: List to append mock source outputs to
         src: Source file from the regenerated package
         package_relative_dir: Path from BUILD file to package directory (e.g., "app")
         root_output_dir: Root output directory for the current package (e.g., "sources")
@@ -829,7 +848,7 @@ def _add_regenerated_outputs(ctx, outputs, mock_outputs, src, package_relative_d
 
     config = _build_language_config(ctx, ctx.attr.language, root_output_dir)
     path_builder = _make_explicit_path_builder(ctx, package_relative_dir, root_output_dir, src_subdir)
-    _declare_language_outputs(ctx, outputs, mock_outputs, src, config, path_builder)
+    _declare_language_outputs(ctx, headers, sources, mock_headers, mock_sources, src, config, path_builder)
 
 def _output_directory(package_dir, srcs):
     root_output_dir = None
@@ -846,9 +865,12 @@ def _coco_package_generate_impl(ctx):
     test_srcs = package[CocoPackageInfo].direct_test_srcs
     package_dir = package[CocoPackageInfo].package_file.dirname
 
-    outputs = []
-    mock_outputs = []
-    test_outputs = []
+    headers = []
+    sources = []
+    mock_headers = []
+    mock_sources = []
+    test_headers = []
+    test_sources = []
 
     root_output_dir = _output_directory(package_dir, srcs)
     test_root_output_dir = _output_directory(package_dir, test_srcs) if test_srcs else root_output_dir
@@ -868,13 +890,14 @@ def _coco_package_generate_impl(ctx):
         regen_pkg_dir = regen_pkg[CocoPackageInfo].package_file.dirname
         regen_root_output_dir = _output_directory(regen_pkg_dir, regen_pkg[CocoPackageInfo].direct_srcs)
         for src in regen_pkg[CocoPackageInfo].direct_srcs.to_list():
-            _add_regenerated_outputs(ctx, outputs, mock_outputs, src, package_relative_dir, root_output_dir, regen_pkg_dir, regen_root_output_dir)
+            _add_regenerated_outputs(ctx, headers, sources, mock_headers, mock_sources, src, package_relative_dir, root_output_dir, regen_pkg_dir, regen_root_output_dir)
 
     for src in srcs.to_list():
-        _add_outputs(ctx, outputs, mock_outputs, src, root_output_dir)
+        _add_outputs(ctx, headers, sources, mock_headers, mock_sources, src, root_output_dir)
     for src in test_srcs.to_list():
-        _add_outputs(ctx, test_outputs, mock_outputs, src, test_root_output_dir)
-    test_outputs += mock_outputs
+        _add_outputs(ctx, test_headers, test_sources, mock_headers, mock_sources, src, test_root_output_dir)
+    test_headers += mock_headers
+    test_sources += mock_sources
     output_dir = paths.join(ctx.genfiles_dir.path, package_dir, root_output_dir)
     arguments = [
         "generate-%s" % ctx.attr.language,
@@ -900,25 +923,38 @@ def _coco_package_generate_impl(ctx):
             paths.join(package_dir, root_output_dir),
         ]
 
+    all_outputs = headers + sources
+    all_test_outputs = test_headers + test_sources
+
     _run_coco(
         ctx = ctx,
         package = package,
         verb = "Generating %s" % ctx.attr.language,
         mnemonic = "CocoGenerate",
         arguments = arguments,
-        outputs = outputs + test_outputs,
+        outputs = all_outputs + all_test_outputs,
     )
 
-    outputs = depset(outputs)
-    test_outputs = depset(test_outputs)
+    if ctx.attr.language in ("cpp", "c"):
+        lang_provider = CocoCcGeneratedInfo(
+            headers = depset(headers),
+            sources = depset(sources),
+            test_headers = depset(test_headers),
+            test_sources = depset(test_sources),
+        )
+    elif ctx.attr.language == "csharp":
+        lang_provider = CocoCSharpGeneratedInfo(
+            sources = depset(sources),
+            test_sources = depset(test_sources),
+        )
+    else:
+        fail("Unsupported language: %s" % ctx.attr.language)
+
     return [
         DefaultInfo(
-            files = outputs,
+            files = depset(all_outputs),
         ),
-        CocoGeneratedCodeInfo(
-            outputs = outputs,
-            test_outputs = test_outputs,
-        ),
+        lang_provider,
     ]
 
 _coco_generate = rule(
@@ -987,17 +1023,21 @@ _coco_generate = rule(
 )
 
 def _coco_test_outputs_impl(ctx):
-    return [
-        DefaultInfo(
-            files = ctx.attr.package[CocoGeneratedCodeInfo].test_outputs,
-        ),
-    ]
+    if CocoCcGeneratedInfo in ctx.attr.package:
+        info = ctx.attr.package[CocoCcGeneratedInfo]
+        files = depset(transitive = [info.test_headers, info.test_sources])
+    elif CocoCSharpGeneratedInfo in ctx.attr.package:
+        info = ctx.attr.package[CocoCSharpGeneratedInfo]
+        files = info.test_sources
+    else:
+        fail("Target %s does not provide CocoCcGeneratedInfo or CocoCSharpGeneratedInfo. " % ctx.attr.package.label +
+             "It must be a coco_generate target.")
+    return [DefaultInfo(files = files)]
 
 _coco_test_outputs = rule(
     implementation = _coco_test_outputs_impl,
     attrs = {
         "package": attr.label(
-            providers = [CocoGeneratedCodeInfo],
             mandatory = True,
         ),
     },
@@ -1005,6 +1045,70 @@ _coco_test_outputs = rule(
 
 def coco_test_outputs_name(name):
     return "%s.tst" % name
+
+def _coco_cc_gen_impl(ctx):
+    """Extracts generated C/C++ sources and headers, providing CcInfo for headers.
+
+    Returns DefaultInfo with sources (+ private headers) for cc_library srcs,
+    and CcInfo with public headers for cc_library deps.
+    """
+    gen_info = ctx.attr.package[CocoCcGeneratedInfo]
+
+    if ctx.attr.use_test_outputs:
+        all_headers = gen_info.test_headers.to_list()
+        sources = gen_info.test_sources.to_list()
+    else:
+        all_headers = gen_info.headers.to_list()
+        sources = gen_info.sources.to_list()
+
+    if ctx.attr.all_hdrs_public:
+        public_hdrs = all_headers
+        private_hdrs = []
+    else:
+        patterns = ctx.attr.public_hdrs
+        public_hdrs = []
+        private_hdrs = []
+        for h in all_headers:
+            matched = False
+            for p in patterns:
+                if "/" in p:
+                    if h.short_path.endswith(p):
+                        matched = True
+                        break
+                elif h.basename == p:
+                    matched = True
+                    break
+            if matched:
+                public_hdrs.append(h)
+            else:
+                private_hdrs.append(h)
+
+    compilation_context = cc_common.create_compilation_context(
+        headers = depset(public_hdrs),
+    )
+
+    return [
+        DefaultInfo(files = depset(sources + private_hdrs)),
+        CcInfo(compilation_context = compilation_context),
+    ]
+
+_coco_cc_gen = rule(
+    implementation = _coco_cc_gen_impl,
+    attrs = {
+        "all_hdrs_public": attr.bool(default = True),
+        "package": attr.label(
+            providers = [CocoCcGeneratedInfo],
+            mandatory = True,
+        ),
+        "public_hdrs": attr.string_list(
+            default = [],
+            doc = "Header names to make public (when all_hdrs_public is False). " +
+                  "Use bare filenames (e.g., 'ISensor.h') to match by name, or " +
+                  "path suffixes (e.g., 'src/ISensor.h') to disambiguate.",
+        ),
+        "use_test_outputs": attr.bool(default = False, doc = "If True, extract test/mock outputs instead of regular outputs"),
+    },
+)
 
 def coco_generate(
         name,
@@ -1134,6 +1238,9 @@ def popili_version_alias(name, **kwargs):
         name = name,
         **kwargs
     )
+
+# Exported for use by cc.bzl and c.bzl
+coco_cc_gen = _coco_cc_gen
 
 # Exported for testing
 mangle_name = _mangle_name
