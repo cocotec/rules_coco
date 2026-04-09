@@ -16,7 +16,7 @@ local_path_override(
 # Required dependencies
 bazel_dep(name = "bazel_skylib", version = "1.9.0")
 bazel_dep(name = "platforms", version = "1.0.0")
-bazel_dep(name = "rules_cc", version = "0.2.14")
+bazel_dep(name = "rules_cc", version = "0.2.17")
 
 # Register coco toolchain with C only (no C++ runtime)
 coco = use_extension("@rules_coco//coco:extensions.bzl", "coco")
