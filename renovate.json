@@ -11,19 +11,46 @@
   "semanticCommits": "enabled",
   "semanticCommitType": "chore",
   "semanticCommitScope": "deps",
+  "rebaseWhen": "conflicted",
   "pre-commit": {
     "enabled": true
   },
   "packageRules": [
     {
       "matchManagers": [
-        "bazel"
+        "bazel-module"
       ],
       "matchFileNames": [
         "MODULE.bazel"
       ],
-      "enabled": false,
-      "description": "Disable automatic updates for MODULE.bazel - handle manually due to version coordination"
+      "matchDepNames": [
+        "bazel_skylib",
+        "platforms",
+        "rules_cc"
+      ],
+      "description": "Production deps: conservative updates to minimise downstream churn",
+      "minimumReleaseAge": "90 days",
+      "automerge": false,
+      "schedule": [
+        "every 3 months on the first day of the month"
+      ]
+    },
+    {
+      "matchManagers": [
+        "bazel-module"
+      ],
+      "matchFileNames": [
+        "MODULE.bazel"
+      ],
+      "matchDepNames": [
+        "rules_python",
+        "rules_shell",
+        "googletest",
+        "protobuf",
+        "stardoc"
+      ],
+      "description": "Dev deps in MODULE.bazel: update on normal schedule",
+      "automerge": true
     },
     {
       "matchManagers": [
