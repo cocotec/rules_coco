@@ -8,11 +8,25 @@ Bazel module extensions for rules_coco.
 
 <pre>
 coco = use_extension("@rules_coco//coco:extensions.bzl", "coco")
+coco.cc_runtime_deps(<a href="#coco.cc_runtime_deps-deps">deps</a>, <a href="#coco.cc_runtime_deps-version">version</a>)
 coco.toolchain(<a href="#coco.toolchain-auth_token_path">auth_token_path</a>, <a href="#coco.toolchain-c">c</a>, <a href="#coco.toolchain-cc">cc</a>, <a href="#coco.toolchain-license_source">license_source</a>, <a href="#coco.toolchain-license_token">license_token</a>, <a href="#coco.toolchain-versions">versions</a>)
 </pre>
 
 
 **TAG CLASSES**
+
+<a id="coco.cc_runtime_deps"></a>
+
+### cc_runtime_deps
+
+Inject extra cc_library deps into the Coco C++ runtime for a specific Coco/Popili version. Root-module only. See the rules_coco README for when this is needed (typically Boost libraries when building against old libstdc++).
+
+**Attributes**
+
+| Name  | Description | Type | Mandatory | Default |
+| :------------- | :------------- | :------------- | :------------- | :------------- |
+| <a id="coco.cc_runtime_deps-deps"></a>deps |  List of cc_library targets to append to the runtime's deps.   | <a href="https://bazel.build/concepts/labels">List of labels</a> | required |  |
+| <a id="coco.cc_runtime_deps-version"></a>version |  Coco/Popili version these deps apply to. May be an explicit version (e.g. '1.5.1') or an alias (e.g. 'stable').   | String | required |  |
 
 <a id="coco.toolchain"></a>
 

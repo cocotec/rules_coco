@@ -1,0 +1,9 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+cc_library(
+    name = "boost_stub",
+    hdrs = ["boost_stub.h"],
+    # Must be visible to the generated @io_cocotec_coco_cc_runtime__*
+    # repository so the runtime cc_library can depend on it.
+    visibility = ["//visibility:public"],
+)

@@ -83,6 +83,7 @@ bzl_library(
     name = "extensions",
     srcs = ["extensions.bzl"],
     deps = [
+        "//coco/private:cc_runtime_deps_bzl",
         "//coco/private:common_repositories_bzl",
         "//coco/private:repositories_bzl",
         "//coco/private:version_aliases_bzl",

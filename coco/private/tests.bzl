@@ -15,7 +15,125 @@
 """Unit tests for coco.bzl functions."""
 
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
+load(":cc_runtime_deps.bzl", "collect_cc_runtime_extra_deps")
 load(":coco.bzl", "compute_output_filenames", "mangle_name")
+
+# Tests for collect_cc_runtime_extra_deps
+
+def _entry(module_name, is_root, version, deps):
+    return struct(
+        module_name = module_name,
+        is_root = is_root,
+        version = version,
+        deps = deps,
+    )
+
+def _fake_resolve(v):
+    if v == "stable":
+        return "1.5.1"
+    return v
+
+def _cc_runtime_deps_root_single_version_test(ctx):
+    env = unittest.begin(ctx)
+
+    result, err = collect_cc_runtime_extra_deps(
+        [_entry("root", True, "1.5.1", ["@@boost+//:optional", "@@boost+//:shared_ptr"])],
+        {"1.5.1": True},
+        _fake_resolve,
+    )
+
+    asserts.equals(env, None, err)
+    asserts.equals(env, {"1.5.1": ["@@boost+//:optional", "@@boost+//:shared_ptr"]}, result)
+
+    return unittest.end(env)
+
+def _cc_runtime_deps_root_alias_collapses_to_resolved_version_test(ctx):
+    env = unittest.begin(ctx)
+
+    result, err = collect_cc_runtime_extra_deps(
+        [_entry("root", True, "stable", ["@@boost+//:optional"])],
+        {"1.5.1": True},
+        _fake_resolve,
+    )
+
+    asserts.equals(env, None, err)
+    asserts.equals(env, {"1.5.1": ["@@boost+//:optional"]}, result)
+
+    return unittest.end(env)
+
+def _cc_runtime_deps_root_dedups_across_tags_test(ctx):
+    env = unittest.begin(ctx)
+
+    result, err = collect_cc_runtime_extra_deps(
+        [
+            _entry("root", True, "1.5.1", ["@@boost+//:optional"]),
+            _entry("root", True, "1.5.1", ["@@boost+//:optional", "@@boost+//:shared_ptr"]),
+            _entry("root", True, "stable", ["@@boost+//:shared_ptr"]),
+        ],
+        {"1.5.1": True},
+        _fake_resolve,
+    )
+
+    asserts.equals(env, None, err)
+    asserts.equals(env, {"1.5.1": ["@@boost+//:optional", "@@boost+//:shared_ptr"]}, result)
+
+    return unittest.end(env)
+
+def _cc_runtime_deps_non_root_rejected_test(ctx):
+    env = unittest.begin(ctx)
+
+    result, err = collect_cc_runtime_extra_deps(
+        [_entry("some_transitive_dep", False, "1.5.1", ["@@boost+//:optional"])],
+        {"1.5.1": True},
+        _fake_resolve,
+    )
+
+    asserts.equals(env, {}, result)
+    asserts.true(env, err != None, "expected an error message, got None")
+    asserts.true(env, "some_transitive_dep" in err, "error should name the offending module: %s" % err)
+    asserts.true(env, "root module" in err, "error should explain the root-only rule: %s" % err)
+
+    return unittest.end(env)
+
+def _cc_runtime_deps_non_root_rejected_even_when_root_also_present_test(ctx):
+    env = unittest.begin(ctx)
+
+    result, err = collect_cc_runtime_extra_deps(
+        [
+            _entry("root", True, "1.5.1", ["@@boost+//:optional"]),
+            _entry("some_transitive_dep", False, "1.5.1", ["@@boost+//:optional"]),
+        ],
+        {"1.5.1": True},
+        _fake_resolve,
+    )
+
+    asserts.equals(env, {}, result)
+    asserts.true(env, err != None, "expected an error even when root also provided the dep")
+    asserts.true(env, "some_transitive_dep" in err, "error should name the offending module: %s" % err)
+
+    return unittest.end(env)
+
+def _cc_runtime_deps_unknown_version_test(ctx):
+    env = unittest.begin(ctx)
+
+    result, err = collect_cc_runtime_extra_deps(
+        [_entry("root", True, "9.9.9", ["@@boost+//:optional"])],
+        {"1.5.1": True},
+        _fake_resolve,
+    )
+
+    asserts.equals(env, {}, result)
+    asserts.true(env, err != None, "expected an error for unknown version")
+    asserts.true(env, "9.9.9" in err, "error should name the bad version: %s" % err)
+
+    return unittest.end(env)
+
+cc_runtime_deps_root_single_version_test = unittest.make(_cc_runtime_deps_root_single_version_test)
+cc_runtime_deps_root_alias_collapses_to_resolved_version_test = unittest.make(_cc_runtime_deps_root_alias_collapses_to_resolved_version_test)
+cc_runtime_deps_root_dedups_across_tags_test = unittest.make(_cc_runtime_deps_root_dedups_across_tags_test)
+cc_runtime_deps_non_root_rejected_test = unittest.make(_cc_runtime_deps_non_root_rejected_test)
+cc_runtime_deps_non_root_rejected_even_when_root_also_present_test = unittest.make(_cc_runtime_deps_non_root_rejected_even_when_root_also_present_test)
+cc_runtime_deps_unknown_version_test = unittest.make(_cc_runtime_deps_unknown_version_test)
 
 # Tests for _mangle_name function
 
@@ -462,4 +580,12 @@ def coco_test_suite(name):
         compute_output_filenames_c_with_mangling_test,
         compute_output_filenames_c_flat_hierarchy_test,
         compute_output_filenames_c_combined_test,
+
+        # collect_cc_runtime_extra_deps tests
+        cc_runtime_deps_root_single_version_test,
+        cc_runtime_deps_root_alias_collapses_to_resolved_version_test,
+        cc_runtime_deps_root_dedups_across_tags_test,
+        cc_runtime_deps_non_root_rejected_test,
+        cc_runtime_deps_non_root_rejected_even_when_root_also_present_test,
+        cc_runtime_deps_unknown_version_test,
     )

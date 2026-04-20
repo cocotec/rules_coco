@@ -15,6 +15,10 @@
 """Bazel module extensions for rules_coco."""
 
 load(
+    "//coco/private:cc_runtime_deps.bzl",
+    "collect_cc_runtime_extra_deps",
+)
+load(
     "//coco/private:common_repositories.bzl",
     "coco_c_runtime_repository",
     "coco_cc_runtime_repository",
@@ -179,6 +183,27 @@ def _toolchain_tag_impl(ctx):
             versions.append(resolved)
             seen[resolved] = True
 
+    # str(label) gives canonical @@repo+//pkg:target form; the generated runtime
+    # BUILD file lives in a different repo and has no mapping for the user's @boost.
+    cc_runtime_deps_entries = [
+        struct(
+            module_name = mod.name,
+            is_root = mod.is_root,
+            version = tag.version,
+            deps = [str(d) for d in tag.deps],
+        )
+        for mod in ctx.modules
+        for tag in mod.tags.cc_runtime_deps
+    ]
+
+    cc_runtime_extra_deps_by_version, err = collect_cc_runtime_extra_deps(
+        cc_runtime_deps_entries,
+        seen,
+        _resolve_version,
+    )
+    if err:
+        fail(err)
+
     # Set up licensing repositories (after collecting versions so we can determine product name)
     coco_preferences_repository(name = "io_cocotec_coco_preferences")
     coco_fetch_license_repository(
@@ -205,6 +230,7 @@ def _toolchain_tag_impl(ctx):
             coco_cc_runtime_repository(
                 name = "io_cocotec_coco_cc_runtime__%s" % version_suffix,
                 version = version,
+                extra_deps = cc_runtime_extra_deps_by_version.get(version, []),
             )
 
         # Set up C runtime if requested (version-specific)
@@ -320,9 +346,28 @@ _toolchain_tag = tag_class(
     },
 )
 
+_cc_runtime_deps_tag = tag_class(
+    doc = (
+        "Inject extra cc_library deps into the Coco C++ runtime for a specific " +
+        "Coco/Popili version. Root-module only. See the rules_coco README for " +
+        "when this is needed (typically Boost libraries when building against old libstdc++)."
+    ),
+    attrs = {
+        "deps": attr.label_list(
+            doc = "List of cc_library targets to append to the runtime's deps.",
+            mandatory = True,
+        ),
+        "version": attr.string(
+            doc = "Coco/Popili version these deps apply to. May be an explicit version (e.g. '1.5.1') or an alias (e.g. 'stable').",
+            mandatory = True,
+        ),
+    },
+)
+
 coco = module_extension(
     implementation = _toolchain_tag_impl,
     tag_classes = {
+        "cc_runtime_deps": _cc_runtime_deps_tag,
         "toolchain": _toolchain_tag,
     },
 )

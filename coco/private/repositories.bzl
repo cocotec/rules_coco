@@ -237,7 +237,7 @@ def coco_repository_set(name, version, os, arch, constraints, cc_runtime_label =
         name = name,
     ))
 
-def _coco_deps(version, c = False, cc = False):
+def _coco_deps(version, c = False, cc = False, cc_runtime_extra_deps = []):
     if not "bazel_skylib" in native.existing_rules():
         http_archive(
             name = "bazel_skylib",
@@ -266,7 +266,7 @@ def _coco_deps(version, c = False, cc = False):
         )
 
     if cc:
-        coco_cc_repositories(version = version)
+        coco_cc_repositories(version = version, extra_deps = cc_runtime_extra_deps)
 
     coco_preferences_repository(name = "io_cocotec_coco_preferences")
     coco_fetch_license_repository(
@@ -291,6 +291,8 @@ def coco_repositories(version = "stable", **kwargs):
           license_token (str): Optional default license token for all toolchains when license_source is 'token'.
 
           auth_token_path (str): Optional path to auth token file for all toolchains when license_source is 'action_file'. The file must be available in the execution environment.
+
+          cc_runtime_extra_deps (list): cc_library labels appended to the Coco C++ runtime's deps. Use this to supply Boost (or equivalent) libraries on old compilers; see the rules_coco README. Empty by default.
     """
 
     # Resolve version aliases
@@ -306,10 +308,12 @@ def coco_repositories(version = "stable", **kwargs):
     license_source = kwargs.get("license_source", None)
     license_token = kwargs.get("license_token", None)
     auth_token_path = kwargs.get("auth_token_path", None)
+    cc_runtime_extra_deps = kwargs.get("cc_runtime_extra_deps", [])
     _coco_deps(
         version = resolved_version,
         c = c,
         cc = cc,
+        cc_runtime_extra_deps = cc_runtime_extra_deps,
     )
 
     version_suffix = version_to_repo_suffix(resolved_version)
