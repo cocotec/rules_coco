@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026/04/20
+
+### Added
+
+- `coco.cc_runtime_deps` module-extension tag and `cc_runtime_extra_deps` keyword argument on `coco_repositories()`
+  for injecting extra `cc_library` targets into the Coco C++ runtime. This can be used to wire up Boost libraries when
+  building against libstdc++ older than GCC 5. See the README section "Using an older C++ compiler (Boost libraries)"
+  for usage patterns. (#138)
+
 ## [0.1.1] - 2025/11/14
 
 Initial public release of Bazel rules for Popili.
