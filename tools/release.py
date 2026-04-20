@@ -37,6 +37,7 @@ Usage:
 """
 
 import argparse
+import datetime
 import re
 import sys
 from pathlib import Path
@@ -46,11 +47,20 @@ from typing import Tuple
 REPO_ROOT = Path(__file__).resolve().parent.parent
 VERSION_BZL = REPO_ROOT / "version.bzl"
 MODULE_BAZEL = REPO_ROOT / "MODULE.bazel"
+CHANGELOG = REPO_ROOT / "CHANGELOG.md"
 
 # Regex patterns for finding version strings
 VERSION_BZL_PATTERN = re.compile(r'^VERSION = "([0-9]+\.[0-9]+\.[0-9]+)"$', re.MULTILINE)
 MODULE_VERSION_PATTERN = re.compile(
     r'^(\s*version\s*=\s*)"([0-9]+\.[0-9]+\.[0-9]+)"(,?)$', re.MULTILINE
+)
+
+# Keep a Changelog format: "## [Unreleased]" heading followed by the section
+# body, terminated by the next "## [...]" heading or EOF.
+UNRELEASED_HEADING = "## [Unreleased]"
+UNRELEASED_SECTION_PATTERN = re.compile(
+    r'^## \[Unreleased\]\s*\n(.*?)(?=^## \[|\Z)',
+    re.MULTILINE | re.DOTALL,
 )
 
 
@@ -108,6 +118,74 @@ def update_version_bzl(old_version: str, new_version: str, dry_run: bool) -> boo
     else:
         VERSION_BZL.write_text(new_content)
         print(f"✓ Updated {VERSION_BZL}: {old_version} -> {new_version}")
+
+    return True
+
+
+def classify_bump(current_version: str, new_version: str) -> str:
+    """Return 'major', 'minor', or 'patch' based on the delta.
+
+    For non-patch components changing (e.g. 0.1.11 -> 0.2.0), the highest
+    changed level wins; same version counts as patch (no-op).
+    """
+    cur = parse_version(current_version)
+    new = parse_version(new_version)
+    if new[0] != cur[0]:
+        return "major"
+    if new[1] != cur[1]:
+        return "minor"
+    return "patch"
+
+
+def validate_and_update_changelog(new_version: str, bump_type: str, dry_run: bool) -> bool:
+    """Move [Unreleased] content into a dated [<new_version>] section.
+
+    For patch releases an empty [Unreleased] is fine: GitHub Releases' auto-
+    generated PR list already covers most patch-level churn (Renovate bumps,
+    CI tweaks). For minor/major releases we require the author to curate
+    highlights under [Unreleased] first.
+
+    Returns True if CHANGELOG.md was modified.
+    """
+    content = CHANGELOG.read_text()
+
+    if re.search(rf'^## \[{re.escape(new_version)}\]', content, re.MULTILINE):
+        raise RuntimeError(
+            f"{CHANGELOG} already has an entry for {new_version}. "
+            f"Did you mean to bump to a different version?"
+        )
+
+    match = UNRELEASED_SECTION_PATTERN.search(content)
+    if not match:
+        raise RuntimeError(
+            f"No '## [Unreleased]' heading in {CHANGELOG}. Add the heading "
+            f"(with release notes for non-patch bumps) before bumping."
+        )
+
+    body_is_empty = not match.group(1).strip()
+    if body_is_empty:
+        if bump_type == "patch":
+            print(f"ℹ️  [Unreleased] in {CHANGELOG} is empty; skipping for patch release.")
+            return False
+        raise RuntimeError(
+            f"The [Unreleased] section in {CHANGELOG} is empty. Add release "
+            f"notes there before a {bump_type} bump (empty is only allowed "
+            f"for patch releases)."
+        )
+
+    today = datetime.date.today().strftime("%Y/%m/%d")
+    new_heading = f"## [{new_version}] - {today}"
+    new_content = content.replace(
+        UNRELEASED_HEADING,
+        f"{UNRELEASED_HEADING}\n\n{new_heading}",
+        1,
+    )
+
+    if dry_run:
+        print(f"Would update {CHANGELOG}: [Unreleased] -> [{new_version}] - {today}")
+    else:
+        CHANGELOG.write_text(new_content)
+        print(f"✓ Updated {CHANGELOG}: [Unreleased] renamed to [{new_version}] - {today}")
 
     return True
 
@@ -182,16 +260,20 @@ def main():
             print("⚠️  New version is the same as current version. No changes made.")
             return 0
 
+        bump_type = args.bump or classify_bump(current_version, new_version)
+
         if args.dry_run:
             print("\n🔍 DRY RUN MODE - No files will be modified\n")
         else:
             print()
 
-        # Update both files
+        # CHANGELOG goes first so we abort before any version.bzl/MODULE.bazel
+        # writes if the [Unreleased] section is missing for a minor/major bump.
+        changed_changelog = validate_and_update_changelog(new_version, bump_type, args.dry_run)
         changed_bzl = update_version_bzl(current_version, new_version, args.dry_run)
         changed_module = update_module_bazel(current_version, new_version, args.dry_run)
 
-        if not (changed_bzl or changed_module):
+        if not (changed_bzl or changed_module or changed_changelog):
             print("\n⚠️  No files were modified")
             return 1
 
