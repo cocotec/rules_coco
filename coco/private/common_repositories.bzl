@@ -17,6 +17,25 @@
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load(":known_shas.bzl", "FILE_KEY_TO_SHA")
 
+_CC_RUNTIME_BUILD_TEMPLATE = """
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+cc_library(
+    name = "runtime",
+    hdrs = glob(["coco/*.h"], exclude = ["coco/gmock_helpers.h"]),
+    srcs = glob(["coco/src/*.cc"], allow_empty = True) + glob(["coco/*.cc"], allow_empty = True),
+    deps = {deps},
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "testing",
+    hdrs = glob(["coco/gmock_helpers.h"], allow_empty = True),
+    deps = [":runtime"],
+    visibility = ["//visibility:public"],
+)
+"""
+
 # Known license file version suffixes to check for
 KNOWN_VERSION_SUFFIXES = [
     "_6",
@@ -168,30 +187,17 @@ def _coco_cc_runtime_repository_impl(ctx):
     )
 
     ctx.file("WORKSPACE", """workspace(name = "{}")""".format(ctx.name))
-
-    ctx.file("BUILD.bazel", """
-load("@rules_cc//cc:defs.bzl", "cc_library")
-
-cc_library(
-    name = "runtime",
-    hdrs = glob(["coco/*.h"], exclude = ["coco/gmock_helpers.h"]),
-    srcs = glob(["coco/src/*.cc"], allow_empty = True) + glob(["coco/*.cc"], allow_empty = True),
-    visibility = ["//visibility:public"],
-)
-
-cc_library(
-    name = "testing",
-    hdrs = glob(["coco/gmock_helpers.h"], allow_empty = True),
-    deps = [
-      ":runtime",
-    ],
-    visibility = ["//visibility:public"],
-)
-""")
+    ctx.file("BUILD.bazel", _CC_RUNTIME_BUILD_TEMPLATE.format(
+        deps = json.encode(ctx.attr.extra_deps),
+    ))
 
 _coco_cc_runtime_repository = repository_rule(
     implementation = _coco_cc_runtime_repository_impl,
     attrs = {
+        "extra_deps": attr.string_list(
+            doc = "Canonical label strings appended to the runtime's deps; typically Boost libraries for old compilers.",
+            default = [],
+        ),
         "version": attr.string(
             doc = "The version of coco/popili to download C++ runtime for",
             mandatory = True,
@@ -232,12 +238,8 @@ _coco_c_runtime_repository = repository_rule(
     },
 )
 
-def _coco_cc_repositories(version):
-    """Set up C++ runtime repository with version-specific name.
-
-    This is the WORKSPACE-compatible version using http_archive.
-    For bzlmod, use _coco_cc_runtime_repository directly.
-    """
+def _coco_cc_repositories(version, extra_deps = []):
+    """WORKSPACE-mode sibling of _coco_cc_runtime_repository."""
     version_suffix = version_to_repo_suffix(version)
     repo_name = "io_cocotec_coco_cc_runtime__%s" % version_suffix
 
@@ -249,25 +251,9 @@ def _coco_cc_repositories(version):
             ),
         ],
         sha256 = FILE_KEY_TO_SHA.get("{version}/coco-cpp-runtime.zip".format(version = version)),
-        build_file_content = """
-load("@rules_cc//cc:defs.bzl", "cc_library")
-
-cc_library(
-    name = "runtime",
-    hdrs = glob(["coco/*.h"], exclude = ["coco/gmock_helpers.h"]),
-    srcs = glob(["coco/src/*.cc"]),
-    visibility = ["//visibility:public"],
-)
-
-cc_library(
-    name = "testing",
-    hdrs = ["coco/gmock_helpers.h"],
-    deps = [
-      ":runtime",
-    ],
-    visibility = ["//visibility:public"],
-)
-""",
+        build_file_content = _CC_RUNTIME_BUILD_TEMPLATE.format(
+            deps = json.encode(extra_deps),
+        ),
     )
 
 def _coco_preferences_repository_impl(ctx):

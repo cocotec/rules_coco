@@ -39,7 +39,11 @@ coco_toolchain = rule(
             default = None,
         ),
         "cc_runtime": attr.label(
-            doc = "The C++ runtime library for Coco. Optional - only needed when using coco_cc_library.",
+            doc = (
+                "The C++ runtime library for Coco. Optional - only needed when using coco_cc_library. " +
+                "To inject extra deps into this target (e.g. Boost libraries for old libstdc++), " +
+                "use the coco.cc_runtime_deps tag in MODULE.bazel."
+            ),
             default = None,
         ),
         "coco": attr.label(

@@ -202,6 +202,101 @@ There are several ways of setting the version of Popili that you would like to u
 
    See `e2e/multi_version` for a full example.
 
+### Using an older C++ compiler (Boost libraries)
+
+Most users can skip this section. The Coco C++ runtime compiles cleanly on any toolchain that supports C++11 or
+later. It also includes limited support for GCC 4.x but requires some Boost dependencies to support this compiler.
+
+`rules_coco` does not supply its own `rules_boost`; instead you need to supply your own library targets if you want to
+ensure compatibility with older compilers. In `rules_boost` terms the two targets are `@boost//:integer` and
+`@boost//:type_traits`.
+
+#### Every build uses GCC 4.x
+
+Depend on Boost unconditionally:
+
+```starlark
+coco = use_extension("@rules_coco//coco:extensions.bzl", "coco")
+coco.toolchain(versions = ["1.5.1"], cc = True)
+coco.cc_runtime_deps(
+    version = "1.5.1",
+    deps = ["@boost//:integer", "@boost//:type_traits"],
+)
+```
+
+#### Some builds use GCC 4.x, some don't
+
+`MODULE.bazel` is evaluated before `select()` fires, so the conditional lives in a target you own:
+
+```starlark
+# MODULE.bazel
+coco.cc_runtime_deps(version = "1.5.1", deps = ["//third_party/boost_shim"])
+```
+
+```starlark
+# third_party/boost_shim/BUILD.bazel
+cc_library(name = "empty")
+cc_library(
+    name = "boost_bundle",
+    deps = ["@boost//:integer", "@boost//:type_traits"],
+)
+
+alias(
+    name = "boost_shim",
+    actual = select({
+        "//config:old_libstdcxx": ":boost_bundle",
+        "//conditions:default": ":empty",
+    }),
+    visibility = ["//visibility:public"],
+)
+```
+
+`//config:old_libstdcxx` is whatever `config_setting` you already use to identify old-compiler builds — typically a
+platform constraint so the `select()` fires automatically off `--platforms`:
+
+```starlark
+# //config/BUILD.bazel
+constraint_setting(name = "libstdcxx_era")
+constraint_value(name = "pre_gcc5", constraint_setting = ":libstdcxx_era")
+config_setting(name = "old_libstdcxx", constraint_values = [":pre_gcc5"])
+```
+
+#### Same as above, and keep `rules_boost` out of modern-compiler workspaces
+
+The shim above still pulls `rules_boost` into every workspace, because `@boost//:integer` is named in a `select()`
+branch Bazel must load. A `label_flag` defers the reference until `.bazelrc` sets it:
+
+```starlark
+# third_party/boost_shim/BUILD.bazel
+cc_library(name = "empty")
+label_flag(
+    name = "boost_shim",
+    build_setting_default = ":empty",
+    visibility = ["//visibility:public"],
+)
+```
+
+```ini
+# .bazelrc — only old-compiler configs set the flag
+build:old_compiler --//third_party/boost_shim=@boost//:integer
+```
+
+In a real build, point the flag at an aggregate covering both `@boost//:integer` and `@boost//:type_traits`.
+
+#### WORKSPACE mode
+
+WORKSPACE pins one version, so the entrypoint takes a flat list:
+
+```starlark
+coco_repositories(
+    version = "1.5.1",
+    cc = True,
+    cc_runtime_extra_deps = ["//third_party/boost_shim"],
+)
+```
+
+The three patterns above all apply — point the list at whatever target holds your `select()`.
+
 ### Verification Backend
 
 The verification backend can be selected using the `--@rules_coco//:verification_backend` option:

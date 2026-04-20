@@ -1,0 +1,13 @@
+[package]
+name = "cc_runtime_extra_deps"
+sources = ["src"]
+
+[language]
+standard = "1.2"
+profiles = ["C++"]
+
+[generator]
+defaultLanguage = "C++"
+
+[generator.cpp]
+generateMocks = "GMock"

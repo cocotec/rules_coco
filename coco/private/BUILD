@@ -63,6 +63,11 @@ bzl_library(
 )
 
 bzl_library(
+    name = "cc_runtime_deps_bzl",
+    srcs = ["cc_runtime_deps.bzl"],
+)
+
+bzl_library(
     name = "known_shas_bzl",
     srcs = ["known_shas.bzl"],
 )
@@ -109,6 +114,7 @@ bzl_library(
     deps = [
         ":bazel_tools_bzl_lib",
         ":cc_library_bzl",
+        ":cc_runtime_deps_bzl",
         ":coco_bzl",
         ":common_repositories_bzl",
         ":diagram_bzl",

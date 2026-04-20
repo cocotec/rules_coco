@@ -1,0 +1,43 @@
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_test")
+load("@rules_coco//coco:cc.bzl", "coco_cc_library")
+load("@rules_coco//coco:defs.bzl", "coco_generate", "coco_package", "coco_verify_test")
+
+coco_package(
+    name = "cc_runtime_extra_deps",
+    srcs = glob(["src/**/*.coco"]),
+    package = "Coco.toml",
+)
+
+coco_verify_test(
+    name = "cc_runtime_extra_deps_verify",
+    package = ":cc_runtime_extra_deps",
+)
+
+coco_generate(
+    name = "cc_runtime_extra_deps_cpp",
+    language = "cpp",
+    package = ":cc_runtime_extra_deps",
+)
+
+coco_cc_library(
+    name = "cc_runtime_extra_deps_cc",
+    generated_package = ":cc_runtime_extra_deps_cpp",
+)
+
+cc_binary(
+    name = "extra_deps_bin",
+    srcs = ["test/main.cc"],
+    deps = [":cc_runtime_extra_deps_cc"],
+)
+
+# Proves the plumbing: the test has no direct dep on //stub:boost_stub but
+# #includes stub/boost_stub.h. That only compiles if the runtime picked up the
+# stub via cc_runtime_deps.
+cc_test(
+    name = "extra_deps_test",
+    srcs = ["test/extra_deps_test.cc"],
+    deps = [
+        ":cc_runtime_extra_deps_cc",
+        "@googletest//:gtest",
+    ],
+)
