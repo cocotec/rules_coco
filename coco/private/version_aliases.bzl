@@ -4,6 +4,6 @@
 """Maps version aliases (like "stable") to actual version numbers."""
 
 VERSION_ALIASES = {
-    "stable": "1.5.6",
-    "testing": "1.5.6",
+    "stable": "1.5.7",
+    "testing": "1.5.7",
 }
