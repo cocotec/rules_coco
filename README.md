@@ -524,7 +524,7 @@ coco_fmt_test(
 This creates two targets:
 
 - `my_package_fmt_test`: Test that fails if code isn't formatted (`bazel test`)
-- `my_package_fmt`: Binary to format code in-place (`bazel run`)
+- `my_package_fmt_test.format`: Binary to format code in-place (`bazel run`)
 
 ### Diagram Generation
 

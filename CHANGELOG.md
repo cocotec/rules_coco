@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Coco workspaces are now supported via the new `coco_workspace` rule and `workspace` attribute on `coco_package`.
 
+### Changed
+
+- The Coco wrapper macros (`coco_generate`, `coco_package`, `coco_fmt_test`, `coco_workspace`, `coco_verify_test`,
+  `coco_state_diagram`, `coco_architecture_diagram`) are now Bazel symbolic macros, so their attributes and
+  documentation appear in `bazel query` output and the generated reference docs.
+- **Breaking:** the `coco_fmt_test` formatter binary is now named `<name>.format` (previously the test target name
+  with the `_test` suffix stripped). Run it as e.g. `bazel run //pkg:foo_fmt_test.format`.
+
 ### Fixed
 
 - `coco_verify_test` and `coco_fmt_test` now resolve `--package`/`--import-path` against the runfiles tree, so a

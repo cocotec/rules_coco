@@ -19,6 +19,7 @@ load(
     "COCO_TOOLCHAIN_TYPE",
     "CocoPackageInfo",
     "LICENSE_ATTRIBUTES",
+    "WINDOWS_CONSTRAINT_ATTR",
     "coco_runfiles",
     "create_coco_wrapper_script",
 )
@@ -45,12 +46,12 @@ def _coco_fmt_test_impl(ctx):
 _coco_fmt_test = rule(
     implementation = _coco_fmt_test_impl,
     attrs = dict(LICENSE_ATTRIBUTES.items() + {
-        "is_windows": attr.bool(mandatory = True),
         "package": attr.label(
             providers = [CocoPackageInfo],
             mandatory = True,
             doc = "The coco_package target to check formatting for",
         ),
+        "_windows_constraint": WINDOWS_CONSTRAINT_ATTR,
     }.items()),
     doc = """Test rule that verifies Coco code formatting.
 
@@ -106,12 +107,12 @@ def _coco_fmt_binary_impl(ctx):
 _coco_fmt_binary = rule(
     implementation = _coco_fmt_binary_impl,
     attrs = dict(LICENSE_ATTRIBUTES.items() + {
-        "is_windows": attr.bool(mandatory = True),
         "package": attr.label(
             providers = [CocoPackageInfo],
             mandatory = True,
             doc = "The coco_package target to format",
         ),
+        "_windows_constraint": WINDOWS_CONSTRAINT_ATTR,
     }.items()),
     doc = """Binary rule that formats Coco code.
 
@@ -128,46 +129,44 @@ be used directly.
     ],
 )
 
-def coco_fmt_test(name, package, **kwargs):
-    """Creates both a format test and a format binary.
-
-    This macro creates two targets:
-    1. A test target (with the given name) that checks formatting via `bazel test`
-    2. A binary target (with _test suffix removed) that formats code via `bazel run`
-
-    For example, if you create `coco_fmt_test(name = "my_pkg_fmt_test", ...)`,
-    two targets are generated:
-    - `my_pkg_fmt_test`: Test that fails if code isn't formatted correctly
-    - `my_pkg_fmt`: Binary to format the code in-place
-
-    Args:
-        name: The name of the test target. Should typically end with '_test'.
-        package: The coco_package target to check/format.
-        **kwargs: Additional arguments forwarded to both rules (e.g., tags, visibility).
-    """
-    is_windows_select = select({
-        "@platforms//os:windows": True,
-        "//conditions:default": False,
-    })
-
-    # Create the test target
+def _coco_fmt_test_macro_impl(name, visibility, package, **kwargs):
+    # Test target (the macro's primary target); test attrs flow through kwargs.
     _coco_fmt_test(
         name = name,
         package = package,
-        is_windows = is_windows_select,
+        visibility = visibility,
         **kwargs
     )
 
-    # Create the formatter binary target
-    # If name ends with _test, create a binary without that suffix
-    binary_name = name[:-5] if name.endswith("_test") else name + "_format"
-
-    # Filter out test-only attributes for the binary target
-    binary_kwargs = {k: v for k, v in kwargs.items() if k != "size" and k != "timeout"}
-
+    # Companion `bazel run` formatter. Named "<name>.format" because symbolic-macro
+    # naming requires the macro-name prefix; only non-test attrs are forwarded.
     _coco_fmt_binary(
-        name = binary_name,
+        name = name + ".format",
         package = package,
-        is_windows = is_windows_select,
-        **binary_kwargs
+        visibility = visibility,
+        tags = kwargs.get("tags"),
     )
+
+coco_fmt_test = macro(
+    doc = """Create a Coco format-check test plus a companion formatter binary.
+
+Two targets are created:
+
+- `<name>`: a test (run via `bazel test`) that fails if the package's Coco
+  sources are not correctly formatted (runs `popili format --verify`).
+- `<name>.format`: a binary (run via `bazel run`) that formats the sources in
+  place (runs `popili format`).
+
+To skip the test for specific packages, use standard Bazel tags, e.g.
+`tags = ["manual"]`.""",
+    inherit_attrs = _coco_fmt_test,
+    attrs = {
+        "package": attr.label(
+            providers = [CocoPackageInfo],
+            mandatory = True,
+            configurable = False,
+            doc = "The coco_package target to check/format.",
+        ),
+    },
+    implementation = _coco_fmt_test_macro_impl,
+)

@@ -31,7 +31,7 @@ coco_verify_test(
 
 # This creates two targets:
 # - base_fmt_test: Test that checks formatting (bazel test //test/simple:base_fmt_test)
-# - base_fmt: Binary that formats the code (bazel run //test/simple:base_fmt)
+# - base_fmt_test.format: Binary that formats the code (bazel run //test/simple:base_fmt_test.format)
 coco_fmt_test(
     name = "base_fmt_test",
     package = ":base",
