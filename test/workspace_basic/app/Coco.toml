@@ -1,0 +1,6 @@
+[package]
+name = "app"
+sources = ["src"]
+
+[dependencies]
+middle = "*"

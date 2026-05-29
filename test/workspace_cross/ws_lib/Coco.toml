@@ -1,0 +1,14 @@
+[workspace]
+members = [
+  "../lib",
+]
+
+[language]
+standard = "1.2"
+profiles = ["C++"]
+
+[generator]
+defaultLanguage = "C++"
+
+[generator.cpp]
+generateMocks = "GMock"

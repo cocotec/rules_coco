@@ -1,0 +1,6 @@
+[package]
+name = "middle"
+sources = ["src"]
+
+[dependencies]
+base = "*"

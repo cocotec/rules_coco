@@ -1,0 +1,5 @@
+[package]
+name = "pkg"
+sources = ["src"]
+# No [language]/[generator] here — inherited from the workspace root.
+workspace = "../ws"
