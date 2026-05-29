@@ -1,0 +1,10 @@
+// Imports from the `base` package in the @coco_dep repository.
+import unqualified IBase
+
+port IApp {
+  function getStatus() : Status
+
+  machine {
+    getStatus() = Status.OK
+  }
+}

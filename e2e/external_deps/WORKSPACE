@@ -1,0 +1,19 @@
+workspace(name = "rules_coco_external_deps_test")
+
+load("@bazel_tools//tools/build_defs/repo:local.bzl", "local_repository")
+
+local_repository(
+    name = "rules_coco",
+    path = "../..",
+)
+
+local_repository(
+    name = "coco_dep",
+    path = "dep",
+)
+
+load("@rules_coco//coco:repositories.bzl", "coco_repositories")
+
+coco_repositories(
+    cc = True,
+)

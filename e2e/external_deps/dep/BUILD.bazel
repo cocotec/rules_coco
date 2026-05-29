@@ -1,0 +1,10 @@
+# The "external" coco package depended on by the root module's app package.
+
+load("@rules_coco//coco:defs.bzl", "coco_package")
+
+coco_package(
+    name = "base",
+    srcs = glob(["src/**/*.coco"]),
+    package = "Coco.toml",
+    visibility = ["//visibility:public"],
+)

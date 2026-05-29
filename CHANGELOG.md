@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Coco workspaces are now supported via the new `coco_workspace` rule and `workspace` attribute on `coco_package`.
 
+### Fixed
+
+- `coco_verify_test` and `coco_fmt_test` now resolve `--package`/`--import-path` against the runfiles tree, so a
+  package that depends on a `coco_package` in another Bazel repository verifies correctly, fixing errors such as
+  `invalid import path; external/<repo> is not a directory`.
+
 ## [0.2.0] - 2026/04/20
 
 ### Added
