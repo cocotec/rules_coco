@@ -1,0 +1,8 @@
+[workspace]
+members = [
+  "pkg",
+]
+
+# No [language] here: pkg inherits the Coco standard from the outer workspace.
+[generator.cpp]
+generateMocks = "GMock"

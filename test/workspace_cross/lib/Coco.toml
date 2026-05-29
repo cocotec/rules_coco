@@ -1,0 +1,5 @@
+[package]
+name = "lib"
+sources = ["src"]
+# Inherits [language]/[generator] from the ws_lib workspace root.
+workspace = "../ws_lib"

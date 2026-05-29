@@ -16,10 +16,12 @@
 
 load(
     "//coco/private:coco.bzl",
+    _CocoWorkspaceInfo = "CocoWorkspaceInfo",
     _coco_generate = "coco_generate",
     _coco_package = "coco_package",
     _coco_test_outputs_name = "coco_test_outputs_name",
     _coco_verify_test = "coco_verify_test",
+    _coco_workspace = "coco_workspace",
     _with_popili_version = "with_popili_version",
 )
 load(
@@ -39,6 +41,10 @@ load(
 )
 
 coco_package = _coco_package
+
+coco_workspace = _coco_workspace
+
+CocoWorkspaceInfo = _CocoWorkspaceInfo
 
 coco_verify_test = _coco_verify_test
 

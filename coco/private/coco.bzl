@@ -31,6 +31,14 @@ CocoPackageInfo = provider(
         "srcs": "All .coco files that are sources of this package or any of its transitive dependencies",
         "test_srcs": "All .coco files that are test_sources of this package or any of its transitive dependencies",
         "typecheck_marker": "Marker file indicating typecheck passed (or None if typecheck disabled)",
+        "workspace_files": "Coco.toml files for any enclosing workspaces of this package or its transitive dependencies",
+    },
+)
+
+CocoWorkspaceInfo = provider(
+    doc = "Information about a Coco workspace root whose shared settings flow down to member packages",
+    fields = {
+        "files": "Coco.toml files a member must ship: this workspace's root manifest plus any parent workspaces",
     },
 )
 
@@ -283,6 +291,7 @@ def _coco_runfiles(ctx, package, is_test):
         direct.append(package[CocoPackageInfo].package_file)
         transitive.append(package[CocoPackageInfo].srcs)
         transitive.append(package[CocoPackageInfo].dep_package_files)
+        transitive.append(package[CocoPackageInfo].workspace_files)
 
         # Include typecheck marker if present to ensure codegen waits for typecheck
         if package[CocoPackageInfo].typecheck_marker:
@@ -422,16 +431,19 @@ def _run_typecheck(ctx, package, srcs, test_srcs):
         tools = [ctx.toolchains[COCO_TOOLCHAIN_TYPE].coco, script],
         mnemonic = "CocoTypecheck",
         progress_message = "Typechecking %s" % ctx.label.name,
-        inputs = depset(direct = inputs_direct, transitive = [srcs, test_srcs, package.dep_package_files]),
+        inputs = depset(direct = inputs_direct, transitive = [srcs, test_srcs, package.dep_package_files, package.workspace_files]),
         outputs = [marker],
         arguments = [],
     )
 
     return marker
 
+def _require_coco_toml(file, attr):
+    if file.basename != "Coco.toml":
+        fail("%s must point to a file called exactly 'Coco.toml'" % attr.capitalize(), attr = attr)
+
 def _coco_package_impl(ctx):
-    if ctx.file.package.basename != "Coco.toml":
-        fail("Package must point to a file called exactly 'Coco.toml'", attr = "package")
+    _require_coco_toml(ctx.file.package, "package")
     package_file = ctx.file.package
     dep_package_files = depset(
         direct = [dep[CocoPackageInfo].package_file for dep in ctx.attr.deps],
@@ -446,12 +458,19 @@ def _coco_package_impl(ctx):
         transitive = [dep[CocoPackageInfo].test_srcs for dep in ctx.attr.deps],
     )
 
+    # Workspace Coco.toml files for this package and its deps, so popili can resolve inherited settings
+    workspace_transitive = [dep[CocoPackageInfo].workspace_files for dep in ctx.attr.deps]
+    if ctx.attr.workspace:
+        workspace_transitive.append(ctx.attr.workspace[CocoWorkspaceInfo].files)
+    workspace_files = depset(transitive = workspace_transitive)
+
     # Conditionally run typecheck
     typecheck_marker = None
     if ctx.attr.typecheck:
         package_struct = struct(
             package_file = package_file,
             dep_package_files = dep_package_files,
+            workspace_files = workspace_files,
         )
         typecheck_marker = _run_typecheck(ctx, package_struct, srcs, test_srcs)
 
@@ -470,8 +489,9 @@ def _coco_package_impl(ctx):
             srcs = srcs,
             test_srcs = test_srcs,
             typecheck_marker = typecheck_marker,
+            workspace_files = workspace_files,
         ),
-        DefaultInfo(files = depset(direct = default_files_direct, transitive = [srcs, test_srcs, dep_package_files])),
+        DefaultInfo(files = depset(direct = default_files_direct, transitive = [srcs, test_srcs, dep_package_files, workspace_files])),
     ]
 
 _coco_package = rule(
@@ -498,13 +518,16 @@ _coco_package = rule(
         "typecheck": attr.bool(
             default = False,
         ),
+        "workspace": attr.label(
+            providers = [CocoWorkspaceInfo],
+        ),
     }.items()),
     toolchains = [
         COCO_TOOLCHAIN_TYPE,
     ],
 )
 
-def coco_package(name, package, srcs, deps = [], test_srcs = [], typecheck = False, **kwargs):
+def coco_package(name, package, srcs, deps = [], test_srcs = [], typecheck = False, workspace = None, **kwargs):
     """Define a Coco package from Coco.toml and .coco source files.
 
     Args:
@@ -515,6 +538,7 @@ def coco_package(name, package, srcs, deps = [], test_srcs = [], typecheck = Fal
         test_srcs: List of .coco test source files
         typecheck: Run typecheck validation during package creation. When enabled,
                    the build will fail if typecheck errors are found.
+        workspace: Optional coco_workspace whose Coco.toml settings this package inherits
         **kwargs: Additional Bazel arguments (e.g., visibility, tags)
     """
     _coco_package(
@@ -524,10 +548,61 @@ def coco_package(name, package, srcs, deps = [], test_srcs = [], typecheck = Fal
         deps = deps,
         test_srcs = test_srcs,
         typecheck = typecheck,
+        workspace = workspace,
         is_windows = select({
             "@platforms//os:windows": True,
             "//conditions:default": False,
         }),
+        **kwargs
+    )
+
+def _coco_workspace_impl(ctx):
+    _require_coco_toml(ctx.file.workspace, "workspace")
+
+    parent_transitive = []
+    if ctx.attr.parent:
+        parent_transitive.append(ctx.attr.parent[CocoWorkspaceInfo].files)
+    files = depset(direct = [ctx.file.workspace], transitive = parent_transitive)
+
+    return [
+        CocoWorkspaceInfo(
+            files = files,
+        ),
+        DefaultInfo(files = files),
+    ]
+
+_coco_workspace = rule(
+    implementation = _coco_workspace_impl,
+    attrs = {
+        "parent": attr.label(
+            providers = [CocoWorkspaceInfo],
+            doc = "An enclosing coco_workspace, when this workspace is nested inside another",
+        ),
+        "workspace": attr.label(
+            mandatory = True,
+            allow_single_file = [".toml"],
+            doc = "Label pointing to the workspace's root Coco.toml (must contain a [workspace] section)",
+        ),
+    },
+    doc = "Declares a Coco workspace root whose shared settings flow down to member coco_package targets.",
+)
+
+def coco_workspace(name, workspace, parent = None, **kwargs):
+    """Declares a Coco workspace root.
+
+    A workspace's Coco.toml carries shared settings that popili applies to member
+    packages. Reference this target from a coco_package's `workspace` attribute.
+
+    Args:
+        name: Name of the workspace target
+        workspace: Label pointing to the workspace's root Coco.toml
+        parent: Optional parent coco_workspace target, for nested workspaces
+        **kwargs: Additional Bazel arguments (e.g., visibility, tags)
+    """
+    _coco_workspace(
+        name = name,
+        workspace = workspace,
+        parent = parent,
         **kwargs
     )
 

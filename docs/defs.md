@@ -36,6 +36,25 @@ Example:
 | <a id="with_popili_version-version"></a>version |  The popili version to use (e.g., '1.5.0', '1.4.7')   | String | required |  |
 
 
+<a id="CocoWorkspaceInfo"></a>
+
+## CocoWorkspaceInfo
+
+<pre>
+load("@rules_coco//coco:defs.bzl", "CocoWorkspaceInfo")
+
+CocoWorkspaceInfo(<a href="#CocoWorkspaceInfo-files">files</a>)
+</pre>
+
+Information about a Coco workspace root whose shared settings flow down to member packages
+
+**FIELDS**
+
+| Name  | Description |
+| :------------- | :------------- |
+| <a id="CocoWorkspaceInfo-files"></a>files |  Coco.toml files a member must ship: this workspace's root manifest plus any parent workspaces    |
+
+
 <a id="coco_architecture_diagram"></a>
 
 ## coco_architecture_diagram
@@ -194,7 +213,7 @@ the settings in your Coco.toml file under the corresponding generator section
 <pre>
 load("@rules_coco//coco:defs.bzl", "coco_package")
 
-coco_package(<a href="#coco_package-name">name</a>, <a href="#coco_package-package">package</a>, <a href="#coco_package-srcs">srcs</a>, <a href="#coco_package-deps">deps</a>, <a href="#coco_package-test_srcs">test_srcs</a>, <a href="#coco_package-typecheck">typecheck</a>, <a href="#coco_package-kwargs">**kwargs</a>)
+coco_package(<a href="#coco_package-name">name</a>, <a href="#coco_package-package">package</a>, <a href="#coco_package-srcs">srcs</a>, <a href="#coco_package-deps">deps</a>, <a href="#coco_package-test_srcs">test_srcs</a>, <a href="#coco_package-typecheck">typecheck</a>, <a href="#coco_package-workspace">workspace</a>, <a href="#coco_package-kwargs">**kwargs</a>)
 </pre>
 
 Define a Coco package from Coco.toml and .coco source files.
@@ -210,6 +229,7 @@ Define a Coco package from Coco.toml and .coco source files.
 | <a id="coco_package-deps"></a>deps |  List of other coco_package targets this package depends on   |  `[]` |
 | <a id="coco_package-test_srcs"></a>test_srcs |  List of .coco test source files   |  `[]` |
 | <a id="coco_package-typecheck"></a>typecheck |  Run typecheck validation during package creation. When enabled, the build will fail if typecheck errors are found.   |  `False` |
+| <a id="coco_package-workspace"></a>workspace |  Optional coco_workspace whose Coco.toml settings this package inherits   |  `None` |
 | <a id="coco_package-kwargs"></a>kwargs |  Additional Bazel arguments (e.g., visibility, tags)   |  none |
 
 
@@ -284,6 +304,33 @@ verifying the Coco code.
 | <a id="coco_verify_test-name"></a>name |  Name of the test target   |  none |
 | <a id="coco_verify_test-package"></a>package |  The coco_package target to verify   |  none |
 | <a id="coco_verify_test-kwargs"></a>kwargs |  Additional Bazel test arguments (e.g., size, timeout, tags, visibility)   |  none |
+
+
+<a id="coco_workspace"></a>
+
+## coco_workspace
+
+<pre>
+load("@rules_coco//coco:defs.bzl", "coco_workspace")
+
+coco_workspace(<a href="#coco_workspace-name">name</a>, <a href="#coco_workspace-workspace">workspace</a>, <a href="#coco_workspace-parent">parent</a>, <a href="#coco_workspace-kwargs">**kwargs</a>)
+</pre>
+
+Declares a Coco workspace root.
+
+A workspace's Coco.toml carries shared settings that popili applies to member
+packages. Reference this target from a coco_package's `workspace` attribute.
+
+
+**PARAMETERS**
+
+
+| Name  | Description | Default Value |
+| :------------- | :------------- | :------------- |
+| <a id="coco_workspace-name"></a>name |  Name of the workspace target   |  none |
+| <a id="coco_workspace-workspace"></a>workspace |  Label pointing to the workspace's root Coco.toml   |  none |
+| <a id="coco_workspace-parent"></a>parent |  Optional parent coco_workspace target, for nested workspaces   |  `None` |
+| <a id="coco_workspace-kwargs"></a>kwargs |  Additional Bazel arguments (e.g., visibility, tags)   |  none |
 
 
 <a id="counterexample_options"></a>

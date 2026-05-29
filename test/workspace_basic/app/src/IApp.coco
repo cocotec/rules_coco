@@ -1,0 +1,6 @@
+import unqualified IMiddle
+
+@runtime(.MultiThreaded)
+external component App {
+  val middle : Provided<IMiddle>
+}

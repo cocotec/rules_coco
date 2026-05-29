@@ -1,0 +1,14 @@
+import unqualified ILib
+
+struct AppData {
+  var config : Config
+  var count : Int32
+}
+
+port IApp {
+  function getData() : AppData
+
+  machine {
+    getData() = AppData{ config = Config{ timeout = 0, status = Status.OK }, count = 1 }
+  }
+}

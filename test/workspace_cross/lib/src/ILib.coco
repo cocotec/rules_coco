@@ -1,0 +1,26 @@
+enum Status {
+  case OK
+  case ERROR
+  case PENDING
+}
+
+struct Config {
+  var timeout : Int32
+  var status : Status
+}
+
+// Uses a .Coco1_2 feature, so this builds only if the workspace's standard reaches it.
+struct Gated {
+  @available(.Coco1_2)
+  var value : Int32
+}
+
+port ILib {
+  function getConfig() : Config
+  function getGated() : Int32
+
+  machine {
+    getConfig() = Config{ timeout = 0, status = Status.OK }
+    getGated() = Gated{ value = 42 }.value
+  }
+}

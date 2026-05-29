@@ -1,0 +1,8 @@
+[package]
+name = "app"
+sources = ["src"]
+# Inherits from the ws_app workspace root — a different workspace than lib's.
+workspace = "../ws_app"
+
+[dependencies]
+lib = "*"
