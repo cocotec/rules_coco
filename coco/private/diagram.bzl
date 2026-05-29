@@ -105,34 +105,43 @@ _coco_architecture_diagram = rule(
         ),
         "component_names": attr.bool(
             default = False,
+            doc = "Show the instance name of child components. Disabled by default.",
         ),
         "component_targets": attr.string_list(
             mandatory = True,
         ),
         "component_types": attr.bool(
             default = True,
+            doc = "Show the type of each component. Enabled by default.",
         ),
         "depth": attr.string(
             default = "",
+            doc = "Recursive drawing depth: an integer string, 'auto', 'max', or empty for the default.",
         ),
         "hide_ports": attr.bool(
             default = False,
+            doc = "Hide ports in diagrams. Disabled by default.",
         ),
         "only_encapsulating": attr.bool(
             default = True,
+            doc = "Don't draw implementation/external components. Enabled by default.",
         ),
         "only_roots": attr.bool(
             default = False,
+            doc = "Only draw root components. Disabled by default.",
         ),
         "package": attr.label(
             providers = [CocoPackageInfo],
             mandatory = True,
+            doc = "The coco_package target to generate architecture diagrams for.",
         ),
         "port_names": attr.bool(
             default = False,
+            doc = "Show the instance name of each port. Disabled by default.",
         ),
         "port_types": attr.bool(
             default = True,
+            doc = "Show the type of each port. Enabled by default.",
         ),
     }.items()),
     toolchains = [COCO_TOOLCHAIN_TYPE],
@@ -196,12 +205,16 @@ _coco_state_diagram = rule(
         "package": attr.label(
             providers = [CocoPackageInfo],
             mandatory = True,
+            doc = "The coco_package target to generate state diagrams for.",
         ),
         "separate_edges": attr.bool(
             default = False,
+            doc = "Lay out each state transition as a separate edge. Disabled by default.",
         ),
         "targets": attr.string_list(
             default = [],
+            doc = "Fully qualified names of state machines/components/ports to diagram " +
+                  "(e.g. \"MyComponent.myPort.stateMachine\"). If empty, all state machines are drawn.",
         ),
     }.items()),
     toolchains = [COCO_TOOLCHAIN_TYPE],
@@ -295,85 +308,56 @@ _coco_counterexample_diagram = rule(
     toolchains = [COCO_TOOLCHAIN_TYPE],
 )
 
-# Public macros with platform selection
+# Public macros
 
-def coco_architecture_diagram(
-        name,
-        package,
-        components,
-        port_names = False,
-        port_types = True,
-        component_names = False,
-        component_types = True,
-        depth = "",
-        hide_ports = False,
-        only_encapsulating = True,
-        only_roots = False,
-        **kwargs):
-    """Creates architecture diagrams.
-
-    Generates SVG diagrams showing component architecture using `popili graph-component`.
-
-    Args:
-        name: Name of the diagram target
-        package: The coco_package target to generate architecture diagrams for
-        components: Dict mapping output filenames to component names (e.g., {"my_component.svg": "MyComponent"})
-        port_names: Show instance name of each port (default: False)
-        port_types: Show type of each port (default: True)
-        component_names: Show instance name of child components (default: False)
-        component_types: Show type of each component (default: True)
-        depth: Recursive drawing depth: integer string, 'auto', 'max', or empty for default
-        hide_ports: Hide ports in diagrams (default: False)
-        only_encapsulating: Don't draw implementation/external components (default: True)
-        only_roots: Only draw root components (default: False)
-        **kwargs: Additional Bazel arguments (e.g., visibility, tags)
-    """
+def _coco_architecture_diagram_macro_impl(name, visibility, components, **kwargs):
     if not components:
         fail("components must specify at least one component to diagram")
 
-    # Process the components dict into parallel lists
-    filenames = []
-    targets = []
-
-    for filename, component in components.items():
-        filenames.append(filename)
-        targets.append(component)
-
+    # components is {filename: component}; keys()/values() stay aligned by insertion order.
     _coco_architecture_diagram(
         name = name,
-        package = package,
-        component_filenames = filenames,
-        component_targets = targets,
-        port_names = port_names,
-        port_types = port_types,
-        component_names = component_names,
-        component_types = component_types,
-        depth = depth,
-        hide_ports = hide_ports,
-        only_encapsulating = only_encapsulating,
-        only_roots = only_roots,
+        component_filenames = components.keys(),
+        component_targets = components.values(),
+        visibility = visibility,
         **kwargs
     )
 
-def coco_state_diagram(name, package, targets = [], separate_edges = False, **kwargs):
-    """Creates state machine diagrams.
+coco_architecture_diagram = macro(
+    doc = """Creates architecture diagrams.
 
-    Generates SVG diagrams showing state machine structure using `popili graph-states`.
+Generates SVG diagrams showing component architecture using
+`popili graph-component`.""",
+    inherit_attrs = _coco_architecture_diagram,
+    attrs = {
+        # Hidden from callers: supplied by the impl from `components`.
+        "component_filenames": None,
+        "component_targets": None,
+        "components": attr.string_dict(
+            mandatory = True,
+            configurable = False,
+            doc = "Maps each output SVG filename to the component to draw " +
+                  "(e.g. {\"my_component.svg\": \"MyComponent\"}).",
+        ),
+    },
+    implementation = _coco_architecture_diagram_macro_impl,
+)
 
-    Args:
-        name: Name of the diagram target
-        package: The coco_package target to generate state diagrams for
-        targets: List of fully qualified names of state machines/components/ports to generate diagrams for. If empty, generates diagrams for all state machines (e.g., ["MyComponent.myPort.stateMachine"])
-        separate_edges: Layout option for state transitions (default: False)
-        **kwargs: Additional Bazel arguments (e.g., visibility, tags)
-    """
+def _coco_state_diagram_macro_impl(name, visibility, **kwargs):
     _coco_state_diagram(
         name = name,
-        package = package,
-        targets = targets,
-        separate_edges = separate_edges,
+        visibility = visibility,
         **kwargs
     )
+
+coco_state_diagram = macro(
+    doc = """Creates state machine diagrams.
+
+Generates SVG diagrams showing state machine structure using
+`popili graph-states`.""",
+    inherit_attrs = _coco_state_diagram,
+    implementation = _coco_state_diagram_macro_impl,
+)
 
 def coco_counterexample_diagram(
         name,

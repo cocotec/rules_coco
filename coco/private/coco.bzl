@@ -320,6 +320,14 @@ def _run_coco(ctx, package, verb, mnemonic, arguments, outputs):
         arguments = _coco_startup_args(ctx, package, False) + arguments,
     )
 
+WINDOWS_CONSTRAINT_ATTR = attr.label(default = "@platforms//os:windows")
+
+def _is_windows(ctx):
+    """Returns True when the target platform is Windows (via the implicit _windows_constraint attr)."""
+    return ctx.target_platform_has_constraint(
+        ctx.attr._windows_constraint[platform_common.ConstraintValueInfo],
+    )
+
 def _create_coco_wrapper_script(ctx, package, arguments):
     """Creates a platform-specific wrapper script for running Coco commands.
 
@@ -332,7 +340,8 @@ def _create_coco_wrapper_script(ctx, package, arguments):
         The wrapper script file
     """
     coco_path = ctx.toolchains[COCO_TOOLCHAIN_TYPE].coco.short_path
-    if ctx.attr.is_windows:
+    is_windows = _is_windows(ctx)
+    if is_windows:
         coco_path = coco_path.replace("/", "\\")
 
     # Build the full command
@@ -341,7 +350,7 @@ def _create_coco_wrapper_script(ctx, package, arguments):
     env = _coco_env(ctx)
 
     # Create platform-specific wrapper script
-    if ctx.attr.is_windows:
+    if is_windows:
         wrapper_script = ctx.actions.declare_file(ctx.label.name + "-cmd.bat")
         wrapper_lines = []
         for k, v in env.items():
@@ -408,13 +417,14 @@ def _run_typecheck(ctx, package, srcs, test_srcs):
 
     # Create wrapper script that runs typecheck and creates marker on success
     coco_path = ctx.toolchains[COCO_TOOLCHAIN_TYPE].coco.path
-    if ctx.attr.is_windows:
+    is_windows = _is_windows(ctx)
+    if is_windows:
         coco_path = coco_path.replace("/", "\\")
 
     command = " ".join([coco_path] + startup_arguments + typecheck_arguments)
     env = _coco_env(ctx)
 
-    if ctx.attr.is_windows:
+    if is_windows:
         script = ctx.actions.declare_file(ctx.label.name + "_typecheck.bat")
         script_lines = ["@echo off"]
         for k, v in env.items():
@@ -504,62 +514,56 @@ _coco_package = rule(
     attrs = dict(LICENSE_ATTRIBUTES.items() + {
         "deps": attr.label_list(
             providers = [CocoPackageInfo],
-        ),
-        "is_windows": attr.bool(
-            mandatory = True,
+            doc = "Other coco_package targets this package depends on.",
         ),
         "package": attr.label(
             mandatory = True,
             allow_single_file = [".toml"],
+            doc = "Label pointing to the Coco.toml file for this package.",
         ),
         "srcs": attr.label_list(
             allow_files = [".coco"],
             mandatory = True,
+            doc = "The .coco source files for this package.",
         ),
         "test_srcs": attr.label_list(
             allow_files = [".coco"],
             allow_empty = True,
+            doc = "The .coco test source files for this package.",
         ),
         "typecheck": attr.bool(
             default = False,
+            doc = "Run typecheck validation during package creation. When enabled, " +
+                  "the build fails if typecheck errors are found. Disabled by default.",
         ),
         "workspace": attr.label(
             providers = [CocoWorkspaceInfo],
+            doc = "Optional coco_workspace whose Coco.toml settings this package inherits.",
         ),
+        "_windows_constraint": WINDOWS_CONSTRAINT_ATTR,
     }.items()),
     toolchains = [
         COCO_TOOLCHAIN_TYPE,
     ],
 )
 
-def coco_package(name, package, srcs, deps = [], test_srcs = [], typecheck = False, workspace = None, **kwargs):
-    """Define a Coco package from Coco.toml and .coco source files.
-
-    Args:
-        name: Name of the package target
-        package: Label pointing to the Coco.toml file for this package
-        srcs: List of .coco source files for this package
-        deps: List of other coco_package targets this package depends on
-        test_srcs: List of .coco test source files
-        typecheck: Run typecheck validation during package creation. When enabled,
-                   the build will fail if typecheck errors are found.
-        workspace: Optional coco_workspace whose Coco.toml settings this package inherits
-        **kwargs: Additional Bazel arguments (e.g., visibility, tags)
-    """
+def _coco_package_macro_impl(name, visibility, **kwargs):
     _coco_package(
         name = name,
-        package = package,
-        srcs = srcs,
-        deps = deps,
-        test_srcs = test_srcs,
-        typecheck = typecheck,
-        workspace = workspace,
-        is_windows = select({
-            "@platforms//os:windows": True,
-            "//conditions:default": False,
-        }),
+        visibility = visibility,
         **kwargs
     )
+
+coco_package = macro(
+    doc = """Define a Coco package from a Coco.toml and its .coco source files.
+
+A coco_package is the unit the other Coco rules operate on: pass it to
+coco_generate to produce code, to coco_verify_test to verify it, or to
+coco_fmt_test to check formatting. Packages may depend on other packages via
+`deps`, and may inherit shared settings from a coco_workspace via `workspace`.""",
+    inherit_attrs = _coco_package,
+    implementation = _coco_package_macro_impl,
+)
 
 def _coco_workspace_impl(ctx):
     _require_coco_toml(ctx.file.workspace, "workspace")
@@ -592,31 +596,28 @@ _coco_workspace = rule(
     doc = "Declares a Coco workspace root whose shared settings flow down to member coco_package targets.",
 )
 
-def coco_workspace(name, workspace, parent = None, **kwargs):
-    """Declares a Coco workspace root.
-
-    A workspace's Coco.toml carries shared settings that popili applies to member
-    packages. Reference this target from a coco_package's `workspace` attribute.
-
-    Args:
-        name: Name of the workspace target
-        workspace: Label pointing to the workspace's root Coco.toml
-        parent: Optional parent coco_workspace target, for nested workspaces
-        **kwargs: Additional Bazel arguments (e.g., visibility, tags)
-    """
+def _coco_workspace_macro_impl(name, visibility, **kwargs):
     _coco_workspace(
         name = name,
-        workspace = workspace,
-        parent = parent,
+        visibility = visibility,
         **kwargs
     )
+
+coco_workspace = macro(
+    doc = """Declares a Coco workspace root.
+
+A workspace's Coco.toml carries shared settings that popili applies to member
+packages. Reference this target from a coco_package's `workspace` attribute.""",
+    inherit_attrs = _coco_workspace,
+    implementation = _coco_workspace_macro_impl,
+)
 
 def _coco_package_verify(ctx):
     # Build the verify command arguments
     arguments = [
         "verify",
         "--results-junit",
-        "%%XML_OUTPUT_FILE%%" if ctx.attr.is_windows else "$XML_OUTPUT_FILE",
+        "%%XML_OUTPUT_FILE%%" if _is_windows(ctx) else "$XML_OUTPUT_FILE",
     ]
 
     backend = ctx.attr._verification_backend[BuildSettingInfo].value
@@ -634,12 +635,13 @@ def _coco_package_verify(ctx):
 _coco_verify_test = rule(
     implementation = _coco_package_verify,
     attrs = dict(LICENSE_ATTRIBUTES.items() + {
-        "is_windows": attr.bool(mandatory = True),
         "package": attr.label(
             providers = [CocoPackageInfo],
             mandatory = True,
+            doc = "The coco_package target to verify.",
         ),
         "_verification_backend": attr.label(default = Label("//:verification_backend")),
+        "_windows_constraint": WINDOWS_CONSTRAINT_ATTR,
     }.items()),
     test = True,
     toolchains = [
@@ -647,26 +649,21 @@ _coco_verify_test = rule(
     ],
 )
 
-def coco_verify_test(name, package, **kwargs):
-    """Creates a test that runs Coco verification on a package.
-
-    This test executes the `popili verify` command on the specified coco_package,
-    verifying the Coco code.
-
-    Args:
-        name: Name of the test target
-        package: The coco_package target to verify
-        **kwargs: Additional Bazel test arguments (e.g., size, timeout, tags, visibility)
-    """
+def _coco_verify_test_macro_impl(name, visibility, **kwargs):
     _coco_verify_test(
         name = name,
-        package = package,
-        is_windows = select({
-            "@platforms//os:windows": True,
-            "//conditions:default": False,
-        }),
+        visibility = visibility,
         **kwargs
     )
+
+coco_verify_test = macro(
+    doc = """Creates a test that runs Coco verification on a package.
+
+Executes `popili verify` on the specified coco_package, failing the test if
+verification does not pass.""",
+    inherit_attrs = _coco_verify_test,
+    implementation = _coco_verify_test_macro_impl,
+)
 
 def _mangle_name(name, style):
     """Apply name mangling based on the specified style.
@@ -1043,58 +1040,86 @@ _coco_generate = rule(
         # C output path options
         "c_file_name_mangler": attr.string(
             default = "Unaltered",
+            doc = "C file naming style. Must match Coco.toml generator.c.fileNameMangler. " +
+                  "Options: \"Unaltered\" (default), \"LowerCamelCase\", \"UpperCamelCase\", " +
+                  "\"LowerUnderscore\", \"UpperUnderscore\", \"CapsUpperUnderscore\".",
         ),
         "c_flat_file_hierarchy": attr.bool(
             default = False,
+            doc = "Use a flat directory structure for C files. Must match " +
+                  "Coco.toml generator.c.flatFileHierarchy. Disabled by default.",
         ),
         "c_header_file_extension": attr.string(
             default = ".h",
+            doc = "File extension for C headers. Defaults to \".h\".",
         ),
         "c_header_file_prefix": attr.string(
             default = "",
+            doc = "Prefix for C header file names. Empty by default.",
         ),
         "c_implementation_file_extension": attr.string(
             default = ".c",
+            doc = "File extension for C implementation files. Defaults to \".c\".",
         ),
         "c_implementation_file_prefix": attr.string(
             default = "",
+            doc = "Prefix for C implementation file names. Empty by default.",
         ),
         "c_regenerate_packages": attr.label_list(
             providers = [CocoPackageInfo],
             default = [],
+            doc = "Other coco_package targets to regenerate with this target's C generator settings.",
         ),
         # C++ output path options
         "cpp_file_name_mangler": attr.string(
             default = "Unaltered",
+            doc = "C++ file naming style. Must match Coco.toml generator.cpp.fileNameMangler. " +
+                  "Options: \"Unaltered\" (default), \"LowerCamelCase\", \"UpperCamelCase\", " +
+                  "\"LowerUnderscore\", \"UpperUnderscore\", \"CapsUpperUnderscore\".",
         ),
         "cpp_flat_file_hierarchy": attr.bool(
             default = False,
+            doc = "Use a flat directory structure for C++ files. Must match " +
+                  "Coco.toml generator.cpp.flatFileHierarchy. Disabled by default.",
         ),
         "cpp_header_file_extension": attr.string(
             default = ".h",
+            doc = "File extension for C++ headers. Defaults to \".h\".",
         ),
         "cpp_header_file_prefix": attr.string(
             default = "",
+            doc = "Prefix for C++ header file names. Empty by default.",
         ),
         "cpp_implementation_file_extension": attr.string(
             default = ".cc",
+            doc = "File extension for C++ implementation files. Defaults to \".cc\".",
         ),
         "cpp_implementation_file_prefix": attr.string(
             default = "",
+            doc = "Prefix for C++ implementation file names. Empty by default.",
         ),
         "cpp_regenerate_packages": attr.label_list(
             providers = [CocoPackageInfo],
             default = [],
+            doc = "Other coco_package targets to regenerate with this target's C++ generator settings.",
         ),
         "csharp_regenerate_packages": attr.label_list(
             providers = [CocoPackageInfo],
             default = [],
+            doc = "Other coco_package targets to regenerate with this target's C# generator settings.",
         ),
-        "language": attr.string(mandatory = True, values = ["cpp", "c", "csharp"]),
-        "mocks": attr.bool(),
+        "language": attr.string(
+            mandatory = True,
+            values = ["cpp", "c", "csharp"],
+            doc = "Target language for code generation: \"cpp\", \"c\", or \"csharp\".",
+        ),
+        "mocks": attr.bool(
+            doc = "Generate mock implementations for testing. Disabled by default.",
+        ),
         "package": attr.label(
             providers = [CocoPackageInfo],
             mandatory = True,
+            doc = "The coco_package target containing the source files to generate from.",
         ),
     }.items()),
     toolchains = [
@@ -1190,95 +1215,37 @@ _coco_cc_gen = rule(
     },
 )
 
-def coco_generate(
-        name,
-        package,
-        language,
-        mocks = False,
-        c_file_name_mangler = "Unaltered",
-        c_flat_file_hierarchy = False,
-        c_header_file_extension = ".h",
-        c_header_file_prefix = "",
-        c_implementation_file_extension = ".c",
-        c_implementation_file_prefix = "",
-        c_regenerate_packages = [],
-        cpp_file_name_mangler = "Unaltered",
-        cpp_flat_file_hierarchy = False,
-        cpp_header_file_extension = ".h",
-        cpp_header_file_prefix = "",
-        cpp_implementation_file_extension = ".cc",
-        cpp_implementation_file_prefix = "",
-        cpp_regenerate_packages = [],
-        csharp_regenerate_packages = [],
-        **kwargs):
-    """Generate C, C++, or C# code from a Coco package.
-
-    This macro generates code from Coco source files in the specified language.
-    The generated files can then be compiled into libraries or executables using
-    standard build rules (e.g., cc_library for C/C++).
-
-    The generator configuration options (file extensions, prefixes, etc.) must match
-    the settings in your Coco.toml file under the corresponding generator section
-    (e.g., [generator.cpp] for C++, [generator.c] for C).
-
-    Args:
-        name: Name of the code generation target
-        package: The coco_package target containing the source files to generate from
-        language: Target language for code generation: "cpp", "c", or "csharp"
-        mocks: Generate mock implementations for testing (default: False)
-        c_file_name_mangler: C file naming style - must match Coco.toml generator.c.fileNameMangler.
-                             Options: "Unaltered", "LowerCamelCase", "UpperCamelCase",
-                             "LowerUnderscore", "UpperUnderscore", "CapsUpperUnderscore"
-        c_flat_file_hierarchy: Use flat directory structure for C files - must match
-                               Coco.toml generator.c.flatFileHierarchy
-        c_header_file_extension: File extension for C headers (default: ".h")
-        c_header_file_prefix: Prefix for C header file names (default: "")
-        c_implementation_file_extension: File extension for C implementation files (default: ".c")
-        c_implementation_file_prefix: Prefix for C implementation file names (default: "")
-        c_regenerate_packages: List of other coco_package targets to regenerate with this
-                               target's C generator settings
-        cpp_file_name_mangler: C++ file naming style - must match Coco.toml generator.cpp.fileNameMangler.
-                               Options: "Unaltered", "LowerCamelCase", "UpperCamelCase",
-                               "LowerUnderscore", "UpperUnderscore", "CapsUpperUnderscore"
-        cpp_flat_file_hierarchy: Use flat directory structure for C++ files - must match
-                                 Coco.toml generator.cpp.flatFileHierarchy
-        cpp_header_file_extension: File extension for C++ headers (default: ".h")
-        cpp_header_file_prefix: Prefix for C++ header file names (default: "")
-        cpp_implementation_file_extension: File extension for C++ implementation files (default: ".cc")
-        cpp_implementation_file_prefix: Prefix for C++ implementation file names (default: "")
-        cpp_regenerate_packages: List of other coco_package targets to regenerate with this
-                                 target's C++ generator settings
-        csharp_regenerate_packages: List of other coco_package targets to regenerate with this
-                                    target's C# generator settings
-        **kwargs: Additional Bazel arguments (e.g., visibility, tags)
-    """
+def _coco_generate_macro_impl(name, visibility, **kwargs):
+    # Generator attrs are inherited from _coco_generate and forwarded via kwargs.
     _coco_generate(
         name = name,
-        package = package,
-        language = language,
-        mocks = mocks,
-        c_file_name_mangler = c_file_name_mangler,
-        c_flat_file_hierarchy = c_flat_file_hierarchy,
-        c_header_file_extension = c_header_file_extension,
-        c_header_file_prefix = c_header_file_prefix,
-        c_implementation_file_extension = c_implementation_file_extension,
-        c_implementation_file_prefix = c_implementation_file_prefix,
-        c_regenerate_packages = c_regenerate_packages,
-        cpp_file_name_mangler = cpp_file_name_mangler,
-        cpp_flat_file_hierarchy = cpp_flat_file_hierarchy,
-        cpp_header_file_extension = cpp_header_file_extension,
-        cpp_header_file_prefix = cpp_header_file_prefix,
-        cpp_implementation_file_extension = cpp_implementation_file_extension,
-        cpp_implementation_file_prefix = cpp_implementation_file_prefix,
-        cpp_regenerate_packages = cpp_regenerate_packages,
-        csharp_regenerate_packages = csharp_regenerate_packages,
+        visibility = visibility,
         **kwargs
     )
+
+    # Companion target for the generated test sources/headers. Only visibility is
+    # forwarded (kwargs holds generator-only attrs); see test/visibility_propagation.
     _coco_test_outputs(
         name = coco_test_outputs_name(name),
         package = name,
-        **kwargs
+        visibility = visibility,
     )
+
+coco_generate = macro(
+    doc = """Generate C, C++, or C# code from a Coco package.
+
+The generated files can then be compiled into libraries or executables using
+standard build rules (e.g., cc_library for C/C++).
+
+The generator configuration options (file extensions, prefixes, etc.) must
+match the settings in your Coco.toml file under the corresponding generator
+section (e.g., [generator.cpp] for C++, [generator.c] for C).
+
+Alongside the main code-generation target, a companion `<name>.tst` target is
+created that exposes the generated test sources and headers.""",
+    inherit_attrs = _coco_generate,
+    implementation = _coco_generate_macro_impl,
+)
 
 def _popili_version_alias_impl(ctx):
     toolchain = ctx.toolchains["@rules_coco//coco:toolchain_type"]
