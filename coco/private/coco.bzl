@@ -176,6 +176,11 @@ with_popili_version = rule(
 def _runtime_path(file, is_test):
     return file.short_path if is_test else file.path
 
+def _runtime_dirname(file, is_test):
+    # File.dirname, but via the runtime path (short_path for tests) so
+    # external-repo deps resolve in the runfiles tree; "." avoids an empty arg.
+    return paths.dirname(_runtime_path(file, is_test)) or "."
+
 def _coco_startup_args(ctx, package, is_test):
     """Build startup arguments for popili.
 
@@ -222,10 +227,10 @@ def _coco_startup_args(ctx, package, is_test):
             dep_package_files = package[CocoPackageInfo].dep_package_files
         arguments += [
             "--package",
-            package_file.dirname,
+            _runtime_dirname(package_file, is_test),
         ]
         for dep_file in dep_package_files.to_list():
-            arguments += ["--import-path", dep_file.dirname]
+            arguments += ["--import-path", _runtime_dirname(dep_file, is_test)]
     return arguments
 
 def _get_license_source(ctx):

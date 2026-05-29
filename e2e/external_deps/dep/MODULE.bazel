@@ -1,0 +1,12 @@
+# "External" module hosting a coco_package depended on by the root module.
+
+module(
+    name = "coco_dep",
+    version = "0.0.0",
+)
+
+# version ignored: the root module's local_path_override supplies rules_coco.
+bazel_dep(name = "rules_coco", version = "")
+
+# coco_package expands to a select() on @platforms//os:windows.
+bazel_dep(name = "platforms", version = "1.0.0")
