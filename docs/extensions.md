@@ -9,6 +9,7 @@ Bazel module extensions for rules_coco.
 <pre>
 coco = use_extension("@rules_coco//coco:extensions.bzl", "coco")
 coco.cc_runtime_deps(<a href="#coco.cc_runtime_deps-deps">deps</a>, <a href="#coco.cc_runtime_deps-version">version</a>)
+coco.local_toolchain(<a href="#coco.local_toolchain-c_runtime">c_runtime</a>, <a href="#coco.local_toolchain-cc_runtime">cc_runtime</a>, <a href="#coco.local_toolchain-popili">popili</a>)
 coco.toolchain(<a href="#coco.toolchain-auth_token_path">auth_token_path</a>, <a href="#coco.toolchain-c">c</a>, <a href="#coco.toolchain-cc">cc</a>, <a href="#coco.toolchain-license_source">license_source</a>, <a href="#coco.toolchain-license_token">license_token</a>, <a href="#coco.toolchain-versions">versions</a>)
 </pre>
 
@@ -27,6 +28,20 @@ Inject extra cc_library deps into the Coco C++ runtime for a specific Coco/Popil
 | :------------- | :------------- | :------------- | :------------- | :------------- |
 | <a id="coco.cc_runtime_deps-deps"></a>deps |  List of cc_library targets to append to the runtime's deps.   | <a href="https://bazel.build/concepts/labels">List of labels</a> | required |  |
 | <a id="coco.cc_runtime_deps-version"></a>version |  Coco/Popili version these deps apply to. May be an explicit version (e.g. '1.5.1') or an alias (e.g. 'stable').   | String | required |  |
+
+<a id="coco.local_toolchain"></a>
+
+### local_toolchain
+
+Register a Coco toolchain from a popili distribution on the local filesystem, instead of fetching a published release. Root-module only, at most once. Used only under --@rules_coco//:version=local. Paths mirror the extracted release archive layout; see the rules_coco README.
+
+**Attributes**
+
+| Name  | Description | Type | Mandatory | Default |
+| :------------- | :------------- | :------------- | :------------- | :------------- |
+| <a id="coco.local_toolchain-c_runtime"></a>c_runtime |  Optional path to a dir holding the C runtime 'coco_c/' subtree. Absolute or workspace-relative.   | String | optional |  `""`  |
+| <a id="coco.local_toolchain-cc_runtime"></a>cc_runtime |  Optional path to a dir holding the C++ runtime 'coco/' subtree. Absolute or workspace-relative.   | String | optional |  `""`  |
+| <a id="coco.local_toolchain-popili"></a>popili |  Path to a dir holding the 'popili' and 'cocotec-licensing-server' binaries. Absolute or workspace-relative.   | String | required |  |
 
 <a id="coco.toolchain"></a>
 

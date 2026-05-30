@@ -34,6 +34,18 @@ def discover_e2e_dirs():
     ])
 
 
+def stage_e2e_dirs(e2e_dirs):
+    """Run each e2e directory's stage.py setup hook, if it has one.
+
+    Lets a scenario own its pre-test setup (e.g. local_toolchain stages a popili
+    release into the expected layout). Hooks are expected to be idempotent.
+    """
+    for d in e2e_dirs:
+        hook = os.path.join(d, 'stage.py')
+        if os.path.isfile(hook):
+            subprocess.run([sys.executable, hook], check=True)
+
+
 def main():
     """Run all test configurations."""
     configs = [
@@ -43,11 +55,17 @@ def main():
     ]
 
     e2e_dirs = discover_e2e_dirs()
+    stage_e2e_dirs(e2e_dirs)
     passed = 0
 
     for version, mode in configs:
-        # Run root workspace and all e2e tests
-        test_dirs = [('root workspace', None)] + [(d, d) for d in e2e_dirs]
+        # Run root workspace and all e2e tests. Skip bzlmod-only scenarios (those
+        # without a WORKSPACE file) when testing workspace mode.
+        test_dirs = [('root workspace', None)] + [
+            (d, d)
+            for d in e2e_dirs
+            if mode != 'workspace' or os.path.isfile(os.path.join(d, 'WORKSPACE'))
+        ]
 
         if all(run_bazel_test(name, version, mode, cwd) for name, cwd in test_dirs):
             passed += 1

@@ -211,6 +211,19 @@ jobs:
           for dir in e2e/*/; do
             dir=${dir%/}  # Remove trailing slash
 
+            # Skip bzlmod-only scenarios (no WORKSPACE file) when testing workspace mode.
+            if [ "${{ matrix.build_system }}" = "workspace" ] && [ ! -f "$dir/WORKSPACE" ]; then
+              echo "Skipping ${dir} (no WORKSPACE; bzlmod-only)"
+              continue
+            fi
+
+            # Run a scenario's setup hook if present.
+            if [ -f "$dir/stage.py" ]; then
+              echo "Staging ${dir}..."
+              PY=$(command -v python3 || command -v python)
+              "$PY" "$dir/stage.py"
+            fi
+
             # Skip multi_version for action_file mode - it uses popili 1.5.0
             # which doesn't support --machine-auth-token (requires 1.5.2+)
             if [ "${{ matrix.license_source }}" = "action_file" ] && [ "$dir" = "e2e/multi_version" ]; then

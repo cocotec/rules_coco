@@ -16,7 +16,9 @@
 
 load(
     "//coco/private:repositories.bzl",
+    _coco_local_repositories = "coco_local_repositories",
     _coco_repositories = "coco_repositories",
 )
 
 coco_repositories = _coco_repositories
+coco_local_repositories = _coco_local_repositories

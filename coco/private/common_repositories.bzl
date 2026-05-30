@@ -36,6 +36,17 @@ cc_library(
 )
 """
 
+_C_RUNTIME_BUILD = """
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+cc_library(
+    name = "runtime",
+    hdrs = glob(["coco_c/*.h"]),
+    srcs = glob(["coco_c/src/*.c"], allow_empty = True) + glob(["coco_c/*.c"], allow_empty = True),
+    visibility = ["//visibility:public"],
+)
+"""
+
 # Known license file version suffixes to check for
 KNOWN_VERSION_SUFFIXES = [
     "_6",
@@ -217,22 +228,72 @@ def _coco_c_runtime_repository_impl(ctx):
 
     ctx.file("WORKSPACE", """workspace(name = "{}")""".format(ctx.name))
 
-    ctx.file("BUILD.bazel", """
-load("@rules_cc//cc:defs.bzl", "cc_library")
-
-cc_library(
-    name = "runtime",
-    hdrs = glob(["coco_c/*.h"]),
-    srcs = glob(["coco_c/src/*.c"], allow_empty = True) + glob(["coco_c/*.c"], allow_empty = True),
-    visibility = ["//visibility:public"],
-)
-""")
+    ctx.file("BUILD.bazel", _C_RUNTIME_BUILD)
 
 _coco_c_runtime_repository = repository_rule(
     implementation = _coco_c_runtime_repository_impl,
     attrs = {
         "version": attr.string(
             doc = "The version of coco/popili to download C runtime for",
+            mandatory = True,
+        ),
+    },
+)
+
+def _is_absolute(path):
+    # Matches skylib's paths.is_absolute; inlined because this file is loaded before
+    # skylib is fetched in WORKSPACE mode, so we can't load it here.
+    return path.startswith("/") or (len(path) > 2 and path[1] == ":")
+
+def resolve_local_path(ctx, path):
+    """Resolves a local_toolchain path: absolute as-is, relative against the workspace root.
+
+    ctx.path resolves a bare relative string against the generated repo, not the
+    consuming workspace, so relative paths must be anchored explicitly.
+    """
+    if _is_absolute(path):
+        return ctx.path(path)
+    return ctx.path("%s/%s" % (ctx.workspace_root, path))
+
+def _coco_cc_local_runtime_repository_impl(ctx):
+    """C++ runtime repository symlinked from a local path instead of downloaded."""
+    runtime_dir = resolve_local_path(ctx, ctx.attr.path).get_child("coco")
+    if not runtime_dir.exists:
+        fail("Local C++ runtime path '%s' does not contain a 'coco' directory" % ctx.attr.path)
+    ctx.symlink(runtime_dir, "coco")
+
+    ctx.file("WORKSPACE", """workspace(name = "{}")""".format(ctx.name))
+    ctx.file("BUILD.bazel", _CC_RUNTIME_BUILD_TEMPLATE.format(deps = "[]"))
+
+_coco_cc_local_runtime_repository = repository_rule(
+    implementation = _coco_cc_local_runtime_repository_impl,
+    # Reevaluated on every fetch so a replaced runtime tree is picked up.
+    local = True,
+    attrs = {
+        "path": attr.string(
+            doc = "Local filesystem path to a directory containing the C++ runtime `coco/` subtree.",
+            mandatory = True,
+        ),
+    },
+)
+
+def _coco_c_local_runtime_repository_impl(ctx):
+    """C runtime repository symlinked from a local path instead of downloaded."""
+    runtime_dir = resolve_local_path(ctx, ctx.attr.path).get_child("coco_c")
+    if not runtime_dir.exists:
+        fail("Local C runtime path '%s' does not contain a 'coco_c' directory" % ctx.attr.path)
+    ctx.symlink(runtime_dir, "coco_c")
+
+    ctx.file("WORKSPACE", """workspace(name = "{}")""".format(ctx.name))
+    ctx.file("BUILD.bazel", _C_RUNTIME_BUILD)
+
+_coco_c_local_runtime_repository = repository_rule(
+    implementation = _coco_c_local_runtime_repository_impl,
+    # Reevaluated on every fetch so a replaced runtime tree is picked up.
+    local = True,
+    attrs = {
+        "path": attr.string(
+            doc = "Local filesystem path to a directory containing the C runtime `coco_c/` subtree.",
             mandatory = True,
         ),
     },
@@ -373,8 +434,10 @@ _coco_symlink_license_repository = repository_rule(
 
 # Public API - these are the functions/rules that should be imported
 coco_c_runtime_repository = _coco_c_runtime_repository
+coco_c_local_runtime_repository = _coco_c_local_runtime_repository
 coco_cc_repositories = _coco_cc_repositories
 coco_cc_runtime_repository = _coco_cc_runtime_repository
+coco_cc_local_runtime_repository = _coco_cc_local_runtime_repository
 coco_preferences_repository = _coco_preferences_repository
 coco_fetch_license_repository = _coco_fetch_license_repository
 coco_symlink_license_repository = _coco_symlink_license_repository

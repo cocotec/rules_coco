@@ -202,6 +202,54 @@ There are several ways of setting the version of Popili that you would like to u
 
    See `e2e/multi_version` for a full example.
 
+### Using a local toolchain
+
+To point at a popili toolchain on the local filesystem instead of a download add `coco.local_toolchain` to
+`MODULE.bazel`:
+
+```starlark
+coco = use_extension("@rules_coco//coco:extensions.bzl", "coco")
+coco.local_toolchain(
+    popili = "/path/to/popili-dist",      # holds the popili + cocotec-licensing-server binaries
+    cc_runtime = "/path/to/cpp-runtime",  # optional: holds the `coco/` subtree
+    # c_runtime = "/path/to/c-runtime",   # optional: holds the `coco_c/` subtree
+)
+```
+
+Each path (absolute, or workspace-relative) mirrors the **extracted release archive layout** — i.e. the contents
+of `popili_<os>_<arch>.zip`, `coco-cpp-runtime.zip`, and `coco-c-runtime.zip` respectively. To use it, run with
+`bazel build --@rules_coco//:version=local //...` (consider a `.bazelrc` `--config`).
+
+For `WORKSPACE` mode use `coco_local_repositories(path=..., cc_runtime_path=..., c_runtime_path=...)` instead;
+it has no version flag, so the registered toolchain is simply the active one. See `e2e/local_toolchain`.
+
+### Bring your own toolchain
+
+To point at a popili toolchain obtained from other bazel rules you can register your own `coco_toolchain` and skip
+rules_coco's toolchain machinery entirely. In `MODULE.bazel` you just need
+
+```starlark
+register_toolchains("//tools:my_popili_tc")
+```
+
+```starlark
+# tools/BUILD.bazel
+load("@rules_coco//coco:toolchain.bzl", "coco_toolchain")
+
+coco_toolchain(
+    name = "my_popili",
+    coco = "//path/to:popili",
+    cocotec_licensing_server = "//path/to:cocotec-licensing-server",
+    # cc_runtime = "//path/to:cpp_runtime",  # optional cc_library, for coco_cc_library
+)
+
+toolchain(
+    name = "my_popili_tc",
+    toolchain = ":my_popili",
+    toolchain_type = "@rules_coco//coco:toolchain_type",
+)
+```
+
 ### Using an older C++ compiler (Boost libraries)
 
 Most users can skip this section. The Coco C++ runtime compiles cleanly on any toolchain that supports C++11 or
