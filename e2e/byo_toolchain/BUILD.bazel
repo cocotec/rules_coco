@@ -1,0 +1,14 @@
+# Verifies a Coco package using the bring-your-own coco_toolchain.
+
+load("@rules_coco//coco:defs.bzl", "coco_package", "coco_verify_test")
+
+coco_package(
+    name = "byo_toolchain",
+    srcs = glob(["src/**/*.coco"]),
+    package = "Coco.toml",
+)
+
+coco_verify_test(
+    name = "byo_toolchain_verify",
+    package = ":byo_toolchain",
+)

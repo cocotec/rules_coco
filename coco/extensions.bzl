@@ -20,7 +20,9 @@ load(
 )
 load(
     "//coco/private:common_repositories.bzl",
+    "coco_c_local_runtime_repository",
     "coco_c_runtime_repository",
+    "coco_cc_local_runtime_repository",
     "coco_cc_runtime_repository",
     "coco_fetch_license_repository",
     "coco_preferences_repository",
@@ -30,6 +32,7 @@ load(
 )
 load(
     "//coco/private:repositories.bzl",
+    "coco_local_toolchain_repository",
     "coco_toolchain_repository",
     "coco_toolchain_repository_proxy",
 )
@@ -167,6 +170,16 @@ def _toolchain_tag_impl(ctx):
             if not auth_token_path and toolchain.auth_token_path:
                 auth_token_path = toolchain.auth_token_path
 
+    # Root-module only: a dependency must not force a machine-specific path on consumers.
+    local_tag = None
+    for mod in ctx.modules:
+        for tag in mod.tags.local_toolchain:
+            if not mod.is_root:
+                fail("coco.local_toolchain is only allowed in the root module (requested by module '%s')." % mod.name)
+            if local_tag != None:
+                fail("coco.local_toolchain may be specified at most once.")
+            local_tag = tag
+
     # Resolve version aliases (like "stable" -> "1.5.1") and deduplicate
     # Keep track of both original and resolved versions for config_settings
     versions = []  # Resolved versions for toolchain creation
@@ -302,6 +315,43 @@ def _toolchain_tag_impl(ctx):
                 target_compatible_with[default_toolchain_name] = constraints
                 target_settings[default_toolchain_name] = ["@coco_toolchains//:version_default"]
 
+    # Host-only (no constraints), gated on the "local" version so it needs --version=local.
+    if local_tag:
+        version_suffixes["local"] = "local"
+
+        cc_runtime_label = None
+        if local_tag.cc_runtime:
+            coco_cc_local_runtime_repository(
+                name = "io_cocotec_coco_cc_runtime__local",
+                path = local_tag.cc_runtime,
+            )
+            cc_runtime_label = "@io_cocotec_coco_cc_runtime__local//:runtime"
+
+        c_runtime_label = None
+        if local_tag.c_runtime:
+            coco_c_local_runtime_repository(
+                name = "io_cocotec_coco_c_runtime__local",
+                path = local_tag.c_runtime,
+            )
+            c_runtime_label = "@io_cocotec_coco_c_runtime__local//:runtime"
+
+        local_repo_name = "io_cocotec_coco_local"
+        coco_local_toolchain_repository(
+            name = local_repo_name,
+            path = local_tag.popili,
+            cc_runtime_label = cc_runtime_label,
+            c_runtime_label = c_runtime_label,
+            license_source = license_source,
+            license_token = license_token,
+            auth_token_path = auth_token_path,
+        )
+
+        toolchain_names.append("local")
+        toolchain_labels["local"] = "@%s//:toolchain_impl" % local_repo_name
+        exec_compatible_with["local"] = []
+        target_compatible_with["local"] = []
+        target_settings["local"] = ["@coco_toolchains//:version_local"]
+
     # Create hub repository that aggregates all toolchains
     _coco_toolchain_hub(
         name = "coco_toolchains",
@@ -313,8 +363,9 @@ def _toolchain_tag_impl(ctx):
         version_suffixes = version_suffixes,
     )
 
+    # A local path isn't reproducible.
     return ctx.extension_metadata(
-        reproducible = True,
+        reproducible = local_tag == None,
     )
 
 _toolchain_tag = tag_class(
@@ -364,10 +415,34 @@ _cc_runtime_deps_tag = tag_class(
     },
 )
 
+_local_toolchain_tag = tag_class(
+    doc = (
+        "Register a Coco toolchain from a popili distribution on the local filesystem, " +
+        "instead of fetching a published release. Root-module only, at most once. Used " +
+        "only under --@rules_coco//:version=local. Paths mirror the extracted release " +
+        "archive layout; see the rules_coco README."
+    ),
+    attrs = {
+        "c_runtime": attr.string(
+            doc = "Optional path to a dir holding the C runtime 'coco_c/' subtree. Absolute or workspace-relative.",
+            default = "",
+        ),
+        "cc_runtime": attr.string(
+            doc = "Optional path to a dir holding the C++ runtime 'coco/' subtree. Absolute or workspace-relative.",
+            default = "",
+        ),
+        "popili": attr.string(
+            doc = "Path to a dir holding the 'popili' and 'cocotec-licensing-server' binaries. Absolute or workspace-relative.",
+            mandatory = True,
+        ),
+    },
+)
+
 coco = module_extension(
     implementation = _toolchain_tag_impl,
     tag_classes = {
         "cc_runtime_deps": _cc_runtime_deps_tag,
+        "local_toolchain": _local_toolchain_tag,
         "toolchain": _toolchain_tag,
     },
 )

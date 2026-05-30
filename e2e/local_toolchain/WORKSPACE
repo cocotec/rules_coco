@@ -1,0 +1,30 @@
+# E2E local-toolchain test WORKSPACE (WORKSPACE mode).
+
+workspace(name = "rules_coco_local_toolchain_test")
+
+load("@bazel_tools//tools/build_defs/repo:local.bzl", "local_repository")
+
+# Use the local development version of rules_coco.
+local_repository(
+    name = "rules_coco",
+    path = "../..",
+)
+
+load("@rules_coco//coco:repositories.bzl", "coco_local_repositories")
+
+# Register a toolchain from a local popili path (./staged; see stage.py). WORKSPACE
+# has no --@rules_coco//:version flag, so this is simply the active toolchain.
+coco_local_repositories(
+    cc_runtime_path = "staged/cpp-runtime",
+    path = "staged/popili",
+)
+
+# Load GoogleTest for C++ unit tests
+load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+http_archive(
+    name = "googletest",
+    sha256 = "12ef65654dc01ab40f6f33f9d02c04f2097d2cd9fbe48dc6001b29543583b0ad",
+    strip_prefix = "googletest-8d51ffdfab10b3fba636ae69bc03da4b54f8c235",
+    urls = ["https://github.com/google/googletest/archive/8d51ffdfab10b3fba636ae69bc03da4b54f8c235.zip"],
+)

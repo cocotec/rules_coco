@@ -1,0 +1,54 @@
+# E2E local-toolchain test BUILD file.
+# Exercises code generation + verification against a local popili toolchain.
+
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_test")
+load("@rules_coco//coco:cc.bzl", "coco_cc_library", "coco_cc_test_library")
+load("@rules_coco//coco:defs.bzl", "coco_generate", "coco_package", "coco_verify_test")
+
+# Define Coco package
+coco_package(
+    name = "local_toolchain",
+    srcs = glob(["src/**/*.coco"]),
+    package = "Coco.toml",
+)
+
+# Verify the Coco package
+coco_verify_test(
+    name = "local_toolchain_verify",
+    package = ":local_toolchain",
+)
+
+# Generate C++ code from Coco
+coco_generate(
+    name = "local_toolchain_cpp",
+    language = "cpp",
+    mocks = True,
+    package = ":local_toolchain",
+)
+
+# Create C++ library from generated code
+coco_cc_library(
+    name = "local_toolchain_cc",
+    generated_package = ":local_toolchain_cpp",
+)
+
+# Create C++ test library with mocks
+coco_cc_test_library(
+    name = "local_toolchain_cc_tst",
+    generated_package = ":local_toolchain_cpp",
+    deps = [":local_toolchain_cc"],
+)
+
+# C++ binary that uses the generated code
+cc_binary(
+    name = "local_toolchain_bin",
+    srcs = ["test/main.cc"],
+    deps = [":local_toolchain_cc"],
+)
+
+# C++ unit test with GoogleTest
+cc_test(
+    name = "local_toolchain_test",
+    srcs = ["test/local_toolchain_test.cc"],
+    deps = [":local_toolchain_cc_tst"],
+)

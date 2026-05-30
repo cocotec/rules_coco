@@ -1,0 +1,4 @@
+port Example {
+  function process() : Nil
+  machine { process() = {} }
+}

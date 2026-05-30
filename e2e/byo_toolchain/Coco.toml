@@ -1,0 +1,7 @@
+[package]
+name = "byo_toolchain"
+sources = ["src"]
+
+[language]
+standard = "1.2"
+profiles = ["C++"]

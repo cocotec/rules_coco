@@ -1,0 +1,18 @@
+# A bring-your-own coco_toolchain pointing at //popili_dist binaries.
+# register_toolchains lives in MODULE.bazel.
+
+load("@rules_coco//coco:toolchain.bzl", "coco_toolchain")
+
+coco_toolchain(
+    name = "byo_popili",
+    coco = "//popili_dist:popili",
+    cocotec_licensing_server = "//popili_dist:licensing_server",
+    visibility = ["//visibility:public"],
+)
+
+toolchain(
+    name = "byo_popili_tc",
+    toolchain = ":byo_popili",
+    toolchain_type = "@rules_coco//coco:toolchain_type",
+    visibility = ["//visibility:public"],
+)

@@ -10,6 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Coco workspaces are now supported via the new `coco_workspace` rule and `workspace` attribute on `coco_package`.
+- `coco.local_toolchain` allows you to point `rules_coco` at a `popili` on the local filesystem instead of a downloaded
+  release. See the README section "Using a local toolchain".
+- Documented how you can use `rules_coco` with your own `popili` toolchain obtained from other bazel rules. See the
+  README section "Bring your own toolchain".
 
 ### Changed
 

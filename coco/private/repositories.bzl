@@ -18,12 +18,15 @@ load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load(
     ":common_repositories.bzl",
     "KNOWN_VERSION_SUFFIXES",
+    "coco_c_local_runtime_repository",
     "coco_c_runtime_repository",
+    "coco_cc_local_runtime_repository",
     "coco_cc_repositories",
     "coco_fetch_license_repository",
     "coco_preferences_repository",
     "coco_symlink_license_repository",
     "download_prefix",
+    "resolve_local_path",
     "validate_minimum_version",
     "version_to_repo_suffix",
 )
@@ -202,6 +205,67 @@ coco_toolchain_repository = repository_rule(
     implementation = _coco_toolchain_repository_impl,
 )
 
+def _coco_local_toolchain_repository_impl(ctx):
+    """Coco toolchain repository symlinked from a local path instead of downloaded.
+
+    Host-only, and the product is always "popili" (no os/arch/version attrs, unlike
+    the download rule).
+    """
+    dist_dir = resolve_local_path(ctx, ctx.attr.path)
+
+    # Take the extension from what's actually staged rather than guessing the host OS.
+    binary_ext = ".exe" if dist_dir.get_child("popili.exe").exists else ""
+    for binary in ["popili", "cocotec-licensing-server"]:
+        src = dist_dir.get_child(binary + binary_ext)
+        if not src.exists:
+            fail("Local popili path '%s' does not contain '%s'" % (ctx.attr.path, binary + binary_ext))
+        ctx.symlink(src, "bin/" + binary + binary_ext)
+
+    ctx.file("WORKSPACE", "")
+    ctx.file("BUILD", "\n".join([
+        BUILD_for_coco_archive(binary_ext = binary_ext, product = "popili"),
+        BUILD_for_coco_toolchain(
+            name = "toolchain",
+            cc_runtime_label = ctx.attr.cc_runtime_label,
+            c_runtime_label = ctx.attr.c_runtime_label,
+            license_source = ctx.attr.license_source,
+            license_token = ctx.attr.license_token,
+            auth_token_path = ctx.attr.auth_token_path,
+        ),
+    ]))
+
+coco_local_toolchain_repository = repository_rule(
+    attrs = {
+        "auth_token_path": attr.string(
+            doc = "Optional auth token file path string",
+            default = "",
+        ),
+        "c_runtime_label": attr.label(
+            doc = "Optional label to the C runtime library",
+            default = None,
+        ),
+        "cc_runtime_label": attr.label(
+            doc = "Optional label to the C++ runtime library",
+            default = None,
+        ),
+        "license_source": attr.string(
+            doc = "Optional license source mode (e.g., 'local_user', 'local_acquire', 'token', 'action_environment', 'action_file')",
+            default = "",
+        ),
+        "license_token": attr.string(
+            doc = "Optional license token string",
+            default = "",
+        ),
+        "path": attr.string(
+            doc = "Local filesystem path to a directory containing the popili and cocotec-licensing-server binaries at its top level.",
+            mandatory = True,
+        ),
+    },
+    implementation = _coco_local_toolchain_repository_impl,
+    # Reevaluated on every fetch so a replaced binary is picked up.
+    local = True,
+)
+
 coco_toolchain_repository_proxy = repository_rule(
     attrs = {
         "constraints": attr.string_list(),
@@ -351,17 +415,15 @@ def coco_repositories(version = "stable", **kwargs):
             auth_token_path = auth_token_path,
         )
 
-def coco_local_repository_set(name, path):
-    native.new_local_repository(
+def coco_local_repository_set(name, path, cc_runtime_label = None, c_runtime_label = None, license_source = None, license_token = None, auth_token_path = None):
+    coco_local_toolchain_repository(
         name = name,
         path = path,
-        build_file_content = "\n".join([
-            BUILD_for_coco_archive(binary_ext = "", product = "popili"),
-            BUILD_for_coco_toolchain(
-                name = "toolchain",
-            ),
-        ]),
-        workspace_file_content = "",
+        cc_runtime_label = cc_runtime_label,
+        c_runtime_label = c_runtime_label,
+        license_source = license_source,
+        license_token = license_token,
+        auth_token_path = auth_token_path,
     )
 
     coco_toolchain_repository_proxy(
@@ -375,12 +437,59 @@ def coco_local_repository_set(name, path):
         name = name,
     ))
 
-def coco_local_repositories(path, **kwargs):
-    _coco_deps(
-        version = "stable",
-        **kwargs
-    )
+def coco_local_repositories(path, cc_runtime_path = None, c_runtime_path = None, **kwargs):
+    """Sets up Coco toolchain repositories from a local popili path (WORKSPACE mode).
+
+    Use this to point the rules at a popili distribution already present on the local
+    filesystem (one you download and manage yourself, or an internal build) instead of
+    having rules_coco fetch a published release.
+
+    Unlike the bzlmod `coco.local_toolchain` tag (which is gated behind
+    `--@rules_coco//:version=local`), WORKSPACE mode has no version flag plumbing, so
+    the local toolchain registered here becomes the active Coco toolchain for the build.
+
+    Args:
+      path: Directory containing the `popili` and `cocotec-licensing-server`
+        binaries at its top level (the extracted popili archive layout).
+      cc_runtime_path: Optional directory containing the local C++ runtime `coco/` subtree.
+        Required to build `coco_cc_library` against the local toolchain.
+      c_runtime_path: Optional directory containing the local C runtime `coco_c/` subtree.
+        Required to build `coco_c_library` against the local toolchain.
+      **kwargs: Additional arguments:
+
+          license_source (str): Optional default license source mode. See `coco_repositories`.
+
+          license_token (str): Optional default license token.
+
+          auth_token_path (str): Optional auth token file path.
+    """
+
+    # Nothing is downloaded (toolchain/runtimes are local); version only picks the
+    # licensing product name.
+    _coco_deps(version = "stable")
+
+    cc_runtime_label = None
+    if cc_runtime_path:
+        coco_cc_local_runtime_repository(
+            name = "io_cocotec_coco_cc_runtime__local",
+            path = cc_runtime_path,
+        )
+        cc_runtime_label = "@io_cocotec_coco_cc_runtime__local//:runtime"
+
+    c_runtime_label = None
+    if c_runtime_path:
+        coco_c_local_runtime_repository(
+            name = "io_cocotec_coco_c_runtime__local",
+            path = c_runtime_path,
+        )
+        c_runtime_label = "@io_cocotec_coco_c_runtime__local//:runtime"
+
     coco_local_repository_set(
         name = "coco_local",
         path = path,
+        cc_runtime_label = cc_runtime_label,
+        c_runtime_label = c_runtime_label,
+        license_source = kwargs.get("license_source", None),
+        license_token = kwargs.get("license_token", None),
+        auth_token_path = kwargs.get("auth_token_path", None),
     )

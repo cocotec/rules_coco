@@ -1,0 +1,27 @@
+# E2E for local-toolchain support (coco.local_toolchain), also tested in WORKSPACE
+# mode via the WORKSPACE file. Points at ./staged; run stage.py to populate it, or
+# point at your own toolchain. Then `bazel test` (--config=workspace for WORKSPACE).
+
+module(
+    name = "rules_coco_local_toolchain_test",
+    version = "0.0.0",
+)
+
+# Override rules_coco to use the local development version.
+bazel_dep(name = "rules_coco", version = "")
+local_path_override(
+    module_name = "rules_coco",
+    path = "../..",
+)
+
+# Required dependencies
+bazel_dep(name = "bazel_skylib", version = "1.9.0")
+bazel_dep(name = "platforms", version = "1.0.0")
+bazel_dep(name = "rules_cc", version = "0.2.17")
+bazel_dep(name = "googletest", version = "1.17.0.bcr.2")
+
+coco = use_extension("@rules_coco//coco:extensions.bzl", "coco")
+coco.local_toolchain(
+    cc_runtime = "staged/cpp-runtime",
+    popili = "staged/popili",
+)
