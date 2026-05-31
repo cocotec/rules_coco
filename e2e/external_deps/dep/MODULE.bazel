@@ -9,4 +9,4 @@ module(
 bazel_dep(name = "rules_coco", version = "")
 
 # coco_package expands to a select() on @platforms//os:windows.
-bazel_dep(name = "platforms", version = "1.0.0")
+bazel_dep(name = "platforms", version = "1.1.0")
