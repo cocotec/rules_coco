@@ -21,7 +21,7 @@ repos:
       - id: trailing-whitespace
         exclude: ^(docs/|coco/private/known_shas\.bzl$)
   - repo: https://github.com/keith/pre-commit-buildifier
-    rev: 8.2.1
+    rev: 8.5.1
     hooks:
       - id: buildifier
         args: &args
