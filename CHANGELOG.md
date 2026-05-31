@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026/05/31
+
 ### Added
 
 - Coco workspaces are now supported via the new `coco_workspace` rule and `workspace` attribute on `coco_package`.
