@@ -36,6 +36,7 @@ def _fake_resolve(v):
 def _cc_runtime_deps_root_single_version_test(ctx):
     env = unittest.begin(ctx)
 
+    # buildifier: disable=canonical-repository
     result, err = collect_cc_runtime_extra_deps(
         [_entry("root", True, "1.5.1", ["@@boost+//:optional", "@@boost+//:shared_ptr"])],
         {"1.5.1": True},
@@ -43,6 +44,8 @@ def _cc_runtime_deps_root_single_version_test(ctx):
     )
 
     asserts.equals(env, None, err)
+
+    # buildifier: disable=canonical-repository
     asserts.equals(env, {"1.5.1": ["@@boost+//:optional", "@@boost+//:shared_ptr"]}, result)
 
     return unittest.end(env)
@@ -50,6 +53,7 @@ def _cc_runtime_deps_root_single_version_test(ctx):
 def _cc_runtime_deps_root_alias_collapses_to_resolved_version_test(ctx):
     env = unittest.begin(ctx)
 
+    # buildifier: disable=canonical-repository
     result, err = collect_cc_runtime_extra_deps(
         [_entry("root", True, "stable", ["@@boost+//:optional"])],
         {"1.5.1": True},
@@ -57,6 +61,8 @@ def _cc_runtime_deps_root_alias_collapses_to_resolved_version_test(ctx):
     )
 
     asserts.equals(env, None, err)
+
+    # buildifier: disable=canonical-repository
     asserts.equals(env, {"1.5.1": ["@@boost+//:optional"]}, result)
 
     return unittest.end(env)
@@ -64,6 +70,7 @@ def _cc_runtime_deps_root_alias_collapses_to_resolved_version_test(ctx):
 def _cc_runtime_deps_root_dedups_across_tags_test(ctx):
     env = unittest.begin(ctx)
 
+    # buildifier: disable=canonical-repository
     result, err = collect_cc_runtime_extra_deps(
         [
             _entry("root", True, "1.5.1", ["@@boost+//:optional"]),
@@ -75,6 +82,8 @@ def _cc_runtime_deps_root_dedups_across_tags_test(ctx):
     )
 
     asserts.equals(env, None, err)
+
+    # buildifier: disable=canonical-repository
     asserts.equals(env, {"1.5.1": ["@@boost+//:optional", "@@boost+//:shared_ptr"]}, result)
 
     return unittest.end(env)
@@ -82,6 +91,7 @@ def _cc_runtime_deps_root_dedups_across_tags_test(ctx):
 def _cc_runtime_deps_non_root_rejected_test(ctx):
     env = unittest.begin(ctx)
 
+    # buildifier: disable=canonical-repository
     result, err = collect_cc_runtime_extra_deps(
         [_entry("some_transitive_dep", False, "1.5.1", ["@@boost+//:optional"])],
         {"1.5.1": True},
@@ -98,6 +108,7 @@ def _cc_runtime_deps_non_root_rejected_test(ctx):
 def _cc_runtime_deps_non_root_rejected_even_when_root_also_present_test(ctx):
     env = unittest.begin(ctx)
 
+    # buildifier: disable=canonical-repository
     result, err = collect_cc_runtime_extra_deps(
         [
             _entry("root", True, "1.5.1", ["@@boost+//:optional"]),
@@ -116,6 +127,7 @@ def _cc_runtime_deps_non_root_rejected_even_when_root_also_present_test(ctx):
 def _cc_runtime_deps_unknown_version_test(ctx):
     env = unittest.begin(ctx)
 
+    # buildifier: disable=canonical-repository
     result, err = collect_cc_runtime_extra_deps(
         [_entry("root", True, "9.9.9", ["@@boost+//:optional"])],
         {"1.5.1": True},
