@@ -20,7 +20,7 @@ local_path_override(
 
 bazel_dep(name = "bazel_skylib", version = "1.9.0")
 bazel_dep(name = "platforms", version = "1.1.0")
-bazel_dep(name = "rules_cc", version = "0.2.18")
+bazel_dep(name = "rules_cc", version = "0.2.19")
 
 coco = use_extension("@rules_coco//coco:extensions.bzl", "coco")
 coco.toolchain(cc = True)
