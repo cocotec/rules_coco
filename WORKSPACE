@@ -25,9 +25,9 @@ http_archive(
 
 http_archive(
     name = "bazel_features",
-    sha256 = "6a727a78c0134b1b912c97c0937e1c956f35775934ae3e1f4af4156f8d5d1ff4",
-    strip_prefix = "bazel_features-1.47.1",
-    url = "https://github.com/bazel-contrib/bazel_features/releases/download/v1.47.1/bazel_features-v1.47.1.tar.gz",
+    sha256 = "5450bfb2c8b4bc961c75368838f86156f563cc9adef1be7d504fc5619d54daab",
+    strip_prefix = "bazel_features-1.51.0",
+    url = "https://github.com/bazel-contrib/bazel_features/releases/download/v1.51.0/bazel_features-v1.51.0.tar.gz",
 )
 
 http_archive(
