@@ -18,6 +18,9 @@ load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
 load(":cc_runtime_deps.bzl", "collect_cc_runtime_extra_deps")
 load(":coco.bzl", "compute_output_filenames", "mangle_name")
 load(":common_repositories.bzl", "find_local_license_path")
+load(":known_shas.bzl", "FILE_KEY_TO_SHA")
+load(":repositories.bzl", "coco_toolchain_download")
+load(":version_aliases.bzl", "VERSION_ALIASES")
 
 # Tests for collect_cc_runtime_extra_deps
 
@@ -737,6 +740,118 @@ local_license_empty_home_test = unittest.make(_local_license_empty_home_test)
 local_license_unset_appdata_windows_test = unittest.make(_local_license_unset_appdata_windows_test)
 local_license_unset_appdata_ignored_off_windows_test = unittest.make(_local_license_unset_appdata_ignored_off_windows_test)
 
+# Tests for coco_toolchain_download
+
+# The supported platforms, and the archive each one downloads.
+_TOOLCHAIN_PLATFORMS = [
+    ("osx", "aarch64", "popili_darwin_arm64.zip"),
+    ("linux", "aarch64", "popili_linux_arm64.zip"),
+    ("linux", "x86_64", "popili_linux_amd64.zip"),
+    ("windows", "x86_64", "popili_windows_amd64.zip"),
+]
+
+def _coco_toolchain_download_url_test(ctx):
+    """The download URL keeps the archive/ prefix and the platform-mangled file name."""
+    env = unittest.begin(ctx)
+
+    for (os, arch, archive) in _TOOLCHAIN_PLATFORMS:
+        asserts.equals(
+            env,
+            "https://dl.cocotec.io/popili/archive/1.5.7/" + archive,
+            coco_toolchain_download("1.5.7", os, arch).url,
+        )
+
+    return unittest.end(env)
+
+def _coco_toolchain_download_sha_matches_known_shas_test(ctx):
+    """The checksum handed to download_and_extract is the one recorded in known_shas.bzl."""
+    env = unittest.begin(ctx)
+
+    for (os, arch, archive) in _TOOLCHAIN_PLATFORMS:
+        key = "1.5.7/" + archive
+        asserts.equals(
+            env,
+            FILE_KEY_TO_SHA.get(key, "<no known_shas.bzl entry for %s>" % key),
+            coco_toolchain_download("1.5.7", os, arch).sha256,
+            "wrong checksum for %s (known_shas.bzl key %r)" % (archive, key),
+        )
+
+    return unittest.end(env)
+
+def _coco_toolchain_download_all_platforms_verified_test(ctx):
+    """No released platform is downloaded without a checksum."""
+    env = unittest.begin(ctx)
+
+    for (os, arch, archive) in _TOOLCHAIN_PLATFORMS:
+        sha256 = coco_toolchain_download("1.5.7", os, arch).sha256
+        asserts.true(
+            env,
+            sha256 != "",
+            "1.5.7 %s/%s (%s) would be downloaded unverified" % (os, arch, archive),
+        )
+        asserts.equals(env, 64, len(sha256), "not a sha256 for %s: %r" % (archive, sha256))
+
+    return unittest.end(env)
+
+def _coco_toolchain_download_version_aliases_verified_test(ctx):
+    """Every version an alias resolves to is checksummed on every platform."""
+    env = unittest.begin(ctx)
+
+    for (alias, version) in VERSION_ALIASES.items():
+        for (os, arch, _archive) in _TOOLCHAIN_PLATFORMS:
+            asserts.true(
+                env,
+                coco_toolchain_download(version, os, arch).sha256 != "",
+                "alias %r (%s) %s/%s would be downloaded unverified" % (alias, version, os, arch),
+            )
+
+    return unittest.end(env)
+
+def _coco_toolchain_download_prerelease_test(ctx):
+    """Pre-release versions are checksummed too, and keep their URL shape."""
+    env = unittest.begin(ctx)
+
+    download = coco_toolchain_download("1.5.0-rc.1", "osx", "aarch64")
+
+    asserts.equals(
+        env,
+        "https://dl.cocotec.io/popili/archive/1.5.0-rc.1/popili_darwin_arm64.zip",
+        download.url,
+    )
+    asserts.equals(
+        env,
+        FILE_KEY_TO_SHA.get("1.5.0-rc.1/popili_darwin_arm64.zip"),
+        download.sha256,
+    )
+
+    return unittest.end(env)
+
+def _coco_toolchain_download_unknown_version_test(ctx):
+    """A popili release newer than this rules_coco still downloads, just unverified.
+
+    rules_coco must stay forward compatible: a version with no known_shas.bzl entry
+    yields an empty checksum rather than failing, so the download still goes ahead.
+    """
+    env = unittest.begin(ctx)
+
+    download = coco_toolchain_download("9.9.9", "linux", "x86_64")
+
+    asserts.equals(
+        env,
+        "https://dl.cocotec.io/popili/archive/9.9.9/popili_linux_amd64.zip",
+        download.url,
+    )
+    asserts.equals(env, "", download.sha256)
+
+    return unittest.end(env)
+
+coco_toolchain_download_url_test = unittest.make(_coco_toolchain_download_url_test)
+coco_toolchain_download_sha_matches_known_shas_test = unittest.make(_coco_toolchain_download_sha_matches_known_shas_test)
+coco_toolchain_download_all_platforms_verified_test = unittest.make(_coco_toolchain_download_all_platforms_verified_test)
+coco_toolchain_download_version_aliases_verified_test = unittest.make(_coco_toolchain_download_version_aliases_verified_test)
+coco_toolchain_download_prerelease_test = unittest.make(_coco_toolchain_download_prerelease_test)
+coco_toolchain_download_unknown_version_test = unittest.make(_coco_toolchain_download_unknown_version_test)
+
 def coco_test_suite(name):
     """Create test suite for coco functions.
 
@@ -793,4 +908,12 @@ def coco_test_suite(name):
         local_license_empty_home_test,
         local_license_unset_appdata_windows_test,
         local_license_unset_appdata_ignored_off_windows_test,
+
+        # coco_toolchain_download tests
+        coco_toolchain_download_url_test,
+        coco_toolchain_download_sha_matches_known_shas_test,
+        coco_toolchain_download_all_platforms_verified_test,
+        coco_toolchain_download_version_aliases_verified_test,
+        coco_toolchain_download_prerelease_test,
+        coco_toolchain_download_unknown_version_test,
     )
