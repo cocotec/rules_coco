@@ -15,8 +15,16 @@
 """Unit tests for coco.bzl functions."""
 
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
+load(
+    "//testdata:name_mangling_corpus.bzl",
+    "CORPUS_STYLES",
+    "MANGLE_CASES",
+    "PATH_CASES",
+    "PATH_CASE_DEFAULTS",
+    "STYLES_RULES_COCO_UNSUPPORTED",
+)
 load(":cc_runtime_deps.bzl", "collect_cc_runtime_extra_deps")
-load(":coco.bzl", "compute_output_filenames", "mangle_name")
+load(":coco.bzl", "compute_output_paths", "mangle_name", "module_path_for", "package_relative_dir")
 load(":common_repositories.bzl", "find_local_license_path")
 load(":known_shas.bzl", "FILE_KEY_TO_SHA")
 load(":repositories.bzl", "coco_toolchain_download")
@@ -151,416 +159,170 @@ cc_runtime_deps_non_root_rejected_test = unittest.make(_cc_runtime_deps_non_root
 cc_runtime_deps_non_root_rejected_even_when_root_also_present_test = unittest.make(_cc_runtime_deps_non_root_rejected_even_when_root_also_present_test)
 cc_runtime_deps_unknown_version_test = unittest.make(_cc_runtime_deps_unknown_version_test)
 
-# Tests for _mangle_name function
+# Corpus-driven tests for name mangling
+#
+# The expected values live in //testdata:name_mangling_corpus.bzl, which popili
+# loads too: it depends on rules_coco as a Bazel module and asserts against the
+# same cases. One shared file, loaded by both, is what stops the two
+# implementations drifting; see testdata/README.md for the semantics and the
+# update procedure.
+#
+# Cases are not written inline here on purpose: an expectation that lives only
+# in this repo is exactly how the divergences these tests were written for went
+# unnoticed.
 
-def _mangle_name_unaltered_test(ctx):
-    """Test that Unaltered style returns the original name."""
+# Styles the corpus carries that rules_coco deliberately does not implement.
+# Listing one here is a decision, not an omission; _corpus_styles_test fails if
+# a corpus style is neither implemented nor listed.
+_UNIMPLEMENTED_STYLE_REASONS = {
+    "LowerCamelCasePrefixUnderscore": "popili-only; no coco_generate attribute maps to it",
+    "UnalteredButValid": "popili sanitises without re-casing; no coco_generate attribute maps to it",
+}
+
+def supported_corpus_styles():
+    """Corpus styles that rules_coco implements and therefore tests.
+
+    Returns:
+        A sorted list of style names.
+    """
+    return [s for s in CORPUS_STYLES if s not in _UNIMPLEMENTED_STYLE_REASONS]
+
+def _mangle_corpus_test_impl(ctx):
     env = unittest.begin(ctx)
 
-    asserts.equals(env, "ExampleName", mangle_name("ExampleName", "Unaltered"))
-    asserts.equals(env, "example_name", mangle_name("example_name", "Unaltered"))
-    asserts.equals(env, "EXAMPLE", mangle_name("EXAMPLE", "Unaltered"))
-    asserts.equals(env, "", mangle_name("", "Unaltered"))
+    style = ctx.attr.style
+    for case in MANGLE_CASES:
+        if case["style"] != style:
+            continue
+        asserts.equals(
+            env,
+            case["expected"],
+            mangle_name(case["input"], style),
+            "corpus: mangle_name(%r, %r)" % (case["input"], style),
+        )
 
     return unittest.end(env)
 
-def _mangle_name_lower_camel_test(ctx):
-    """Test LowerCamelCase style."""
+mangle_corpus_test = unittest.make(
+    _mangle_corpus_test_impl,
+    attrs = {"style": attr.string(mandatory = True)},
+)
+
+def _path_corpus_test_impl(ctx):
     env = unittest.begin(ctx)
 
-    asserts.equals(env, "exampleName", mangle_name("ExampleName", "LowerCamelCase"))
-    asserts.equals(env, "exampleName", mangle_name("exampleName", "LowerCamelCase"))
-    asserts.equals(env, "aBCDef", mangle_name("ABCDef", "LowerCamelCase"))
-    asserts.equals(env, "example", mangle_name("Example", "LowerCamelCase"))
-    asserts.equals(env, "a", mangle_name("A", "LowerCamelCase"))
-    asserts.equals(env, "example", mangle_name("example", "LowerCamelCase"))
+    for case in PATH_CASES:
+        if case["style"] in _UNIMPLEMENTED_STYLE_REASONS:
+            continue
+
+        # A case carries only the fields that differ from PATH_CASE_DEFAULTS,
+        # so most rows are just a module path, a style and the expectation.
+        config = struct(
+            file_name_mangler = case["style"],
+            header_prefix = case.get("header_prefix", PATH_CASE_DEFAULTS["header_prefix"]),
+            header_extension = case.get("header_extension", PATH_CASE_DEFAULTS["header_extension"]),
+            impl_prefix = case.get("impl_prefix", PATH_CASE_DEFAULTS["impl_prefix"]),
+            impl_extension = case.get("impl_extension", PATH_CASE_DEFAULTS["impl_extension"]),
+            mocks = case.get("mocks", PATH_CASE_DEFAULTS["mocks"]),
+            flat_hierarchy = case.get("flat_hierarchy", PATH_CASE_DEFAULTS["flat_hierarchy"]),
+        )
+        result = compute_output_paths(case["module_path"], config)
+        expected = case["expected"]
+        label = "corpus: %s under %s" % ("/".join(case["module_path"]), case["style"])
+
+        asserts.equals(env, expected["header"], result.header, label + " (header)")
+        asserts.equals(env, expected["impl"], result.impl, label + " (impl)")
+        asserts.equals(env, expected.get("mock_header"), result.mock_header, label + " (mock header)")
+        asserts.equals(env, expected.get("mock_impl"), result.mock_impl, label + " (mock impl)")
 
     return unittest.end(env)
 
-def _mangle_name_upper_camel_test(ctx):
-    """Test UpperCamelCase style."""
+path_corpus_test = unittest.make(_path_corpus_test_impl)
+
+def _corpus_styles_test_impl(ctx):
+    """Guards the corpus contract itself rather than any single case."""
     env = unittest.begin(ctx)
 
-    asserts.equals(env, "ExampleName", mangle_name("ExampleName", "UpperCamelCase"))
-    asserts.equals(env, "ExampleName", mangle_name("exampleName", "UpperCamelCase"))
-    asserts.equals(env, "Example", mangle_name("example", "UpperCamelCase"))
-    asserts.equals(env, "ABCDef", mangle_name("ABCDef", "UpperCamelCase"))
-    asserts.equals(env, "A", mangle_name("a", "UpperCamelCase"))
-
-    return unittest.end(env)
-
-def _mangle_name_lower_underscore_test(ctx):
-    """Test LowerUnderscore (snake_case) style."""
-    env = unittest.begin(ctx)
-
-    asserts.equals(env, "example_name", mangle_name("ExampleName", "LowerUnderscore"))
-    asserts.equals(env, "a_b_c_def", mangle_name("ABCDef", "LowerUnderscore"))
-    asserts.equals(env, "example", mangle_name("Example", "LowerUnderscore"))
-    asserts.equals(env, "example", mangle_name("example", "LowerUnderscore"))
-    asserts.equals(env, "a", mangle_name("A", "LowerUnderscore"))
-    asserts.equals(env, "my_example_name", mangle_name("MyExampleName", "LowerUnderscore"))
-    asserts.equals(env, "example_name", mangle_name("exampleName", "LowerUnderscore"))
-
-    return unittest.end(env)
-
-def _mangle_name_upper_underscore_test(ctx):
-    """Test UpperUnderscore (UPPER_SNAKE_CASE) style."""
-    env = unittest.begin(ctx)
-
-    asserts.equals(env, "EXAMPLE_NAME", mangle_name("ExampleName", "UpperUnderscore"))
-    asserts.equals(env, "A_B_C_DEF", mangle_name("ABCDef", "UpperUnderscore"))
-    asserts.equals(env, "EXAMPLE", mangle_name("Example", "UpperUnderscore"))
-    asserts.equals(env, "EXAMPLE", mangle_name("example", "UpperUnderscore"))
-    asserts.equals(env, "A", mangle_name("A", "UpperUnderscore"))
-
-    return unittest.end(env)
-
-def _mangle_name_caps_upper_underscore_test(ctx):
-    """Test CapsUpperUnderscore style (should be same as UpperUnderscore)."""
-    env = unittest.begin(ctx)
-
-    asserts.equals(env, "EXAMPLE_NAME", mangle_name("ExampleName", "CapsUpperUnderscore"))
-    asserts.equals(env, "A_B_C_DEF", mangle_name("ABCDef", "CapsUpperUnderscore"))
-    asserts.equals(env, "EXAMPLE", mangle_name("Example", "CapsUpperUnderscore"))
-
-    return unittest.end(env)
-
-def _mangle_name_edge_cases_test(ctx):
-    """Test edge cases for name mangling."""
-    env = unittest.begin(ctx)
-
-    # All uppercase
-    asserts.equals(env, "a_b_c", mangle_name("ABC", "LowerUnderscore"))
-
-    # Numbers (should be treated as part of word)
-    asserts.equals(env, "example123_name", mangle_name("Example123Name", "LowerUnderscore"))
-
-    return unittest.end(env)
-
-mangle_name_unaltered_test = unittest.make(_mangle_name_unaltered_test)
-mangle_name_lower_camel_test = unittest.make(_mangle_name_lower_camel_test)
-mangle_name_upper_camel_test = unittest.make(_mangle_name_upper_camel_test)
-mangle_name_lower_underscore_test = unittest.make(_mangle_name_lower_underscore_test)
-mangle_name_upper_underscore_test = unittest.make(_mangle_name_upper_underscore_test)
-mangle_name_caps_upper_underscore_test = unittest.make(_mangle_name_caps_upper_underscore_test)
-mangle_name_edge_cases_test = unittest.make(_mangle_name_edge_cases_test)
-
-# Tests for _compute_output_filenames function
-
-def _compute_output_filenames_basic_test(ctx):
-    """Test basic output filename computation."""
-    env = unittest.begin(ctx)
-
-    config = struct(
-        file_name_mangler = "Unaltered",
-        header_prefix = "",
-        header_extension = ".h",
-        impl_prefix = "",
-        impl_extension = ".cc",
-        mocks = False,
-        flat_hierarchy = False,
-        root_output_dir = None,
+    # Fails in both directions: a style popili adds is unaccounted for until
+    # someone implements or allowlists it, and a style popili removes leaves a
+    # stale allowlist entry behind.
+    asserts.equals(
+        env,
+        sorted(CORPUS_STYLES),
+        sorted(supported_corpus_styles() + _UNIMPLEMENTED_STYLE_REASONS.keys()),
+        "every corpus style must be implemented by mangle_name or listed in " +
+        "_UNIMPLEMENTED_STYLE_REASONS",
     )
 
-    result = compute_output_filenames("Example.coco", config)
-
-    asserts.equals(env, "Example.h", result.header)
-    asserts.equals(env, "Example.cc", result.impl)
-    asserts.equals(env, None, result.mock_header)
-    asserts.equals(env, None, result.mock_impl)
-
-    return unittest.end(env)
-
-def _compute_output_filenames_with_prefixes_test(ctx):
-    """Test output filename computation with prefixes."""
-    env = unittest.begin(ctx)
-
-    config = struct(
-        file_name_mangler = "Unaltered",
-        header_prefix = "api_",
-        header_extension = ".h",
-        impl_prefix = "impl_",
-        impl_extension = ".cc",
-        mocks = False,
-        flat_hierarchy = False,
-        root_output_dir = None,
+    asserts.equals(
+        env,
+        sorted(STYLES_RULES_COCO_UNSUPPORTED),
+        sorted(_UNIMPLEMENTED_STYLE_REASONS.keys()),
+        "the corpus and this file disagree about which styles rules_coco implements",
     )
 
-    result = compute_output_filenames("Example.coco", config)
-
-    asserts.equals(env, "api_Example.h", result.header)
-    asserts.equals(env, "impl_Example.cc", result.impl)
+    # Every supported style must actually be exercised by at least one case, so
+    # that a style cannot be "covered" by an empty loop.
+    styles_in_corpus = {case["style"]: True for case in MANGLE_CASES}
+    for style in supported_corpus_styles():
+        asserts.true(
+            env,
+            style in styles_in_corpus,
+            "no corpus case exercises style %s" % style,
+        )
 
     return unittest.end(env)
 
-def _compute_output_filenames_with_extensions_test(ctx):
-    """Test output filename computation with custom extensions."""
+corpus_styles_test = unittest.make(_corpus_styles_test_impl)
+
+# Tests for the source-path plumbing that feeds the corpus path cases.
+# These cover rules_coco-only concepts that popili has no equivalent for, so
+# they cannot live in the shared corpus.
+
+def _module_path_for_test_impl(ctx):
     env = unittest.begin(ctx)
 
-    config = struct(
-        file_name_mangler = "Unaltered",
-        header_prefix = "",
-        header_extension = ".hpp",
-        impl_prefix = "",
-        impl_extension = ".cpp",
-        mocks = False,
-        flat_hierarchy = False,
-        root_output_dir = None,
+    # A source directly in the source root.
+    asserts.equals(
+        env,
+        ["ExampleName"],
+        module_path_for(struct(path = "pkg/src/ExampleName.coco"), "pkg", "src"),
     )
 
-    result = compute_output_filenames("Example.coco", config)
+    # A source in a subdirectory: the subdirectory is part of the module path,
+    # which is why it gets mangled too.
+    asserts.equals(
+        env,
+        ["Geometry", "Dims"],
+        module_path_for(struct(path = "pkg/src/Geometry/Dims.coco"), "pkg", "src"),
+    )
 
-    asserts.equals(env, "Example.hpp", result.header)
-    asserts.equals(env, "Example.cpp", result.impl)
+    # No source root, i.e. sources sit directly beside Coco.toml.
+    asserts.equals(
+        env,
+        ["Runnable"],
+        module_path_for(struct(path = "pkg/Runnable.coco"), "pkg", ""),
+    )
 
     return unittest.end(env)
 
-def _compute_output_filenames_with_mangling_test(ctx):
-    """Test output filename computation with name mangling."""
+def _package_relative_dir_test_impl(ctx):
     env = unittest.begin(ctx)
 
-    config = struct(
-        file_name_mangler = "LowerUnderscore",
-        header_prefix = "",
-        header_extension = ".h",
-        impl_prefix = "",
-        impl_extension = ".cc",
-        mocks = False,
-        flat_hierarchy = False,
-        root_output_dir = None,
-    )
+    # Coco.toml beside the BUILD file: paths.relativize would return the path
+    # unchanged here, so this is the case the helper exists for.
+    asserts.equals(env, "", package_relative_dir("test/pkg", "test/pkg"))
 
-    result = compute_output_filenames("ExampleName.coco", config)
+    # Coco.toml in a subdirectory of the BUILD file's package.
+    asserts.equals(env, "app", package_relative_dir("test/pkg/app", "test/pkg"))
 
-    asserts.equals(env, "example_name.h", result.header)
-    asserts.equals(env, "example_name.cc", result.impl)
+    # BUILD file at the repository root.
+    asserts.equals(env, "test/pkg", package_relative_dir("test/pkg", ""))
 
     return unittest.end(env)
 
-def _compute_output_filenames_with_mocks_test(ctx):
-    """Test output filename computation with mocks enabled."""
-    env = unittest.begin(ctx)
-
-    config = struct(
-        file_name_mangler = "Unaltered",
-        header_prefix = "",
-        header_extension = ".h",
-        impl_prefix = "",
-        impl_extension = ".cc",
-        mocks = True,
-        flat_hierarchy = False,
-        root_output_dir = None,
-    )
-
-    result = compute_output_filenames("Example.coco", config)
-
-    asserts.equals(env, "Example.h", result.header)
-    asserts.equals(env, "Example.cc", result.impl)
-    asserts.equals(env, "ExampleMock.h", result.mock_header)
-    asserts.equals(env, "ExampleMock.cc", result.mock_impl)
-
-    return unittest.end(env)
-
-def _compute_output_filenames_flat_hierarchy_test(ctx):
-    """Test output filename computation with flat hierarchy."""
-    env = unittest.begin(ctx)
-
-    config = struct(
-        file_name_mangler = "Unaltered",
-        header_prefix = "",
-        header_extension = ".h",
-        impl_prefix = "",
-        impl_extension = ".cc",
-        mocks = False,
-        flat_hierarchy = True,
-        root_output_dir = "src",
-    )
-
-    result = compute_output_filenames("Example.coco", config)
-
-    asserts.equals(env, "src/Example.h", result.header)
-    asserts.equals(env, "src/Example.cc", result.impl)
-
-    return unittest.end(env)
-
-def _compute_output_filenames_flat_hierarchy_no_root_test(ctx):
-    """Test flat hierarchy with no root output directory."""
-    env = unittest.begin(ctx)
-
-    config = struct(
-        file_name_mangler = "Unaltered",
-        header_prefix = "",
-        header_extension = ".h",
-        impl_prefix = "",
-        impl_extension = ".cc",
-        mocks = False,
-        flat_hierarchy = True,
-        root_output_dir = None,
-    )
-
-    result = compute_output_filenames("Example.coco", config)
-
-    asserts.equals(env, "Example.h", result.header)
-    asserts.equals(env, "Example.cc", result.impl)
-
-    return unittest.end(env)
-
-def _compute_output_filenames_combined_test(ctx):
-    """Test output filename computation with all options combined."""
-    env = unittest.begin(ctx)
-
-    config = struct(
-        file_name_mangler = "LowerUnderscore",
-        header_prefix = "api_",
-        header_extension = ".hpp",
-        impl_prefix = "impl_",
-        impl_extension = ".cpp",
-        mocks = True,
-        flat_hierarchy = True,
-        root_output_dir = "generated",
-    )
-
-    result = compute_output_filenames("ExampleName.coco", config)
-
-    asserts.equals(env, "generated/api_example_name.hpp", result.header)
-    asserts.equals(env, "generated/impl_example_name.cpp", result.impl)
-    asserts.equals(env, "generated/api_example_nameMock.hpp", result.mock_header)
-    asserts.equals(env, "generated/impl_example_nameMock.cpp", result.mock_impl)
-
-    return unittest.end(env)
-
-# Tests for C language output filename computation
-
-def _compute_output_filenames_c_basic_test(ctx):
-    """Test basic C output filename computation."""
-    env = unittest.begin(ctx)
-
-    config = struct(
-        file_name_mangler = "Unaltered",
-        header_prefix = "",
-        header_extension = ".h",
-        impl_prefix = "",
-        impl_extension = ".c",
-        mocks = False,
-        flat_hierarchy = False,
-        root_output_dir = None,
-    )
-
-    result = compute_output_filenames("Example.coco", config)
-
-    asserts.equals(env, "Example.h", result.header)
-    asserts.equals(env, "Example.c", result.impl)
-    asserts.equals(env, None, result.mock_header)
-    asserts.equals(env, None, result.mock_impl)
-
-    return unittest.end(env)
-
-def _compute_output_filenames_c_with_prefixes_test(ctx):
-    """Test C output filename computation with prefixes."""
-    env = unittest.begin(ctx)
-
-    config = struct(
-        file_name_mangler = "Unaltered",
-        header_prefix = "api_",
-        header_extension = ".h",
-        impl_prefix = "impl_",
-        impl_extension = ".c",
-        mocks = False,
-        flat_hierarchy = False,
-        root_output_dir = None,
-    )
-
-    result = compute_output_filenames("Example.coco", config)
-
-    asserts.equals(env, "api_Example.h", result.header)
-    asserts.equals(env, "impl_Example.c", result.impl)
-
-    return unittest.end(env)
-
-def _compute_output_filenames_c_with_mangling_test(ctx):
-    """Test C output filename computation with name mangling."""
-    env = unittest.begin(ctx)
-
-    config = struct(
-        file_name_mangler = "LowerUnderscore",
-        header_prefix = "",
-        header_extension = ".h",
-        impl_prefix = "",
-        impl_extension = ".c",
-        mocks = False,
-        flat_hierarchy = False,
-        root_output_dir = None,
-    )
-
-    result = compute_output_filenames("ExampleName.coco", config)
-
-    asserts.equals(env, "example_name.h", result.header)
-    asserts.equals(env, "example_name.c", result.impl)
-
-    return unittest.end(env)
-
-def _compute_output_filenames_c_flat_hierarchy_test(ctx):
-    """Test C output filename computation with flat hierarchy."""
-    env = unittest.begin(ctx)
-
-    config = struct(
-        file_name_mangler = "Unaltered",
-        header_prefix = "",
-        header_extension = ".h",
-        impl_prefix = "",
-        impl_extension = ".c",
-        mocks = False,
-        flat_hierarchy = True,
-        root_output_dir = "src",
-    )
-
-    result = compute_output_filenames("Example.coco", config)
-
-    asserts.equals(env, "src/Example.h", result.header)
-    asserts.equals(env, "src/Example.c", result.impl)
-
-    return unittest.end(env)
-
-def _compute_output_filenames_c_combined_test(ctx):
-    """Test C output filename computation with all options combined."""
-    env = unittest.begin(ctx)
-
-    config = struct(
-        file_name_mangler = "LowerUnderscore",
-        header_prefix = "api_",
-        header_extension = ".h",
-        impl_prefix = "impl_",
-        impl_extension = ".c",
-        mocks = True,
-        flat_hierarchy = True,
-        root_output_dir = "generated",
-    )
-
-    result = compute_output_filenames("ExampleName.coco", config)
-
-    asserts.equals(env, "generated/api_example_name.h", result.header)
-    asserts.equals(env, "generated/impl_example_name.c", result.impl)
-    asserts.equals(env, "generated/api_example_nameMock.h", result.mock_header)
-    asserts.equals(env, "generated/impl_example_nameMock.c", result.mock_impl)
-
-    return unittest.end(env)
-
-# Create test rules for compute_output_filenames
-compute_output_filenames_basic_test = unittest.make(_compute_output_filenames_basic_test)
-compute_output_filenames_with_prefixes_test = unittest.make(_compute_output_filenames_with_prefixes_test)
-compute_output_filenames_with_extensions_test = unittest.make(_compute_output_filenames_with_extensions_test)
-compute_output_filenames_with_mangling_test = unittest.make(_compute_output_filenames_with_mangling_test)
-compute_output_filenames_with_mocks_test = unittest.make(_compute_output_filenames_with_mocks_test)
-compute_output_filenames_flat_hierarchy_test = unittest.make(_compute_output_filenames_flat_hierarchy_test)
-compute_output_filenames_flat_hierarchy_no_root_test = unittest.make(_compute_output_filenames_flat_hierarchy_no_root_test)
-compute_output_filenames_combined_test = unittest.make(_compute_output_filenames_combined_test)
-
-# Create test rules for C language compute_output_filenames
-compute_output_filenames_c_basic_test = unittest.make(_compute_output_filenames_c_basic_test)
-compute_output_filenames_c_with_prefixes_test = unittest.make(_compute_output_filenames_c_with_prefixes_test)
-compute_output_filenames_c_with_mangling_test = unittest.make(_compute_output_filenames_c_with_mangling_test)
-compute_output_filenames_c_flat_hierarchy_test = unittest.make(_compute_output_filenames_c_flat_hierarchy_test)
-compute_output_filenames_c_combined_test = unittest.make(_compute_output_filenames_c_combined_test)
+module_path_for_test = unittest.make(_module_path_for_test_impl)
+package_relative_dir_test = unittest.make(_package_relative_dir_test_impl)
 
 # Tests for find_local_license_path
 
@@ -858,34 +620,25 @@ def coco_test_suite(name):
     Args:
         name: The name of the test suite.
     """
+
+    # The corpus tests are instantiated by name rather than through
+    # unittest.suite, which numbers its targets ("%s_test_%d"). A CI failure
+    # should say which style broke, and adding a case should not renumber
+    # every other target.
+    corpus_tests = []
+    for style in supported_corpus_styles():
+        target = "mangle_corpus_%s_test" % style
+        mangle_corpus_test(name = target, style = style)
+        corpus_tests.append(":" + target)
+
+    path_corpus_test(name = "path_corpus_test")
+    corpus_styles_test(name = "corpus_styles_test")
+    corpus_tests += [":path_corpus_test", ":corpus_styles_test"]
+
     unittest.suite(
-        name,
-
-        # _mangle_name tests
-        mangle_name_unaltered_test,
-        mangle_name_lower_camel_test,
-        mangle_name_upper_camel_test,
-        mangle_name_lower_underscore_test,
-        mangle_name_upper_underscore_test,
-        mangle_name_caps_upper_underscore_test,
-        mangle_name_edge_cases_test,
-
-        # _compute_output_filenames tests (C++)
-        compute_output_filenames_basic_test,
-        compute_output_filenames_with_prefixes_test,
-        compute_output_filenames_with_extensions_test,
-        compute_output_filenames_with_mangling_test,
-        compute_output_filenames_with_mocks_test,
-        compute_output_filenames_flat_hierarchy_test,
-        compute_output_filenames_flat_hierarchy_no_root_test,
-        compute_output_filenames_combined_test,
-
-        # _compute_output_filenames tests (C)
-        compute_output_filenames_c_basic_test,
-        compute_output_filenames_c_with_prefixes_test,
-        compute_output_filenames_c_with_mangling_test,
-        compute_output_filenames_c_flat_hierarchy_test,
-        compute_output_filenames_c_combined_test,
+        name + "_unit",
+        module_path_for_test,
+        package_relative_dir_test,
 
         # collect_cc_runtime_extra_deps tests
         cc_runtime_deps_root_single_version_test,
@@ -916,4 +669,9 @@ def coco_test_suite(name):
         coco_toolchain_download_version_aliases_verified_test,
         coco_toolchain_download_prerelease_test,
         coco_toolchain_download_unknown_version_test,
+    )
+
+    native.test_suite(
+        name = name,
+        tests = [":" + name + "_unit"] + corpus_tests,
     )

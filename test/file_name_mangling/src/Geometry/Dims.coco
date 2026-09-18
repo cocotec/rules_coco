@@ -1,0 +1,3 @@
+// Nested directory: popili mangles directory components too, so this is
+// written to "geometry/dims", not "Geometry/dims".
+function dims() : String = "Hello from a nested mangled path"

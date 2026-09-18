@@ -665,106 +665,235 @@ verification does not pass.""",
     implementation = _coco_verify_test_macro_impl,
 )
 
+# The file name mangler styles rules_coco implements. popili has two more
+# (UnalteredButValid, LowerCamelCasePrefixUnderscore) that no coco_generate
+# attribute maps to; see STYLES_RULES_COCO_UNSUPPORTED in the test corpus.
+FILE_NAME_MANGLER_STYLES = [
+    "Unaltered",
+    "LowerCamelCase",
+    "UpperCamelCase",
+    "LowerUnderscore",
+    "UpperUnderscore",
+    "CapsUpperUnderscore",
+]
+
+_UNDERSCORE_STYLES = ["LowerUnderscore", "UpperUnderscore", "CapsUpperUnderscore"]
+_ASCII_LOWER = "abcdefghijklmnopqrstuvwxyz"
+_ASCII_UPPER = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+_ASCII_DIGITS = "0123456789"
+
+# These deliberately test ASCII membership rather than using Starlark's
+# .isalpha()/.islower(), which are Unicode-aware. popili's helpers are
+# ASCII-only, so this keeps the two implementations identical.
+
+def _is_ascii_lower(char):
+    return len(char) == 1 and char in _ASCII_LOWER
+
+def _is_ascii_upper(char):
+    return len(char) == 1 and char in _ASCII_UPPER
+
+def _is_alpha(char):
+    return _is_ascii_lower(char) or _is_ascii_upper(char)
+
+def _is_valid_character(char):
+    """The characters popili's name mangler keeps: alphanumeric or underscore."""
+    return char == "_" or (len(char) == 1 and char in _ASCII_DIGITS) or _is_alpha(char)
+
+def _starts_new_word(previous, current):
+    """Does this character begin a new word, as popili's name mangler sees it?
+
+    A new word starts only at an underscore, or at a lower->upper transition
+    between two alphabetic characters. This is why runs of capitals are never
+    split (ABCDef -> abcdef) and why a digit suppresses the boundary that
+    follows it (Level2Sensor -> level2sensor).
+    """
+    if current == "_":
+        return True
+    return (
+        previous != "" and
+        _is_alpha(previous) and
+        _is_alpha(current) and
+        _is_ascii_lower(previous) and
+        _is_ascii_upper(current)
+    )
+
 def _mangle_name(name, style):
     """Apply name mangling based on the specified style.
 
+    rules_coco has to predict the file names popili will write,
+    so this implementation has to be identical to popili's.
+
     Args:
         name: The name to mangle
-        style: One of: Unaltered, LowerCamelCase, UpperCamelCase, LowerUnderscore, UpperUnderscore, CapsUpperUnderscore
+        style: One of FILE_NAME_MANGLER_STYLES
 
     Returns:
         The mangled name
     """
-    if style == "Unaltered":
-        return name
-
-    # Split on uppercase letters to get word boundaries
-    words = []
-    current_word = ""
-    for i, char in enumerate(name.elems()):
-        if char.isupper() and i > 0 and current_word:
-            words.append(current_word)
-            current_word = char
-        else:
-            current_word += char
-    if current_word:
-        words.append(current_word)
-
-    if style == "LowerCamelCase":
-        if not words:
-            return name
-        return words[0].lower() + "".join([w.capitalize() for w in words[1:]])
-    elif style == "UpperCamelCase":
-        return "".join([w.capitalize() for w in words])
-    elif style == "LowerUnderscore":
-        return "_".join([w.lower() for w in words])
-    elif style == "UpperUnderscore":
-        return "_".join([w.upper() for w in words])
-    elif style == "CapsUpperUnderscore":
-        return "_".join([w.upper() for w in words])
-    else:
+    if style not in FILE_NAME_MANGLER_STYLES:
         fail("Unsupported file name mangler style: %s" % style)
 
-def _compute_output_filenames(src_basename, config):
-    """Compute output filenames for a source file.
+    is_underscore_style = style in _UNDERSCORE_STYLES
+    is_lower_camel_case = style == "LowerCamelCase"
 
-    This is a pure function that computes the output filenames without declaring
-    any files. It can be unit tested.
+    buffer = []
+    is_new_word = True
+    is_first_word = True
+    previous = ""
+
+    for current in name.elems():
+        # Unaltered keeps every character, including ones that are not valid
+        # identifier characters.
+        if style == "Unaltered":
+            buffer.append(current)
+            previous = current
+            continue
+
+        # Characters that are neither alphanumeric nor '_' are dropped, but
+        # they still break the current word.
+        if not _is_valid_character(current):
+            is_new_word = True
+            previous = current
+            continue
+
+        # The *CamelCase styles drop underscores; the *Underscore styles keep
+        # them verbatim.
+        if current == "_" and not is_underscore_style:
+            is_new_word = True
+            previous = current
+            continue
+
+        is_new_word = is_new_word or previous == "" or _starts_new_word(previous, current)
+
+        should_be_upper = False
+        if is_new_word:
+            should_be_upper = (
+                style == "UpperUnderscore" or
+                style == "CapsUpperUnderscore" or
+                style == "UpperCamelCase" or
+                (is_lower_camel_case and not is_first_word)
+            )
+
+            # Add a separator, but never double an underscore that the input
+            # already supplied.
+            if (is_underscore_style and not is_first_word and current != "_" and
+                (not buffer or buffer[-1] != "_")):
+                buffer.append("_")
+
+            is_first_word = False
+
+        # CapsUpperUnderscore is the only style that upper-cases every
+        # character rather than just the first of each word.
+        if style == "CapsUpperUnderscore":
+            should_be_upper = True
+
+        buffer.append(current.upper() if should_be_upper else current.lower())
+        previous = current
+        is_new_word = False
+
+    # popili's behaviour is undefined for an input that mangles to nothing.
+    # It is unreachable from real module names, which must be valid
+    # identifiers, so we simply return the empty string.
+    if not buffer:
+        return ""
+
+    # Ensure the result starts with a letter. Note that CapsUpperUnderscore
+    # gets a lowercase 'i' despite being an all-caps style; that asymmetry is
+    # popili's and is deliberately reproduced here.
+    if not _is_alpha(buffer[0]):
+        buffer.insert(0, "I" if style in ["UpperUnderscore", "UpperCamelCase"] else "i")
+
+    return "".join(buffer)
+
+def _join_path(components):
+    """Join non-empty path components with "/"."""
+    return "/".join([c for c in components if c])
+
+def _output_file_names(base_name, config):
+    """Compute the four output file names for an already-mangled base name.
+
+    popili appends the "Mock" suffix *after* mangling, and mangles neither the
+    suffix nor the prefixes.
 
     Args:
-        src_basename: The source file basename (e.g., "ExampleName.coco")
-        config: A struct with the following fields:
-            - file_name_mangler: The name mangling style
-            - header_prefix: Prefix for header files
-            - header_extension: Extension for header files
-            - impl_prefix: Prefix for implementation files
-            - impl_extension: Extension for implementation files
-            - mocks: Whether to generate mock files
-            - flat_hierarchy: Whether to use flat file hierarchy
-            - root_output_dir: Root output directory (for flat hierarchy)
+        base_name: The mangled base name
+        config: Language configuration struct
 
     Returns:
-        A struct with the following fields:
-            - header: Regular header filename
-            - impl: Regular implementation filename
-            - mock_header: Mock header filename (or None)
-            - mock_impl: Mock implementation filename (or None)
+        A struct with header, impl, mock_header and mock_impl names
     """
-
-    # Get the base name without extension
-    base_name = paths.split_extension(src_basename)[0]
-
-    # Apply name mangling
-    base_name = _mangle_name(base_name, config.file_name_mangler)
-
-    # Compute regular filenames
-    header_name = config.header_prefix + base_name + config.header_extension
-    impl_name = config.impl_prefix + base_name + config.impl_extension
-
-    # Handle flat hierarchy
-    if config.flat_hierarchy:
-        if config.root_output_dir:
-            header_name = paths.join(config.root_output_dir, header_name)
-            impl_name = paths.join(config.root_output_dir, impl_name)
-
-    # Compute mock filenames if needed
-    mock_header_name = None
-    mock_impl_name = None
+    mock_header = None
+    mock_impl = None
     if config.mocks:
-        mock_header_name = config.header_prefix + base_name + "Mock" + config.header_extension
-        mock_impl_name = config.impl_prefix + base_name + "Mock" + config.impl_extension
-
-        if config.flat_hierarchy:
-            if config.root_output_dir:
-                mock_header_name = paths.join(config.root_output_dir, mock_header_name)
-                mock_impl_name = paths.join(config.root_output_dir, mock_impl_name)
+        mock_header = config.header_prefix + base_name + "Mock" + config.header_extension
+        mock_impl = config.impl_prefix + base_name + "Mock" + config.impl_extension
 
     return struct(
-        header = header_name,
-        impl = impl_name,
-        mock_header = mock_header_name,
-        mock_impl = mock_impl_name,
+        header = config.header_prefix + base_name + config.header_extension,
+        impl = config.impl_prefix + base_name + config.impl_extension,
+        mock_header = mock_header,
+        mock_impl = mock_impl,
     )
+
+def _compute_output_paths(module_path, config):
+    """Compute output paths for a module, relative to the source root.
+
+    popili mangles *every* component of a module's path, not just the file
+    stem.
+
+    This is a pure function so it can be unit tested; the caller is responsible
+    for prepending the root output directory and declaring the files.
+
+    Args:
+        module_path: Path components relative to the source root, extension
+            stripped, e.g. ["Geometry", "Dims"]
+        config: Language configuration struct
+
+    Returns:
+        A struct with header, impl, mock_header and mock_impl paths
+    """
+    components = module_path
+    if config.flat_hierarchy:
+        # popili takes only the final component under a flat hierarchy
+        components = components[-1:]
+
+    mangled = [_mangle_name(component, config.file_name_mangler) for component in components]
+    directory = _join_path(mangled[:-1])
+    names = _output_file_names(mangled[-1], config)
+
+    return struct(
+        header = _join_path([directory, names.header]),
+        impl = _join_path([directory, names.impl]),
+        mock_header = _join_path([directory, names.mock_header]) if names.mock_header else None,
+        mock_impl = _join_path([directory, names.mock_impl]) if names.mock_impl else None,
+    )
+
+def _module_path_for(src, package_dir, root_output_dir):
+    """Path components of a source file relative to the source root.
+
+    Mirrors how popili derives a module's path from the source path relative
+    to the sources root. That path is what gets mangled, component by
+    component.
+
+    Args:
+        src: Source file
+        package_dir: Directory containing the package's Coco.toml
+        root_output_dir: Source root within the package (e.g. "src")
+
+    Returns:
+        A list of path components with the .coco extension stripped
+    """
+    relative_to_package = paths.relativize(src.path, package_dir)
+    if root_output_dir:
+        relative_to_root = paths.relativize(relative_to_package, root_output_dir)
+    else:
+        relative_to_root = relative_to_package
+
+    stem = relative_to_root
+    if stem.endswith(".coco"):
+        stem = stem[:-len(".coco")]
+
+    return stem.split("/")
 
 def _build_language_config(ctx, language, root_output_dir):
     """Build configuration struct for code generation.
@@ -804,44 +933,21 @@ def _build_language_config(ctx, language, root_output_dir):
     else:
         fail("unrecognised language: " + language)
 
-def _make_sibling_path_builder(ctx, src, flat_hierarchy):
-    """Create a path builder function for sibling-based file declaration.
+def _make_path_builder(ctx, package_relative_dir, root_output_dir):
+    """Create a path builder that declares files under the source root.
 
     Args:
         ctx: Rule context
-        src: Source file (used as sibling)
-        flat_hierarchy: Whether to use flat hierarchy
+        package_relative_dir: Path from the BUILD file to the package directory
+        root_output_dir: Source root within the package (e.g. "src")
 
     Returns:
-        Function(filename) -> declared file
+        Function(relative_path) -> declared file
     """
-    if flat_hierarchy:
-        return lambda filename: ctx.actions.declare_file(filename)
-    else:
-        return lambda filename: ctx.actions.declare_file(filename, sibling = src)
+    prefix = _join_path([package_relative_dir, root_output_dir])
+    return lambda relative_path: ctx.actions.declare_file(_join_path([prefix, relative_path]))
 
-def _make_explicit_path_builder(ctx, package_relative_dir, root_output_dir, src_subdir):
-    """Create a path builder function for explicit path-based file declaration.
-
-    Args:
-        ctx: Rule context
-        package_relative_dir: Path from BUILD file to package directory
-        root_output_dir: Root output directory
-        src_subdir: Subdirectory within source tree (may be empty string)
-
-    Returns:
-        Function(filename) -> declared file
-    """
-    if src_subdir:
-        return lambda filename: ctx.actions.declare_file(
-            paths.join(package_relative_dir, root_output_dir, src_subdir, filename),
-        )
-    else:
-        return lambda filename: ctx.actions.declare_file(
-            paths.join(package_relative_dir, root_output_dir, filename),
-        )
-
-def _declare_language_outputs(ctx, headers, sources, mock_headers, mock_sources, src, config, path_builder):
+def _declare_language_outputs(ctx, headers, sources, mock_headers, mock_sources, config, path_builder, module_path):
     """Core logic for declaring output files.
 
     Args:
@@ -850,36 +956,41 @@ def _declare_language_outputs(ctx, headers, sources, mock_headers, mock_sources,
         sources: List to append regular source outputs to
         mock_headers: List to append mock header outputs to
         mock_sources: List to append mock source outputs to
-        src: Source file
         config: Configuration struct (or None for C#)
-        path_builder: Function(filename) -> declared file
+        path_builder: Function(relative_path) -> declared file
+        module_path: Source path components relative to the source root
     """
     if ctx.attr.language == "cpp" or ctx.attr.language == "c":
-        # C and C++ use header/implementation file split
-        filenames = _compute_output_filenames(src.basename, config)
+        output_paths = _compute_output_paths(module_path, config)
 
-        headers.append(path_builder(filenames.header))
-        sources.append(path_builder(filenames.impl))
+        headers.append(path_builder(output_paths.header))
+        sources.append(path_builder(output_paths.impl))
 
-        if filenames.mock_header:
-            mock_headers.append(path_builder(filenames.mock_header))
-            mock_sources.append(path_builder(filenames.mock_impl))
+        if output_paths.mock_header:
+            mock_headers.append(path_builder(output_paths.mock_header))
+            mock_sources.append(path_builder(output_paths.mock_impl))
     elif ctx.attr.language == "csharp":
-        # C# generation - simple .cs files, always hierarchical
-        base_name = src.basename.removesuffix(".coco")
-        cs_file = base_name + ".cs"
-        sources.append(path_builder(cs_file))
+        # C# generation - simple .cs files, always hierarchical.
+        #
+        # popili's C# generator has neither a file name mangle style nor a
+        # flat hierarchy option, so there is nothing to honour here: it rejects
+        # fileNameMangler under [generator.csharp] outright and writes each
+        # path component verbatim. Components are used as-is and the hierarchy
+        # is always preserved.
+        #
+        # Note this is about *file* names only: C# identifiers are still
+        # mangled.
+        directory = _join_path(module_path[:-1])
+        base_name = module_path[-1]
+        sources.append(path_builder(_join_path([directory, base_name + ".cs"])))
 
         if ctx.attr.mocks:
-            mock_file = base_name + "Mock.cs"
-            mock_sources.append(path_builder(mock_file))
+            mock_sources.append(path_builder(_join_path([directory, base_name + "Mock.cs"])))
     else:
         fail("unrecognised language")
 
-def _add_outputs(ctx, headers, sources, mock_headers, mock_sources, src, root_output_dir):
+def _add_outputs(ctx, headers, sources, mock_headers, mock_sources, src, package_dir, package_relative_dir, root_output_dir):
     """Add outputs for source files from the current package.
-
-    Uses sibling-based file declaration for hierarchical layouts.
 
     Args:
         ctx: Rule context
@@ -888,19 +999,22 @@ def _add_outputs(ctx, headers, sources, mock_headers, mock_sources, src, root_ou
         mock_headers: List to append mock header outputs to
         mock_sources: List to append mock source outputs to
         src: Source file from the current package
+        package_dir: Directory containing the package's Coco.toml
+        package_relative_dir: Path from the BUILD file to the package directory
         root_output_dir: Root output directory
     """
     config = _build_language_config(ctx, ctx.attr.language, root_output_dir)
-    flat_hierarchy = config.flat_hierarchy if config else False
-    path_builder = _make_sibling_path_builder(ctx, src, flat_hierarchy)
-    _declare_language_outputs(ctx, headers, sources, mock_headers, mock_sources, src, config, path_builder)
+    module_path = _module_path_for(src, package_dir, root_output_dir)
+    path_builder = _make_path_builder(ctx, package_relative_dir, root_output_dir)
+    _declare_language_outputs(ctx, headers, sources, mock_headers, mock_sources, config, path_builder, module_path)
 
 def _add_regenerated_outputs(ctx, headers, sources, mock_headers, mock_sources, src, package_relative_dir, root_output_dir, regen_pkg_dir, regen_root_output_dir):
     """Add outputs for regenerated package files.
 
     Regenerated files are placed in the current package's output directory,
-    not in the original package's directory. This function computes the correct
-    output paths without using the sibling relationship, preserving subdirectory structure.
+    not in the original package's directory, so the path is built from the
+    current package's root output directory while the module path comes from
+    the regenerated package.
 
     Args:
         ctx: Rule context
@@ -914,18 +1028,30 @@ def _add_regenerated_outputs(ctx, headers, sources, mock_headers, mock_sources, 
         regen_pkg_dir: Regenerated package directory (e.g., "test/regenerate_packages/base")
         regen_root_output_dir: Regenerated package's root output dir (e.g., "source")
     """
-
-    # Compute subdirectory within regenerated package's source directory
-    # E.g., for "test/regenerate_packages/base/source/types/Dimension.coco"
-    # relative to "test/regenerate_packages/base" is "source/types/Dimension.coco"
-    # relative to "source" is "types/Dimension.coco", dirname is "types"
-    src_relative_to_pkg = paths.relativize(src.path, regen_pkg_dir)
-    src_relative_to_root = paths.relativize(src_relative_to_pkg, regen_root_output_dir)
-    src_subdir = paths.dirname(src_relative_to_root)  # e.g., "types" or ""
-
     config = _build_language_config(ctx, ctx.attr.language, root_output_dir)
-    path_builder = _make_explicit_path_builder(ctx, package_relative_dir, root_output_dir, src_subdir)
-    _declare_language_outputs(ctx, headers, sources, mock_headers, mock_sources, src, config, path_builder)
+    module_path = _module_path_for(src, regen_pkg_dir, regen_root_output_dir)
+    path_builder = _make_path_builder(ctx, package_relative_dir, root_output_dir)
+    _declare_language_outputs(ctx, headers, sources, mock_headers, mock_sources, config, path_builder, module_path)
+
+def _package_relative_dir(package_dir, label_package):
+    """Path from the BUILD file's directory to the package directory.
+
+    `paths.relativize` returns its input unchanged when the two paths are
+    equal, rather than "", so that case is handled explicitly. It matters
+    whenever Coco.toml sits next to the BUILD file, which is the common layout.
+
+    Args:
+        package_dir: Directory containing the package's Coco.toml
+        label_package: The BUILD file's package path
+
+    Returns:
+        The relative path, or "" when they are the same directory
+    """
+    if not label_package:
+        return package_dir
+    if package_dir == label_package:
+        return ""
+    return paths.relativize(package_dir, label_package)
 
 def _output_directory(package_dir, srcs):
     root_output_dir = None
@@ -962,7 +1088,7 @@ def _coco_package_generate_impl(ctx):
     # Add outputs for regenerated packages (using current package's settings)
     # Regenerated files go into the current package's output directory
     # Compute path relative to BUILD file: from ctx.label.package to package_dir
-    package_relative_dir = paths.relativize(package_dir, ctx.label.package) if ctx.label.package else package_dir
+    package_relative_dir = _package_relative_dir(package_dir, ctx.label.package)
     for regen_pkg in regenerate_pkgs:
         regen_pkg_dir = regen_pkg[CocoPackageInfo].package_file.dirname
         regen_root_output_dir = _output_directory(regen_pkg_dir, regen_pkg[CocoPackageInfo].direct_srcs)
@@ -970,9 +1096,9 @@ def _coco_package_generate_impl(ctx):
             _add_regenerated_outputs(ctx, headers, sources, mock_headers, mock_sources, src, package_relative_dir, root_output_dir, regen_pkg_dir, regen_root_output_dir)
 
     for src in srcs.to_list():
-        _add_outputs(ctx, headers, sources, mock_headers, mock_sources, src, root_output_dir)
+        _add_outputs(ctx, headers, sources, mock_headers, mock_sources, src, package_dir, package_relative_dir, root_output_dir)
     for src in test_srcs.to_list():
-        _add_outputs(ctx, test_headers, test_sources, mock_headers, mock_sources, src, test_root_output_dir)
+        _add_outputs(ctx, test_headers, test_sources, mock_headers, mock_sources, src, package_dir, package_relative_dir, test_root_output_dir)
     test_headers += mock_headers
     test_sources += mock_sources
     output_dir = paths.join(ctx.genfiles_dir.path, package_dir, root_output_dir)
@@ -1291,4 +1417,6 @@ coco_cc_gen = _coco_cc_gen
 
 # Exported for testing
 mangle_name = _mangle_name
-compute_output_filenames = _compute_output_filenames
+compute_output_paths = _compute_output_paths
+module_path_for = _module_path_for
+package_relative_dir = _package_relative_dir
