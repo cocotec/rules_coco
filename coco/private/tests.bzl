@@ -17,6 +17,7 @@
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
 load(":cc_runtime_deps.bzl", "collect_cc_runtime_extra_deps")
 load(":coco.bzl", "compute_output_filenames", "mangle_name")
+load(":common_repositories.bzl", "find_local_license_path")
 
 # Tests for collect_cc_runtime_extra_deps
 
@@ -558,6 +559,184 @@ compute_output_filenames_c_with_mangling_test = unittest.make(_compute_output_fi
 compute_output_filenames_c_flat_hierarchy_test = unittest.make(_compute_output_filenames_c_flat_hierarchy_test)
 compute_output_filenames_c_combined_test = unittest.make(_compute_output_filenames_c_combined_test)
 
+# Tests for find_local_license_path
+
+_LINUX_HOME = "/home/dev"
+_MAC_HOME = "/Users/dev"
+_WINDOWS_APPDATA = "C:\\Users\\dev\\AppData\\Roaming"
+
+def _fake_repository_ctx(os_name, existing, home = _LINUX_HOME, appdata = _WINDOWS_APPDATA):
+    """Builds a stand-in for a repository ctx that only knows about `existing` paths.
+
+    Passing None for `home` or `appdata` leaves that variable out of the
+    environment entirely, modelling an unset variable rather than an empty one.
+    """
+    environ = {}
+    if appdata != None:
+        environ["APPDATA"] = appdata
+    if home != None:
+        environ["HOME"] = home
+
+    return struct(
+        os = struct(
+            name = os_name,
+            environ = environ,
+        ),
+        existing = existing,
+    )
+
+def _fake_path_exists(ctx, path_str):
+    return path_str in ctx.existing
+
+def _local_license_suffixed_linux_test(ctx):
+    """The default local_user case: a suffixed Popili license under $HOME is found."""
+    env = unittest.begin(ctx)
+
+    license = "%s/.local/share/popili/licenses_6.lic" % _LINUX_HOME
+    fake = _fake_repository_ctx("linux", [license])
+
+    asserts.equals(env, license, find_local_license_path(fake, _fake_path_exists))
+
+    return unittest.end(env)
+
+def _local_license_suffixed_mac_test(ctx):
+    env = unittest.begin(ctx)
+
+    license = "%s/Library/Application Support/Popili/licenses_6.lic" % _MAC_HOME
+    fake = _fake_repository_ctx("mac os x", [license], home = _MAC_HOME)
+
+    asserts.equals(env, license, find_local_license_path(fake, _fake_path_exists))
+
+    return unittest.end(env)
+
+def _local_license_suffixed_windows_test(ctx):
+    env = unittest.begin(ctx)
+
+    license = "%s\\..\\LocalLow\\Popili\\licenses_6.lic" % _WINDOWS_APPDATA
+    fake = _fake_repository_ctx("windows 10", [license])
+
+    asserts.equals(env, license, find_local_license_path(fake, _fake_path_exists))
+
+    return unittest.end(env)
+
+def _local_license_unsuffixed_test(ctx):
+    """A license with no version suffix is found once the suffixed candidates miss."""
+    env = unittest.begin(ctx)
+
+    license = "%s/.local/share/popili/licenses.lic" % _LINUX_HOME
+    fake = _fake_repository_ctx("linux", [license])
+
+    asserts.equals(env, license, find_local_license_path(fake, _fake_path_exists))
+
+    return unittest.end(env)
+
+def _local_license_legacy_fallback_test(ctx):
+    """With no Popili license installed, the legacy Coco Platform path is used."""
+    env = unittest.begin(ctx)
+
+    license = "%s/.local/share/coco_platform/licenses_6.lic" % _LINUX_HOME
+    fake = _fake_repository_ctx("linux", [license])
+
+    asserts.equals(env, license, find_local_license_path(fake, _fake_path_exists))
+
+    return unittest.end(env)
+
+def _local_license_prefers_popili_over_legacy_test(ctx):
+    env = unittest.begin(ctx)
+
+    popili = "%s/.local/share/popili/licenses_6.lic" % _LINUX_HOME
+    legacy = "%s/.local/share/coco_platform/licenses_6.lic" % _LINUX_HOME
+    fake = _fake_repository_ctx("linux", [legacy, popili])
+
+    asserts.equals(env, popili, find_local_license_path(fake, _fake_path_exists))
+
+    return unittest.end(env)
+
+def _local_license_prefers_suffixed_over_unsuffixed_test(ctx):
+    """Suffix order wins over product order: a legacy _6 beats an unsuffixed Popili."""
+    env = unittest.begin(ctx)
+
+    legacy_suffixed = "%s/.local/share/coco_platform/licenses_6.lic" % _LINUX_HOME
+    popili_unsuffixed = "%s/.local/share/popili/licenses.lic" % _LINUX_HOME
+    fake = _fake_repository_ctx("linux", [popili_unsuffixed, legacy_suffixed])
+
+    asserts.equals(env, legacy_suffixed, find_local_license_path(fake, _fake_path_exists))
+
+    return unittest.end(env)
+
+def _local_license_absent_test(ctx):
+    """With nothing installed the caller gets None, and emits the empty stub."""
+    env = unittest.begin(ctx)
+
+    fake = _fake_repository_ctx("linux", [])
+
+    asserts.equals(env, None, find_local_license_path(fake, _fake_path_exists))
+
+    return unittest.end(env)
+
+def _local_license_unset_home_test(ctx):
+    """An unset $HOME must probe nothing, not a path anchored at literal "None".
+
+    "%s" % None yields "None/...", a relative path, and ctx.path() resolves a
+    relative path inside the generated repository directory - a location that
+    also moves depending on whether rules_coco is the root module or a
+    dependency of someone else's.
+    """
+    env = unittest.begin(ctx)
+
+    degenerate = "None/.local/share/popili/licenses_6.lic"
+    fake = _fake_repository_ctx("linux", [degenerate], home = None)
+
+    asserts.equals(env, None, find_local_license_path(fake, _fake_path_exists))
+
+    return unittest.end(env)
+
+def _local_license_empty_home_test(ctx):
+    """An empty $HOME is treated as unset rather than as the filesystem root."""
+    env = unittest.begin(ctx)
+
+    degenerate = "/.local/share/popili/licenses_6.lic"
+    fake = _fake_repository_ctx("linux", [degenerate], home = "")
+
+    asserts.equals(env, None, find_local_license_path(fake, _fake_path_exists))
+
+    return unittest.end(env)
+
+def _local_license_unset_appdata_windows_test(ctx):
+    """On Windows the anchor is %APPDATA%, so a set $HOME must not rescue it."""
+    env = unittest.begin(ctx)
+
+    degenerate = "None\\..\\LocalLow\\Popili\\licenses_6.lic"
+    fake = _fake_repository_ctx("windows 10", [degenerate], appdata = None)
+
+    asserts.equals(env, None, find_local_license_path(fake, _fake_path_exists))
+
+    return unittest.end(env)
+
+def _local_license_unset_appdata_ignored_off_windows_test(ctx):
+    """Off Windows %APPDATA% is irrelevant, so an unset one must not block the probe."""
+    env = unittest.begin(ctx)
+
+    license = "%s/.local/share/popili/licenses_6.lic" % _LINUX_HOME
+    fake = _fake_repository_ctx("linux", [license], appdata = None)
+
+    asserts.equals(env, license, find_local_license_path(fake, _fake_path_exists))
+
+    return unittest.end(env)
+
+local_license_suffixed_linux_test = unittest.make(_local_license_suffixed_linux_test)
+local_license_suffixed_mac_test = unittest.make(_local_license_suffixed_mac_test)
+local_license_suffixed_windows_test = unittest.make(_local_license_suffixed_windows_test)
+local_license_unsuffixed_test = unittest.make(_local_license_unsuffixed_test)
+local_license_legacy_fallback_test = unittest.make(_local_license_legacy_fallback_test)
+local_license_prefers_popili_over_legacy_test = unittest.make(_local_license_prefers_popili_over_legacy_test)
+local_license_prefers_suffixed_over_unsuffixed_test = unittest.make(_local_license_prefers_suffixed_over_unsuffixed_test)
+local_license_absent_test = unittest.make(_local_license_absent_test)
+local_license_unset_home_test = unittest.make(_local_license_unset_home_test)
+local_license_empty_home_test = unittest.make(_local_license_empty_home_test)
+local_license_unset_appdata_windows_test = unittest.make(_local_license_unset_appdata_windows_test)
+local_license_unset_appdata_ignored_off_windows_test = unittest.make(_local_license_unset_appdata_ignored_off_windows_test)
+
 def coco_test_suite(name):
     """Create test suite for coco functions.
 
@@ -600,4 +779,18 @@ def coco_test_suite(name):
         cc_runtime_deps_non_root_rejected_test,
         cc_runtime_deps_non_root_rejected_even_when_root_also_present_test,
         cc_runtime_deps_unknown_version_test,
+
+        # find_local_license_path tests
+        local_license_suffixed_linux_test,
+        local_license_suffixed_mac_test,
+        local_license_suffixed_windows_test,
+        local_license_unsuffixed_test,
+        local_license_legacy_fallback_test,
+        local_license_prefers_popili_over_legacy_test,
+        local_license_prefers_suffixed_over_unsuffixed_test,
+        local_license_absent_test,
+        local_license_unset_home_test,
+        local_license_empty_home_test,
+        local_license_unset_appdata_windows_test,
+        local_license_unset_appdata_ignored_off_windows_test,
     )
