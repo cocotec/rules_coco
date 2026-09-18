@@ -253,9 +253,13 @@ jobs:
     needs: [pre-commit, docs, test]
     if: always()
     steps:
-      - name: Successful build
-        if: ${{ !(contains(needs.*.result, 'failure')) }}
-        run: exit 0
-      - name: Failing build
-        if: ${{ contains(needs.*.result, 'failure') }}
-        run: exit 1
+      # `cancelled` and `skipped` must be forbidden too,
+      # otherwise branch protection allows incomplete runs.
+      - name: Check required jobs succeeded
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped') }}
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          echo "Not every required job succeeded:"
+          echo "$NEEDS"
+          exit 1
