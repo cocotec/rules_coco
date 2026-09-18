@@ -133,22 +133,46 @@ def _product_for(version):
         return "coco"
     return "popili"
 
+def coco_toolchain_download(version, os, arch):
+    """Returns where to download a popili toolchain archive from, and its known checksum.
+
+    Args:
+      version: The resolved Coco version (aliases must already be resolved), e.g. "1.5.7".
+      os: The toolchain OS, as passed to the repository rule ("osx", "linux" or "windows").
+      arch: The toolchain CPU, as passed to the repository rule ("aarch64" or "x86_64").
+
+    Returns:
+      A struct with `url` and `sha256` fields. `sha256` is "" when no checksum is known
+      for the archive, which makes the download unverified.
+    """
+    archive = "{product}_{os}_{arch}.zip".format(
+        arch = arch.replace("aarch64", "arm64").replace("x86_64", "amd64"),
+        os = os.replace("osx", "darwin"),
+        product = _product_for(version),
+    )
+
+    # known_shas.bzl is keyed by version, not by download path, so the "archive/"
+    # prefix that download_prefix() adds must not be part of the lookup key.
+    key = "{version}/{archive}".format(version = version, archive = archive)
+    return struct(
+        url = "https://dl.cocotec.io/popili/{download_prefix}/{archive}".format(
+            download_prefix = download_prefix(version),
+            archive = archive,
+        ),
+        sha256 = FILE_KEY_TO_SHA.get(key) or "",
+    )
+
 def _coco_toolchain_repository_impl(ctx):
     """The implementation of the coco toolchain repository rule."""
 
     product = _product_for(ctx.attr.version)
 
     # Download the compiler
-    download_path = "{download_prefix}/{product}_{os}_{arch}.zip".format(
-        arch = ctx.attr.arch.replace("aarch64", "arm64").replace("x86_64", "amd64"),
-        os = ctx.attr.os.replace("osx", "darwin"),
-        download_prefix = download_prefix(ctx.attr.version),
-        product = product,
-    )
+    download = coco_toolchain_download(ctx.attr.version, ctx.attr.os, ctx.attr.arch)
     ctx.download_and_extract(
-        url = "https://dl.cocotec.io/popili/{download_path}".format(download_path = download_path),
+        url = download.url,
         output = "bin",
-        sha256 = FILE_KEY_TO_SHA.get(download_path) or "",
+        sha256 = download.sha256,
     )
 
     ctx.file("WORKSPACE", "")
