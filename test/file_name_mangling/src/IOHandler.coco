@@ -1,0 +1,3 @@
+// Acronym in the module name: popili mangles "IOHandler" to "iohandler",
+// because a run of capitals is never split into separate words.
+function handle() : String = "Hello from an acronym filename"
