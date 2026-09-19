@@ -4,9 +4,15 @@ on:
 permissions:
   contents: write
   id-token: write
+
+concurrency:
+  group: update-digests
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
 
@@ -41,13 +47,35 @@ jobs:
         run: python3 tools/release.py --bump patch
 
       - name: "Create Pull Request"
+        shell: bash
         run: |
-          git checkout -b 'chore/update-digests-${{github.run_number}}-${{github.run_attempt}}'
+          set -euo pipefail
+          BRANCH="chore/update-digests-${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}"
+
           git config user.name "cocotec-automation[bot]"
           git config user.email "244153713+cocotec-automation[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
           git add coco/private/known_shas.bzl coco/private/version_aliases.bzl version.bzl MODULE.bazel
           git commit --message 'chore(deps): update popili digests and bump version'
-          git push --set-upstream origin HEAD
-          gh pr create --base main --title 'chore(deps): update popili digests and bump version' --body 'Updates Popili digests and bumps patch version. When merged, this will automatically trigger a release.'
+          git push --set-upstream origin "$BRANCH"
+
+          # printf, not a block scalar or heredoc: those leak YAML indentation and eat the backticks.
+          BODY=$(printf '%s\n' \
+            'Updates Popili digests and bumps the patch version.' \
+            '' \
+            'Approving is enough: it joins the merge queue once `build` is green, and merging releases.')
+
+          URL=$(gh pr create --base main \
+            --title 'chore(deps): update popili digests and bump version' \
+            --body "$BODY")
+
+          # Non-fatal: the pull request exists either way and can be merged by hand.
+          if MERGE_ERROR=$(gh pr merge "$URL" --auto --squash 2>&1); then
+            echo "::notice::Auto-merge enabled; merges once approved and build passes."
+          else
+            echo "::warning::Could not enable auto-merge on ${URL}: ${MERGE_ERROR}"
+          fi
+
+          echo "Opened ${URL}" >> "$GITHUB_STEP_SUMMARY"
         env:
           GITHUB_TOKEN: ${{ steps.generate_token.outputs.token }}
