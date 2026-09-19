@@ -26,7 +26,7 @@ bazel_dep(name = "rules_cc", version = "0.2.14")  # Required for public C++ API
 
 bazel_dep(name = "rules_python", version = "2.0.2", dev_dependency = True)
 bazel_dep(name = "rules_shell", version = "0.8.0", dev_dependency = True)
-bazel_dep(name = "googletest", version = "1.17.0.bcr.2", dev_dependency = True)
+bazel_dep(name = "googletest", version = "1.18.0.bcr.1", dev_dependency = True)
 
 # TODO: this is only here to get a version of protobuf that is compatible with the version of abseil used by googletest
 bazel_dep(name = "protobuf", version = "35.1", dev_dependency = True)
