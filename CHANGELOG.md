@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- WORKSPACE mode now supports multiple Popili versions, like bzlmod already did.
+  `coco_repositories(versions = ["1.5.1", "1.5.0"])` registers a toolchain per version, selected
+  with `--@rules_coco//:version=1.5.0` or per target with `with_popili_version`. The first entry is
+  used when the flag is unset.
+- `coco_repositories` gained `local_popili`, `local_cc_runtime` and `local_c_runtime`, so a Popili
+  distribution on the local filesystem can be registered alongside downloaded releases and selected
+  with `--@rules_coco//:version=local`. This is the WORKSPACE equivalent of combining
+  `coco.toolchain` with `coco.local_toolchain`.
+- `cc_runtime_extra_deps` now accepts a dict mapping a version to its labels, in addition to a flat
+  list applied to every registered version.
+
+### Changed
+
+- **Breaking:** the local toolchain registered by `coco_local_repositories()` in WORKSPACE mode is
+  now selected by `--@rules_coco//:version=local` and is no longer active by default, matching the
+  bzlmod `coco.local_toolchain` tag. Builds that do not set the flag will report
+  `No matching toolchains found for @rules_coco//coco:toolchain_type`. Add
+  `common --@rules_coco//:version=local` to your `.bazelrc`.
+- **Breaking:** the generated per-platform repositories are now version-mangled, matching bzlmod:
+  `io_cocotec_coco_<os>_<arch>` became `io_cocotec_coco_<os>_<arch>__<version>`, and the local one
+  became `io_cocotec_coco_local` (previously `coco_local`). The `io_cocotec_coco_<os>_<arch>_toolchains`
+  proxy repositories are gone; every `toolchain()` is now declared in the `@coco_toolchains` hub and
+  registered with a single `@coco_toolchains//:all`. These names are implementation details, only
+  reachable via `--extra_toolchains` or `--override_repository`.
+- **Breaking:** `coco_repositories` takes explicit named parameters instead of `**kwargs`, so an
+  unrecognised argument is now an error rather than being silently ignored.
+- `coco_repositories` now fails with a clear message if called more than once, instead of producing
+  duplicate-repository warnings and a silently wrong configuration.
+- `"local"` and `"default"` are rejected as version strings; they name the hub's own
+  `config_setting`s.
+
+### Fixed
+
+- `coco_repositories(versions = [...])` was accepted but silently ignored in WORKSPACE mode, so a
+  workspace following the README's "Popili Version" section got `stable` instead of the versions it
+  asked for. It is now honoured — check that your default version has not moved.
+
 ## [0.3.0] - 2026/05/31
 
 ### Added

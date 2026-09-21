@@ -56,6 +56,6 @@ Register a Coco toolchain from a popili distribution on the local filesystem, in
 | <a id="coco.toolchain-cc"></a>cc |  Whether to include C++ runtime support   | Boolean | optional |  `False`  |
 | <a id="coco.toolchain-license_source"></a>license_source |  Optional default license source mode for all toolchains (e.g., 'local_user', 'local_acquire', 'token', 'action_environment', 'action_file'). Can be overridden via --@rules_coco//:license_source flag.   | String | optional |  `""`  |
 | <a id="coco.toolchain-license_token"></a>license_token |  Optional default license token for all toolchains when license_source is 'token'.   | String | optional |  `""`  |
-| <a id="coco.toolchain-versions"></a>versions |  List of Coco/Popili versions to register (e.g., ['1.5.0', '1.4.0']). Use version aliases like 'stable' or explicit versions like '1.5.1'.   | List of strings | optional |  `["stable"]`  |
+| <a id="coco.toolchain-versions"></a>versions |  List of Coco/Popili versions to register (e.g., ['1.5.0', '1.4.0']). Use version aliases like 'stable' or explicit versions like '1.5.1'. The first version is the one used when --@rules_coco//:version is unset.   | List of strings | optional |  `["stable"]`  |
 
 

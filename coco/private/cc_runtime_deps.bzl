@@ -42,4 +42,39 @@ def _collect_cc_runtime_extra_deps(tag_entries, registered_versions, resolve_ver
                 bucket.append(dep)
     return result, None
 
+def _normalize_cc_runtime_extra_deps(spec, registered_versions, resolve_version):
+    """Accept the WORKSPACE `cc_runtime_extra_deps` argument in either form.
+
+    A list applies to every registered version, which is how the argument behaved when
+    WORKSPACE mode could only register one. A dict maps a version (or alias) to the deps
+    for that version alone, mirroring bzlmod's per-version `coco.cc_runtime_deps` tag and
+    its error contract. Returns (deps_by_version, error); deps_by_version is empty on
+    error.
+    """
+    if type(spec) == type([]):
+        if not spec:
+            return {}, None
+        return {version: list(spec) for version in registered_versions}, None
+
+    if type(spec) != type({}):
+        return {}, (
+            "cc_runtime_extra_deps must be a list of labels, applied to every registered " +
+            "Coco version, or a dict mapping a version to its labels. Got: %s" % type(spec)
+        )
+
+    result = {}
+    for raw_version, deps in spec.items():
+        resolved = resolve_version(raw_version)
+        if resolved not in registered_versions:
+            return {}, (
+                "cc_runtime_extra_deps version %r does not match any registered Coco version. " % raw_version +
+                "Registered versions (after alias resolution): %s" % sorted(registered_versions.keys())
+            )
+        bucket = result.setdefault(resolved, [])
+        for dep in deps:
+            if dep not in bucket:
+                bucket.append(dep)
+    return result, None
+
 collect_cc_runtime_extra_deps = _collect_cc_runtime_extra_deps
+normalize_cc_runtime_extra_deps = _normalize_cc_runtime_extra_deps

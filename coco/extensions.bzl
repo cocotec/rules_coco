@@ -19,124 +19,13 @@ load(
     "collect_cc_runtime_extra_deps",
 )
 load(
-    "//coco/private:common_repositories.bzl",
-    "coco_c_local_runtime_repository",
-    "coco_c_runtime_repository",
-    "coco_cc_local_runtime_repository",
-    "coco_cc_runtime_repository",
-    "coco_fetch_license_repository",
-    "coco_preferences_repository",
-    "coco_symlink_license_repository",
-    "validate_minimum_version",
-    "version_to_repo_suffix",
-)
-load(
-    "//coco/private:repositories.bzl",
-    "coco_local_toolchain_repository",
-    "coco_toolchain_repository",
-    "coco_toolchain_repository_proxy",
+    "//coco/private:toolchain_hub.bzl",
+    "declare_coco_toolchains",
+    "resolve_versions",
 )
 load(
     "//coco/private:version_aliases.bzl",
     "VERSION_ALIASES",
-)
-
-# Template for generating toolchain declarations in the hub repository
-_TOOLCHAIN_HUB_BUILD_TEMPLATE = """
-toolchain(
-    name = "{name}",
-    exec_compatible_with = {exec_compatible_with},
-    target_compatible_with = {target_compatible_with},
-    target_settings = {target_settings},
-    toolchain = "{toolchain_label}",
-    toolchain_type = "@rules_coco//coco:toolchain_type",
-    visibility = ["//visibility:public"],
-)
-"""
-
-# Template for generating version config_setting in the hub repository
-_VERSION_CONFIG_SETTING_TEMPLATE = """
-config_setting(
-    name = "version_{config_name}",
-    flag_values = {{
-        "@rules_coco//:version": "{version}",
-    }},
-    visibility = ["//visibility:public"],
-)
-"""
-
-# Config setting for when no version is explicitly specified (empty string default)
-_VERSION_DEFAULT_CONFIG_SETTING = """
-config_setting(
-    name = "version_default",
-    flag_values = {
-        "@rules_coco//:version": "",
-    },
-    visibility = ["//visibility:public"],
-)
-"""
-
-def _coco_toolchain_hub_impl(repository_ctx):
-    """Implementation of the coco toolchain hub repository rule."""
-    repository_ctx.file("WORKSPACE.bazel", """workspace(name = "{}")""".format(
-        repository_ctx.name,
-    ))
-
-    # Generate config_settings for all resolved versions plus default
-    config_settings = _VERSION_DEFAULT_CONFIG_SETTING + "\n".join([
-        _VERSION_CONFIG_SETTING_TEMPLATE.format(
-            version = version,
-            config_name = version_suffix,
-        )
-        for version, version_suffix in repository_ctx.attr.version_suffixes.items()
-    ])
-
-    # Generate BUILD file with all toolchain declarations
-    toolchains = "\n".join([
-        _TOOLCHAIN_HUB_BUILD_TEMPLATE.format(
-            name = name,
-            exec_compatible_with = repository_ctx.attr.exec_compatible_with[name],
-            target_compatible_with = repository_ctx.attr.target_compatible_with[name],
-            target_settings = repository_ctx.attr.target_settings[name],
-            toolchain_label = repository_ctx.attr.toolchain_labels[name],
-        )
-        for name in repository_ctx.attr.toolchain_names
-    ])
-
-    repository_ctx.file("BUILD.bazel", config_settings + "\n" + toolchains)
-
-_coco_toolchain_hub = repository_rule(
-    doc = (
-        "Generates a hub repository that aggregates all Coco toolchains. " +
-        "This allows registering all toolchains with a single `:all` target."
-    ),
-    attrs = {
-        "exec_compatible_with": attr.string_list_dict(
-            doc = "Map of toolchain name to exec platform constraints.",
-            mandatory = True,
-        ),
-        "target_compatible_with": attr.string_list_dict(
-            doc = "Map of toolchain name to target platform constraints.",
-            mandatory = True,
-        ),
-        "target_settings": attr.string_list_dict(
-            doc = "Map of toolchain name to target settings (e.g., version constraints).",
-            mandatory = True,
-        ),
-        "toolchain_labels": attr.string_dict(
-            doc = "Map of toolchain name to toolchain implementation label.",
-            mandatory = True,
-        ),
-        "toolchain_names": attr.string_list(
-            doc = "List of toolchain names to include in the hub.",
-            mandatory = True,
-        ),
-        "version_suffixes": attr.string_dict(
-            doc = "Map of version string to normalized suffix for config_setting names.",
-            mandatory = True,
-        ),
-    },
-    implementation = _coco_toolchain_hub_impl,
 )
 
 def _resolve_version(version):
@@ -180,21 +69,10 @@ def _toolchain_tag_impl(ctx):
                 fail("coco.local_toolchain may be specified at most once.")
             local_tag = tag
 
-    # Resolve version aliases (like "stable" -> "1.5.1") and deduplicate
-    # Keep track of both original and resolved versions for config_settings
-    versions = []  # Resolved versions for toolchain creation
-    seen = {}
-    for v in all_versions:
-        resolved = _resolve_version(v)
-
-        # Validate minimum version requirement
-        error = validate_minimum_version(resolved)
-        if error:
-            fail(error)
-
-        if resolved not in seen:
-            versions.append(resolved)
-            seen[resolved] = True
+    # Resolve version aliases (like "stable" -> "1.5.1"), validate and deduplicate.
+    versions, error = resolve_versions(all_versions, _resolve_version)
+    if error:
+        fail(error)
 
     # str(label) gives canonical @@repo+//pkg:target form; the generated runtime
     # BUILD file lives in a different repo and has no mapping for the user's @boost.
@@ -211,156 +89,29 @@ def _toolchain_tag_impl(ctx):
 
     cc_runtime_extra_deps_by_version, err = collect_cc_runtime_extra_deps(
         cc_runtime_deps_entries,
-        seen,
+        {version: True for version in versions},
         _resolve_version,
     )
     if err:
         fail(err)
 
-    # Set up licensing repositories (after collecting versions so we can determine product name)
-    coco_preferences_repository(name = "io_cocotec_coco_preferences")
-    coco_fetch_license_repository(
-        name = "io_cocotec_licensing_fetch",
-        versions = versions,
-    )
-    coco_symlink_license_repository(name = "io_cocotec_licensing_local")
-
-    # Collect information for hub repository
-    toolchain_names = []
-    toolchain_labels = {}
-    exec_compatible_with = {}
-    target_compatible_with = {}
-    target_settings = {}
-    version_suffixes = {}
-
-    # Set up toolchains for all versions
-    for version in versions:
-        version_suffix = version_to_repo_suffix(version)
-        version_suffixes[version] = version_suffix
-
-        # Set up C++ runtime if requested (version-specific)
-        if cc:
-            coco_cc_runtime_repository(
-                name = "io_cocotec_coco_cc_runtime__%s" % version_suffix,
-                version = version,
-                extra_deps = cc_runtime_extra_deps_by_version.get(version, []),
-            )
-
-        # Set up C runtime if requested (version-specific)
-        if c:
-            coco_c_runtime_repository(
-                name = "io_cocotec_coco_c_runtime__%s" % version_suffix,
-                version = version,
-            )
-
-        # Set up toolchains for all platforms
-        for (os, arch) in [
-            ("osx", "aarch64"),
-            ("osx", "x86_64"),
-            ("linux", "aarch64"),
-            ("linux", "x86_64"),
-            ("windows", "x86_64"),
-        ]:
-            repo_name = "io_cocotec_coco_%s_%s__%s" % (os, arch, version_suffix)
-            toolchains_repo_name = repo_name + "_toolchains"
-
-            # Determine cc_runtime_label if CC support is enabled
-            cc_runtime_label = None
-            if cc:
-                cc_runtime_label = "@io_cocotec_coco_cc_runtime__%s//:runtime" % version_suffix
-
-            # Determine c_runtime_label if C support is enabled
-            c_runtime_label = None
-            if c:
-                c_runtime_label = "@io_cocotec_coco_c_runtime__%s//:runtime" % version_suffix
-
-            coco_toolchain_repository(
-                name = repo_name,
-                arch = arch,
-                os = os,
-                version = version,
-                cc_runtime_label = cc_runtime_label,
-                c_runtime_label = c_runtime_label,
-                license_source = license_source,
-                license_token = license_token,
-                auth_token_path = auth_token_path,
-            )
-
-            constraints = [
-                "@platforms//os:%s" % os,
-                "@platforms//cpu:%s" % arch,
-            ]
-
-            coco_toolchain_repository_proxy(
-                name = toolchains_repo_name,
-                constraints = constraints,
-                parent_workspace_name = repo_name,
-            )
-
-            # Record toolchain info for hub
-            # Point directly to the toolchain implementation, not the proxy's toolchain declaration
-            toolchain_name = "%s_%s__%s" % (os, arch, version_suffix)
-            toolchain_names.append(toolchain_name)
-            toolchain_labels[toolchain_name] = "@%s//:toolchain_impl" % repo_name
-            exec_compatible_with[toolchain_name] = constraints
-            target_compatible_with[toolchain_name] = constraints
-            target_settings[toolchain_name] = ["@coco_toolchains//:version_%s" % version_suffix]
-
-            # For the first version, also register default toolchains (match when version flag is empty)
-            if version == versions[0]:
-                default_toolchain_name = "%s_%s__default" % (os, arch)
-                toolchain_names.append(default_toolchain_name)
-                toolchain_labels[default_toolchain_name] = "@%s//:toolchain_impl" % repo_name
-                exec_compatible_with[default_toolchain_name] = constraints
-                target_compatible_with[default_toolchain_name] = constraints
-                target_settings[default_toolchain_name] = ["@coco_toolchains//:version_default"]
-
-    # Host-only (no constraints), gated on the "local" version so it needs --version=local.
+    local = None
     if local_tag:
-        version_suffixes["local"] = "local"
-
-        cc_runtime_label = None
-        if local_tag.cc_runtime:
-            coco_cc_local_runtime_repository(
-                name = "io_cocotec_coco_cc_runtime__local",
-                path = local_tag.cc_runtime,
-            )
-            cc_runtime_label = "@io_cocotec_coco_cc_runtime__local//:runtime"
-
-        c_runtime_label = None
-        if local_tag.c_runtime:
-            coco_c_local_runtime_repository(
-                name = "io_cocotec_coco_c_runtime__local",
-                path = local_tag.c_runtime,
-            )
-            c_runtime_label = "@io_cocotec_coco_c_runtime__local//:runtime"
-
-        local_repo_name = "io_cocotec_coco_local"
-        coco_local_toolchain_repository(
-            name = local_repo_name,
-            path = local_tag.popili,
-            cc_runtime_label = cc_runtime_label,
-            c_runtime_label = c_runtime_label,
-            license_source = license_source,
-            license_token = license_token,
-            auth_token_path = auth_token_path,
+        local = struct(
+            popili = local_tag.popili,
+            cc_runtime = local_tag.cc_runtime,
+            c_runtime = local_tag.c_runtime,
         )
 
-        toolchain_names.append("local")
-        toolchain_labels["local"] = "@%s//:toolchain_impl" % local_repo_name
-        exec_compatible_with["local"] = []
-        target_compatible_with["local"] = []
-        target_settings["local"] = ["@coco_toolchains//:version_local"]
-
-    # Create hub repository that aggregates all toolchains
-    _coco_toolchain_hub(
-        name = "coco_toolchains",
-        toolchain_names = toolchain_names,
-        toolchain_labels = toolchain_labels,
-        exec_compatible_with = exec_compatible_with,
-        target_compatible_with = target_compatible_with,
-        target_settings = target_settings,
-        version_suffixes = version_suffixes,
+    declare_coco_toolchains(
+        versions = versions,
+        c = c,
+        cc = cc,
+        cc_runtime_extra_deps_by_version = cc_runtime_extra_deps_by_version,
+        license_source = license_source,
+        license_token = license_token,
+        auth_token_path = auth_token_path,
+        local = local,
     )
 
     # A local path isn't reproducible.
@@ -392,7 +143,7 @@ _toolchain_tag = tag_class(
         ),
         "versions": attr.string_list(
             default = ["stable"],
-            doc = "List of Coco/Popili versions to register (e.g., ['1.5.0', '1.4.0']). Use version aliases like 'stable' or explicit versions like '1.5.1'.",
+            doc = "List of Coco/Popili versions to register (e.g., ['1.5.0', '1.4.0']). Use version aliases like 'stable' or explicit versions like '1.5.1'. The first version is the one used when --@rules_coco//:version is unset.",
         ),
     },
 )

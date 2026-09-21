@@ -12,320 +12,38 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""WORKSPACE-mode repository rules for Coco toolchains."""
+"""WORKSPACE-mode entrypoints for Coco toolchains.
+
+The repositories themselves are declared by `//coco/private:toolchain_hub.bzl`, which is
+shared with the bzlmod module extension so that both modes produce identical repository
+names and an identical hub. This file adds only what a WORKSPACE can do and an extension
+cannot: bootstrapping missing dependencies via `native.existing_rules`, and registering
+the hub's toolchains via `native.register_toolchains`.
+"""
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+load(":cc_runtime_deps.bzl", "normalize_cc_runtime_extra_deps")
 load(
-    ":common_repositories.bzl",
-    "KNOWN_VERSION_SUFFIXES",
-    "coco_c_local_runtime_repository",
-    "coco_c_runtime_repository",
-    "coco_cc_local_runtime_repository",
-    "coco_cc_repositories",
-    "coco_fetch_license_repository",
-    "coco_preferences_repository",
-    "coco_symlink_license_repository",
-    "download_prefix",
-    "resolve_local_path",
-    "validate_minimum_version",
-    "version_to_repo_suffix",
+    ":toolchain_hub.bzl",
+    "DEFAULT_HUB_NAME",
+    "declare_coco_toolchains",
+    "resolve_versions",
 )
-load(":known_shas.bzl", "FILE_KEY_TO_SHA")
 load(":version_aliases.bzl", "VERSION_ALIASES")
 
-def BUILD_for_toolchain(name, parent_workspace_name, constraints):
-    return """
-toolchain(
-    name = "toolchain",
-    exec_compatible_with = [{constraints}],
-    toolchain = "@{parent_workspace_name}//:toolchain_impl",
-    toolchain_type = "@rules_coco//coco:toolchain_type",
-)
-""".format(
-        name = name,
-        constraints = ", ".join(['"%s"' % constraint for constraint in constraints]),
-        parent_workspace_name = parent_workspace_name,
-    )
+def _resolve_version(version):
+    if version in VERSION_ALIASES:
+        return VERSION_ALIASES[version]
+    return version
 
-def BUILD_for_coco_toolchain(name, cc_runtime_label = None, c_runtime_label = None, license_source = None, license_token = None, auth_token_path = None):
-    """Emits a toolchain declaration to match an existing compiler and stdlib.
+def _coco_bootstrap_deps():
+    """Fetches the dependencies the generated repositories need, if absent.
 
-    Args:
-      name: The name of the toolchain declaration
-      cc_runtime_label: Optional label to the C++ runtime library (can be a Label object or string)
-      c_runtime_label: Optional label to the C runtime library (can be a Label object or string)
-      license_source: Optional license source mode (e.g., "local_user", "local_acquire", "token", "action_environment", "action_file")
-      license_token: Optional license token string
-      auth_token_path: Optional auth token file path string
-
-    Returns:
-      A string containing BUILD file content for the toolchain.
+    Only reaches repositories the user has not already declared, so a workspace pinning
+    its own bazel_skylib or platforms keeps it. `native.existing_rules` only sees
+    repositories declared earlier in the same WORKSPACE file, so `coco_repositories`
+    should come after any such pin.
     """
-
-    # Use relative labels since coco and cocotec_licensing_server are defined
-    # in the same BUILD file. This works in both WORKSPACE and bzlmod.
-    cc_runtime_attr = ""
-    if cc_runtime_label:
-        cc_runtime_attr = '\n    cc_runtime = "{}",'.format(str(cc_runtime_label))
-
-    c_runtime_attr = ""
-    if c_runtime_label:
-        c_runtime_attr = '\n    c_runtime = "{}",'.format(str(c_runtime_label))
-
-    license_source_attr = ""
-    if license_source and license_source != "":
-        license_source_attr = '\n    license_source = "{}",'.format(license_source)
-
-    license_token_attr = ""
-    if license_token and license_token != "":
-        license_token_attr = '\n    license_token = "{}",'.format(license_token)
-
-    auth_token_path_attr = ""
-    if auth_token_path and auth_token_path != "":
-        auth_token_path_attr = '\n    auth_token_path = "{}",'.format(auth_token_path)
-
-    return """
-coco_toolchain(
-    name = "{toolchain_name}_impl",
-    coco = "//:coco",
-    cocotec_licensing_server = "//:cocotec_licensing_server",{cc_runtime_attr}{c_runtime_attr}{license_source_attr}{license_token_attr}{auth_token_path_attr}
-    visibility = ["//visibility:public"],
-)
-""".format(
-        toolchain_name = name,
-        cc_runtime_attr = cc_runtime_attr,
-        c_runtime_attr = c_runtime_attr,
-        license_source_attr = license_source_attr,
-        license_token_attr = license_token_attr,
-        auth_token_path_attr = auth_token_path_attr,
-    )
-
-def BUILD_for_coco_archive(binary_ext, product):
-    """Emits a BUILD file the compiler .zip."""
-    return """
-load("@rules_coco//coco:toolchain.bzl", "coco_toolchain")
-
-filegroup(
-    name = "coco",
-    srcs = ["bin/{product}{binary_ext}"],
-    visibility = ["//visibility:public"],
-)
-
-filegroup(
-    name = "cocotec_licensing_server",
-    srcs = ["bin/cocotec-licensing-server{binary_ext}"],
-    visibility = ["//visibility:public"],
-)
-
-""".format(
-        binary_ext = binary_ext,
-        product = product,
-    )
-
-def _platform_binary_ext(os):
-    if os == "windows":
-        return ".exe"
-    return ""
-
-def _product_for(version):
-    parts = version.split("-")[0].split(".")
-    if len(parts) >= 2 and int(parts[0]) == 1 and int(parts[1]) < 5:
-        return "coco"
-    return "popili"
-
-def coco_toolchain_download(version, os, arch):
-    """Returns where to download a popili toolchain archive from, and its known checksum.
-
-    Args:
-      version: The resolved Coco version (aliases must already be resolved), e.g. "1.5.7".
-      os: The toolchain OS, as passed to the repository rule ("osx", "linux" or "windows").
-      arch: The toolchain CPU, as passed to the repository rule ("aarch64" or "x86_64").
-
-    Returns:
-      A struct with `url` and `sha256` fields. `sha256` is "" when no checksum is known
-      for the archive, which makes the download unverified.
-    """
-    archive = "{product}_{os}_{arch}.zip".format(
-        arch = arch.replace("aarch64", "arm64").replace("x86_64", "amd64"),
-        os = os.replace("osx", "darwin"),
-        product = _product_for(version),
-    )
-
-    # known_shas.bzl is keyed by version, not by download path, so the "archive/"
-    # prefix that download_prefix() adds must not be part of the lookup key.
-    key = "{version}/{archive}".format(version = version, archive = archive)
-    return struct(
-        url = "https://dl.cocotec.io/popili/{download_prefix}/{archive}".format(
-            download_prefix = download_prefix(version),
-            archive = archive,
-        ),
-        sha256 = FILE_KEY_TO_SHA.get(key) or "",
-    )
-
-def _coco_toolchain_repository_impl(ctx):
-    """The implementation of the coco toolchain repository rule."""
-
-    product = _product_for(ctx.attr.version)
-
-    # Download the compiler
-    download = coco_toolchain_download(ctx.attr.version, ctx.attr.os, ctx.attr.arch)
-    ctx.download_and_extract(
-        url = download.url,
-        output = "bin",
-        sha256 = download.sha256,
-    )
-
-    ctx.file("WORKSPACE", "")
-    ctx.file("BUILD", "\n".join([
-        BUILD_for_coco_archive(binary_ext = _platform_binary_ext(ctx.attr.os), product = product),
-        BUILD_for_coco_toolchain(
-            name = "toolchain",
-            cc_runtime_label = ctx.attr.cc_runtime_label,
-            c_runtime_label = ctx.attr.c_runtime_label,
-            license_source = ctx.attr.license_source,
-            license_token = ctx.attr.license_token,
-            auth_token_path = ctx.attr.auth_token_path,
-        ),
-    ]))
-
-def _coco_toolchain_repository_proxy_impl(ctx):
-    # Delete the cached license token
-    for suffix in KNOWN_VERSION_SUFFIXES:
-        ctx.delete("licenses%s.lic" % suffix)
-
-    ctx.file("WORKSPACE", "")
-    ctx.file("BUILD", BUILD_for_toolchain(
-        name = ctx.attr.name,
-        parent_workspace_name = ctx.attr.parent_workspace_name,
-        constraints = ctx.attr.constraints,
-    ))
-
-coco_toolchain_repository = repository_rule(
-    attrs = {
-        "arch": attr.string(mandatory = True),
-        "auth_token_path": attr.string(
-            doc = "Optional auth token file path string",
-            default = "",
-        ),
-        "c_runtime_label": attr.label(
-            doc = "Optional label to the C runtime library",
-            default = None,
-        ),
-        "cc_runtime_label": attr.label(
-            doc = "Optional label to the C++ runtime library",
-            default = None,
-        ),
-        "license_source": attr.string(
-            doc = "Optional license source mode (e.g., 'local_user', 'local_acquire', 'token', 'action_environment', 'action_file')",
-            default = "",
-        ),
-        "license_token": attr.string(
-            doc = "Optional license token string",
-            default = "",
-        ),
-        "os": attr.string(mandatory = True),
-        "version": attr.string(mandatory = True),
-    },
-    implementation = _coco_toolchain_repository_impl,
-)
-
-def _coco_local_toolchain_repository_impl(ctx):
-    """Coco toolchain repository symlinked from a local path instead of downloaded.
-
-    Host-only, and the product is always "popili" (no os/arch/version attrs, unlike
-    the download rule).
-    """
-    dist_dir = resolve_local_path(ctx, ctx.attr.path)
-
-    # Take the extension from what's actually staged rather than guessing the host OS.
-    binary_ext = ".exe" if dist_dir.get_child("popili.exe").exists else ""
-    for binary in ["popili", "cocotec-licensing-server"]:
-        src = dist_dir.get_child(binary + binary_ext)
-        if not src.exists:
-            fail("Local popili path '%s' does not contain '%s'" % (ctx.attr.path, binary + binary_ext))
-        ctx.symlink(src, "bin/" + binary + binary_ext)
-
-    ctx.file("WORKSPACE", "")
-    ctx.file("BUILD", "\n".join([
-        BUILD_for_coco_archive(binary_ext = binary_ext, product = "popili"),
-        BUILD_for_coco_toolchain(
-            name = "toolchain",
-            cc_runtime_label = ctx.attr.cc_runtime_label,
-            c_runtime_label = ctx.attr.c_runtime_label,
-            license_source = ctx.attr.license_source,
-            license_token = ctx.attr.license_token,
-            auth_token_path = ctx.attr.auth_token_path,
-        ),
-    ]))
-
-coco_local_toolchain_repository = repository_rule(
-    attrs = {
-        "auth_token_path": attr.string(
-            doc = "Optional auth token file path string",
-            default = "",
-        ),
-        "c_runtime_label": attr.label(
-            doc = "Optional label to the C runtime library",
-            default = None,
-        ),
-        "cc_runtime_label": attr.label(
-            doc = "Optional label to the C++ runtime library",
-            default = None,
-        ),
-        "license_source": attr.string(
-            doc = "Optional license source mode (e.g., 'local_user', 'local_acquire', 'token', 'action_environment', 'action_file')",
-            default = "",
-        ),
-        "license_token": attr.string(
-            doc = "Optional license token string",
-            default = "",
-        ),
-        "path": attr.string(
-            doc = "Local filesystem path to a directory containing the popili and cocotec-licensing-server binaries at its top level.",
-            mandatory = True,
-        ),
-    },
-    implementation = _coco_local_toolchain_repository_impl,
-    # Reevaluated on every fetch so a replaced binary is picked up.
-    local = True,
-)
-
-coco_toolchain_repository_proxy = repository_rule(
-    attrs = {
-        "constraints": attr.string_list(),
-        "parent_workspace_name": attr.string(mandatory = True),
-    },
-    implementation = _coco_toolchain_repository_proxy_impl,
-    # This ensures this is run on fetch, allowing us to refresh the license token
-    local = True,
-    configure = True,
-)
-
-def coco_repository_set(name, version, os, arch, constraints, cc_runtime_label = None, c_runtime_label = None, license_source = None, license_token = None, auth_token_path = None):
-    coco_toolchain_repository(
-        arch = arch,
-        os = os,
-        name = name,
-        version = version,
-        cc_runtime_label = cc_runtime_label,
-        c_runtime_label = c_runtime_label,
-        license_source = license_source,
-        license_token = license_token,
-        auth_token_path = auth_token_path,
-    )
-
-    coco_toolchain_repository_proxy(
-        name = name + "_toolchains",
-        constraints = constraints,
-        parent_workspace_name = name,
-    )
-
-    # Register toolchains
-    native.register_toolchains("@{name}_toolchains//:toolchain".format(
-        name = name,
-    ))
-
-def _coco_deps(version, c = False, cc = False, cc_runtime_extra_deps = []):
     if not "bazel_skylib" in native.existing_rules():
         http_archive(
             name = "bazel_skylib",
@@ -346,120 +64,108 @@ def _coco_deps(version, c = False, cc = False, cc_runtime_extra_deps = []):
             sha256 = "dbad4a23abcca6171e47b79edc53bd6a41067a3b75f9e8b104656b459ff25046",
         )
 
-    if c:
-        version_suffix = version_to_repo_suffix(version)
-        coco_c_runtime_repository(
-            name = "io_cocotec_coco_c_runtime__%s" % version_suffix,
-            version = version,
-        )
-
-    if cc:
-        coco_cc_repositories(version = version, extra_deps = cc_runtime_extra_deps)
-
-    coco_preferences_repository(name = "io_cocotec_coco_preferences")
-    coco_fetch_license_repository(
-        name = "io_cocotec_licensing_fetch",
-        versions = [version],
-    )
-    coco_symlink_license_repository(name = "io_cocotec_licensing_local")
-
-def coco_repositories(version = "stable", **kwargs):
+# buildifier: disable=unnamed-macro
+def coco_repositories(
+        version = None,
+        versions = None,
+        c = False,
+        cc = False,
+        license_source = "",
+        license_token = "",
+        auth_token_path = "",
+        cc_runtime_extra_deps = [],
+        local_popili = None,
+        local_cc_runtime = None,
+        local_c_runtime = None):
     """Sets up Coco toolchain repositories for WORKSPACE mode.
 
+    Register several versions to build different targets against different Popili
+    releases in one build. The first entry of `versions` is the default; select any other
+    with `bazel build --@rules_coco//:version=1.5.1`, or per target with
+    `with_popili_version`. Call this at most once.
+
     Args:
-      version: The Coco version to use. Use version aliases like 'stable' or explicit versions like '1.5.1'. Default is "stable".
-      **kwargs: Additional arguments:
-
-          c (bool): Whether to include C runtime support.
-
-          cc (bool): Whether to include C++ runtime support.
-
-          license_source (str): Optional default license source mode for all toolchains (e.g., 'local_user', 'local_acquire', 'token', 'action_environment', 'action_file'). Can be overridden via --@rules_coco//:license_source flag.
-
-          license_token (str): Optional default license token for all toolchains when license_source is 'token'.
-
-          auth_token_path (str): Optional path to auth token file for all toolchains when license_source is 'action_file'. The file must be available in the execution environment.
-
-          cc_runtime_extra_deps (list): cc_library labels appended to the Coco C++ runtime's deps. Use this to supply Boost (or equivalent) libraries on old compilers; see the rules_coco README. Empty by default.
+      version: A single Coco version, for workspaces that need only one. Mutually
+        exclusive with `versions`. Use an alias like 'stable' or an explicit version like
+        '1.5.1'. Defaults to "stable" when neither argument is given.
+      versions: The Coco versions to register, in priority order; the first is used when
+        `--@rules_coco//:version` is unset. Mutually exclusive with `version`.
+      c: Whether to include C runtime support (for `coco_c_library`).
+      cc: Whether to include C++ runtime support (for `coco_cc_library`).
+      license_source: Optional default license source mode for all toolchains (e.g.
+        'local_user', 'local_acquire', 'token', 'action_environment', 'action_file').
+        Can be overridden via the `--@rules_coco//:license_source` flag.
+      license_token: Optional default license token for all toolchains when
+        `license_source` is 'token'.
+      auth_token_path: Optional path to an auth token file for all toolchains when
+        `license_source` is 'action_file'. The file must be available in the execution
+        environment.
+      cc_runtime_extra_deps: cc_library labels appended to the Coco C++ runtime's deps.
+        Use this to supply Boost (or equivalent) libraries on old compilers; see the
+        rules_coco README. A list applies to every registered version; a dict maps a
+        version (or alias) to the labels for that version alone. Labels are written
+        verbatim into a generated repository, so they must be repository-absolute.
+      local_popili: Optional path to a directory holding the `popili` and
+        `cocotec-licensing-server` binaries, registered as an additional toolchain
+        selected by `--@rules_coco//:version=local`.
+      local_cc_runtime: Optional path to a directory holding the local C++ runtime
+        `coco/` subtree. Required to build `coco_cc_library` against `local_popili`.
+      local_c_runtime: Optional path to a directory holding the local C runtime `coco_c/`
+        subtree. Required to build `coco_c_library` against `local_popili`.
     """
+    if DEFAULT_HUB_NAME in native.existing_rules():
+        fail(
+            "coco_repositories() and coco_local_repositories() may be called at most " +
+            "once per workspace. Pass every version you need in `versions = [...]`, and " +
+            "a popili distribution on the local filesystem via `local_popili = ...`.",
+        )
 
-    # Resolve version aliases
-    resolved_version = VERSION_ALIASES.get(version, version)
+    if version != None and versions != None:
+        fail("coco_repositories(): pass either `version` or `versions`, not both.")
 
-    # Validate minimum version requirement
-    error = validate_minimum_version(resolved_version)
+    if versions == None:
+        versions = [version if version != None else "stable"]
+
+    resolved_versions, error = resolve_versions(versions, _resolve_version)
     if error:
         fail(error)
 
-    c = kwargs.get("c", False)
-    cc = kwargs.get("cc", False)
-    license_source = kwargs.get("license_source", None)
-    license_token = kwargs.get("license_token", None)
-    auth_token_path = kwargs.get("auth_token_path", None)
-    cc_runtime_extra_deps = kwargs.get("cc_runtime_extra_deps", [])
-    _coco_deps(
-        version = resolved_version,
-        c = c,
-        cc = cc,
-        cc_runtime_extra_deps = cc_runtime_extra_deps,
-    )
-
-    version_suffix = version_to_repo_suffix(resolved_version)
-
-    # Determine c_runtime_label if C support is enabled
-    c_runtime_label = None
-    if c:
-        c_runtime_label = "@io_cocotec_coco_c_runtime__%s//:runtime" % version_suffix
-
-    # Determine cc_runtime_label if CC support is enabled
-    cc_runtime_label = None
-    if cc:
-        cc_runtime_label = "@io_cocotec_coco_cc_runtime__%s//:runtime" % version_suffix
-
-    for (os, arch) in [
-        ("osx", "aarch64"),
-        ("osx", "x86_64"),
-        ("linux", "aarch64"),
-        ("linux", "x86_64"),
-        ("windows", "x86_64"),
-    ]:
-        coco_repository_set(
-            name = "io_cocotec_coco_%s_%s" % (os, arch),
-            os = os,
-            arch = arch,
-            version = resolved_version,
-            constraints = [
-                "@platforms//os:%s" % os,
-                "@platforms//cpu:%s" % arch,
-            ],
-            c_runtime_label = c_runtime_label,
-            cc_runtime_label = cc_runtime_label,
-            license_source = license_source,
-            license_token = license_token,
-            auth_token_path = auth_token_path,
+    if not resolved_versions and not local_popili:
+        fail(
+            "coco_repositories(): no versions and no `local_popili`, so no Coco " +
+            "toolchain would be registered.",
         )
 
-def coco_local_repository_set(name, path, cc_runtime_label = None, c_runtime_label = None, license_source = None, license_token = None, auth_token_path = None):
-    coco_local_toolchain_repository(
-        name = name,
-        path = path,
-        cc_runtime_label = cc_runtime_label,
-        c_runtime_label = c_runtime_label,
+    _coco_bootstrap_deps()
+
+    extra_deps_by_version, error = normalize_cc_runtime_extra_deps(
+        cc_runtime_extra_deps,
+        {resolved: True for resolved in resolved_versions},
+        _resolve_version,
+    )
+    if error:
+        fail(error)
+
+    local = None
+    if local_popili:
+        local = struct(
+            popili = local_popili,
+            cc_runtime = local_cc_runtime or "",
+            c_runtime = local_c_runtime or "",
+        )
+
+    declare_coco_toolchains(
+        versions = resolved_versions,
+        c = c,
+        cc = cc,
+        cc_runtime_extra_deps_by_version = extra_deps_by_version,
         license_source = license_source,
         license_token = license_token,
         auth_token_path = auth_token_path,
+        local = local,
     )
 
-    coco_toolchain_repository_proxy(
-        name = name + "_toolchains",
-        constraints = [],
-        parent_workspace_name = name,
-    )
-
-    # Register toolchains
-    native.register_toolchains("@{name}_toolchains//:toolchain".format(
-        name = name,
-    ))
+    native.register_toolchains("@%s//:all" % DEFAULT_HUB_NAME)
 
 def coco_local_repositories(path, cc_runtime_path = None, c_runtime_path = None, **kwargs):
     """Sets up Coco toolchain repositories from a local popili path (WORKSPACE mode).
@@ -468,9 +174,10 @@ def coco_local_repositories(path, cc_runtime_path = None, c_runtime_path = None,
     filesystem (one you download and manage yourself, or an internal build) instead of
     having rules_coco fetch a published release.
 
-    Unlike the bzlmod `coco.local_toolchain` tag (which is gated behind
-    `--@rules_coco//:version=local`), WORKSPACE mode has no version flag plumbing, so
-    the local toolchain registered here becomes the active Coco toolchain for the build.
+    The registered toolchain is selected by `--@rules_coco//:version=local`, matching the
+    bzlmod `coco.local_toolchain` tag. To register a local distribution *alongside*
+    downloaded releases, call `coco_repositories(versions = [...], local_popili = ...)`
+    instead.
 
     Args:
       path: Directory containing the `popili` and `cocotec-licensing-server`
@@ -488,32 +195,19 @@ def coco_local_repositories(path, cc_runtime_path = None, c_runtime_path = None,
           auth_token_path (str): Optional auth token file path.
     """
 
-    # Nothing is downloaded (toolchain/runtimes are local); version only picks the
-    # licensing product name.
-    _coco_deps(version = "stable")
+    # buildifier: disable=print
+    print(
+        "coco_local_repositories(): the local Coco toolchain is selected by " +
+        "--@rules_coco//:version=local. Builds that do not set that flag will report " +
+        "no matching toolchain for @rules_coco//coco:toolchain_type.",
+    )
 
-    cc_runtime_label = None
-    if cc_runtime_path:
-        coco_cc_local_runtime_repository(
-            name = "io_cocotec_coco_cc_runtime__local",
-            path = cc_runtime_path,
-        )
-        cc_runtime_label = "@io_cocotec_coco_cc_runtime__local//:runtime"
-
-    c_runtime_label = None
-    if c_runtime_path:
-        coco_c_local_runtime_repository(
-            name = "io_cocotec_coco_c_runtime__local",
-            path = c_runtime_path,
-        )
-        c_runtime_label = "@io_cocotec_coco_c_runtime__local//:runtime"
-
-    coco_local_repository_set(
-        name = "coco_local",
-        path = path,
-        cc_runtime_label = cc_runtime_label,
-        c_runtime_label = c_runtime_label,
-        license_source = kwargs.get("license_source", None),
-        license_token = kwargs.get("license_token", None),
-        auth_token_path = kwargs.get("auth_token_path", None),
+    coco_repositories(
+        versions = [],
+        local_popili = path,
+        local_cc_runtime = cc_runtime_path,
+        local_c_runtime = c_runtime_path,
+        license_source = kwargs.get("license_source", ""),
+        license_token = kwargs.get("license_token", ""),
+        auth_token_path = kwargs.get("auth_token_path", ""),
     )

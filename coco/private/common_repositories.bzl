@@ -14,7 +14,6 @@
 
 """Common repository implementations shared between WORKSPACE and bzlmod."""
 
-load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load(":known_shas.bzl", "FILE_KEY_TO_SHA")
 
 _CC_RUNTIME_BUILD_TEMPLATE = """
@@ -308,24 +307,6 @@ _coco_c_local_runtime_repository = repository_rule(
     },
 )
 
-def _coco_cc_repositories(version, extra_deps = []):
-    """WORKSPACE-mode sibling of _coco_cc_runtime_repository."""
-    version_suffix = version_to_repo_suffix(version)
-    repo_name = "io_cocotec_coco_cc_runtime__%s" % version_suffix
-
-    http_archive(
-        name = repo_name,
-        urls = [
-            "https://dl.cocotec.io/popili/{download_prefix}/coco-cpp-runtime.zip".format(
-                download_prefix = download_prefix(version),
-            ),
-        ],
-        sha256 = FILE_KEY_TO_SHA.get("{version}/coco-cpp-runtime.zip".format(version = version)),
-        build_file_content = _CC_RUNTIME_BUILD_TEMPLATE.format(
-            deps = json.encode(extra_deps),
-        ),
-    )
-
 def _coco_preferences_repository_impl(ctx):
     """Creates a repository for user preferences."""
     ctx.file("preferences.toml", "")
@@ -466,7 +447,6 @@ _coco_symlink_license_repository = repository_rule(
 # Public API - these are the functions/rules that should be imported
 coco_c_runtime_repository = _coco_c_runtime_repository
 coco_c_local_runtime_repository = _coco_c_local_runtime_repository
-coco_cc_repositories = _coco_cc_repositories
 coco_cc_runtime_repository = _coco_cc_runtime_repository
 coco_cc_local_runtime_repository = _coco_cc_local_runtime_repository
 coco_preferences_repository = _coco_preferences_repository
