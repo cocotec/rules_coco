@@ -15,11 +15,18 @@
 """Unit tests for coco.bzl functions."""
 
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
-load(":cc_runtime_deps.bzl", "collect_cc_runtime_extra_deps")
+load(":cc_runtime_deps.bzl", "collect_cc_runtime_extra_deps", "normalize_cc_runtime_extra_deps")
 load(":coco.bzl", "compute_output_filenames", "mangle_name")
 load(":common_repositories.bzl", "find_local_license_path")
 load(":known_shas.bzl", "FILE_KEY_TO_SHA")
-load(":repositories.bzl", "coco_toolchain_download")
+load(
+    ":toolchain_hub.bzl",
+    "COCO_TOOLCHAIN_PLATFORMS",
+    "render_toolchain_hub_build",
+    "resolve_versions",
+    "toolchain_hub_entries",
+)
+load(":toolchain_repositories.bzl", "coco_toolchain_download")
 load(":version_aliases.bzl", "VERSION_ALIASES")
 
 # Tests for collect_cc_runtime_extra_deps
@@ -742,13 +749,40 @@ local_license_unset_appdata_ignored_off_windows_test = unittest.make(_local_lice
 
 # Tests for coco_toolchain_download
 
-# The supported platforms, and the archive each one downloads.
+# The supported platforms, and the archive each one downloads. Spelled out rather than
+# derived, so the tests below pin the actual archive names; kept in step with the
+# platforms the rules register by _coco_toolchain_download_covers_every_platform_test.
 _TOOLCHAIN_PLATFORMS = [
     ("osx", "aarch64", "popili_darwin_arm64.zip"),
+    ("osx", "x86_64", "popili_darwin_amd64.zip"),
     ("linux", "aarch64", "popili_linux_arm64.zip"),
     ("linux", "x86_64", "popili_linux_amd64.zip"),
     ("windows", "x86_64", "popili_windows_amd64.zip"),
 ]
+
+# Platforms rules_coco registers a toolchain for, but for which no archive has been
+# published since 1.5.0-beta.7, so there is no checksum to assert. Selecting one of these
+# fails at download rather than at toolchain resolution, and the missing checksum means the
+# download would be unverified.
+_UNPUBLISHED_PLATFORMS = [
+    ("osx", "x86_64"),
+]
+
+def _is_published(os, arch):
+    return not (os, arch) in _UNPUBLISHED_PLATFORMS
+
+def _coco_toolchain_download_covers_every_platform_test(ctx):
+    """Every platform the rules register has download tests covering it."""
+    env = unittest.begin(ctx)
+
+    asserts.equals(
+        env,
+        [(os, arch) for (os, arch) in COCO_TOOLCHAIN_PLATFORMS],
+        [(os, arch) for (os, arch, _archive) in _TOOLCHAIN_PLATFORMS],
+        "_TOOLCHAIN_PLATFORMS has drifted from COCO_TOOLCHAIN_PLATFORMS",
+    )
+
+    return unittest.end(env)
 
 def _coco_toolchain_download_url_test(ctx):
     """The download URL keeps the archive/ prefix and the platform-mangled file name."""
@@ -768,6 +802,8 @@ def _coco_toolchain_download_sha_matches_known_shas_test(ctx):
     env = unittest.begin(ctx)
 
     for (os, arch, archive) in _TOOLCHAIN_PLATFORMS:
+        if not _is_published(os, arch):
+            continue
         key = "1.5.7/" + archive
         asserts.equals(
             env,
@@ -783,6 +819,8 @@ def _coco_toolchain_download_all_platforms_verified_test(ctx):
     env = unittest.begin(ctx)
 
     for (os, arch, archive) in _TOOLCHAIN_PLATFORMS:
+        if not _is_published(os, arch):
+            continue
         sha256 = coco_toolchain_download("1.5.7", os, arch).sha256
         asserts.true(
             env,
@@ -794,11 +832,13 @@ def _coco_toolchain_download_all_platforms_verified_test(ctx):
     return unittest.end(env)
 
 def _coco_toolchain_download_version_aliases_verified_test(ctx):
-    """Every version an alias resolves to is checksummed on every platform."""
+    """Every version an alias resolves to is checksummed on every published platform."""
     env = unittest.begin(ctx)
 
     for (alias, version) in VERSION_ALIASES.items():
         for (os, arch, _archive) in _TOOLCHAIN_PLATFORMS:
+            if not _is_published(os, arch):
+                continue
             asserts.true(
                 env,
                 coco_toolchain_download(version, os, arch).sha256 != "",
@@ -851,6 +891,363 @@ coco_toolchain_download_all_platforms_verified_test = unittest.make(_coco_toolch
 coco_toolchain_download_version_aliases_verified_test = unittest.make(_coco_toolchain_download_version_aliases_verified_test)
 coco_toolchain_download_prerelease_test = unittest.make(_coco_toolchain_download_prerelease_test)
 coco_toolchain_download_unknown_version_test = unittest.make(_coco_toolchain_download_unknown_version_test)
+coco_toolchain_download_covers_every_platform_test = unittest.make(_coco_toolchain_download_covers_every_platform_test)
+
+# Tests for resolve_versions
+
+def _resolve_versions_alias_test(ctx):
+    """Aliases resolve to the version they point at."""
+    env = unittest.begin(ctx)
+
+    versions, err = resolve_versions(["stable"], _fake_resolve)
+
+    asserts.equals(env, None, err)
+    asserts.equals(env, ["1.5.1"], versions)
+
+    return unittest.end(env)
+
+def _resolve_versions_dedups_preserving_order_test(ctx):
+    """An alias and the version it resolves to collapse to one entry, keeping first-seen order."""
+    env = unittest.begin(ctx)
+
+    versions, err = resolve_versions(["1.5.1", "stable", "1.5.0", "1.5.1"], _fake_resolve)
+
+    asserts.equals(env, None, err)
+    asserts.equals(env, ["1.5.1", "1.5.0"], versions)
+
+    return unittest.end(env)
+
+def _resolve_versions_order_is_significant_test(ctx):
+    """Order is preserved, because the first version becomes the default toolchain."""
+    env = unittest.begin(ctx)
+
+    versions, err = resolve_versions(["1.5.0", "1.5.1"], _fake_resolve)
+    asserts.equals(env, None, err)
+    asserts.equals(env, ["1.5.0", "1.5.1"], versions)
+
+    versions, err = resolve_versions(["1.5.1", "1.5.0"], _fake_resolve)
+    asserts.equals(env, None, err)
+    asserts.equals(env, ["1.5.1", "1.5.0"], versions)
+
+    return unittest.end(env)
+
+def _resolve_versions_empty_test(ctx):
+    """No versions is not an error: a local-only toolchain registers none."""
+    env = unittest.begin(ctx)
+
+    versions, err = resolve_versions([], _fake_resolve)
+
+    asserts.equals(env, None, err)
+    asserts.equals(env, [], versions)
+
+    return unittest.end(env)
+
+def _resolve_versions_below_minimum_rejected_test(ctx):
+    """A version older than the supported minimum is rejected."""
+    env = unittest.begin(ctx)
+
+    versions, err = resolve_versions(["1.4.9"], _fake_resolve)
+
+    asserts.equals(env, [], versions)
+    asserts.true(env, err != None, "1.4.9 should be rejected")
+    asserts.true(env, "1.5.0" in err, "error should name the minimum version: %s" % err)
+
+    return unittest.end(env)
+
+def _resolve_versions_reserved_rejected_test(ctx):
+    """'local' and 'default' name the hub's own config_settings, so they cannot be versions."""
+    env = unittest.begin(ctx)
+
+    for reserved in ["local", "default"]:
+        versions, err = resolve_versions([reserved], _fake_resolve)
+        asserts.equals(env, [], versions)
+        asserts.true(env, err != None, "%r should be rejected" % reserved)
+        asserts.true(
+            env,
+            reserved in err,
+            "error should name the offending version: %s" % err,
+        )
+
+    return unittest.end(env)
+
+def _resolve_versions_suffix_collision_rejected_test(ctx):
+    """Two versions that mangle to the same repository suffix cannot coexist."""
+    env = unittest.begin(ctx)
+
+    versions, err = resolve_versions(["1.5.0-rc.1", "1.5.0-rc-1"], _fake_resolve)
+
+    asserts.equals(env, [], versions)
+    asserts.true(env, err != None, "colliding suffixes should be rejected")
+    asserts.true(env, "1_5_0_rc_1" in err, "error should name the suffix: %s" % err)
+
+    return unittest.end(env)
+
+resolve_versions_alias_test = unittest.make(_resolve_versions_alias_test)
+resolve_versions_dedups_preserving_order_test = unittest.make(_resolve_versions_dedups_preserving_order_test)
+resolve_versions_order_is_significant_test = unittest.make(_resolve_versions_order_is_significant_test)
+resolve_versions_empty_test = unittest.make(_resolve_versions_empty_test)
+resolve_versions_below_minimum_rejected_test = unittest.make(_resolve_versions_below_minimum_rejected_test)
+resolve_versions_reserved_rejected_test = unittest.make(_resolve_versions_reserved_rejected_test)
+resolve_versions_suffix_collision_rejected_test = unittest.make(_resolve_versions_suffix_collision_rejected_test)
+
+# Tests for toolchain_hub_entries
+
+def _hub_entries_single_version_test(ctx):
+    """One version yields a per-platform toolchain plus a per-platform default."""
+    env = unittest.begin(ctx)
+
+    entries = toolchain_hub_entries(["1.5.7"])
+
+    asserts.equals(
+        env,
+        2 * len(COCO_TOOLCHAIN_PLATFORMS),
+        len(entries.toolchain_names),
+    )
+    asserts.equals(env, {"1.5.7": "1_5_7"}, entries.version_suffixes)
+
+    # Both the version-gated and the default toolchain point at the same repository.
+    label = "@io_cocotec_coco_linux_x86_64__1_5_7//:toolchain_impl"
+    asserts.equals(env, label, entries.toolchain_labels["linux_x86_64__1_5_7"])
+    asserts.equals(env, label, entries.toolchain_labels["linux_x86_64__default"])
+
+    asserts.equals(
+        env,
+        ["@coco_toolchains//:version_1_5_7"],
+        entries.target_settings["linux_x86_64__1_5_7"],
+    )
+    asserts.equals(
+        env,
+        ["@coco_toolchains//:version_default"],
+        entries.target_settings["linux_x86_64__default"],
+    )
+
+    constraints = ["@platforms//os:linux", "@platforms//cpu:x86_64"]
+    asserts.equals(env, constraints, entries.exec_compatible_with["linux_x86_64__1_5_7"])
+    asserts.equals(env, constraints, entries.target_compatible_with["linux_x86_64__1_5_7"])
+
+    return unittest.end(env)
+
+def _hub_entries_default_is_first_version_only_test(ctx):
+    """Only the first version gets the default toolchains."""
+    env = unittest.begin(ctx)
+
+    entries = toolchain_hub_entries(["1.5.0", "1.5.1"])
+
+    asserts.equals(
+        env,
+        3 * len(COCO_TOOLCHAIN_PLATFORMS),
+        len(entries.toolchain_names),
+    )
+    asserts.equals(env, {"1.5.0": "1_5_0", "1.5.1": "1_5_1"}, entries.version_suffixes)
+
+    asserts.equals(
+        env,
+        "@io_cocotec_coco_linux_x86_64__1_5_0//:toolchain_impl",
+        entries.toolchain_labels["linux_x86_64__default"],
+    )
+    asserts.true(
+        env,
+        "linux_x86_64__1_5_1" in entries.toolchain_names,
+        "the non-default version still gets a gated toolchain",
+    )
+
+    return unittest.end(env)
+
+def _hub_entries_local_only_test(ctx):
+    """A local-only setup registers exactly one toolchain, gated on --version=local.
+
+    Matching bzlmod: local never becomes the default, so a build that does not set the
+    flag resolves no Coco toolchain at all.
+    """
+    env = unittest.begin(ctx)
+
+    entries = toolchain_hub_entries([], has_local = True)
+
+    asserts.equals(env, ["local"], entries.toolchain_names)
+    asserts.equals(env, {"local": "local"}, entries.version_suffixes)
+    asserts.equals(
+        env,
+        "@io_cocotec_coco_local//:toolchain_impl",
+        entries.toolchain_labels["local"],
+    )
+    asserts.equals(env, ["@coco_toolchains//:version_local"], entries.target_settings["local"])
+
+    # Host-only: the local binaries only exist on the machine that staged them.
+    asserts.equals(env, [], entries.exec_compatible_with["local"])
+    asserts.equals(env, [], entries.target_compatible_with["local"])
+
+    return unittest.end(env)
+
+def _hub_entries_local_alongside_versions_test(ctx):
+    """A local toolchain does not displace the downloaded default."""
+    env = unittest.begin(ctx)
+
+    entries = toolchain_hub_entries(["1.5.7"], has_local = True)
+
+    asserts.equals(
+        env,
+        2 * len(COCO_TOOLCHAIN_PLATFORMS) + 1,
+        len(entries.toolchain_names),
+    )
+    asserts.equals(
+        env,
+        "@io_cocotec_coco_linux_x86_64__1_5_7//:toolchain_impl",
+        entries.toolchain_labels["linux_x86_64__default"],
+    )
+    asserts.equals(env, ["@coco_toolchains//:version_local"], entries.target_settings["local"])
+
+    return unittest.end(env)
+
+hub_entries_single_version_test = unittest.make(_hub_entries_single_version_test)
+hub_entries_default_is_first_version_only_test = unittest.make(_hub_entries_default_is_first_version_only_test)
+hub_entries_local_only_test = unittest.make(_hub_entries_local_only_test)
+hub_entries_local_alongside_versions_test = unittest.make(_hub_entries_local_alongside_versions_test)
+
+# Tests for render_toolchain_hub_build
+
+def _hub_build_labels_test(ctx):
+    """The rendered BUILD wires the version flag and toolchain type by absolute label.
+
+    Those labels have to resolve from a generated repository in both WORKSPACE mode
+    (global repository namespace) and bzlmod (the extension's repo mapping), so they are
+    pinned here.
+    """
+    env = unittest.begin(ctx)
+
+    build = render_toolchain_hub_build(toolchain_hub_entries(["1.5.7"]))
+
+    asserts.true(
+        env,
+        '"@rules_coco//:version": "1.5.7"' in build,
+        "version config_setting missing: %s" % build,
+    )
+    asserts.true(
+        env,
+        '"@rules_coco//:version": ""' in build,
+        "default config_setting missing: %s" % build,
+    )
+    asserts.true(
+        env,
+        'toolchain_type = "@rules_coco//coco:toolchain_type"' in build,
+        "toolchain_type missing: %s" % build,
+    )
+    asserts.true(
+        env,
+        'target_settings = ["@coco_toolchains//:version_1_5_7"]' in build,
+        "target_settings missing: %s" % build,
+    )
+
+    return unittest.end(env)
+
+def _hub_build_has_no_loads_test(ctx):
+    """The hub uses only native rules, so it stays loadable before skylib is fetched."""
+    env = unittest.begin(ctx)
+
+    build = render_toolchain_hub_build(toolchain_hub_entries(["1.5.7"], has_local = True))
+
+    asserts.true(env, "load(" not in build, "hub BUILD must not load anything: %s" % build)
+
+    return unittest.end(env)
+
+hub_build_labels_test = unittest.make(_hub_build_labels_test)
+hub_build_has_no_loads_test = unittest.make(_hub_build_has_no_loads_test)
+
+# Tests for normalize_cc_runtime_extra_deps
+
+def _normalize_extra_deps_list_applies_to_all_test(ctx):
+    """A flat list is the pre-multi-version spelling: it applies to every version."""
+    env = unittest.begin(ctx)
+
+    # buildifier: disable=canonical-repository
+    result, err = normalize_cc_runtime_extra_deps(
+        ["@@boost+//:optional"],
+        {"1.5.0": True, "1.5.1": True},
+        _fake_resolve,
+    )
+
+    asserts.equals(env, None, err)
+
+    # buildifier: disable=canonical-repository
+    asserts.equals(
+        env,
+        {"1.5.0": ["@@boost+//:optional"], "1.5.1": ["@@boost+//:optional"]},
+        result,
+    )
+
+    return unittest.end(env)
+
+def _normalize_extra_deps_dict_is_per_version_test(ctx):
+    """A dict targets one version; versions it omits get nothing."""
+    env = unittest.begin(ctx)
+
+    # buildifier: disable=canonical-repository
+    result, err = normalize_cc_runtime_extra_deps(
+        {"1.5.0": ["@@boost+//:optional"]},
+        {"1.5.0": True, "1.5.1": True},
+        _fake_resolve,
+    )
+
+    asserts.equals(env, None, err)
+
+    # buildifier: disable=canonical-repository
+    asserts.equals(env, {"1.5.0": ["@@boost+//:optional"]}, result)
+
+    return unittest.end(env)
+
+def _normalize_extra_deps_dict_alias_key_test(ctx):
+    """An alias key collapses onto the version it resolves to."""
+    env = unittest.begin(ctx)
+
+    # buildifier: disable=canonical-repository
+    result, err = normalize_cc_runtime_extra_deps(
+        {"stable": ["@@boost+//:optional"]},
+        {"1.5.1": True},
+        _fake_resolve,
+    )
+
+    asserts.equals(env, None, err)
+
+    # buildifier: disable=canonical-repository
+    asserts.equals(env, {"1.5.1": ["@@boost+//:optional"]}, result)
+
+    return unittest.end(env)
+
+def _normalize_extra_deps_unknown_version_test(ctx):
+    """Deps for a version that was never registered are an error, as under bzlmod."""
+    env = unittest.begin(ctx)
+
+    # buildifier: disable=canonical-repository
+    result, err = normalize_cc_runtime_extra_deps(
+        {"1.4.0": ["@@boost+//:optional"]},
+        {"1.5.1": True},
+        _fake_resolve,
+    )
+
+    asserts.equals(env, {}, result)
+    asserts.true(env, err != None, "unknown version should be rejected")
+    asserts.true(env, "1.4.0" in err, "error should name the bad version: %s" % err)
+
+    return unittest.end(env)
+
+def _normalize_extra_deps_empty_test(ctx):
+    """Neither empty form registers anything."""
+    env = unittest.begin(ctx)
+
+    result, err = normalize_cc_runtime_extra_deps([], {"1.5.1": True}, _fake_resolve)
+    asserts.equals(env, None, err)
+    asserts.equals(env, {}, result)
+
+    result, err = normalize_cc_runtime_extra_deps({}, {"1.5.1": True}, _fake_resolve)
+    asserts.equals(env, None, err)
+    asserts.equals(env, {}, result)
+
+    return unittest.end(env)
+
+normalize_extra_deps_list_applies_to_all_test = unittest.make(_normalize_extra_deps_list_applies_to_all_test)
+normalize_extra_deps_dict_is_per_version_test = unittest.make(_normalize_extra_deps_dict_is_per_version_test)
+normalize_extra_deps_dict_alias_key_test = unittest.make(_normalize_extra_deps_dict_alias_key_test)
+normalize_extra_deps_unknown_version_test = unittest.make(_normalize_extra_deps_unknown_version_test)
+normalize_extra_deps_empty_test = unittest.make(_normalize_extra_deps_empty_test)
 
 def coco_test_suite(name):
     """Create test suite for coco functions.
@@ -916,4 +1313,31 @@ def coco_test_suite(name):
         coco_toolchain_download_version_aliases_verified_test,
         coco_toolchain_download_prerelease_test,
         coco_toolchain_download_unknown_version_test,
+        coco_toolchain_download_covers_every_platform_test,
+
+        # resolve_versions tests
+        resolve_versions_alias_test,
+        resolve_versions_dedups_preserving_order_test,
+        resolve_versions_order_is_significant_test,
+        resolve_versions_empty_test,
+        resolve_versions_below_minimum_rejected_test,
+        resolve_versions_reserved_rejected_test,
+        resolve_versions_suffix_collision_rejected_test,
+
+        # toolchain_hub_entries tests
+        hub_entries_single_version_test,
+        hub_entries_default_is_first_version_only_test,
+        hub_entries_local_only_test,
+        hub_entries_local_alongside_versions_test,
+
+        # render_toolchain_hub_build tests
+        hub_build_labels_test,
+        hub_build_has_no_loads_test,
+
+        # normalize_cc_runtime_extra_deps tests
+        normalize_extra_deps_list_applies_to_all_test,
+        normalize_extra_deps_dict_is_per_version_test,
+        normalize_extra_deps_dict_alias_key_test,
+        normalize_extra_deps_unknown_version_test,
+        normalize_extra_deps_empty_test,
     )
