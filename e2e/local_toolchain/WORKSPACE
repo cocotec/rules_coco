@@ -12,8 +12,8 @@ local_repository(
 
 load("@rules_coco//coco:repositories.bzl", "coco_local_repositories")
 
-# Register a toolchain from a local popili path (./staged; see stage.py). WORKSPACE
-# has no --@rules_coco//:version flag, so this is simply the active toolchain.
+# Register a toolchain from a local popili path (./staged; see stage.py). Like in bzlmod, it
+# is only selected with --@rules_coco//:version=local, which .bazelrc sets for both modes.
 coco_local_repositories(
     cc_runtime_path = "staged/cpp-runtime",
     path = "staged/popili",
