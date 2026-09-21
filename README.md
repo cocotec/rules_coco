@@ -64,13 +64,17 @@ http_archive(
 load("@rules_coco//coco:repositories.bzl", "coco_repositories")
 
 coco_repositories(
-    version = "stable",  # Or specify a explicit version like "1.5.1"
+    versions = ["stable"],  # Or explicit versions, e.g. ["1.5.1"] or ["1.5.1", "1.5.0"]
     c = True,   # Enable C runtime (for coco_c_library)
     cc = True,  # Enable C++ runtime (for coco_cc_library)
 )
 ```
 
 **Get the exact version and integrity hash from the [releases page](https://github.com/cocotec/rules_coco/releases).**
+
+In `WORKSPACE` mode the repository must be named `rules_coco`: the generated toolchain hub
+refers to `@rules_coco//:version` and `@rules_coco//coco:toolchain_type` by absolute label, and
+repositories created by a repository rule have no repository mapping to rewrite them.
 
 ## Configuration
 
@@ -139,7 +143,7 @@ This can be configured in three ways (in order of precedence):
 3. **In WORKSPACE** (for WORKSPACE users):
    ```python
    coco_repositories(
-       version = "stable",
+       versions = ["stable"],
        license_source = "local_acquire",  # Optional: set repository default
        # license_token = "...",  # Optional: only needed when license_source = "token"
        # auth_token_path = "/path/to/token",  # Optional: only needed when license_source = "action_file"
@@ -178,29 +182,46 @@ There are several ways of setting the version of Popili that you would like to u
    )
    ```
 
+   or, in `WORKSPACE`:
+
+   ```starlark
+   coco_repositories(
+       c = True,
+       cc = True,
+       versions = ["1.5.0", "1.5.1"],  # Register both versions
+   )
+   ```
+
    Then in your `BUILD.bazel`:
 
-   ```
+   ```starlark
    coco_package(
        name = "modern",
        srcs = ["modern/src/Example.coco"],
        package = "modern/Coco.toml",
    )
 
-   with_popili_version(
-       name = "modern_v150",
-       target = ":modern",
-       version = "1.5.0",
+   # Wrap the target that RUNS popili, not just the package it reads.
+   coco_generate(
+       name = "modern_cpp_impl",
+       language = "cpp",
+       package = ":modern",
    )
 
-   coco_generate(
+   with_popili_version(
        name = "modern_cpp",
-       language = "cpp",
-       package = ":modern_v150",
+       target = ":modern_cpp_impl",
+       version = "1.5.0",
    )
    ```
 
-   See `e2e/multi_version` for a full example.
+   `with_popili_version` carries an _incoming_ transition: it applies to the target it wraps and
+   everything below it, not to whatever consumes it. So the rule that actually invokes popili —
+   `coco_generate`, `coco_verify_test`, `coco_fmt_test`, the diagram rules, or `coco_package` with
+   `typecheck = True` — must itself be the wrapped target. Wrapping only a plain `coco_package`
+   has no effect on the version used to verify or generate from it.
+
+   See `e2e/multi_version` for a full example, in both `MODULE.bazel` and `WORKSPACE` form.
 
 ### Using a local toolchain
 
@@ -220,8 +241,24 @@ Each path (absolute, or workspace-relative) mirrors the **extracted release arch
 of `popili_<os>_<arch>.zip`, `coco-cpp-runtime.zip`, and `coco-c-runtime.zip` respectively. To use it, run with
 `bazel build --@rules_coco//:version=local //...` (consider a `.bazelrc` `--config`).
 
-For `WORKSPACE` mode use `coco_local_repositories(path=..., cc_runtime_path=..., c_runtime_path=...)` instead;
-it has no version flag, so the registered toolchain is simply the active one. See `e2e/local_toolchain`.
+For `WORKSPACE` mode use `coco_local_repositories(path=..., cc_runtime_path=..., c_runtime_path=...)`,
+which behaves the same way: the local toolchain is selected by `--@rules_coco//:version=local` and
+never becomes the default, so a build that does not set the flag reports no matching toolchain for
+`@rules_coco//coco:toolchain_type`.
+
+To register a local distribution _alongside_ downloaded releases, pass it to `coco_repositories`
+instead, and switch between them with the version flag:
+
+```starlark
+coco_repositories(
+    cc = True,
+    versions = ["1.5.1"],
+    local_popili = "/path/to/popili-dist",
+    local_cc_runtime = "/path/to/cpp-runtime",
+)
+```
+
+See `e2e/local_toolchain`.
 
 ### Bring your own toolchain
 
@@ -333,17 +370,36 @@ In a real build, point the flag at an aggregate covering both `@boost//:integer`
 
 #### WORKSPACE mode
 
-WORKSPACE pins one version, so the entrypoint takes a flat list:
+A flat list applies to every registered version:
 
 ```starlark
 coco_repositories(
-    version = "1.5.1",
+    versions = ["1.5.1"],
     cc = True,
-    cc_runtime_extra_deps = ["//third_party/boost_shim"],
+    cc_runtime_extra_deps = ["@my_workspace//third_party/boost_shim"],
 )
 ```
 
-The three patterns above all apply — point the list at whatever target holds your `select()`.
+A dict targets one version at a time, mirroring bzlmod's per-version `coco.cc_runtime_deps` tag:
+
+```starlark
+coco_repositories(
+    versions = ["1.5.1", "1.5.0"],
+    cc = True,
+    cc_runtime_extra_deps = {
+        "1.5.1": ["@my_workspace//third_party/boost_shim"],
+        "1.5.0": ["@my_workspace//third_party/boost_shim_old"],
+    },
+)
+```
+
+Naming a version that was not registered is an error. Unlike the bzlmod tag, these labels are not
+resolved against your workspace before being written into the generated runtime repository, so
+they must be repository-absolute (`@my_workspace//...`, not `//...`).
+
+Which target you name is an independent choice: the three patterns above describe that, and all
+three work here unchanged — Boost directly, a `cc_library` wrapping a `select()`, or a `label_flag`.
+Only the spelling differs between the two modes.
 
 ### Verification Backend
 

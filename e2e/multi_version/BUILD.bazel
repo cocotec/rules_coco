@@ -4,6 +4,35 @@
 
 load("@rules_coco//coco:cc.bzl", "coco_cc_library")
 load("@rules_coco//coco:defs.bzl", "coco_generate", "coco_package", "coco_verify_test", "with_popili_version")
+load(":popili_version_report.bzl", "popili_version_report")
+
+# Which popili a target actually resolves is asserted directly, rather than inferred from a
+# successful verify: every registered version can verify every package here, so the verify
+# tests below pass whichever toolchain they get. Works identically in WORKSPACE and bzlmod.
+#
+# popili_version_report fails during analysis, so these need only be part of //... -- no test
+# rule, and deliberately no build_test, whose generated genrules need a working bash.
+
+# Unwrapped: the first entry of versions/coco.toolchain is the default.
+popili_version_report(
+    name = "popili_is_150_by_default",
+    expected_repo_suffix = "__1_5_0",
+)
+
+# Wrapped: the version flag, set here by a transition, selects the other registered version.
+# Manual, because built directly it would resolve the default version and fail by design; it is
+# reached only through the wrapper below.
+popili_version_report(
+    name = "popili_is_151_impl",
+    expected_repo_suffix = "__1_5_1",
+    tags = ["manual"],
+)
+
+with_popili_version(
+    name = "popili_is_151",
+    target = ":popili_is_151_impl",
+    version = "1.5.1",
+)
 
 # Modern package - uses 1.5.0
 coco_package(
@@ -18,6 +47,10 @@ with_popili_version(
     version = "1.5.0",
 )
 
+# NOTE: these verify tests take a wrapped package but are not wrapped themselves. The
+# with_popili_version transition is incoming, so it reaches the package and its deps but not
+# the test consuming it -- these run the *default* popili, not the version the package asks
+# for. The popili_version_report targets above are what actually pin version selection.
 coco_verify_test(
     name = "modern_verify",
     package = ":modern_v150",
