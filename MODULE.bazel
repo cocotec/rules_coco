@@ -32,16 +32,12 @@ bazel_dep(name = "googletest", version = "1.17.0.bcr.2", dev_dependency = True)
 bazel_dep(name = "protobuf", version = "36.2", dev_dependency = True)
 bazel_dep(name = "stardoc", version = "0.8.1", dev_dependency = True)
 
-# Coco toolchain extension
+# Coco toolchain extension. This usage declares no toolchain, so a consumer gets exactly the
+# coco.toolchain tags in its own dependency graph, or the extension's default (stable, with the
+# C and C++ runtimes) when nobody declares one. rules_coco's .bzl files refer to the extension's
+# repositories by the names below, so consumers inherit this use_repo and the registration and
+# need neither themselves.
 coco = use_extension("//coco:extensions.bzl", "coco")
-coco.toolchain(
-    c = True,
-    cc = True,
-    versions = ["stable"],
-)
-
-# Rules providers must explicitly import and register toolchains
-# Consumer modules (your projects) inherit these automatically and don't need use_repo/register_toolchains
 use_repo(
     coco,
     "coco_toolchains",
@@ -52,3 +48,12 @@ use_repo(
 
 # Register all toolchains - inherited by consumers automatically
 register_toolchains("@coco_toolchains//:all")
+
+# The toolchain rules_coco's own tests run with: the same as the extension's default. A dev
+# dependency, so it never reaches consumers (e2e/default_toolchain covers the default path).
+coco_dev = use_extension("//coco:extensions.bzl", "coco", dev_dependency = True)
+coco_dev.toolchain(
+    c = True,
+    cc = True,
+    versions = ["stable"],
+)

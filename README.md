@@ -41,6 +41,9 @@ coco.toolchain(
 )
 ```
 
+Every module declaring `coco.toolchain` contributes its versions and runtimes. When no module in
+the dependency graph declares one, `stable` is registered with both runtimes.
+
 **Get the exact version and integrity hash from the [releases page](https://github.com/cocotec/rules_coco/releases).**
 
 ### WORKSPACE (Deprecated)

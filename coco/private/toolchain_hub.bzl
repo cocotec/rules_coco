@@ -90,6 +90,63 @@ config_setting(
 )
 """.format(version_flag = VERSION_FLAG)
 
+# What the extension registers when no module in the dependency graph declares
+# coco.toolchain. rules_coco's own MODULE.bazel declares the same as a dev dependency, so it
+# never reaches consumers, and developing rules_coco uses the configuration a consumer
+# declaring nothing gets.
+DEFAULT_TOOLCHAIN_VERSIONS = ["stable"]
+
+def merge_toolchain_tags(modules):
+    """Merges every module's coco.toolchain tags into one toolchain configuration.
+
+    Every module declaring the tag contributes its versions and runtimes, in module order
+    (root first), so a dependency can register the versions its own packages pin while the
+    root's first version stays the default. The first non-empty licence setting wins. When no
+    module declares the tag, the default applies: `stable` with the C and C++ runtimes.
+
+    Args:
+      modules: The extension's `ctx.modules`, or structs with `tags.toolchain`.
+
+    Returns:
+      A struct with `versions`, `c`, `cc`, `license_source`, `license_token` and
+      `auth_token_path`, plus `declared`, False when no module declared the tag.
+    """
+    tags = [tag for mod in modules for tag in mod.tags.toolchain]
+    if not tags:
+        return struct(
+            versions = DEFAULT_TOOLCHAIN_VERSIONS,
+            c = True,
+            cc = True,
+            license_source = "",
+            license_token = "",
+            auth_token_path = "",
+            declared = False,
+        )
+
+    versions = []
+    c = False
+    cc = False
+    license_source = ""
+    license_token = ""
+    auth_token_path = ""
+    for tag in tags:
+        versions.extend(tag.versions)
+        c = c or tag.c
+        cc = cc or tag.cc
+        license_source = license_source or tag.license_source
+        license_token = license_token or tag.license_token
+        auth_token_path = auth_token_path or tag.auth_token_path
+
+    return struct(
+        versions = versions,
+        c = c,
+        cc = cc,
+        license_source = license_source,
+        license_token = license_token,
+        auth_token_path = auth_token_path,
+        declared = True,
+    )
+
 def toolchain_repo_name(os, arch, version_suffix):
     """Returns the name of the repository holding one platform's popili distribution.
 
