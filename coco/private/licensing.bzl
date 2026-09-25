@@ -14,9 +14,20 @@
 
 """Licensing rules and helpers for Coco."""
 
-load(":coco.bzl", "COCO_TOOLCHAIN_TYPE")
+load(":coco.bzl", "COCO_TOOLCHAIN_TYPE", "OPTIONAL_COCO_TOOLCHAIN")
 
 def _fetch_license_impl(ctx):
+    # Workaround: no toolchain in this configuration, e.g. one forcing an unregistered popili
+    # version. Every rule depends on this target, so failing here would pre-empt rules_coco's
+    # own "not registered" error. The rules that need a toolchain fail clearly on their own.
+    #
+    # Known gap: a pinned package's popili comes from its pinned configuration, while this
+    # licence is resolved in the consumer's. With an unregistered --@rules_coco//:version and
+    # license_source local_acquire, popili then runs without a fetched licence. Resolving the
+    # licence next to the package's toolchain closes that gap.
+    if ctx.toolchains[COCO_TOOLCHAIN_TYPE] == None:
+        return DefaultInfo(files = depset())
+
     # Create the wrapper script to invoke Coco. We try and avoid using bash on Windows.
     output = ctx.actions.declare_file("licenses.lic")
     arguments = [
@@ -49,9 +60,7 @@ _fetch_license = rule(
         "product": attr.string(),
     },
     implementation = _fetch_license_impl,
-    toolchains = [
-        COCO_TOOLCHAIN_TYPE,
-    ],
+    toolchains = [OPTIONAL_COCO_TOOLCHAIN],
 )
 
 def fetch_license(tags = [], **kwargs):

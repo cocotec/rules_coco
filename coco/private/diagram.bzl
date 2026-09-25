@@ -17,9 +17,9 @@
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load(
     "//coco/private:coco.bzl",
-    "COCO_TOOLCHAIN_TYPE",
     "CocoPackageInfo",
     "LICENSE_ATTRIBUTES",
+    "OPTIONAL_COCO_TOOLCHAIN",
     "run_coco",
 )
 
@@ -144,7 +144,7 @@ _coco_architecture_diagram = rule(
             doc = "Show the type of each port. Enabled by default.",
         ),
     }.items()),
-    toolchains = [COCO_TOOLCHAIN_TYPE],
+    toolchains = [OPTIONAL_COCO_TOOLCHAIN],
 )
 
 def _coco_state_diagram_impl(ctx):
@@ -217,7 +217,7 @@ _coco_state_diagram = rule(
                   "(e.g. \"MyComponent.myPort.stateMachine\"). If empty, all state machines are drawn.",
         ),
     }.items()),
-    toolchains = [COCO_TOOLCHAIN_TYPE],
+    toolchains = [OPTIONAL_COCO_TOOLCHAIN],
 )
 
 def _coco_counterexample_diagram_impl(ctx):
@@ -305,7 +305,7 @@ _coco_counterexample_diagram = rule(
         ),
         "_verification_backend": attr.label(default = Label("//:verification_backend")),
     }.items()),
-    toolchains = [COCO_TOOLCHAIN_TYPE],
+    toolchains = [OPTIONAL_COCO_TOOLCHAIN],
 )
 
 # Public macros

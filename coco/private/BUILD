@@ -13,12 +13,21 @@
 # limitations under the License.
 
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load(":coco.bzl", "coco_resolved_popili")
 load(":tests.bzl", "coco_test_suite")
 
 package(default_visibility = ["//coco:__pkg__"])
 
 # Unit tests for coco.bzl functions
 coco_test_suite(name = "coco_tests")
+
+# Resolves the Coco toolchain in whatever configuration it is analysed in. The implicit
+# `_popili` dependency of every coco_package and coco_workspace, reached through the
+# transition that applies their popili_version.
+coco_resolved_popili(
+    name = "resolved_popili",
+    visibility = ["//visibility:public"],
+)
 
 # Export all Starlark files for documentation generation and external consumption
 filegroup(
@@ -39,6 +48,7 @@ bzl_library(
     srcs = ["coco.bzl"],
     deps = [
         ":version_aliases_bzl",
+        ":version_registry_bzl",
         "@bazel_skylib//lib:paths",
         "@bazel_skylib//rules:common_settings",
         "@rules_cc//cc:defs_bzl",
@@ -96,6 +106,11 @@ bzl_library(
 )
 
 bzl_library(
+    name = "version_registry_bzl",
+    srcs = ["version_registry.bzl"],
+)
+
+bzl_library(
     name = "licensing_bzl",
     srcs = ["licensing.bzl"],
 )
@@ -143,5 +158,6 @@ bzl_library(
         ":toolchain_hub_bzl",
         ":toolchain_repositories_bzl",
         ":version_aliases_bzl",
+        ":version_registry_bzl",
     ],
 )

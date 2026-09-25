@@ -24,6 +24,7 @@ def _coco_toolchain_impl(ctx):
         license_source = ctx.attr.license_source,
         license_token = ctx.attr.license_token,
         auth_token_path = ctx.attr.auth_token_path,
+        version = ctx.attr.version,
     )
     return toolchain
 
@@ -68,6 +69,12 @@ coco_toolchain = rule(
             doc = "The location of the Popili `preferences.toml` file. Can be a direct source or a filegroup containing one item.",
             allow_single_file = True,
             default = "@io_cocotec_coco_preferences//:preferences",
+        ),
+        "version": attr.string(
+            doc = "The popili version this toolchain provides, e.g. '1.5.1', or 'local'. Used to match " +
+                  "the toolchain against popili_version pins and to pick the matching runtime. Optional; " +
+                  "set automatically for toolchains registered by rules_coco.",
+            default = "",
         ),
     },
 )
