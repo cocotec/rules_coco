@@ -22,6 +22,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Breaking:** rules_coco's own `coco.toolchain(versions = ["stable"], c = True, cc = True)` is
+  now a dev dependency of rules_coco, so it no longer reaches consumers. Before, it was merged into
+  every consumer, so a module asking for `versions = ["1.5.1"]` also registered `stable`, and the C
+  and C++ runtimes were fetched even when it asked for neither. Declare `c = True` / `cc = True` for
+  the runtimes you use with `coco_c_library` / `coco_cc_library`. When no module in the dependency
+  graph declares `coco.toolchain`, the extension registers `stable` with both runtimes, so a
+  consumer declaring nothing keeps working. When only a dependency declares one, that declaration
+  is what the root gets, without `stable` or runtimes added on top.
 - **Breaking:** the local toolchain registered by `coco_local_repositories()` in WORKSPACE mode is
   now selected by `--@rules_coco//:version=local` and is no longer active by default, matching the
   bzlmod `coco.local_toolchain` tag. Builds that do not set the flag will report

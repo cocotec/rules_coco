@@ -1,0 +1,23 @@
+# E2E for the extension's default: a consumer that never mentions the coco extension. Nothing in
+# this module's dependency graph declares coco.toolchain (rules_coco's own declaration is a dev
+# dependency, dropped here), so the extension must register `stable` with the C and C++ runtimes
+# by itself. bzlmod only: WORKSPACE mode always calls coco_repositories explicitly.
+
+module(
+    name = "rules_coco_default_toolchain_test",
+    version = "0.0.0",
+)
+
+# Override rules_coco to use the local development version.
+bazel_dep(name = "rules_coco", version = "")
+local_path_override(
+    module_name = "rules_coco",
+    path = "../..",
+)
+
+# Required dependencies
+bazel_dep(name = "bazel_skylib", version = "1.9.2")
+bazel_dep(name = "platforms", version = "1.1.0")
+bazel_dep(name = "rules_cc", version = "0.2.18")
+
+# Deliberately no use_extension / coco.toolchain here.
