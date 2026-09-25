@@ -1,0 +1,26 @@
+enum Colour {
+  case RED
+  case GREEN
+  case BLUE
+}
+
+struct Pixel {
+  var colour : Colour
+  var brightness : Int32
+}
+
+// Uses a .Coco1_2 feature, so this builds only if the workspace's standard reaches it.
+struct Gated {
+  @available(.Coco1_2)
+  var value : Int32
+}
+
+port IPkg {
+  function getDefaultPixel() : Pixel
+  function getGated() : Int32
+
+  machine {
+    getDefaultPixel() = Pixel{ colour = Colour.RED, brightness = 128 }
+    getGated() = Gated{ value = 42 }.value
+  }
+}

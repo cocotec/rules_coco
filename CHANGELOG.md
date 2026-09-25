@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The Popili version is now a property of a package: `popili_version` on `coco_package` or
+  `coco_workspace` (inherited by member packages and nested workspaces) selects it, and every rule
+  consuming the package uses it: typecheck, `coco_verify_test`, `coco_generate`, `coco_fmt_test`,
+  the diagram rules, and the runtime `coco_cc_library` / `coco_c_library` link. Different subgraphs
+  of a repository can therefore use different registered versions, each declared once. See the
+  README section "Popili Version".
+- `--@rules_coco//:force_version` makes `--@rules_coco//:version` override every `popili_version`
+  pin, to try a whole build on another version without editing any pins.
+- A package whose dependency pins a different version prints a warning. The dependency's pin is
+  ignored there, as in popili itself.
+- A pin, `--@rules_coco//:version` or `with_popili_version` naming an unregistered version now
+  fails with a message listing the registered versions, instead of Bazel's
+  `No matching toolchains found`.
+- `coco_toolchain` has an optional `version` attribute, set automatically for the toolchains
+  rules_coco registers. A bring-your-own toolchain declaring it can satisfy a matching pin.
+- `CocoWorkspaceInfo` has new optional fields `popili_version`, `popili_toolchain` and
+  `popili_pinned_by`, which carry a workspace's pin to its member packages. They are optional:
+  rules outside rules_coco that return `CocoWorkspaceInfo(files = ...)` keep working, and their
+  workspaces count as unpinned.
 - WORKSPACE mode now supports multiple Popili versions, like bzlmod already did.
   `coco_repositories(versions = ["1.5.1", "1.5.0"])` registers a toolchain per version, selected
   with `--@rules_coco//:version=1.5.0` or per target with `with_popili_version`. The first entry is
@@ -22,6 +41,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `with_popili_version` now forces its version over every `popili_version` pin in the wrapped
+  subgraph. It is equivalent to building that subgraph with
+  `--@rules_coco//:version=<v> --@rules_coco//:force_version`.
+- `coco_cc_library` and `coco_c_library` now link the runtime matching the version the code was
+  generated with, instead of resolving it in the library's own configuration. `//coco:cc_runtime`
+  and `//coco:c_runtime` are unchanged. Analysing either macro now fetches the runtime of every
+  registered version.
+- Packages that pin a version, directly or through their workspace, ignore
+  `--@rules_coco//:version` unless `--@rules_coco//:force_version` is also set. Builds without pins
+  behave as before.
 - **Breaking:** the local toolchain registered by `coco_local_repositories()` in WORKSPACE mode is
   now selected by `--@rules_coco//:version=local` and is no longer active by default, matching the
   bzlmod `coco.local_toolchain` tag. Builds that do not set the flag will report
@@ -42,6 +71,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Wrapping a `coco_package` in `with_popili_version` had no effect on the Popili used to verify or
+  generate from it, because the transition reached only the package. The consumers of a package
+  now always use the package's version.
 - `coco_repositories(versions = [...])` was accepted but silently ignored in WORKSPACE mode, so a
   workspace following the README's "Popili Version" section got `stable` instead of the versions it
   asked for. It is now honoured — check that your default version has not moved.

@@ -1,0 +1,12 @@
+[workspace]
+members = [
+  "pkg",
+  "inner",
+]
+
+[language]
+standard = "1.2"
+profiles = ["C++"]
+
+[generator]
+defaultLanguage = "C++"

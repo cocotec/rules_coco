@@ -1,0 +1,3 @@
+[package]
+name = "nested_pkg"
+sources = ["src"]

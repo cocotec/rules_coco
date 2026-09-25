@@ -1,0 +1,14 @@
+// Member of a workspace pinned to popili 1.5.0. Depends on "legacy" (pinned to 1.5.1), whose pin
+// is ignored here with a warning, and on the unpinned "shared".
+
+port WsAppInterface {
+  function serve() : Nil
+  machine {
+    serve() = {}
+  }
+}
+
+@runtime(.SingleThreaded)
+external component WsAppComponent {
+  val client : Provided<WsAppInterface>
+}

@@ -1,0 +1,14 @@
+// Unpinned package depending on "legacy", which pins popili 1.5.1. This package resolves the
+// default version (1.5.0) anyway, and a warning says that legacy's pin is ignored here.
+
+port UsesLegacyInterface {
+  function go() : Nil
+  machine {
+    go() = {}
+  }
+}
+
+@runtime(.SingleThreaded)
+external component UsesLegacyComponent {
+  val client : Provided<UsesLegacyInterface>
+}
