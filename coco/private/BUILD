@@ -50,9 +50,27 @@ bzl_library(
     srcs = ["repositories.bzl"],
     deps = [
         ":bazel_tools_bzl_lib",
+        ":cc_runtime_deps_bzl",
+        ":toolchain_hub_bzl",
+        ":version_aliases_bzl",
+    ],
+)
+
+bzl_library(
+    name = "toolchain_repositories_bzl",
+    srcs = ["toolchain_repositories.bzl"],
+    deps = [
         ":common_repositories_bzl",
         ":known_shas_bzl",
-        ":version_aliases_bzl",
+    ],
+)
+
+bzl_library(
+    name = "toolchain_hub_bzl",
+    srcs = ["toolchain_hub.bzl"],
+    deps = [
+        ":common_repositories_bzl",
+        ":toolchain_repositories_bzl",
     ],
 )
 
@@ -122,6 +140,8 @@ bzl_library(
         ":known_shas_bzl",
         ":licensing_bzl",
         ":repositories_bzl",
+        ":toolchain_hub_bzl",
+        ":toolchain_repositories_bzl",
         ":version_aliases_bzl",
     ],
 )

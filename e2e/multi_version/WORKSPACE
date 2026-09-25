@@ -14,13 +14,15 @@ local_repository(
 
 load("@rules_coco//coco:repositories.bzl", "coco_repositories")
 
-# Register coco toolchain with stable version
-# Note: To test multi-version in WORKSPACE mode, you would need to call
-# coco_repositories multiple times with different versions, which is not
-# the recommended approach. Use bzlmod mode for multi-version support.
+# Register both versions, mirroring MODULE.bazel. The first entry is the one used when
+# --@rules_coco//:version is unset; the other is reachable via the flag or a
+# with_popili_version transition.
 coco_repositories(
     cc = True,
-    version = "1.5.0",
+    versions = [
+        "1.5.0",
+        "1.5.1",
+    ],
 )
 
 # Load GoogleTest for C++ unit tests (if needed)
