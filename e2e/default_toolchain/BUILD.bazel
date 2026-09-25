@@ -1,0 +1,43 @@
+# E2E for the extension's default toolchain: see MODULE.bazel.
+
+load("@rules_coco//coco:cc.bzl", "coco_cc_library")
+load("@rules_coco//coco:defs.bzl", "coco_generate", "coco_package", "coco_verify_test")
+load(":popili_version_report.bzl", "popili_version_report")
+
+# The default is `stable`. Fails during analysis, so being part of //... is enough.
+popili_version_report(
+    name = "popili_is_stable",
+    expected_version = "stable",
+)
+
+# The default registers both runtimes. Building the helper targets fetches and compiles them,
+# which fails at analysis if the extension registered a toolchain without them.
+filegroup(
+    name = "default_runtimes",
+    srcs = [
+        "@rules_coco//coco:c_runtime",
+        "@rules_coco//coco:cc_runtime",
+    ],
+)
+
+coco_package(
+    name = "example",
+    srcs = glob(["src/**/*.coco"]),
+    package = "Coco.toml",
+)
+
+coco_verify_test(
+    name = "example_verify",
+    package = ":example",
+)
+
+coco_generate(
+    name = "example_cpp",
+    language = "cpp",
+    package = ":example",
+)
+
+coco_cc_library(
+    name = "example_cc",
+    generated_package = ":example_cpp",
+)

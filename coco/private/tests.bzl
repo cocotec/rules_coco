@@ -22,6 +22,7 @@ load(":known_shas.bzl", "FILE_KEY_TO_SHA")
 load(":platforms.bzl", "COCO_TOOLCHAIN_PLATFORMS", "archive_platform", "platform_binary_ext")
 load(
     ":toolchain_hub.bzl",
+    "merge_toolchain_tags",
     "render_toolchain_hub_build",
     "resolve_versions",
     "toolchain_hub_entries",
@@ -1338,6 +1339,100 @@ normalize_extra_deps_dict_alias_key_test = unittest.make(_normalize_extra_deps_d
 normalize_extra_deps_unknown_version_test = unittest.make(_normalize_extra_deps_unknown_version_test)
 normalize_extra_deps_empty_test = unittest.make(_normalize_extra_deps_empty_test)
 
+# Tests for merge_toolchain_tags
+
+def _toolchain_tag(versions = ["stable"], c = False, cc = False, license_source = "", license_token = "", auth_token_path = ""):
+    return struct(
+        versions = versions,
+        c = c,
+        cc = cc,
+        license_source = license_source,
+        license_token = license_token,
+        auth_token_path = auth_token_path,
+    )
+
+def _module(name, toolchain_tags):
+    return struct(name = name, tags = struct(toolchain = toolchain_tags))
+
+def _merge_toolchain_tags_default_test(ctx):
+    """No module declaring coco.toolchain gets stable with both runtimes."""
+    env = unittest.begin(ctx)
+
+    config = merge_toolchain_tags([_module("my_project", []), _module("some_dep", [])])
+
+    asserts.equals(env, ["stable"], config.versions)
+    asserts.true(env, config.c)
+    asserts.true(env, config.cc)
+    asserts.equals(env, "", config.license_source)
+    asserts.false(env, config.declared)
+
+    return unittest.end(env)
+
+def _merge_toolchain_tags_root_declaration_is_exact_test(ctx):
+    """A root declaring coco.toolchain gets exactly its own: no stable, no unasked runtime."""
+    env = unittest.begin(ctx)
+
+    config = merge_toolchain_tags([_module("my_project", [_toolchain_tag(["1.5.1"], cc = True)])])
+
+    asserts.equals(env, ["1.5.1"], config.versions)
+    asserts.false(env, config.c)
+    asserts.true(env, config.cc)
+    asserts.true(env, config.declared)
+
+    return unittest.end(env)
+
+def _merge_toolchain_tags_merges_modules_in_order_test(ctx):
+    """Dependencies contribute after the root, so the root's first version stays the default."""
+    env = unittest.begin(ctx)
+
+    config = merge_toolchain_tags([
+        _module("my_project", [_toolchain_tag(["1.5.1"])]),
+        _module("some_dep", [_toolchain_tag(["1.5.0"], c = True), _toolchain_tag(["1.5.1"])]),
+    ])
+
+    asserts.equals(env, ["1.5.1", "1.5.0", "1.5.1"], config.versions)
+    asserts.true(env, config.c)
+    asserts.false(env, config.cc)
+
+    return unittest.end(env)
+
+def _merge_toolchain_tags_dependency_only_test(ctx):
+    """A dependency's declaration is used as-is; the default does not get added on top."""
+    env = unittest.begin(ctx)
+
+    config = merge_toolchain_tags([
+        _module("my_project", []),
+        _module("some_dep", [_toolchain_tag(["1.5.0"])]),
+    ])
+
+    asserts.equals(env, ["1.5.0"], config.versions)
+    asserts.false(env, config.c)
+    asserts.false(env, config.cc)
+    asserts.true(env, config.declared)
+
+    return unittest.end(env)
+
+def _merge_toolchain_tags_first_license_setting_wins_test(ctx):
+    """The first non-empty licence setting, in module order, is taken."""
+    env = unittest.begin(ctx)
+
+    config = merge_toolchain_tags([
+        _module("my_project", [_toolchain_tag(), _toolchain_tag(license_source = "token", license_token = "root")]),
+        _module("some_dep", [_toolchain_tag(license_source = "local_user", license_token = "dep", auth_token_path = "/dep")]),
+    ])
+
+    asserts.equals(env, "token", config.license_source)
+    asserts.equals(env, "root", config.license_token)
+    asserts.equals(env, "/dep", config.auth_token_path)
+
+    return unittest.end(env)
+
+merge_toolchain_tags_default_test = unittest.make(_merge_toolchain_tags_default_test)
+merge_toolchain_tags_root_declaration_is_exact_test = unittest.make(_merge_toolchain_tags_root_declaration_is_exact_test)
+merge_toolchain_tags_merges_modules_in_order_test = unittest.make(_merge_toolchain_tags_merges_modules_in_order_test)
+merge_toolchain_tags_dependency_only_test = unittest.make(_merge_toolchain_tags_dependency_only_test)
+merge_toolchain_tags_first_license_setting_wins_test = unittest.make(_merge_toolchain_tags_first_license_setting_wins_test)
+
 def coco_test_suite(name):
     """Create test suite for coco functions.
 
@@ -1439,4 +1534,11 @@ def coco_test_suite(name):
         normalize_extra_deps_dict_alias_key_test,
         normalize_extra_deps_unknown_version_test,
         normalize_extra_deps_empty_test,
+
+        # merge_toolchain_tags tests
+        merge_toolchain_tags_default_test,
+        merge_toolchain_tags_root_declaration_is_exact_test,
+        merge_toolchain_tags_merges_modules_in_order_test,
+        merge_toolchain_tags_dependency_only_test,
+        merge_toolchain_tags_first_license_setting_wins_test,
     )
