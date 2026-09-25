@@ -164,64 +164,119 @@ The `license_token` parameter is available in repository configuration for conve
 
 ### Popili Version
 
-There are several ways of setting the version of Popili that you would like to use.
+Register every Popili version you want to use in `MODULE.bazel`:
 
-1. In `WORKSPACE` or `MODULE.bazel` you can specify a single version in `versions = [...]`.
-2. If specifying several different versions in `WORKSPACE` or `MODULE.bazel` you can select your preferred one using
-   `bazel build --@rules_coco//:version=1.5.1`
-3. If you wish to use different versions of Popili by using transitions:
+```starlark
+coco = use_extension("@rules_coco//coco:extensions.bzl", "coco")
+coco.toolchain(
+    c = True,
+    cc = True,
+    versions = ["1.5.0", "1.5.1"],  # The first one is the default
+)
+```
 
-   In your `MODULE.bazel`:
+or, in `WORKSPACE`:
 
-   ```starlark
-   coco = use_extension("@rules_coco//coco:extensions.bzl", "coco")
-   coco.toolchain(
-       c = True,
-       cc = True,
-       versions = ["1.5.0", "1.5.1"],  # Register both versions
-   )
-   ```
+```starlark
+coco_repositories(
+    c = True,
+    cc = True,
+    versions = ["1.5.0", "1.5.1"],  # The first one is the default
+)
+```
 
-   or, in `WORKSPACE`:
+With a single version registered there is nothing more to do. With several, the version is a
+property of a `coco_package`, set with `popili_version` on the package or, for every member at once,
+on its `coco_workspace`:
 
-   ```starlark
-   coco_repositories(
-       c = True,
-       cc = True,
-       versions = ["1.5.0", "1.5.1"],  # Register both versions
-   )
-   ```
+```starlark
+coco_workspace(
+    name = "ws",
+    workspace = "Coco.toml",
+    popili_version = "1.5.1",  # Inherited by every member package that doesn't pin one
+)
 
-   Then in your `BUILD.bazel`:
+coco_package(
+    name = "app",
+    srcs = glob(["app/src/**/*.coco"]),
+    package = "app/Coco.toml",
+    workspace = ":ws",  # So :app uses popili 1.5.1
+)
 
-   ```starlark
-   coco_package(
-       name = "modern",
-       srcs = ["modern/src/Example.coco"],
-       package = "modern/Coco.toml",
-   )
+coco_package(
+    name = "tool",
+    srcs = glob(["tool/src/**/*.coco"]),
+    package = "tool/Coco.toml",
+    popili_version = "1.5.0",  # A package outside the workspace can pin its own
+)
 
-   # Wrap the target that RUNS popili, not just the package it reads.
-   coco_generate(
-       name = "modern_cpp_impl",
-       language = "cpp",
-       package = ":modern",
-   )
+# No version anywhere below: all of these use the package's popili, and coco_cc_library
+# links the C++ runtime of that same version.
+coco_verify_test(name = "app_verify", package = ":app")
+coco_generate(name = "app_cpp", language = "cpp", package = ":app")
+coco_cc_library(name = "app_cc", generated_package = ":app_cpp")
+```
 
-   with_popili_version(
-       name = "modern_cpp",
-       target = ":modern_cpp_impl",
-       version = "1.5.0",
-   )
-   ```
+Every rule consuming a package (typecheck, `coco_verify_test`, `coco_generate`, `coco_fmt_test`, the
+diagram rules, and the runtime of `coco_cc_library` / `coco_c_library`) uses the version that package
+resolved to, so upgrading a subgraph means editing one `popili_version`. A package's version is, in
+order of precedence:
 
-   `with_popili_version` carries an _incoming_ transition: it applies to the target it wraps and
-   everything below it, not to whatever consumes it. So the rule that actually invokes popili —
-   `coco_generate`, `coco_verify_test`, `coco_fmt_test`, the diagram rules, or `coco_package` with
-   `typecheck = True` — must itself be the wrapped target. Wrapping only a plain `coco_package`
-   has no effect on the version used to verify or generate from it.
+1. `--@rules_coco//:version` if `--@rules_coco//:force_version` is set (see below);
+2. the package's own `popili_version`;
+3. its workspace's `popili_version`, inherited through nested workspaces (`parent`);
+4. `--@rules_coco//:version`;
+5. the first registered version.
 
-   See `e2e/multi_version` for a full example, in both `MODULE.bazel` and `WORKSPACE` form.
+`popili_version` accepts aliases such as `"stable"`. Two things are errors:
+
+- a package pinning a different version from its workspace, or a nested workspace pinning a
+  different version from its parent;
+- a pin, `--@rules_coco//:version` or `with_popili_version` naming a version that isn't registered.
+  The error lists the registered versions.
+
+A package's dependencies never decide its version. This matches popili itself, which uses the
+innermost `Coco.toml` pin above the directory it runs in. When a dependency pins a different
+version, the dependency's sources are processed with the consuming package's version and a
+warning like this is printed:
+
+```
+WARNING: //lib:lib pins popili_version "1.5.1", but //app:app depends on it and uses popili
+"1.5.0". That pin is ignored there: //lib:lib's sources are processed with popili "1.5.0".
+```
+
+The same applies to `*_regenerate_packages` on `coco_generate`. Warnings are printed when the
+package is analysed, so an incremental build that reuses the analysis doesn't print them again.
+Libraries shared by subgraphs on different versions are best left unpinned.
+
+Workspaces only pass settings down to their members. `coco_generate`, `coco_verify_test` and the
+other rules always take a `coco_package`, never a `coco_workspace`.
+
+#### Trying another version
+
+To check whether an existing target also builds with another registered version without editing
+any pins, wrap it in `with_popili_version`. The version is _forced_: it overrides every pin in the wrapped
+subgraph, so wrapping a `coco_cc_library` moves its code generation, its package, the package's
+dependencies and its runtime to the new version. Consumers of the wrapper are not affected.
+
+```starlark
+with_popili_version(
+    name = "app_cc_on_150",
+    target = ":app_cc",
+    version = "1.5.0",
+)
+```
+
+To try the whole build on another version, force it from the command line:
+
+```bash
+bazel build //... --@rules_coco//:version=1.5.0 --@rules_coco//:force_version
+```
+
+Without `--@rules_coco//:force_version`, `--@rules_coco//:version` only changes packages that pin
+nothing, directly or through their workspace.
+
+See `e2e/multi_version` for a full example, in both `MODULE.bazel` and `WORKSPACE` form.
 
 ### Using a local toolchain
 
@@ -278,6 +333,7 @@ coco_toolchain(
     coco = "//path/to:popili",
     cocotec_licensing_server = "//path/to:cocotec-licensing-server",
     # cc_runtime = "//path/to:cpp_runtime",  # optional cc_library, for coco_cc_library
+    # version = "1.5.1",  # optional; lets a popili_version = "1.5.1" pin accept this toolchain
 )
 
 toolchain(
@@ -286,6 +342,9 @@ toolchain(
     toolchain_type = "@rules_coco//coco:toolchain_type",
 )
 ```
+
+A `coco_package` pinning a `popili_version` is accepted if the pinned version is registered with
+`coco.toolchain`/`coco_repositories`, or if the toolchain it resolves to declares that `version`.
 
 ### Using an older C++ compiler (Boost libraries)
 

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
+load("@bazel_skylib//rules:common_settings.bzl", "bool_flag", "string_flag")
 load("@rules_coco//coco:defs.bzl", "LICENSE_SOURCES")
 
 string_flag(
@@ -52,6 +52,15 @@ string_flag(
 string_flag(
     name = "version",
     build_setting_default = "",
+    visibility = ["//visibility:public"],
+)
+
+# When set, --@rules_coco//:version applies to every target, overriding the
+# popili_version pinned by coco_package and coco_workspace targets.
+# with_popili_version sets this for the subgraph it wraps.
+bool_flag(
+    name = "force_version",
+    build_setting_default = False,
     visibility = ["//visibility:public"],
 )
 

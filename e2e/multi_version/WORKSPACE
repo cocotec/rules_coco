@@ -1,6 +1,4 @@
 # E2E multi-version test WORKSPACE
-# Note: Multi-version support is primarily a bzlmod feature.
-# This WORKSPACE file tests that the rules work in WORKSPACE mode with a single version.
 
 workspace(name = "rules_coco_multi_version_test")
 
@@ -15,8 +13,8 @@ local_repository(
 load("@rules_coco//coco:repositories.bzl", "coco_repositories")
 
 # Register both versions, mirroring MODULE.bazel. The first entry is the one used when
-# --@rules_coco//:version is unset; the other is reachable via the flag or a
-# with_popili_version transition.
+# --@rules_coco//:version is unset; the other is reachable via popili_version pins, the flag or
+# with_popili_version.
 coco_repositories(
     cc = True,
     versions = [
@@ -24,6 +22,12 @@ coco_repositories(
         "1.5.1",
     ],
 )
+
+# Registers the unittest toolchain that the analysis tests in BUILD.bazel need. coco_repositories
+# declares @bazel_skylib when the WORKSPACE doesn't.
+load("@bazel_skylib//:workspace.bzl", "bazel_skylib_workspace")
+
+bazel_skylib_workspace()
 
 # Load GoogleTest for C++ unit tests (if needed)
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")

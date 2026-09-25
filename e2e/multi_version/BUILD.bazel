@@ -1,17 +1,20 @@
-# E2E test for multi-version support in rules_coco
-# This BUILD file demonstrates using different popili versions for different packages
-# using the with_popili_version() wrapper
+# E2E test for multi-version support in rules_coco: several popili versions registered at once
+# (1.5.0, the default, and 1.5.1; see MODULE.bazel and WORKSPACE), selected per package and per
+# workspace with popili_version, and forced over a subgraph with with_popili_version.
+#
+# Which popili each target actually uses is asserted directly with popili_version_report,
+# rather than inferred from a successful verify: every registered version can verify every
+# package here. popili_version_report fails during analysis, so these need only be part of
+# //... -- no test rule, and deliberately no build_test, whose generated genrules need bash.
 
 load("@rules_coco//coco:cc.bzl", "coco_cc_library")
-load("@rules_coco//coco:defs.bzl", "coco_generate", "coco_package", "coco_verify_test", "with_popili_version")
+load("@rules_coco//coco:defs.bzl", "coco_generate", "coco_package", "coco_verify_test", "coco_workspace", "with_popili_version")
+load(":pinning_failure_test.bzl", "pinning_failure_test")
 load(":popili_version_report.bzl", "popili_version_report")
 
-# Which popili a target actually resolves is asserted directly, rather than inferred from a
-# successful verify: every registered version can verify every package here, so the verify
-# tests below pass whichever toolchain they get. Works identically in WORKSPACE and bzlmod.
-#
-# popili_version_report fails during analysis, so these need only be part of //... -- no test
-# rule, and deliberately no build_test, whose generated genrules need a working bash.
+# ---------------------------------------------------------------------------------------------
+# Version selection without pins
+# ---------------------------------------------------------------------------------------------
 
 # Unwrapped: the first entry of versions/coco.toolchain is the default.
 popili_version_report(
@@ -19,9 +22,9 @@ popili_version_report(
     expected_repo_suffix = "__1_5_0",
 )
 
-# Wrapped: the version flag, set here by a transition, selects the other registered version.
-# Manual, because built directly it would resolve the default version and fail by design; it is
-# reached only through the wrapper below.
+# Wrapped: with_popili_version selects the other registered version. Manual, because built
+# directly it would resolve the default version and fail by design; it is reached only through
+# the wrapper below.
 popili_version_report(
     name = "popili_is_151_impl",
     expected_repo_suffix = "__1_5_1",
@@ -34,132 +37,316 @@ with_popili_version(
     version = "1.5.1",
 )
 
-# Modern package - uses 1.5.0
+# ---------------------------------------------------------------------------------------------
+# An unpinned library, used by packages on both versions
+# ---------------------------------------------------------------------------------------------
+
+coco_package(
+    name = "shared",
+    srcs = ["shared/src/Shared.coco"],
+    package = "shared/Coco.toml",
+)
+
+popili_version_report(
+    name = "shared_is_default",
+    expected_repo_suffix = "__1_5_0",
+    package = ":shared",
+)
+
+# ---------------------------------------------------------------------------------------------
+# Package pins: modern pins 1.5.0, legacy pins 1.5.1
+# ---------------------------------------------------------------------------------------------
+
 coco_package(
     name = "modern",
     srcs = ["modern/src/Example.coco"],
     package = "modern/Coco.toml",
+    popili_version = "1.5.0",
 )
 
-with_popili_version(
-    name = "modern_v150",
-    target = ":modern",
-    version = "1.5.0",
-)
-
-# NOTE: these verify tests take a wrapped package but are not wrapped themselves. The
-# with_popili_version transition is incoming, so it reaches the package and its deps but not
-# the test consuming it -- these run the *default* popili, not the version the package asks
-# for. The popili_version_report targets above are what actually pin version selection.
 coco_verify_test(
     name = "modern_verify",
-    package = ":modern_v150",
+    package = ":modern",
 )
 
 coco_generate(
     name = "modern_cpp",
     language = "cpp",
-    package = ":modern_v150",
-)
-
-with_popili_version(
-    name = "modern_cpp_v150",
-    target = ":modern_cpp",
-    version = "1.5.0",
+    package = ":modern",
 )
 
 coco_cc_library(
-    name = "modern_cc_impl",
-    generated_package = ":modern_cpp_v150",
-    tags = ["manual"],
-)
-
-with_popili_version(
     name = "modern_cc",
-    target = ":modern_cc_impl",
-    version = "1.5.0",
+    generated_package = ":modern_cpp",
 )
 
-# Legacy package - uses 1.5.1
+popili_version_report(
+    name = "modern_is_150",
+    expected_repo_suffix = "__1_5_0",
+    package = ":modern",
+)
+
+popili_version_report(
+    name = "modern_cpp_is_150",
+    expected_repo_suffix = "__1_5_0",
+    generated = ":modern_cpp",
+)
+
+popili_version_report(
+    name = "modern_cc_links_150",
+    expected_repo_suffix = "__1_5_0",
+    library = ":modern_cc",
+)
+
 coco_package(
     name = "legacy",
     srcs = ["legacy/src/Example.coco"],
     package = "legacy/Coco.toml",
-)
-
-with_popili_version(
-    name = "legacy_v151",
-    target = ":legacy",
-    version = "1.5.1",
+    popili_version = "1.5.1",
+    deps = [":shared"],
 )
 
 coco_verify_test(
     name = "legacy_verify",
-    package = ":legacy_v151",
+    package = ":legacy",
 )
 
 coco_generate(
     name = "legacy_cpp",
     language = "cpp",
-    package = ":legacy_v151",
-)
-
-with_popili_version(
-    name = "legacy_cpp_v151",
-    target = ":legacy_cpp",
-    version = "1.5.1",
+    package = ":legacy",
 )
 
 coco_cc_library(
-    name = "legacy_cc_impl",
-    generated_package = ":legacy_cpp_v151",
-    tags = ["manual"],
-)
-
-with_popili_version(
     name = "legacy_cc",
-    target = ":legacy_cc_impl",
-    version = "1.5.1",
+    generated_package = ":legacy_cpp",
 )
 
-# Flexible package - also uses 1.5.0
+# legacy depends on the unpinned shared package: no warning, and legacy keeps its pin.
+popili_version_report(
+    name = "legacy_is_151",
+    expected_repo_suffix = "__1_5_1",
+    package = ":legacy",
+)
+
+popili_version_report(
+    name = "legacy_cpp_is_151",
+    expected_repo_suffix = "__1_5_1",
+    generated = ":legacy_cpp",
+)
+
+popili_version_report(
+    name = "legacy_cc_links_151",
+    expected_repo_suffix = "__1_5_1",
+    library = ":legacy_cc",
+)
+
+# ---------------------------------------------------------------------------------------------
+# Unpinned package depending on a pinned one: the dependency's pin is ignored, with a warning
+# ---------------------------------------------------------------------------------------------
+
+# uses_legacy has no pin and no workspace, so it resolves the default 1.5.0 even though its
+# dependency legacy pins 1.5.1. legacy's sources are processed with 1.5.0 here.
+coco_package(
+    name = "uses_legacy",
+    srcs = ["uses_legacy/src/UsesLegacy.coco"],
+    package = "uses_legacy/Coco.toml",
+    deps = [":legacy"],
+)
+
+coco_verify_test(
+    name = "uses_legacy_verify",
+    package = ":uses_legacy",
+)
+
+coco_generate(
+    name = "uses_legacy_cpp",
+    language = "cpp",
+    package = ":uses_legacy",
+)
+
+coco_cc_library(
+    name = "uses_legacy_cc",
+    generated_package = ":uses_legacy_cpp",
+)
+
+popili_version_report(
+    name = "uses_legacy_is_150_and_warns",
+    expected_repo_suffix = "__1_5_0",
+    expected_warnings = ['//:legacy pins popili_version "1.5.1", but //:uses_legacy depends on it and uses popili "1.5.0"'],
+    package = ":uses_legacy",
+)
+
+popili_version_report(
+    name = "uses_legacy_cpp_is_150",
+    expected_repo_suffix = "__1_5_0",
+    generated = ":uses_legacy_cpp",
+)
+
+popili_version_report(
+    name = "uses_legacy_cc_links_150",
+    expected_repo_suffix = "__1_5_0",
+    library = ":uses_legacy_cc",
+)
+
+# flexible depends on modern, pinned to 1.5.0: the version flexible resolves to anyway. A pin
+# that agrees is not worth a warning.
 coco_package(
     name = "flexible",
-    srcs = ["flexible/src/Example.coco"],
+    srcs = ["flexible/src/Flexible.coco"],
     package = "flexible/Coco.toml",
-)
-
-with_popili_version(
-    name = "flexible_v150",
-    target = ":flexible",
-    version = "1.5.0",
+    deps = [":modern"],
 )
 
 coco_verify_test(
     name = "flexible_verify",
-    package = ":flexible_v150",
+    package = ":flexible",
+)
+
+popili_version_report(
+    name = "flexible_is_150_without_warnings",
+    expected_repo_suffix = "__1_5_0",
+    expected_warnings = [],
+    package = ":flexible",
+)
+
+# ---------------------------------------------------------------------------------------------
+# Workspace pins
+# ---------------------------------------------------------------------------------------------
+
+coco_workspace(
+    name = "ws150",
+    popili_version = "1.5.0",
+    workspace = "ws150/Coco.toml",
+)
+
+# ws_app is unpinned, so it inherits 1.5.0 from its workspace, and warns that the pin of its
+# dependency legacy (1.5.1) is ignored. The unpinned shared package raises no warning.
+coco_package(
+    name = "ws_app",
+    srcs = ["ws150/app/src/WsApp.coco"],
+    package = "ws150/app/Coco.toml",
+    workspace = ":ws150",
+    deps = [
+        ":legacy",
+        ":shared",
+    ],
+)
+
+coco_verify_test(
+    name = "ws_app_verify",
+    package = ":ws_app",
 )
 
 coco_generate(
-    name = "flexible_cpp",
+    name = "ws_app_cpp",
     language = "cpp",
-    package = ":flexible_v150",
-)
-
-with_popili_version(
-    name = "flexible_cpp_v150",
-    target = ":flexible_cpp",
-    version = "1.5.0",
+    package = ":ws_app",
 )
 
 coco_cc_library(
-    name = "flexible_cc_impl",
-    generated_package = ":flexible_cpp_v150",
+    name = "ws_app_cc",
+    generated_package = ":ws_app_cpp",
+)
+
+popili_version_report(
+    name = "ws_app_is_150_and_warns",
+    expected_repo_suffix = "__1_5_0",
+    expected_warnings = ['//:legacy pins popili_version "1.5.1", but //:ws_app depends on it and uses popili "1.5.0"'],
+    package = ":ws_app",
+)
+
+popili_version_report(
+    name = "ws_app_cc_links_150",
+    expected_repo_suffix = "__1_5_0",
+    library = ":ws_app_cc",
+)
+
+# A package pinning a different version from its workspace is rejected.
+coco_package(
+    name = "ws_app_disagrees",
+    srcs = ["ws150/app/src/WsApp.coco"],
+    package = "ws150/app/Coco.toml",
+    popili_version = "1.5.1",
     tags = ["manual"],
+    workspace = ":ws150",
+)
+
+pinning_failure_test(
+    name = "ws_app_disagrees_test",
+    expected_messages = ['//:ws_app_disagrees pins popili_version "1.5.1", but its workspace //:ws150 pins "1.5.0"'],
+    target_under_test = ":ws_app_disagrees",
+)
+
+# ---------------------------------------------------------------------------------------------
+# with_popili_version forces a version over every pin in the subgraph it wraps
+# ---------------------------------------------------------------------------------------------
+
+# modern pins 1.5.0; wrapping it, its code generation or its library moves all of it to 1.5.1.
+with_popili_version(
+    name = "modern_on_151",
+    target = ":modern",
+    version = "1.5.1",
 )
 
 with_popili_version(
-    name = "flexible_cc",
-    target = ":flexible_cc_impl",
-    version = "1.5.0",
+    name = "modern_cpp_on_151",
+    target = ":modern_cpp",
+    version = "1.5.1",
+)
+
+with_popili_version(
+    name = "modern_cc_on_151",
+    target = ":modern_cc",
+    version = "1.5.1",
+)
+
+popili_version_report(
+    name = "modern_on_151_is_151",
+    expected_repo_suffix = "__1_5_1",
+    package = ":modern_on_151",
+)
+
+popili_version_report(
+    name = "modern_cpp_on_151_is_151",
+    expected_repo_suffix = "__1_5_1",
+    generated = ":modern_cpp_on_151",
+)
+
+popili_version_report(
+    name = "modern_cc_on_151_links_151",
+    expected_repo_suffix = "__1_5_1",
+    library = ":modern_cc_on_151",
+)
+
+# Forcing also silences the warning: uses_legacy and legacy now agree.
+with_popili_version(
+    name = "uses_legacy_on_151",
+    target = ":uses_legacy",
+    version = "1.5.1",
+)
+
+popili_version_report(
+    name = "uses_legacy_on_151_is_151_without_warnings",
+    expected_repo_suffix = "__1_5_1",
+    expected_warnings = [],
+    package = ":uses_legacy_on_151",
+)
+
+# Forcing an unregistered version is rejected. The pinned package below the wrapper is analysed
+# first, so it is the one reporting the error.
+with_popili_version(
+    name = "on_unregistered",
+    tags = ["manual"],
+    target = ":modern",
+    version = "9.9.9",
+)
+
+pinning_failure_test(
+    name = "on_unregistered_test",
+    expected_messages = [
+        '//:modern needs popili "9.9.9" (forced by --@rules_coco//:force_version or with_popili_version)',
+        'Registered versions: "1.5.0" (default), "1.5.1"',
+    ],
+    target_under_test = ":on_unregistered",
 )

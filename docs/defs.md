@@ -12,18 +12,24 @@ load("@rules_coco//coco:defs.bzl", "with_popili_version")
 with_popili_version(<a href="#with_popili_version-name">name</a>, <a href="#with_popili_version-target">target</a>, <a href="#with_popili_version-version">version</a>)
 </pre>
 
-Wrapper rule to build a target with a specific popili version.
+Wrapper rule to build a target, and everything below it, with a specific popili version.
 
-Use this when you need to build different targets with different popili versions
-in the same build. For most cases, just use --@rules_coco//:version=X.Y.Z.
+The version is forced: it overrides the `popili_version` pinned by any coco_package or
+coco_workspace in the wrapped subgraph, exactly like building with
+`--@rules_coco//:version=<version> --@rules_coco//:force_version`. Use it to check whether
+an existing target also builds with another version without editing any pins.
+
+Wrap the outermost target you want to rebuild: wrapping a `coco_cc_library` retargets the
+code generation, the package and the runtime beneath it. Consumers of the wrapper are not
+affected.
 
 Example:
-    coco_package(name = "pkg", ...)
+    coco_generate(name = "pkg_cpp", package = ":pkg", language = "cpp")
 
     with_popili_version(
-        name = "pkg_v147",
-        target = ":pkg",
-        version = "1.4.7",
+        name = "pkg_cpp_on_151",
+        target = ":pkg_cpp",
+        version = "1.5.1",
     )
 
 **ATTRIBUTES**
@@ -33,7 +39,7 @@ Example:
 | :------------- | :------------- | :------------- | :------------- | :------------- |
 | <a id="with_popili_version-name"></a>name |  A unique name for this target.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
 | <a id="with_popili_version-target"></a>target |  The target to build with a specific popili version   | <a href="https://bazel.build/concepts/labels">Label</a> | required |  |
-| <a id="with_popili_version-version"></a>version |  The popili version to use (e.g., '1.5.0', '1.4.7')   | String | required |  |
+| <a id="with_popili_version-version"></a>version |  The popili version to use (e.g., '1.5.0', '1.5.1' or 'stable'). Must be registered.   | String | required |  |
 
 
 <a id="CocoWorkspaceInfo"></a>
@@ -43,7 +49,7 @@ Example:
 <pre>
 load("@rules_coco//coco:defs.bzl", "CocoWorkspaceInfo")
 
-CocoWorkspaceInfo(<a href="#CocoWorkspaceInfo-files">files</a>)
+CocoWorkspaceInfo(<a href="#CocoWorkspaceInfo-files">files</a>, <a href="#CocoWorkspaceInfo-popili_pinned_by">popili_pinned_by</a>, <a href="#CocoWorkspaceInfo-popili_toolchain">popili_toolchain</a>, <a href="#CocoWorkspaceInfo-popili_version">popili_version</a>)
 </pre>
 
 Information about a Coco workspace root whose shared settings flow down to member packages
@@ -53,6 +59,9 @@ Information about a Coco workspace root whose shared settings flow down to membe
 | Name  | Description |
 | :------------- | :------------- |
 | <a id="CocoWorkspaceInfo-files"></a>files |  Coco.toml files a member must ship: this workspace's root manifest plus any parent workspaces    |
+| <a id="CocoWorkspaceInfo-popili_pinned_by"></a>popili_pinned_by |  Label of the coco_workspace whose pin decided popili_version, or None when unpinned    |
+| <a id="CocoWorkspaceInfo-popili_toolchain"></a>popili_toolchain |  The Coco ToolchainInfo resolved for popili_version, or None when unpinned    |
+| <a id="CocoWorkspaceInfo-popili_version"></a>popili_version |  The resolved popili_version pinned by this workspace or a parent workspace, or '' when unpinned    |
 
 
 <a id="coco_counterexample_diagram"></a>
@@ -137,11 +146,12 @@ Struct with decl and assertion fields for use in coco_counterexample_diagram
 <pre>
 load("@rules_coco//coco:defs.bzl", "coco_architecture_diagram")
 
-coco_architecture_diagram(*, <a href="#coco_architecture_diagram-name">name</a>, <a href="#coco_architecture_diagram-compatible_with">compatible_with</a>, <a href="#coco_architecture_diagram-component_names">component_names</a>, <a href="#coco_architecture_diagram-component_types">component_types</a>, <a href="#coco_architecture_diagram-components">components</a>,
-                          <a href="#coco_architecture_diagram-deprecation">deprecation</a>, <a href="#coco_architecture_diagram-depth">depth</a>, <a href="#coco_architecture_diagram-exec_compatible_with">exec_compatible_with</a>, <a href="#coco_architecture_diagram-exec_properties">exec_properties</a>, <a href="#coco_architecture_diagram-features">features</a>,
-                          <a href="#coco_architecture_diagram-hide_ports">hide_ports</a>, <a href="#coco_architecture_diagram-only_encapsulating">only_encapsulating</a>, <a href="#coco_architecture_diagram-only_roots">only_roots</a>, <a href="#coco_architecture_diagram-package">package</a>, <a href="#coco_architecture_diagram-package_metadata">package_metadata</a>,
-                          <a href="#coco_architecture_diagram-port_names">port_names</a>, <a href="#coco_architecture_diagram-port_types">port_types</a>, <a href="#coco_architecture_diagram-restricted_to">restricted_to</a>, <a href="#coco_architecture_diagram-tags">tags</a>, <a href="#coco_architecture_diagram-target_compatible_with">target_compatible_with</a>,
-                          <a href="#coco_architecture_diagram-testonly">testonly</a>, <a href="#coco_architecture_diagram-toolchains">toolchains</a>, <a href="#coco_architecture_diagram-visibility">visibility</a>)
+coco_architecture_diagram(*, <a href="#coco_architecture_diagram-name">name</a>, <a href="#coco_architecture_diagram-aspect_hints">aspect_hints</a>, <a href="#coco_architecture_diagram-compatible_with">compatible_with</a>, <a href="#coco_architecture_diagram-component_names">component_names</a>, <a href="#coco_architecture_diagram-component_types">component_types</a>,
+                          <a href="#coco_architecture_diagram-components">components</a>, <a href="#coco_architecture_diagram-deprecation">deprecation</a>, <a href="#coco_architecture_diagram-depth">depth</a>, <a href="#coco_architecture_diagram-exec_compatible_with">exec_compatible_with</a>,
+                          <a href="#coco_architecture_diagram-exec_group_compatible_with">exec_group_compatible_with</a>, <a href="#coco_architecture_diagram-exec_properties">exec_properties</a>, <a href="#coco_architecture_diagram-features">features</a>, <a href="#coco_architecture_diagram-hide_ports">hide_ports</a>,
+                          <a href="#coco_architecture_diagram-only_encapsulating">only_encapsulating</a>, <a href="#coco_architecture_diagram-only_roots">only_roots</a>, <a href="#coco_architecture_diagram-package">package</a>, <a href="#coco_architecture_diagram-package_metadata">package_metadata</a>, <a href="#coco_architecture_diagram-port_names">port_names</a>,
+                          <a href="#coco_architecture_diagram-port_types">port_types</a>, <a href="#coco_architecture_diagram-restricted_to">restricted_to</a>, <a href="#coco_architecture_diagram-tags">tags</a>, <a href="#coco_architecture_diagram-target_compatible_with">target_compatible_with</a>, <a href="#coco_architecture_diagram-testonly">testonly</a>,
+                          <a href="#coco_architecture_diagram-toolchains">toolchains</a>, <a href="#coco_architecture_diagram-visibility">visibility</a>)
 </pre>
 
 Creates architecture diagrams.
@@ -155,6 +165,7 @@ Generates SVG diagrams showing component architecture using
 | Name  | Description | Type | Mandatory | Default |
 | :------------- | :------------- | :------------- | :------------- | :------------- |
 | <a id="coco_architecture_diagram-name"></a>name |  A unique name for this macro instance. Normally, this is also the name for the macro's main or only target. The names of any other targets that this macro might create will be this name with a string suffix.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
+| <a id="coco_architecture_diagram-aspect_hints"></a>aspect_hints |  <a href="https://bazel.build/reference/be/common-definitions#common.aspect_hints">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a> | optional |  `None`  |
 | <a id="coco_architecture_diagram-compatible_with"></a>compatible_with |  <a href="https://bazel.build/reference/be/common-definitions#common.compatible_with">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a>; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
 | <a id="coco_architecture_diagram-component_names"></a>component_names |  Show the instance name of child components. Disabled by default.   | Boolean | optional |  `None`  |
 | <a id="coco_architecture_diagram-component_types"></a>component_types |  Show the type of each component. Enabled by default.   | Boolean | optional |  `None`  |
@@ -162,6 +173,7 @@ Generates SVG diagrams showing component architecture using
 | <a id="coco_architecture_diagram-deprecation"></a>deprecation |  <a href="https://bazel.build/reference/be/common-definitions#common.deprecation">Inherited rule attribute</a>   | String; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
 | <a id="coco_architecture_diagram-depth"></a>depth |  Recursive drawing depth: an integer string, 'auto', 'max', or empty for the default.   | String | optional |  `None`  |
 | <a id="coco_architecture_diagram-exec_compatible_with"></a>exec_compatible_with |  <a href="https://bazel.build/reference/be/common-definitions#common.exec_compatible_with">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a>; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
+| <a id="coco_architecture_diagram-exec_group_compatible_with"></a>exec_group_compatible_with |  <a href="https://bazel.build/reference/be/common-definitions#common.exec_group_compatible_with">Inherited rule attribute</a>   | Dictionary: String -> List of labels; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
 | <a id="coco_architecture_diagram-exec_properties"></a>exec_properties |  <a href="https://bazel.build/reference/be/common-definitions#common.exec_properties">Inherited rule attribute</a>   | <a href="https://bazel.build/rules/lib/core/dict">Dictionary: String -> String</a> | optional |  `None`  |
 | <a id="coco_architecture_diagram-features"></a>features |  <a href="https://bazel.build/reference/be/common-definitions#common.features">Inherited rule attribute</a>   | List of strings | optional |  `None`  |
 | <a id="coco_architecture_diagram-hide_ports"></a>hide_ports |  Hide ports in diagrams. Disabled by default.   | Boolean | optional |  `None`  |
@@ -186,9 +198,10 @@ Generates SVG diagrams showing component architecture using
 <pre>
 load("@rules_coco//coco:defs.bzl", "coco_fmt_test")
 
-coco_fmt_test(*, <a href="#coco_fmt_test-name">name</a>, <a href="#coco_fmt_test-args">args</a>, <a href="#coco_fmt_test-compatible_with">compatible_with</a>, <a href="#coco_fmt_test-deprecation">deprecation</a>, <a href="#coco_fmt_test-exec_compatible_with">exec_compatible_with</a>, <a href="#coco_fmt_test-exec_properties">exec_properties</a>,
-              <a href="#coco_fmt_test-features">features</a>, <a href="#coco_fmt_test-flaky">flaky</a>, <a href="#coco_fmt_test-local">local</a>, <a href="#coco_fmt_test-package">package</a>, <a href="#coco_fmt_test-package_metadata">package_metadata</a>, <a href="#coco_fmt_test-restricted_to">restricted_to</a>, <a href="#coco_fmt_test-shard_count">shard_count</a>, <a href="#coco_fmt_test-size">size</a>,
-              <a href="#coco_fmt_test-tags">tags</a>, <a href="#coco_fmt_test-target_compatible_with">target_compatible_with</a>, <a href="#coco_fmt_test-testonly">testonly</a>, <a href="#coco_fmt_test-timeout">timeout</a>, <a href="#coco_fmt_test-toolchains">toolchains</a>, <a href="#coco_fmt_test-visibility">visibility</a>)
+coco_fmt_test(*, <a href="#coco_fmt_test-name">name</a>, <a href="#coco_fmt_test-args">args</a>, <a href="#coco_fmt_test-aspect_hints">aspect_hints</a>, <a href="#coco_fmt_test-compatible_with">compatible_with</a>, <a href="#coco_fmt_test-deprecation">deprecation</a>, <a href="#coco_fmt_test-exec_compatible_with">exec_compatible_with</a>,
+              <a href="#coco_fmt_test-exec_group_compatible_with">exec_group_compatible_with</a>, <a href="#coco_fmt_test-exec_properties">exec_properties</a>, <a href="#coco_fmt_test-features">features</a>, <a href="#coco_fmt_test-flaky">flaky</a>, <a href="#coco_fmt_test-local">local</a>, <a href="#coco_fmt_test-package">package</a>,
+              <a href="#coco_fmt_test-package_metadata">package_metadata</a>, <a href="#coco_fmt_test-restricted_to">restricted_to</a>, <a href="#coco_fmt_test-shard_count">shard_count</a>, <a href="#coco_fmt_test-size">size</a>, <a href="#coco_fmt_test-tags">tags</a>, <a href="#coco_fmt_test-target_compatible_with">target_compatible_with</a>,
+              <a href="#coco_fmt_test-testonly">testonly</a>, <a href="#coco_fmt_test-timeout">timeout</a>, <a href="#coco_fmt_test-toolchains">toolchains</a>, <a href="#coco_fmt_test-visibility">visibility</a>)
 </pre>
 
 Create a Coco format-check test plus a companion formatter binary.
@@ -210,9 +223,11 @@ To skip the test for specific packages, use standard Bazel tags, e.g.
 | :------------- | :------------- | :------------- | :------------- | :------------- |
 | <a id="coco_fmt_test-name"></a>name |  A unique name for this macro instance. Normally, this is also the name for the macro's main or only target. The names of any other targets that this macro might create will be this name with a string suffix.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
 | <a id="coco_fmt_test-args"></a>args |  <a href="https://bazel.build/reference/be/common-definitions#test.args">Inherited rule attribute</a>   | List of strings | optional |  `None`  |
+| <a id="coco_fmt_test-aspect_hints"></a>aspect_hints |  <a href="https://bazel.build/reference/be/common-definitions#common.aspect_hints">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a> | optional |  `None`  |
 | <a id="coco_fmt_test-compatible_with"></a>compatible_with |  <a href="https://bazel.build/reference/be/common-definitions#common.compatible_with">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a>; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
 | <a id="coco_fmt_test-deprecation"></a>deprecation |  <a href="https://bazel.build/reference/be/common-definitions#common.deprecation">Inherited rule attribute</a>   | String; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
 | <a id="coco_fmt_test-exec_compatible_with"></a>exec_compatible_with |  <a href="https://bazel.build/reference/be/common-definitions#common.exec_compatible_with">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a>; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
+| <a id="coco_fmt_test-exec_group_compatible_with"></a>exec_group_compatible_with |  <a href="https://bazel.build/reference/be/common-definitions#common.exec_group_compatible_with">Inherited rule attribute</a>   | Dictionary: String -> List of labels; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
 | <a id="coco_fmt_test-exec_properties"></a>exec_properties |  <a href="https://bazel.build/reference/be/common-definitions#common.exec_properties">Inherited rule attribute</a>   | <a href="https://bazel.build/rules/lib/core/dict">Dictionary: String -> String</a> | optional |  `None`  |
 | <a id="coco_fmt_test-features"></a>features |  <a href="https://bazel.build/reference/be/common-definitions#common.features">Inherited rule attribute</a>   | List of strings | optional |  `None`  |
 | <a id="coco_fmt_test-flaky"></a>flaky |  <a href="https://bazel.build/reference/be/common-definitions#test.flaky">Inherited rule attribute</a>   | Boolean; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
@@ -237,14 +252,15 @@ To skip the test for specific packages, use standard Bazel tags, e.g.
 <pre>
 load("@rules_coco//coco:defs.bzl", "coco_generate")
 
-coco_generate(*, <a href="#coco_generate-name">name</a>, <a href="#coco_generate-c_file_name_mangler">c_file_name_mangler</a>, <a href="#coco_generate-c_flat_file_hierarchy">c_flat_file_hierarchy</a>, <a href="#coco_generate-c_header_file_extension">c_header_file_extension</a>,
-              <a href="#coco_generate-c_header_file_prefix">c_header_file_prefix</a>, <a href="#coco_generate-c_implementation_file_extension">c_implementation_file_extension</a>, <a href="#coco_generate-c_implementation_file_prefix">c_implementation_file_prefix</a>,
-              <a href="#coco_generate-c_regenerate_packages">c_regenerate_packages</a>, <a href="#coco_generate-compatible_with">compatible_with</a>, <a href="#coco_generate-cpp_file_name_mangler">cpp_file_name_mangler</a>, <a href="#coco_generate-cpp_flat_file_hierarchy">cpp_flat_file_hierarchy</a>,
-              <a href="#coco_generate-cpp_header_file_extension">cpp_header_file_extension</a>, <a href="#coco_generate-cpp_header_file_prefix">cpp_header_file_prefix</a>, <a href="#coco_generate-cpp_implementation_file_extension">cpp_implementation_file_extension</a>,
+coco_generate(*, <a href="#coco_generate-name">name</a>, <a href="#coco_generate-aspect_hints">aspect_hints</a>, <a href="#coco_generate-c_file_name_mangler">c_file_name_mangler</a>, <a href="#coco_generate-c_flat_file_hierarchy">c_flat_file_hierarchy</a>,
+              <a href="#coco_generate-c_header_file_extension">c_header_file_extension</a>, <a href="#coco_generate-c_header_file_prefix">c_header_file_prefix</a>, <a href="#coco_generate-c_implementation_file_extension">c_implementation_file_extension</a>,
+              <a href="#coco_generate-c_implementation_file_prefix">c_implementation_file_prefix</a>, <a href="#coco_generate-c_regenerate_packages">c_regenerate_packages</a>, <a href="#coco_generate-compatible_with">compatible_with</a>,
+              <a href="#coco_generate-cpp_file_name_mangler">cpp_file_name_mangler</a>, <a href="#coco_generate-cpp_flat_file_hierarchy">cpp_flat_file_hierarchy</a>, <a href="#coco_generate-cpp_header_file_extension">cpp_header_file_extension</a>,
+              <a href="#coco_generate-cpp_header_file_prefix">cpp_header_file_prefix</a>, <a href="#coco_generate-cpp_implementation_file_extension">cpp_implementation_file_extension</a>,
               <a href="#coco_generate-cpp_implementation_file_prefix">cpp_implementation_file_prefix</a>, <a href="#coco_generate-cpp_regenerate_packages">cpp_regenerate_packages</a>, <a href="#coco_generate-csharp_regenerate_packages">csharp_regenerate_packages</a>,
-              <a href="#coco_generate-deprecation">deprecation</a>, <a href="#coco_generate-exec_compatible_with">exec_compatible_with</a>, <a href="#coco_generate-exec_properties">exec_properties</a>, <a href="#coco_generate-features">features</a>, <a href="#coco_generate-language">language</a>, <a href="#coco_generate-mocks">mocks</a>, <a href="#coco_generate-package">package</a>,
-              <a href="#coco_generate-package_metadata">package_metadata</a>, <a href="#coco_generate-restricted_to">restricted_to</a>, <a href="#coco_generate-tags">tags</a>, <a href="#coco_generate-target_compatible_with">target_compatible_with</a>, <a href="#coco_generate-testonly">testonly</a>, <a href="#coco_generate-toolchains">toolchains</a>,
-              <a href="#coco_generate-visibility">visibility</a>)
+              <a href="#coco_generate-deprecation">deprecation</a>, <a href="#coco_generate-exec_compatible_with">exec_compatible_with</a>, <a href="#coco_generate-exec_group_compatible_with">exec_group_compatible_with</a>, <a href="#coco_generate-exec_properties">exec_properties</a>,
+              <a href="#coco_generate-features">features</a>, <a href="#coco_generate-language">language</a>, <a href="#coco_generate-mocks">mocks</a>, <a href="#coco_generate-package">package</a>, <a href="#coco_generate-package_metadata">package_metadata</a>, <a href="#coco_generate-restricted_to">restricted_to</a>, <a href="#coco_generate-tags">tags</a>,
+              <a href="#coco_generate-target_compatible_with">target_compatible_with</a>, <a href="#coco_generate-testonly">testonly</a>, <a href="#coco_generate-toolchains">toolchains</a>, <a href="#coco_generate-visibility">visibility</a>)
 </pre>
 
 Generate C, C++, or C# code from a Coco package.
@@ -265,6 +281,7 @@ created that exposes the generated test sources and headers.
 | Name  | Description | Type | Mandatory | Default |
 | :------------- | :------------- | :------------- | :------------- | :------------- |
 | <a id="coco_generate-name"></a>name |  A unique name for this macro instance. Normally, this is also the name for the macro's main or only target. The names of any other targets that this macro might create will be this name with a string suffix.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
+| <a id="coco_generate-aspect_hints"></a>aspect_hints |  <a href="https://bazel.build/reference/be/common-definitions#common.aspect_hints">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a> | optional |  `None`  |
 | <a id="coco_generate-c_file_name_mangler"></a>c_file_name_mangler |  C file naming style. Must match Coco.toml generator.c.fileNameMangler. Options: "Unaltered" (default), "LowerCamelCase", "UpperCamelCase", "LowerUnderscore", "UpperUnderscore", "CapsUpperUnderscore".   | String | optional |  `None`  |
 | <a id="coco_generate-c_flat_file_hierarchy"></a>c_flat_file_hierarchy |  Use a flat directory structure for C files. Must match Coco.toml generator.c.flatFileHierarchy. Disabled by default.   | Boolean | optional |  `None`  |
 | <a id="coco_generate-c_header_file_extension"></a>c_header_file_extension |  File extension for C headers. Defaults to ".h".   | String | optional |  `None`  |
@@ -283,6 +300,7 @@ created that exposes the generated test sources and headers.
 | <a id="coco_generate-csharp_regenerate_packages"></a>csharp_regenerate_packages |  Other coco_package targets to regenerate with this target's C# generator settings.   | <a href="https://bazel.build/concepts/labels">List of labels</a> | optional |  `None`  |
 | <a id="coco_generate-deprecation"></a>deprecation |  <a href="https://bazel.build/reference/be/common-definitions#common.deprecation">Inherited rule attribute</a>   | String; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
 | <a id="coco_generate-exec_compatible_with"></a>exec_compatible_with |  <a href="https://bazel.build/reference/be/common-definitions#common.exec_compatible_with">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a>; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
+| <a id="coco_generate-exec_group_compatible_with"></a>exec_group_compatible_with |  <a href="https://bazel.build/reference/be/common-definitions#common.exec_group_compatible_with">Inherited rule attribute</a>   | Dictionary: String -> List of labels; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
 | <a id="coco_generate-exec_properties"></a>exec_properties |  <a href="https://bazel.build/reference/be/common-definitions#common.exec_properties">Inherited rule attribute</a>   | <a href="https://bazel.build/rules/lib/core/dict">Dictionary: String -> String</a> | optional |  `None`  |
 | <a id="coco_generate-features"></a>features |  <a href="https://bazel.build/reference/be/common-definitions#common.features">Inherited rule attribute</a>   | List of strings | optional |  `None`  |
 | <a id="coco_generate-language"></a>language |  Target language for code generation: "cpp", "c", or "csharp".   | String | required |  |
@@ -304,10 +322,10 @@ created that exposes the generated test sources and headers.
 <pre>
 load("@rules_coco//coco:defs.bzl", "coco_package")
 
-coco_package(*, <a href="#coco_package-name">name</a>, <a href="#coco_package-deps">deps</a>, <a href="#coco_package-srcs">srcs</a>, <a href="#coco_package-compatible_with">compatible_with</a>, <a href="#coco_package-deprecation">deprecation</a>, <a href="#coco_package-exec_compatible_with">exec_compatible_with</a>,
-             <a href="#coco_package-exec_properties">exec_properties</a>, <a href="#coco_package-features">features</a>, <a href="#coco_package-package">package</a>, <a href="#coco_package-package_metadata">package_metadata</a>, <a href="#coco_package-restricted_to">restricted_to</a>, <a href="#coco_package-tags">tags</a>,
-             <a href="#coco_package-target_compatible_with">target_compatible_with</a>, <a href="#coco_package-test_srcs">test_srcs</a>, <a href="#coco_package-testonly">testonly</a>, <a href="#coco_package-toolchains">toolchains</a>, <a href="#coco_package-typecheck">typecheck</a>, <a href="#coco_package-visibility">visibility</a>,
-             <a href="#coco_package-workspace">workspace</a>)
+coco_package(*, <a href="#coco_package-name">name</a>, <a href="#coco_package-deps">deps</a>, <a href="#coco_package-srcs">srcs</a>, <a href="#coco_package-aspect_hints">aspect_hints</a>, <a href="#coco_package-compatible_with">compatible_with</a>, <a href="#coco_package-deprecation">deprecation</a>, <a href="#coco_package-exec_compatible_with">exec_compatible_with</a>,
+             <a href="#coco_package-exec_group_compatible_with">exec_group_compatible_with</a>, <a href="#coco_package-exec_properties">exec_properties</a>, <a href="#coco_package-features">features</a>, <a href="#coco_package-package">package</a>, <a href="#coco_package-package_metadata">package_metadata</a>,
+             <a href="#coco_package-popili_version">popili_version</a>, <a href="#coco_package-restricted_to">restricted_to</a>, <a href="#coco_package-tags">tags</a>, <a href="#coco_package-target_compatible_with">target_compatible_with</a>, <a href="#coco_package-test_srcs">test_srcs</a>, <a href="#coco_package-testonly">testonly</a>,
+             <a href="#coco_package-toolchains">toolchains</a>, <a href="#coco_package-typecheck">typecheck</a>, <a href="#coco_package-visibility">visibility</a>, <a href="#coco_package-workspace">workspace</a>)
 </pre>
 
 Define a Coco package from a Coco.toml and its .coco source files.
@@ -317,6 +335,20 @@ coco_generate to produce code, to coco_verify_test to verify it, or to
 coco_fmt_test to check formatting. Packages may depend on other packages via
 `deps`, and may inherit shared settings from a coco_workspace via `workspace`.
 
+The popili version is a property of the package: every rule consuming it (typecheck,
+verify, generate, format, diagrams, and the C/C++ runtime of `coco_cc_library` /
+`coco_c_library`) uses the same one. It is, in order of precedence:
+
+1. `--@rules_coco//:version` when `--@rules_coco//:force_version` is set, e.g. by
+   `with_popili_version`;
+2. this package's `popili_version`;
+3. its workspace's `popili_version`, which must not differ from the package's;
+4. `--@rules_coco//:version`;
+5. the first version registered.
+
+Dependencies never decide a package's version. When a dependency pins a different version, a
+warning is printed and its sources are processed with this package's version.
+
 **ATTRIBUTES**
 
 
@@ -325,13 +357,16 @@ coco_fmt_test to check formatting. Packages may depend on other packages via
 | <a id="coco_package-name"></a>name |  A unique name for this macro instance. Normally, this is also the name for the macro's main or only target. The names of any other targets that this macro might create will be this name with a string suffix.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
 | <a id="coco_package-deps"></a>deps |  Other coco_package targets this package depends on.   | <a href="https://bazel.build/concepts/labels">List of labels</a> | optional |  `None`  |
 | <a id="coco_package-srcs"></a>srcs |  The .coco source files for this package.   | <a href="https://bazel.build/concepts/labels">List of labels</a> | required |  |
+| <a id="coco_package-aspect_hints"></a>aspect_hints |  <a href="https://bazel.build/reference/be/common-definitions#common.aspect_hints">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a> | optional |  `None`  |
 | <a id="coco_package-compatible_with"></a>compatible_with |  <a href="https://bazel.build/reference/be/common-definitions#common.compatible_with">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a>; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
 | <a id="coco_package-deprecation"></a>deprecation |  <a href="https://bazel.build/reference/be/common-definitions#common.deprecation">Inherited rule attribute</a>   | String; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
 | <a id="coco_package-exec_compatible_with"></a>exec_compatible_with |  <a href="https://bazel.build/reference/be/common-definitions#common.exec_compatible_with">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a>; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
+| <a id="coco_package-exec_group_compatible_with"></a>exec_group_compatible_with |  <a href="https://bazel.build/reference/be/common-definitions#common.exec_group_compatible_with">Inherited rule attribute</a>   | Dictionary: String -> List of labels; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
 | <a id="coco_package-exec_properties"></a>exec_properties |  <a href="https://bazel.build/reference/be/common-definitions#common.exec_properties">Inherited rule attribute</a>   | <a href="https://bazel.build/rules/lib/core/dict">Dictionary: String -> String</a> | optional |  `None`  |
 | <a id="coco_package-features"></a>features |  <a href="https://bazel.build/reference/be/common-definitions#common.features">Inherited rule attribute</a>   | List of strings | optional |  `None`  |
 | <a id="coco_package-package"></a>package |  Label pointing to the Coco.toml file for this package.   | <a href="https://bazel.build/concepts/labels">Label</a> | required |  |
 | <a id="coco_package-package_metadata"></a>package_metadata |  <a href="https://bazel.build/reference/be/common-definitions#common.package_metadata">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a>; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
+| <a id="coco_package-popili_version"></a>popili_version |  The popili version to use for this target, e.g. '1.5.1' or 'stable'. The version must be registered in coco.toolchain (bzlmod) or coco_repositories (WORKSPACE). Overridden by --@rules_coco//:force_version and with_popili_version.   | String | optional |  `None`  |
 | <a id="coco_package-restricted_to"></a>restricted_to |  <a href="https://bazel.build/reference/be/common-definitions#common.restricted_to">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a>; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
 | <a id="coco_package-tags"></a>tags |  <a href="https://bazel.build/reference/be/common-definitions#common.tags">Inherited rule attribute</a>   | List of strings; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
 | <a id="coco_package-target_compatible_with"></a>target_compatible_with |  <a href="https://bazel.build/reference/be/common-definitions#common.target_compatible_with">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a> | optional |  `None`  |
@@ -350,9 +385,10 @@ coco_fmt_test to check formatting. Packages may depend on other packages via
 <pre>
 load("@rules_coco//coco:defs.bzl", "coco_state_diagram")
 
-coco_state_diagram(*, <a href="#coco_state_diagram-name">name</a>, <a href="#coco_state_diagram-compatible_with">compatible_with</a>, <a href="#coco_state_diagram-deprecation">deprecation</a>, <a href="#coco_state_diagram-exec_compatible_with">exec_compatible_with</a>, <a href="#coco_state_diagram-exec_properties">exec_properties</a>,
-                   <a href="#coco_state_diagram-features">features</a>, <a href="#coco_state_diagram-package">package</a>, <a href="#coco_state_diagram-package_metadata">package_metadata</a>, <a href="#coco_state_diagram-restricted_to">restricted_to</a>, <a href="#coco_state_diagram-separate_edges">separate_edges</a>, <a href="#coco_state_diagram-tags">tags</a>,
-                   <a href="#coco_state_diagram-target_compatible_with">target_compatible_with</a>, <a href="#coco_state_diagram-targets">targets</a>, <a href="#coco_state_diagram-testonly">testonly</a>, <a href="#coco_state_diagram-toolchains">toolchains</a>, <a href="#coco_state_diagram-visibility">visibility</a>)
+coco_state_diagram(*, <a href="#coco_state_diagram-name">name</a>, <a href="#coco_state_diagram-aspect_hints">aspect_hints</a>, <a href="#coco_state_diagram-compatible_with">compatible_with</a>, <a href="#coco_state_diagram-deprecation">deprecation</a>, <a href="#coco_state_diagram-exec_compatible_with">exec_compatible_with</a>,
+                   <a href="#coco_state_diagram-exec_group_compatible_with">exec_group_compatible_with</a>, <a href="#coco_state_diagram-exec_properties">exec_properties</a>, <a href="#coco_state_diagram-features">features</a>, <a href="#coco_state_diagram-package">package</a>, <a href="#coco_state_diagram-package_metadata">package_metadata</a>,
+                   <a href="#coco_state_diagram-restricted_to">restricted_to</a>, <a href="#coco_state_diagram-separate_edges">separate_edges</a>, <a href="#coco_state_diagram-tags">tags</a>, <a href="#coco_state_diagram-target_compatible_with">target_compatible_with</a>, <a href="#coco_state_diagram-targets">targets</a>, <a href="#coco_state_diagram-testonly">testonly</a>,
+                   <a href="#coco_state_diagram-toolchains">toolchains</a>, <a href="#coco_state_diagram-visibility">visibility</a>)
 </pre>
 
 Creates state machine diagrams.
@@ -366,9 +402,11 @@ Generates SVG diagrams showing state machine structure using
 | Name  | Description | Type | Mandatory | Default |
 | :------------- | :------------- | :------------- | :------------- | :------------- |
 | <a id="coco_state_diagram-name"></a>name |  A unique name for this macro instance. Normally, this is also the name for the macro's main or only target. The names of any other targets that this macro might create will be this name with a string suffix.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
+| <a id="coco_state_diagram-aspect_hints"></a>aspect_hints |  <a href="https://bazel.build/reference/be/common-definitions#common.aspect_hints">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a> | optional |  `None`  |
 | <a id="coco_state_diagram-compatible_with"></a>compatible_with |  <a href="https://bazel.build/reference/be/common-definitions#common.compatible_with">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a>; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
 | <a id="coco_state_diagram-deprecation"></a>deprecation |  <a href="https://bazel.build/reference/be/common-definitions#common.deprecation">Inherited rule attribute</a>   | String; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
 | <a id="coco_state_diagram-exec_compatible_with"></a>exec_compatible_with |  <a href="https://bazel.build/reference/be/common-definitions#common.exec_compatible_with">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a>; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
+| <a id="coco_state_diagram-exec_group_compatible_with"></a>exec_group_compatible_with |  <a href="https://bazel.build/reference/be/common-definitions#common.exec_group_compatible_with">Inherited rule attribute</a>   | Dictionary: String -> List of labels; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
 | <a id="coco_state_diagram-exec_properties"></a>exec_properties |  <a href="https://bazel.build/reference/be/common-definitions#common.exec_properties">Inherited rule attribute</a>   | <a href="https://bazel.build/rules/lib/core/dict">Dictionary: String -> String</a> | optional |  `None`  |
 | <a id="coco_state_diagram-features"></a>features |  <a href="https://bazel.build/reference/be/common-definitions#common.features">Inherited rule attribute</a>   | List of strings | optional |  `None`  |
 | <a id="coco_state_diagram-package"></a>package |  The coco_package target to generate state diagrams for.   | <a href="https://bazel.build/concepts/labels">Label</a> | required |  |
@@ -390,9 +428,10 @@ Generates SVG diagrams showing state machine structure using
 <pre>
 load("@rules_coco//coco:defs.bzl", "coco_verify_test")
 
-coco_verify_test(*, <a href="#coco_verify_test-name">name</a>, <a href="#coco_verify_test-args">args</a>, <a href="#coco_verify_test-compatible_with">compatible_with</a>, <a href="#coco_verify_test-deprecation">deprecation</a>, <a href="#coco_verify_test-exec_compatible_with">exec_compatible_with</a>, <a href="#coco_verify_test-exec_properties">exec_properties</a>,
-                 <a href="#coco_verify_test-features">features</a>, <a href="#coco_verify_test-flaky">flaky</a>, <a href="#coco_verify_test-local">local</a>, <a href="#coco_verify_test-package">package</a>, <a href="#coco_verify_test-package_metadata">package_metadata</a>, <a href="#coco_verify_test-restricted_to">restricted_to</a>, <a href="#coco_verify_test-shard_count">shard_count</a>, <a href="#coco_verify_test-size">size</a>,
-                 <a href="#coco_verify_test-tags">tags</a>, <a href="#coco_verify_test-target_compatible_with">target_compatible_with</a>, <a href="#coco_verify_test-testonly">testonly</a>, <a href="#coco_verify_test-timeout">timeout</a>, <a href="#coco_verify_test-toolchains">toolchains</a>, <a href="#coco_verify_test-visibility">visibility</a>)
+coco_verify_test(*, <a href="#coco_verify_test-name">name</a>, <a href="#coco_verify_test-args">args</a>, <a href="#coco_verify_test-aspect_hints">aspect_hints</a>, <a href="#coco_verify_test-compatible_with">compatible_with</a>, <a href="#coco_verify_test-deprecation">deprecation</a>, <a href="#coco_verify_test-exec_compatible_with">exec_compatible_with</a>,
+                 <a href="#coco_verify_test-exec_group_compatible_with">exec_group_compatible_with</a>, <a href="#coco_verify_test-exec_properties">exec_properties</a>, <a href="#coco_verify_test-features">features</a>, <a href="#coco_verify_test-flaky">flaky</a>, <a href="#coco_verify_test-local">local</a>, <a href="#coco_verify_test-package">package</a>,
+                 <a href="#coco_verify_test-package_metadata">package_metadata</a>, <a href="#coco_verify_test-restricted_to">restricted_to</a>, <a href="#coco_verify_test-shard_count">shard_count</a>, <a href="#coco_verify_test-size">size</a>, <a href="#coco_verify_test-tags">tags</a>, <a href="#coco_verify_test-target_compatible_with">target_compatible_with</a>,
+                 <a href="#coco_verify_test-testonly">testonly</a>, <a href="#coco_verify_test-timeout">timeout</a>, <a href="#coco_verify_test-toolchains">toolchains</a>, <a href="#coco_verify_test-visibility">visibility</a>)
 </pre>
 
 Creates a test that runs Coco verification on a package.
@@ -407,9 +446,11 @@ verification does not pass.
 | :------------- | :------------- | :------------- | :------------- | :------------- |
 | <a id="coco_verify_test-name"></a>name |  A unique name for this macro instance. Normally, this is also the name for the macro's main or only target. The names of any other targets that this macro might create will be this name with a string suffix.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
 | <a id="coco_verify_test-args"></a>args |  <a href="https://bazel.build/reference/be/common-definitions#test.args">Inherited rule attribute</a>   | List of strings | optional |  `None`  |
+| <a id="coco_verify_test-aspect_hints"></a>aspect_hints |  <a href="https://bazel.build/reference/be/common-definitions#common.aspect_hints">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a> | optional |  `None`  |
 | <a id="coco_verify_test-compatible_with"></a>compatible_with |  <a href="https://bazel.build/reference/be/common-definitions#common.compatible_with">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a>; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
 | <a id="coco_verify_test-deprecation"></a>deprecation |  <a href="https://bazel.build/reference/be/common-definitions#common.deprecation">Inherited rule attribute</a>   | String; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
 | <a id="coco_verify_test-exec_compatible_with"></a>exec_compatible_with |  <a href="https://bazel.build/reference/be/common-definitions#common.exec_compatible_with">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a>; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
+| <a id="coco_verify_test-exec_group_compatible_with"></a>exec_group_compatible_with |  <a href="https://bazel.build/reference/be/common-definitions#common.exec_group_compatible_with">Inherited rule attribute</a>   | Dictionary: String -> List of labels; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
 | <a id="coco_verify_test-exec_properties"></a>exec_properties |  <a href="https://bazel.build/reference/be/common-definitions#common.exec_properties">Inherited rule attribute</a>   | <a href="https://bazel.build/rules/lib/core/dict">Dictionary: String -> String</a> | optional |  `None`  |
 | <a id="coco_verify_test-features"></a>features |  <a href="https://bazel.build/reference/be/common-definitions#common.features">Inherited rule attribute</a>   | List of strings | optional |  `None`  |
 | <a id="coco_verify_test-flaky"></a>flaky |  <a href="https://bazel.build/reference/be/common-definitions#test.flaky">Inherited rule attribute</a>   | Boolean; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
@@ -434,9 +475,10 @@ verification does not pass.
 <pre>
 load("@rules_coco//coco:defs.bzl", "coco_workspace")
 
-coco_workspace(*, <a href="#coco_workspace-name">name</a>, <a href="#coco_workspace-compatible_with">compatible_with</a>, <a href="#coco_workspace-deprecation">deprecation</a>, <a href="#coco_workspace-exec_compatible_with">exec_compatible_with</a>, <a href="#coco_workspace-exec_properties">exec_properties</a>,
-               <a href="#coco_workspace-features">features</a>, <a href="#coco_workspace-package_metadata">package_metadata</a>, <a href="#coco_workspace-parent">parent</a>, <a href="#coco_workspace-restricted_to">restricted_to</a>, <a href="#coco_workspace-tags">tags</a>, <a href="#coco_workspace-target_compatible_with">target_compatible_with</a>,
-               <a href="#coco_workspace-testonly">testonly</a>, <a href="#coco_workspace-toolchains">toolchains</a>, <a href="#coco_workspace-visibility">visibility</a>, <a href="#coco_workspace-workspace">workspace</a>)
+coco_workspace(*, <a href="#coco_workspace-name">name</a>, <a href="#coco_workspace-aspect_hints">aspect_hints</a>, <a href="#coco_workspace-compatible_with">compatible_with</a>, <a href="#coco_workspace-deprecation">deprecation</a>, <a href="#coco_workspace-exec_compatible_with">exec_compatible_with</a>,
+               <a href="#coco_workspace-exec_group_compatible_with">exec_group_compatible_with</a>, <a href="#coco_workspace-exec_properties">exec_properties</a>, <a href="#coco_workspace-features">features</a>, <a href="#coco_workspace-package_metadata">package_metadata</a>, <a href="#coco_workspace-parent">parent</a>,
+               <a href="#coco_workspace-popili_version">popili_version</a>, <a href="#coco_workspace-restricted_to">restricted_to</a>, <a href="#coco_workspace-tags">tags</a>, <a href="#coco_workspace-target_compatible_with">target_compatible_with</a>, <a href="#coco_workspace-testonly">testonly</a>, <a href="#coco_workspace-toolchains">toolchains</a>,
+               <a href="#coco_workspace-visibility">visibility</a>, <a href="#coco_workspace-workspace">workspace</a>)
 </pre>
 
 Declares a Coco workspace root.
@@ -444,19 +486,27 @@ Declares a Coco workspace root.
 A workspace's Coco.toml carries shared settings that popili applies to member
 packages. Reference this target from a coco_package's `workspace` attribute.
 
+A workspace's `popili_version` is inherited by every member package that doesn't pin one,
+and by nested workspaces (via `parent`). A member or nested workspace pinning a different
+version is an error. Workspaces only pass settings down: they are not themselves consumed
+by coco_generate, coco_verify_test and friends, which always take a coco_package.
+
 **ATTRIBUTES**
 
 
 | Name  | Description | Type | Mandatory | Default |
 | :------------- | :------------- | :------------- | :------------- | :------------- |
 | <a id="coco_workspace-name"></a>name |  A unique name for this macro instance. Normally, this is also the name for the macro's main or only target. The names of any other targets that this macro might create will be this name with a string suffix.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
+| <a id="coco_workspace-aspect_hints"></a>aspect_hints |  <a href="https://bazel.build/reference/be/common-definitions#common.aspect_hints">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a> | optional |  `None`  |
 | <a id="coco_workspace-compatible_with"></a>compatible_with |  <a href="https://bazel.build/reference/be/common-definitions#common.compatible_with">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a>; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
 | <a id="coco_workspace-deprecation"></a>deprecation |  <a href="https://bazel.build/reference/be/common-definitions#common.deprecation">Inherited rule attribute</a>   | String; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
 | <a id="coco_workspace-exec_compatible_with"></a>exec_compatible_with |  <a href="https://bazel.build/reference/be/common-definitions#common.exec_compatible_with">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a>; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
+| <a id="coco_workspace-exec_group_compatible_with"></a>exec_group_compatible_with |  <a href="https://bazel.build/reference/be/common-definitions#common.exec_group_compatible_with">Inherited rule attribute</a>   | Dictionary: String -> List of labels; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
 | <a id="coco_workspace-exec_properties"></a>exec_properties |  <a href="https://bazel.build/reference/be/common-definitions#common.exec_properties">Inherited rule attribute</a>   | <a href="https://bazel.build/rules/lib/core/dict">Dictionary: String -> String</a> | optional |  `None`  |
 | <a id="coco_workspace-features"></a>features |  <a href="https://bazel.build/reference/be/common-definitions#common.features">Inherited rule attribute</a>   | List of strings | optional |  `None`  |
 | <a id="coco_workspace-package_metadata"></a>package_metadata |  <a href="https://bazel.build/reference/be/common-definitions#common.package_metadata">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a>; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
 | <a id="coco_workspace-parent"></a>parent |  An enclosing coco_workspace, when this workspace is nested inside another   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  `None`  |
+| <a id="coco_workspace-popili_version"></a>popili_version |  The popili version to use for this target, e.g. '1.5.1' or 'stable'. The version must be registered in coco.toolchain (bzlmod) or coco_repositories (WORKSPACE). Overridden by --@rules_coco//:force_version and with_popili_version.   | String | optional |  `None`  |
 | <a id="coco_workspace-restricted_to"></a>restricted_to |  <a href="https://bazel.build/reference/be/common-definitions#common.restricted_to">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a>; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
 | <a id="coco_workspace-tags"></a>tags |  <a href="https://bazel.build/reference/be/common-definitions#common.tags">Inherited rule attribute</a>   | List of strings; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
 | <a id="coco_workspace-target_compatible_with"></a>target_compatible_with |  <a href="https://bazel.build/reference/be/common-definitions#common.target_compatible_with">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a> | optional |  `None`  |

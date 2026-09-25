@@ -16,8 +16,6 @@
 
 load("//coco/private:cc_library.bzl", "coco_library", "coco_test_library")
 
-_CC_RUNTIME = Label("//coco:cc_runtime")
-
 def coco_cc_library(
         name,
         generated_package = None,
@@ -29,7 +27,8 @@ def coco_cc_library(
         **kwargs):
     """Creates a C++ library from Coco-generated C++ code.
 
-    This automatically adds the Coco C++ runtime as a dependency.
+    This automatically adds the Coco C++ runtime as a dependency, matching the popili
+    version the code was generated with (see coco_package).
 
     Generated headers are made available to downstream targets via CcInfo.
     The `public_hdrs` parameter controls which generated headers are public:
@@ -53,7 +52,7 @@ def coco_cc_library(
     """
     coco_library(
         name = name,
-        runtime = _CC_RUNTIME,
+        runtime = "cc",
         generated_package = generated_package,
         generated_packages = generated_packages,
         srcs = srcs,
@@ -98,7 +97,7 @@ def coco_cc_test_library(
     """
     coco_test_library(
         name = name,
-        runtime = _CC_RUNTIME,
+        runtime = "cc",
         generated_package = generated_package,
         generated_packages = generated_packages,
         srcs = srcs,
