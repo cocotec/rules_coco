@@ -5,5 +5,5 @@
 
 VERSION_ALIASES = {
     "stable": "1.5.8",
-    "testing": "1.6.0-beta.1",
+    "testing": "1.6.0-beta.2",
 }
