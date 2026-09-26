@@ -151,12 +151,12 @@ FILE_KEY_TO_SHA = {
     "1.5.8/coco-cpp-runtime.zip": "cc64420da259d9248ba87a6bdad00a264de79ec4de7438edcc34ab7499bcef4b",
     "1.5.8/coco-c-runtime.zip": "601da4211f7dd6e69deec3fb33eaec750be627166f3a23a02ab7670de2f0960b",
     "1.5.8/coco-csharp-runtime.zip": "746fb6e640fe722c91d28a82a73fbcbdb9d51b36143a2dd207b5874559ffcde2",
-    "1.6.0-beta.1/popili_windows_amd64.zip": "657f9dc9953b20068e4ad455330a3dcfb21abc41cb687b133fe23385c2771432",
-    "1.6.0-beta.1/popili_darwin_arm64.zip": "efdb6dad3b7860276da353c28f8b8e68ccc517fa27db07238a97181d5d1b23b9",
-    "1.6.0-beta.1/popili_linux_arm64.zip": "4bb8fc3db1d393022b59193dde53c522a2499c1ed0a5c91ae666a770ca54bae3",
-    "1.6.0-beta.1/popili_linux_amd64.zip": "2d9f13dbc83b4ddd74a8986b7738059ddf0ba52e47453cf2c896f7b7cf3359b1",
-    "1.6.0-beta.1/popili-agent-plugin.zip": "2fea8026b1c0356af013c7a0146fe23fc39dfdf811b88165754ddd2b081619b9",
-    "1.6.0-beta.1/coco-cpp-runtime.zip": "340fa6407c77d29940aa469bec5f592a1883ad9326b38dadcd8a1a437f75d939",
-    "1.6.0-beta.1/coco-c-runtime.zip": "acbb3dc708dadaf94666f9daa3a9bf23b2dce5f1c53f8388f427371a0c20132b",
-    "1.6.0-beta.1/coco-csharp-runtime.zip": "bc49e0ece904db1b6d9f109133a306c62e4d46f0655d742bf44cf574a9cf1ac6"
+    "1.6.0-beta.2/popili_linux_arm64.zip": "055de2ae0c517f141cfd0b1b13ff65196e0aa0b50d591f2e16a4e214c48ab132",
+    "1.6.0-beta.2/popili_darwin_arm64.zip": "cd8c55a12f81c1da6770a299e5157687fe209bb15d69d38b0aa784b342b41e2c",
+    "1.6.0-beta.2/popili_linux_amd64.zip": "818277cbd74c51235082ebe3d91c8491873b723f66fa6b06dbf9cdbd5be997a5",
+    "1.6.0-beta.2/popili_windows_amd64.zip": "d0052a04ea6b07f4daaa60a9fa766eac8dfb6cf1b19b2ea1b8ef6146028be442",
+    "1.6.0-beta.2/popili-agent-plugin.zip": "fec429a6ec163432467475e8aab67dd9b5eec6a108ee69ee876faa05c09ee84a",
+    "1.6.0-beta.2/coco-cpp-runtime.zip": "340fa6407c77d29940aa469bec5f592a1883ad9326b38dadcd8a1a437f75d939",
+    "1.6.0-beta.2/coco-c-runtime.zip": "bb93362e91956a557cf18240d44002bd8eff84f86bae9ff840e4729a9d02c4f9",
+    "1.6.0-beta.2/coco-csharp-runtime.zip": "408ea3353cb34b428d8282af3e113ed17f365ba9770aaf49feb65f121f4e1621"
 }
