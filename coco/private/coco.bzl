@@ -18,6 +18,7 @@ load("@bazel_skylib//lib:paths.bzl", "paths")
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
 load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
+load(":output_directory.bzl", _output_directory = "output_directory")
 load(":version_aliases.bzl", "VERSION_ALIASES")
 
 CocoPackageInfo = provider(
@@ -1052,14 +1053,6 @@ def _package_relative_dir(package_dir, label_package):
     if package_dir == label_package:
         return ""
     return paths.relativize(package_dir, label_package)
-
-def _output_directory(package_dir, srcs):
-    root_output_dir = None
-    for src in srcs.to_list():
-        relative_to_package = paths.relativize(src.path, package_dir)
-        if not root_output_dir or len(relative_to_package) < len(root_output_dir):
-            root_output_dir = paths.dirname(relative_to_package)
-    return root_output_dir
 
 def _coco_package_generate_impl(ctx):
     # When using configuration transitions, ctx.attr.package becomes a list

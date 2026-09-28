@@ -1,0 +1,7 @@
+[package]
+name = "nested_only"
+sources = ["src"]
+
+[language]
+standard = "1.2"
+profiles = ["C++"]

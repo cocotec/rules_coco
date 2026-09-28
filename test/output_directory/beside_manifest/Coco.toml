@@ -1,0 +1,7 @@
+[package]
+name = "beside_manifest"
+sources = ["."]
+
+[language]
+standard = "1.2"
+profiles = ["C++"]

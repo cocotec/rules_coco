@@ -1,0 +1,3 @@
+import unqualified sub.Runnable
+
+function hello() : String = greet()

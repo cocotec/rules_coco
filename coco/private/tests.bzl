@@ -27,6 +27,7 @@ load(":cc_runtime_deps.bzl", "collect_cc_runtime_extra_deps")
 load(":coco.bzl", "compute_output_paths", "mangle_name", "module_path_for", "package_relative_dir")
 load(":common_repositories.bzl", "find_local_license_path")
 load(":known_shas.bzl", "FILE_KEY_TO_SHA")
+load(":output_directory.bzl", "output_directory")
 load(":repositories.bzl", "coco_toolchain_download")
 load(":version_aliases.bzl", "VERSION_ALIASES")
 
@@ -323,6 +324,144 @@ def _package_relative_dir_test_impl(ctx):
 
 module_path_for_test = unittest.make(_module_path_for_test_impl)
 package_relative_dir_test = unittest.make(_package_relative_dir_test_impl)
+
+# Tests for output_directory
+#
+# output_directory stands in for `sources = [...]` in Coco.toml. It takes a depset of Files, but only
+# reads `.path`, so structs with a `path` field are enough here. Package "pkg" means Coco.toml is at
+# pkg/Coco.toml. See TODO-output-directory.md; several of these tests fail on purpose until it is fixed.
+# Several roots (sources = ["src", "generated"]) are covered by test/output_directory:multi_root_test,
+# since popili merges them into one --output and a single root per package cannot describe that.
+
+_PKG = "pkg"
+
+def _srcs(*relative_paths):
+    """Builds a depset of fake Files at pkg/<relative_path>, keeping the given order."""
+    return depset([struct(path = _PKG + "/" + p) for p in relative_paths])
+
+def _output_directory_single_root_test(ctx):
+    env = unittest.begin(ctx)
+
+    # sources = ["src"], glob(["src/*.coco"])
+    asserts.equals(env, "src", output_directory(_PKG, _srcs("src/Comp.coco", "src/Runnable.coco")))
+
+    return unittest.end(env)
+
+def _output_directory_nested_shallow_first_test(ctx):
+    env = unittest.begin(ctx)
+
+    # sources = ["src"], glob(["src/**/*.coco"]), root-level file first in iteration order
+    asserts.equals(env, "src", output_directory(_PKG, _srcs("src/Main.coco", "src/types/Dimension.coco")))
+
+    return unittest.end(env)
+
+def _output_directory_nested_deep_first_test(ctx):
+    env = unittest.begin(ctx)
+
+    # Same package as above, but the nested file comes first. glob() sorts, so this is the order you get
+    # for e.g. src/Api/Foo.coco + src/Main.coco ("Api" < "Main.coco").
+    asserts.equals(env, "src", output_directory(_PKG, _srcs("src/Api/Foo.coco", "src/Main.coco")))
+
+    return unittest.end(env)
+
+def _output_directory_nested_only_test(ctx):
+    env = unittest.begin(ctx)
+
+    # sources = ["src"], but every file lives one level deeper, in src/a. popili resolves outputs against
+    # the Coco.toml root, so it writes <--output>/a/X.h; with --output=.../src/a that lands in src/a/a/,
+    # while Bazel declared src/a/X.h. The right answer is "src", which the file paths alone cannot give.
+    asserts.equals(env, "src", output_directory(_PKG, _srcs("src/a/X.coco", "src/a/Y.coco")))
+
+    return unittest.end(env)
+
+def _output_directory_nested_siblings_test(ctx):
+    env = unittest.begin(ctx)
+
+    # sources = ["src"], files only in two sibling subdirectories of equal depth (a tie).
+    asserts.equals(env, "src", output_directory(_PKG, _srcs("src/a/X.coco", "src/b/Y.coco")))
+
+    return unittest.end(env)
+
+def _output_directory_tie_is_order_independent_test(ctx):
+    env = unittest.begin(ctx)
+
+    # Two equally short paths in different directories: the answer must not depend on depset order.
+    forward = output_directory(_PKG, _srcs("src/a/X.coco", "src/b/Y.coco"))
+    backward = output_directory(_PKG, _srcs("src/b/Y.coco", "src/a/X.coco"))
+    asserts.equals(env, forward, backward, "result depends on iteration order")
+
+    return unittest.end(env)
+
+def _output_directory_mixed_depths_order_independent_test(ctx):
+    env = unittest.begin(ctx)
+
+    relative = ["src/a/b/Deep.coco", "src/a/Mid.coco", "src/Top.coco"]
+    expected = output_directory(_PKG, _srcs(*relative))
+    for order in [
+        ["src/Top.coco", "src/a/Mid.coco", "src/a/b/Deep.coco"],
+        ["src/a/Mid.coco", "src/Top.coco", "src/a/b/Deep.coco"],
+        ["src/a/b/Deep.coco", "src/Top.coco", "src/a/Mid.coco"],
+    ]:
+        asserts.equals(env, expected, output_directory(_PKG, _srcs(*order)), "order %s" % order)
+    asserts.equals(env, "src", expected)
+
+    return unittest.end(env)
+
+def _output_directory_beside_manifest_only_test(ctx):
+    env = unittest.begin(ctx)
+
+    # sources = ["."] with every file next to Coco.toml (test/package_directory).
+    asserts.equals(env, "", output_directory(_PKG, _srcs("Comp.coco", "Runnable.coco")))
+
+    return unittest.end(env)
+
+def _output_directory_beside_manifest_and_nested_test(ctx):
+    env = unittest.begin(ctx)
+
+    # sources = ["."] with one file next to Coco.toml and one in a subdirectory.
+    asserts.equals(env, "", output_directory(_PKG, _srcs("Top.coco", "sub/Nested.coco")))
+
+    return unittest.end(env)
+
+def _output_directory_nested_and_beside_manifest_test(ctx):
+    env = unittest.begin(ctx)
+
+    # Same as above, opposite iteration order.
+    asserts.equals(env, "", output_directory(_PKG, _srcs("sub/Nested.coco", "Top.coco")))
+
+    return unittest.end(env)
+
+def _output_directory_package_at_workspace_root_test(ctx):
+    env = unittest.begin(ctx)
+
+    # Coco.toml at the workspace root: package_file.dirname is "".
+    asserts.equals(env, "src", output_directory("", depset([struct(path = "src/Comp.coco")])))
+
+    return unittest.end(env)
+
+def _output_directory_empty_test(ctx):
+    env = unittest.begin(ctx)
+
+    # glob() may match nothing. The result is joined into --output and --include-prefix with
+    # paths.join, so it must at least be a string.
+    result = output_directory(_PKG, depset([]))
+    asserts.true(env, type(result) == "string", "expected a string for empty srcs, got %r" % (result,))
+
+    return unittest.end(env)
+
+# Create test rules for output_directory
+output_directory_single_root_test = unittest.make(_output_directory_single_root_test)
+output_directory_nested_shallow_first_test = unittest.make(_output_directory_nested_shallow_first_test)
+output_directory_nested_deep_first_test = unittest.make(_output_directory_nested_deep_first_test)
+output_directory_nested_only_test = unittest.make(_output_directory_nested_only_test)
+output_directory_nested_siblings_test = unittest.make(_output_directory_nested_siblings_test)
+output_directory_tie_is_order_independent_test = unittest.make(_output_directory_tie_is_order_independent_test)
+output_directory_mixed_depths_order_independent_test = unittest.make(_output_directory_mixed_depths_order_independent_test)
+output_directory_beside_manifest_only_test = unittest.make(_output_directory_beside_manifest_only_test)
+output_directory_beside_manifest_and_nested_test = unittest.make(_output_directory_beside_manifest_and_nested_test)
+output_directory_nested_and_beside_manifest_test = unittest.make(_output_directory_nested_and_beside_manifest_test)
+output_directory_package_at_workspace_root_test = unittest.make(_output_directory_package_at_workspace_root_test)
+output_directory_empty_test = unittest.make(_output_directory_empty_test)
 
 # Tests for find_local_license_path
 
@@ -639,6 +778,20 @@ def coco_test_suite(name):
         name + "_unit",
         module_path_for_test,
         package_relative_dir_test,
+
+        # output_directory tests
+        output_directory_single_root_test,
+        output_directory_nested_shallow_first_test,
+        output_directory_nested_deep_first_test,
+        output_directory_nested_only_test,
+        output_directory_nested_siblings_test,
+        output_directory_tie_is_order_independent_test,
+        output_directory_mixed_depths_order_independent_test,
+        output_directory_beside_manifest_only_test,
+        output_directory_beside_manifest_and_nested_test,
+        output_directory_nested_and_beside_manifest_test,
+        output_directory_package_at_workspace_root_test,
+        output_directory_empty_test,
 
         # collect_cc_runtime_extra_deps tests
         cc_runtime_deps_root_single_version_test,
