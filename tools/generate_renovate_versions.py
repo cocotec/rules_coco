@@ -21,6 +21,7 @@ for users who cannot access github.com but can access dl.cocotec.io.
 """
 
 import argparse
+import base64
 import hashlib
 import json
 import os
@@ -57,7 +58,8 @@ def compute_sha256_from_gcs(gcs_uri: str, temp_dir: Path) -> str:
         temp_dir: Temporary directory for downloading the file
 
     Returns:
-        SHA256 hash as hexadecimal string
+        SHA256 hash in Subresource Integrity form (e.g., 'sha256-<base64>'),
+        matching the `integrity` attribute of `archive_override`
     """
     filename = gcs_uri.split('/')[-1]
     temp_file = temp_dir / filename
@@ -75,7 +77,7 @@ def compute_sha256_from_gcs(gcs_uri: str, temp_dir: Path) -> str:
 
     temp_file.unlink()
 
-    return sha256_hash.hexdigest()
+    return 'sha256-' + base64.b64encode(sha256_hash.digest()).decode('ascii')
 
 
 def process_release(obj: Dict, bucket_name: str,

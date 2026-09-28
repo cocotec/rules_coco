@@ -19,46 +19,21 @@ rules_coco uses `archive_override` in `MODULE.bazel` to fetch releases directly 
 support for Bazel's `MODULE.bazel` files, it does **not** automatically detect or update `archive_override`
 declarations.
 
-## Configuration for Users with GitHub Access
+## Recommended Configuration
 
-If you can access GitHub, use this configuration:
-
-```json
-{
-  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:recommended"],
-  "regexManagers": [
-    {
-      "fileMatch": ["^MODULE\\.bazel$"],
-      "matchStrings": [
-        "archive_override\\([\\s\\S]*?module_name\\s*=\\s*\"rules_coco\"[\\s\\S]*?urls\\s*=\\s*\\[[\\s\\S]*?releases/download/(?<currentValue>[^/\"]+)/"
-      ],
-      "datasourceTemplate": "github-releases",
-      "depNameTemplate": "cocotec/rules_coco",
-      "versioningTemplate": "semver"
-    }
-  ]
-}
-```
-
-This configuration:
-- Monitors your `MODULE.bazel` file for rules_coco versions.
-- Uses GitHub releases as the datasource.
-- Automatically creates PRs when new versions are available.
-
-## Configuration for Users without GitHub Access
-
-If you cannot access GitHub but can access `dl.cocotec.io`, use this configuration:
+This configuration updates both the version and the `integrity` hash. It uses the version manifest on `dl.cocotec.io`,
+so it works with or without GitHub access:
 
 ```json
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["config:recommended"],
-  "regexManagers": [
+  "customManagers": [
     {
-      "fileMatch": ["^MODULE\\.bazel$"],
+      "customType": "regex",
+      "managerFilePatterns": ["/(^|/)MODULE\\.bazel$/"],
       "matchStrings": [
-        "archive_override\\([\\s\\S]*?module_name\\s*=\\s*\"rules_coco\"[\\s\\S]*?urls\\s*=\\s*\\[[\\s\\S]*?\"https://dl\\.cocotec\\.io/rules_coco/rules_coco_(?<currentValue>[^\"]+)\\.tar\\.gz\""
+        "archive_override\\(\\s*module_name\\s*=\\s*\"rules_coco\"[^)]*?urls\\s*=\\s*\\[[^\\]]*?\"https://dl\\.cocotec\\.io/rules_coco/rules_coco_(?<currentValue>[^\"]+)\\.tar\\.gz\"[^\\]]*\\][^)]*?integrity\\s*=\\s*\"(?<currentDigest>sha256-[A-Za-z0-9+/=]+)\""
       ],
       "datasourceTemplate": "custom.rules_coco",
       "depNameTemplate": "rules_coco",
@@ -75,9 +50,38 @@ If you cannot access GitHub but can access `dl.cocotec.io`, use this configurati
 ```
 
 This configuration:
-- Monitors your `MODULE.bazel` file for rules_coco versions from dl.cocotec.io
-- Uses the custom version manifest instead of GitHub
-- Works entirely without GitHub access
+- Monitors your `MODULE.bazel` file for the rules_coco `archive_override`.
+- Uses the version manifest instead of GitHub, which also provides the `integrity` hash of each release.
+- Updates every URL in the `urls` list, as well as `integrity`, in the same pull request.
+
+## Configuration Using GitHub Releases
+
+If you prefer GitHub releases as the datasource, use this configuration instead:
+
+```json
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/(^|/)MODULE\\.bazel$/"],
+      "matchStrings": [
+        "archive_override\\(\\s*module_name\\s*=\\s*\"rules_coco\"[^)]*?urls\\s*=\\s*\\[[^\\]]*?\"https://github\\.com/cocotec/rules_coco/releases/download/(?<currentValue>[^/\"]+)/rules_coco_[^\"]+\\.tar\\.gz\"[^\\]]*\\]"
+      ],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "cocotec/rules_coco",
+      "versioningTemplate": "semver"
+    }
+  ]
+}
+```
+
+**Important:** Renovate's `github-releases` datasource only knows the commit SHA of a release tag, not a hash of the
+release archive, so this configuration only updates the `urls`. Don't capture `integrity` with it: Renovate would
+replace the hash with the commit SHA. Bazel reports a checksum mismatch on the resulting pull request until you replace `integrity`
+with the value from the [release notes](https://github.com/cocotec/rules_coco/releases). Use the
+[recommended configuration](#recommended-configuration) to have `integrity` updated automatically.
 
 ## Example MODULE.bazel
 
@@ -96,7 +100,12 @@ archive_override(
 )
 ```
 
-**Important:** If you're using the offline configuration, ensure the `dl.cocotec.io` URL appears in your `urls` list so Renovate can detect it.
+**Important:** The configurations above only recognise an `archive_override` laid out like this example:
+- `module_name` must be the first argument.
+- `urls` must include the URL for the configuration you use (`dl.cocotec.io` or `github.com`).
+- For the recommended configuration, `integrity` must come after `urls`.
+
+Renovate silently ignores an `archive_override` it does not recognise, so it will never propose an update for it.
 
 ## Version Manifest Format
 
@@ -111,16 +120,17 @@ The version manifest at `https://dl.cocotec.io/rules_coco/renovate_versions.json
       "version": "0.1.3",
       "releaseTimestamp": "2024-11-19T10:00:00Z",
       "changelogUrl": "https://github.com/cocotec/rules_coco/releases/tag/0.1.3",
-      "digest": "4a930cb5a775e4b3b06938d87d5aa20123c553ebe931343be2dd8c7a99237e97"
+      "digest": "sha256-SpMMtad15LOwaTjYfVqiASPFU+vpMTQ74t2Mepkjfpc="
     },
     {
       "version": "0.1.1",
       "releaseTimestamp": "2024-11-14T10:00:00Z",
       "changelogUrl": "https://github.com/cocotec/rules_coco/releases/tag/0.1.1",
-      "digest": "..."
+      "digest": "sha256-..."
     }
   ]
 }
 ```
 
-This manifest is automatically updated whenever a new version is released.
+Each `digest` is the SHA-256 of the release archive in the same `sha256-<base64>` form as the `integrity` attribute of
+`archive_override`. The manifest is automatically updated whenever a new version is released.
