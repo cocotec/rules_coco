@@ -1,0 +1,14 @@
+"""Analysis test that checks a target fails analysis with a given message."""
+
+load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts")
+
+def _analysis_failure_test_impl(ctx):
+    env = analysistest.begin(ctx)
+    asserts.expect_failure(env, ctx.attr.expected_message)
+    return analysistest.end(env)
+
+analysis_failure_test = analysistest.make(
+    _analysis_failure_test_impl,
+    attrs = {"expected_message": attr.string(mandatory = True)},
+    expect_failure = True,
+)

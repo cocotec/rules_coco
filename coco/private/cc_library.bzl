@@ -16,6 +16,7 @@
 
 load("@rules_cc//cc:defs.bzl", "cc_library")
 load(":coco.bzl", _coco_cc_gen = "coco_cc_gen")
+load(":common_attrs.bzl", "companion_attrs")
 
 def coco_library(
         name,
@@ -54,7 +55,7 @@ def coco_library(
             package = pkg,
             all_hdrs_public = (public_hdrs == None),
             public_hdrs = public_hdrs if public_hdrs != None else [],
-            tags = ["manual"],
+            **companion_attrs(kwargs, extra_tags = ["manual"])
         )
         gen_targets.append(gen_name)
 
@@ -107,7 +108,7 @@ def coco_test_library(
             use_test_outputs = True,
             all_hdrs_public = (public_hdrs == None),
             public_hdrs = public_hdrs if public_hdrs != None else [],
-            tags = ["manual"],
+            **companion_attrs(kwargs, extra_tags = ["manual"])
         )
         gen_targets.append(gen_name)
 

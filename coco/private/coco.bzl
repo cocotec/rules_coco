@@ -18,6 +18,7 @@ load("@bazel_skylib//lib:paths.bzl", "paths")
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
 load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
+load(":common_attrs.bzl", "companion_attrs")
 load(":version_aliases.bzl", "VERSION_ALIASES")
 
 CocoPackageInfo = provider(
@@ -936,6 +937,9 @@ def _output_directory(package_dir, srcs):
     return root_output_dir
 
 def _coco_package_generate_impl(ctx):
+    if ctx.attr.language == "c" and ctx.attr.mocks:
+        fail("mocks = True is not supported for language = \"c\": popili does not generate C mocks", attr = "mocks")
+
     # When using configuration transitions, ctx.attr.package becomes a list
     package = ctx.attr.package[0] if type(ctx.attr.package) == type([]) else ctx.attr.package
     srcs = package[CocoPackageInfo].direct_srcs
@@ -1114,7 +1118,7 @@ _coco_generate = rule(
             doc = "Target language for code generation: \"cpp\", \"c\", or \"csharp\".",
         ),
         "mocks": attr.bool(
-            doc = "Generate mock implementations for testing. Disabled by default.",
+            doc = "Generate mock implementations for testing. Disabled by default. Not supported for C.",
         ),
         "package": attr.label(
             providers = [CocoPackageInfo],
@@ -1223,12 +1227,14 @@ def _coco_generate_macro_impl(name, visibility, **kwargs):
         **kwargs
     )
 
-    # Companion target for the generated test sources/headers. Only visibility is
-    # forwarded (kwargs holds generator-only attrs); see test/visibility_propagation.
+    # Companion target for the generated test sources/headers. It gets the generator's
+    # visibility and common attrs; the rest of kwargs are generator-only. See
+    # test/visibility_propagation and test/companion_attrs.
     _coco_test_outputs(
         name = coco_test_outputs_name(name),
         package = name,
         visibility = visibility,
+        **companion_attrs(kwargs)
     )
 
 coco_generate = macro(

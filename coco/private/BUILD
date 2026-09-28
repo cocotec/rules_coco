@@ -35,9 +35,15 @@ bzl_library(
 
 # Starlark library targets for internal implementation files
 bzl_library(
+    name = "common_attrs_bzl",
+    srcs = ["common_attrs.bzl"],
+)
+
+bzl_library(
     name = "coco_bzl",
     srcs = ["coco.bzl"],
     deps = [
+        ":common_attrs_bzl",
         ":version_aliases_bzl",
         "@bazel_skylib//lib:paths",
         "@bazel_skylib//rules:common_settings",
@@ -87,6 +93,7 @@ bzl_library(
     srcs = ["cc_library.bzl"],
     deps = [
         ":coco_bzl",
+        ":common_attrs_bzl",
         "@rules_cc//cc:defs_bzl",
     ],
 )
@@ -94,7 +101,10 @@ bzl_library(
 bzl_library(
     name = "format_bzl",
     srcs = ["format.bzl"],
-    deps = [":coco_bzl"],
+    deps = [
+        ":coco_bzl",
+        ":common_attrs_bzl",
+    ],
 )
 
 bzl_library(
@@ -116,6 +126,7 @@ bzl_library(
         ":cc_library_bzl",
         ":cc_runtime_deps_bzl",
         ":coco_bzl",
+        ":common_attrs_bzl",
         ":common_repositories_bzl",
         ":diagram_bzl",
         ":format_bzl",
