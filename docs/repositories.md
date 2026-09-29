@@ -9,7 +9,8 @@ Public API for Coco repository rules.
 <pre>
 load("@rules_coco//coco:repositories.bzl", "coco_local_repositories")
 
-coco_local_repositories(<a href="#coco_local_repositories-path">path</a>, <a href="#coco_local_repositories-cc_runtime_path">cc_runtime_path</a>, <a href="#coco_local_repositories-c_runtime_path">c_runtime_path</a>, <a href="#coco_local_repositories-kwargs">**kwargs</a>)
+coco_local_repositories(<a href="#coco_local_repositories-path">path</a>, <a href="#coco_local_repositories-cc_runtime_path">cc_runtime_path</a>, <a href="#coco_local_repositories-c_runtime_path">c_runtime_path</a>, <a href="#coco_local_repositories-license_source">license_source</a>, <a href="#coco_local_repositories-license_token">license_token</a>,
+                        <a href="#coco_local_repositories-auth_token_path">auth_token_path</a>)
 </pre>
 
 Sets up Coco toolchain repositories from a local popili path (WORKSPACE mode).
@@ -32,7 +33,9 @@ instead.
 | <a id="coco_local_repositories-path"></a>path |  Directory containing the `popili` and `cocotec-licensing-server` binaries at its top level (the extracted popili archive layout).   |  none |
 | <a id="coco_local_repositories-cc_runtime_path"></a>cc_runtime_path |  Optional directory containing the local C++ runtime `coco/` subtree. Required to build `coco_cc_library` against the local toolchain.   |  `None` |
 | <a id="coco_local_repositories-c_runtime_path"></a>c_runtime_path |  Optional directory containing the local C runtime `coco_c/` subtree. Required to build `coco_c_library` against the local toolchain.   |  `None` |
-| <a id="coco_local_repositories-kwargs"></a>kwargs |  Additional arguments:<br><br>license_source (str): Optional default license source mode. See `coco_repositories`.<br><br>license_token (str): Optional default license token.<br><br>auth_token_path (str): Optional auth token file path.   |  none |
+| <a id="coco_local_repositories-license_source"></a>license_source |  Optional default license source mode. See `coco_repositories`.   |  `""` |
+| <a id="coco_local_repositories-license_token"></a>license_token |  Optional default license token.   |  `""` |
+| <a id="coco_local_repositories-auth_token_path"></a>auth_token_path |  Optional auth token file path.   |  `""` |
 
 
 <a id="coco_repositories"></a>

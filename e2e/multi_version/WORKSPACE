@@ -1,6 +1,4 @@
 # E2E multi-version test WORKSPACE
-# Note: Multi-version support is primarily a bzlmod feature.
-# This WORKSPACE file tests that the rules work in WORKSPACE mode with a single version.
 
 workspace(name = "rules_coco_multi_version_test")
 

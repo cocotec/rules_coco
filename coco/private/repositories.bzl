@@ -167,7 +167,14 @@ def coco_repositories(
 
     native.register_toolchains("@%s//:all" % DEFAULT_HUB_NAME)
 
-def coco_local_repositories(path, cc_runtime_path = None, c_runtime_path = None, **kwargs):
+# buildifier: disable=unnamed-macro
+def coco_local_repositories(
+        path,
+        cc_runtime_path = None,
+        c_runtime_path = None,
+        license_source = "",
+        license_token = "",
+        auth_token_path = ""):
     """Sets up Coco toolchain repositories from a local popili path (WORKSPACE mode).
 
     Use this to point the rules at a popili distribution already present on the local
@@ -186,28 +193,16 @@ def coco_local_repositories(path, cc_runtime_path = None, c_runtime_path = None,
         Required to build `coco_cc_library` against the local toolchain.
       c_runtime_path: Optional directory containing the local C runtime `coco_c/` subtree.
         Required to build `coco_c_library` against the local toolchain.
-      **kwargs: Additional arguments:
-
-          license_source (str): Optional default license source mode. See `coco_repositories`.
-
-          license_token (str): Optional default license token.
-
-          auth_token_path (str): Optional auth token file path.
+      license_source: Optional default license source mode. See `coco_repositories`.
+      license_token: Optional default license token.
+      auth_token_path: Optional auth token file path.
     """
-
-    # buildifier: disable=print
-    print(
-        "coco_local_repositories(): the local Coco toolchain is selected by " +
-        "--@rules_coco//:version=local. Builds that do not set that flag will report " +
-        "no matching toolchain for @rules_coco//coco:toolchain_type.",
-    )
-
     coco_repositories(
         versions = [],
         local_popili = path,
         local_cc_runtime = cc_runtime_path,
         local_c_runtime = c_runtime_path,
-        license_source = kwargs.get("license_source", ""),
-        license_token = kwargs.get("license_token", ""),
-        auth_token_path = kwargs.get("auth_token_path", ""),
+        license_source = license_source,
+        license_token = license_token,
+        auth_token_path = auth_token_path,
     )

@@ -33,8 +33,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   proxy repositories are gone; every `toolchain()` is now declared in the `@coco_toolchains` hub and
   registered with a single `@coco_toolchains//:all`. These names are implementation details, only
   reachable via `--extra_toolchains` or `--override_repository`.
-- **Breaking:** `coco_repositories` takes explicit named parameters instead of `**kwargs`, so an
-  unrecognised argument is now an error rather than being silently ignored.
+- **Breaking:** `coco_repositories` and `coco_local_repositories` take explicit named parameters
+  instead of `**kwargs`, so an unrecognised argument is now an error rather than being silently
+  ignored.
 - `coco_repositories` now fails with a clear message if called more than once, instead of producing
   duplicate-repository warnings and a silently wrong configuration.
 - `"local"` and `"default"` are rejected as version strings; they name the hub's own
