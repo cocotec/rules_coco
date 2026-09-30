@@ -58,6 +58,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Wrapping a `coco_package` in `with_popili_version` had no effect on the Popili used to verify or
+  generate from it, because the transition reached only the package. The consumers of a package
+  now always use the package's version.
 - `coco_repositories(versions = [...])` was accepted but silently ignored in WORKSPACE mode, so a
   workspace following the README's "Popili Version" section got `stable` instead of the versions it
   asked for. It is now honoured — check that your default version has not moved.

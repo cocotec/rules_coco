@@ -28,6 +28,7 @@ CocoPackageInfo = provider(
         "direct_test_srcs": "The .coco files that are direct test_sources of this package only",
         "name": "The name of the package",
         "package_file": "The Coco.toml file for this package",
+        "popili_toolchain": "The Coco ToolchainInfo resolved for this package, used by every rule that consumes it",
         "srcs": "All .coco files that are sources of this package or any of its transitive dependencies",
         "test_srcs": "All .coco files that are test_sources of this package or any of its transitive dependencies",
         "typecheck_marker": "Marker file indicating typecheck passed (or None if typecheck disabled)",
@@ -70,6 +71,10 @@ LICENSE_ATTRIBUTES = {
 
 COCO_TOOLCHAIN_TYPE = "@rules_coco//coco:toolchain_type"
 
+# Rules that run popili on a coco_package use the toolchain the package resolved (see
+# _popili_toolchain), so their own is only a fallback and must not fail resolution.
+OPTIONAL_COCO_TOOLCHAIN = config_common.toolchain_type(COCO_TOOLCHAIN_TYPE, mandatory = False)
+
 def _popili_version_transition_impl(_settings, attr):
     """Transition implementation for per-target popili version selection.
 
@@ -90,6 +95,14 @@ _popili_version_transition = transition(
 
 # Export for use in cc.bzl
 popili_version_transition = _popili_version_transition
+
+def _display(label):
+    """Formats a label for messages, leaving out the canonical prefix of main-repository labels."""
+    if label == None:
+        return "None"
+    if not label.repo_name:
+        return "//%s:%s" % (label.package, label.name)
+    return str(label)
 
 def _with_popili_version_impl(ctx):
     """Wrapper rule that applies popili version transition to a target.
@@ -168,11 +181,40 @@ def _runtime_dirname(file, is_test):
     # external-repo deps resolve in the runfiles tree; "." avoids an empty arg.
     return paths.dirname(_runtime_path(file, is_test)) or "."
 
-def _coco_startup_args(ctx, package, is_test):
+def _package_info(package):
+    # Support both CocoPackageInfo providers (targets) and structs with the same fields
+    return package if hasattr(package, "package_file") else package[CocoPackageInfo]
+
+def _popili_toolchain(ctx, package):
+    """Returns the Coco toolchain to run popili with for `package`.
+
+    That is the toolchain the package resolved for itself (see coco_package's
+    popili_version), so every rule consuming a package runs the same popili. Falls back to
+    the rule's own toolchain for CocoPackageInfo providers that don't carry one, e.g. from
+    rules outside rules_coco.
+
+    Args:
+        ctx: Rule context. Rules that may take the fallback must declare the Coco toolchain type.
+        package: A target with CocoPackageInfo, a struct with the same fields, or None.
+
+    Returns:
+        The Coco ToolchainInfo.
+    """
+    toolchain = None
+    if package != None:
+        toolchain = getattr(_package_info(package), "popili_toolchain", None)
+    if toolchain == None:
+        toolchain = ctx.toolchains[COCO_TOOLCHAIN_TYPE]
+    if toolchain == None:
+        fail("%s needs a Coco toolchain, but none is registered for this configuration." % _display(ctx.label))
+    return toolchain
+
+def _coco_startup_args(ctx, toolchain, package, is_test):
     """Build startup arguments for popili.
 
     Args:
         ctx: Rule context
+        toolchain: The Coco ToolchainInfo popili is run from
         package: The coco_package target with CocoPackageInfo, a struct with package_file
                  and dep_package_files fields, or None for base args only
         is_test: Whether this is for a test (affects path resolution)
@@ -185,33 +227,27 @@ def _coco_startup_args(ctx, package, is_test):
         "--no-crash-reporter",
         "--no-auto-download",
         "--override-preferences",
-        _runtime_path(ctx.toolchains[COCO_TOOLCHAIN_TYPE].preferences_file, is_test),
+        _runtime_path(toolchain.preferences_file, is_test),
         "--terminal=plain",
     ]
 
     # Handle auth token file for action_file mode
-    license_source = _get_license_source(ctx)
+    license_source = _get_license_source(ctx, toolchain)
     if license_source == "action_file":
-        auth_token_path = _get_auth_token_path(ctx)
+        auth_token_path = _get_auth_token_path(ctx, toolchain)
         if auth_token_path:
             arguments.append("--machine-auth-token")
             arguments.append(auth_token_path)
     else:
         # Handle license file for other modes
-        license_file = _get_license_file_from_toolchain(ctx)
+        license_file = _get_license_file_from_toolchain(ctx, toolchain)
         if license_file:
             arguments.append("--override-licenses")
             arguments.append(_runtime_path(license_file, is_test))
     if package:
-        # Support both CocoPackageInfo providers (targets) and structs with the same fields
-        if hasattr(package, "package_file"):
-            # It's a struct
-            package_file = package.package_file
-            dep_package_files = package.dep_package_files
-        else:
-            # It's a target with CocoPackageInfo provider
-            package_file = package[CocoPackageInfo].package_file
-            dep_package_files = package[CocoPackageInfo].dep_package_files
+        info = _package_info(package)
+        package_file = info.package_file
+        dep_package_files = info.dep_package_files
         arguments += [
             "--package",
             _runtime_dirname(package_file, is_test),
@@ -220,16 +256,16 @@ def _coco_startup_args(ctx, package, is_test):
             arguments += ["--import-path", _runtime_dirname(dep_file, is_test)]
     return arguments
 
-def _get_license_source(ctx):
+def _get_license_source(ctx, toolchain):
     cli_license_source = ctx.attr._license_source[BuildSettingInfo].value
     if cli_license_source:
         return cli_license_source
-    toolchain_license_source = ctx.toolchains[COCO_TOOLCHAIN_TYPE].license_source
+    toolchain_license_source = toolchain.license_source
     if toolchain_license_source:
         return toolchain_license_source
     return "local_user"
 
-def _get_auth_token_path(ctx):
+def _get_auth_token_path(ctx, toolchain):
     """Get the auth token file path from CLI flag or toolchain.
 
     Returns the path string (not a File object) for use with action_file licensing mode.
@@ -237,19 +273,19 @@ def _get_auth_token_path(ctx):
     cli_auth_token_path = ctx.attr._auth_token_path[BuildSettingInfo].value
     if cli_auth_token_path:
         return cli_auth_token_path
-    toolchain_auth_token_path = ctx.toolchains[COCO_TOOLCHAIN_TYPE].auth_token_path
+    toolchain_auth_token_path = toolchain.auth_token_path
     if toolchain_auth_token_path:
         return toolchain_auth_token_path
     return ""
 
-def _get_license_file_from_toolchain(ctx):
+def _get_license_file_from_toolchain(ctx, toolchain):
     """Get the appropriate license file based on license_source.
 
     Reads license_source from the toolchain (repository default) with optional
     CLI override via --@rules_coco//:license_source flag.
     """
 
-    license_source = _get_license_source(ctx)
+    license_source = _get_license_source(ctx, toolchain)
     if license_source == "local_acquire":
         files = ctx.attr._license_file_fetch[DefaultInfo].files.to_list()
         return files[0] if files else None
@@ -258,25 +294,25 @@ def _get_license_file_from_toolchain(ctx):
         return files[0] if files else None
     return None
 
-def _coco_env(ctx):
+def _coco_env(ctx, toolchain):
     env = {}
 
-    license_source = _get_license_source(ctx)
+    license_source = _get_license_source(ctx, toolchain)
     if license_source == "token":
         cli_license_token = ctx.attr._license_token[BuildSettingInfo].value
-        toolchain_license_token = ctx.toolchains[COCO_TOOLCHAIN_TYPE].license_token
+        toolchain_license_token = toolchain.license_token
         env["COCOTEC_AUTH_TOKEN"] = cli_license_token if cli_license_token else (toolchain_license_token if toolchain_license_token else "")
 
     return env
 
-def _coco_runfiles(ctx, package, is_test):
+def _coco_runfiles(ctx, toolchain, package, is_test):
     direct = [
-        ctx.toolchains[COCO_TOOLCHAIN_TYPE].preferences_file,
+        toolchain.preferences_file,
     ]
     transitive = []
     if is_test:
-        direct.append(ctx.toolchains[COCO_TOOLCHAIN_TYPE].coco)
-    license_file = _get_license_file_from_toolchain(ctx)
+        direct.append(toolchain.coco)
+    license_file = _get_license_file_from_toolchain(ctx, toolchain)
     if license_file:
         direct.append(license_file)
     if package:
@@ -294,17 +330,18 @@ def _coco_runfiles(ctx, package, is_test):
     )
 
 def _run_coco(ctx, package, verb, mnemonic, arguments, outputs):
+    toolchain = _popili_toolchain(ctx, package)
     ctx.actions.run(
-        executable = ctx.toolchains[COCO_TOOLCHAIN_TYPE].coco,
+        executable = toolchain.coco,
         tools = [
-            ctx.toolchains[COCO_TOOLCHAIN_TYPE].coco,
+            toolchain.coco,
         ],
-        env = _coco_env(ctx),
+        env = _coco_env(ctx, toolchain),
         mnemonic = mnemonic,
         progress_message = "%s %s" % (verb, package[CocoPackageInfo].name),
-        inputs = _coco_runfiles(ctx, package, False),
+        inputs = _coco_runfiles(ctx, toolchain, package, False),
         outputs = outputs,
-        arguments = _coco_startup_args(ctx, package, False) + arguments,
+        arguments = _coco_startup_args(ctx, toolchain, package, False) + arguments,
     )
 
 WINDOWS_CONSTRAINT_ATTR = attr.label(default = "@platforms//os:windows")
@@ -326,15 +363,16 @@ def _create_coco_wrapper_script(ctx, package, arguments):
     Returns:
         The wrapper script file
     """
-    coco_path = ctx.toolchains[COCO_TOOLCHAIN_TYPE].coco.short_path
+    toolchain = _popili_toolchain(ctx, package)
+    coco_path = toolchain.coco.short_path
     is_windows = _is_windows(ctx)
     if is_windows:
         coco_path = coco_path.replace("/", "\\")
 
     # Build the full command
-    full_arguments = [coco_path] + _coco_startup_args(ctx, package, True) + arguments
+    full_arguments = [coco_path] + _coco_startup_args(ctx, toolchain, package, True) + arguments
     command = " ".join(full_arguments)
-    env = _coco_env(ctx)
+    env = _coco_env(ctx, toolchain)
 
     # Create platform-specific wrapper script
     if is_windows:
@@ -362,20 +400,21 @@ def _create_coco_wrapper_script(ctx, package, arguments):
 
     return wrapper_script
 
+def _coco_package_runfiles(ctx, package, is_test):
+    return _coco_runfiles(ctx, _popili_toolchain(ctx, package), package, is_test)
+
 # Export helper functions for use by other private modules (e.g., format.bzl, diagram.bzl)
 # These are implementation details and should not be used by end users
 create_coco_wrapper_script = _create_coco_wrapper_script
-coco_runfiles = _coco_runfiles
+coco_runfiles = _coco_package_runfiles
 run_coco = _run_coco
-coco_startup_args = _coco_startup_args
-coco_env = _coco_env
-get_license_file_from_toolchain = _get_license_file_from_toolchain
 
-def _run_typecheck(ctx, package, srcs, test_srcs):
+def _run_typecheck(ctx, toolchain, package, srcs, test_srcs):
     """Run typecheck and produce a marker file on success.
 
     Args:
         ctx: Rule context
+        toolchain: The Coco ToolchainInfo to typecheck with
         package: Struct with package_file and dep_package_files fields
         srcs: Source files depset
         test_srcs: Test source files depset
@@ -388,28 +427,28 @@ def _run_typecheck(ctx, package, srcs, test_srcs):
     marker = ctx.actions.declare_file(ctx.label.name + ".typecheck")
 
     # Build startup arguments using the shared function
-    startup_arguments = _coco_startup_args(ctx, package = package, is_test = False)
+    startup_arguments = _coco_startup_args(ctx, toolchain, package = package, is_test = False)
 
     # Build typecheck command arguments
     typecheck_arguments = ["typecheck"]
 
     # Collect inputs
-    license_file = _get_license_file_from_toolchain(ctx)
+    license_file = _get_license_file_from_toolchain(ctx, toolchain)
     inputs_direct = [
         package.package_file,
-        ctx.toolchains[COCO_TOOLCHAIN_TYPE].preferences_file,
+        toolchain.preferences_file,
     ]
     if license_file:
         inputs_direct.append(license_file)
 
     # Create wrapper script that runs typecheck and creates marker on success
-    coco_path = ctx.toolchains[COCO_TOOLCHAIN_TYPE].coco.path
+    coco_path = toolchain.coco.path
     is_windows = _is_windows(ctx)
     if is_windows:
         coco_path = coco_path.replace("/", "\\")
 
     command = " ".join([coco_path] + startup_arguments + typecheck_arguments)
-    env = _coco_env(ctx)
+    env = _coco_env(ctx, toolchain)
 
     if is_windows:
         script = ctx.actions.declare_file(ctx.label.name + "_typecheck.bat")
@@ -430,7 +469,7 @@ def _run_typecheck(ctx, package, srcs, test_srcs):
 
     ctx.actions.run(
         executable = script,
-        tools = [ctx.toolchains[COCO_TOOLCHAIN_TYPE].coco, script],
+        tools = [toolchain.coco, script],
         mnemonic = "CocoTypecheck",
         progress_message = "Typechecking %s" % ctx.label.name,
         inputs = depset(direct = inputs_direct, transitive = [srcs, test_srcs, package.dep_package_files, package.workspace_files]),
@@ -466,6 +505,8 @@ def _coco_package_impl(ctx):
         workspace_transitive.append(ctx.attr.workspace[CocoWorkspaceInfo].files)
     workspace_files = depset(transitive = workspace_transitive)
 
+    toolchain = ctx.toolchains[COCO_TOOLCHAIN_TYPE]
+
     # Conditionally run typecheck
     typecheck_marker = None
     if ctx.attr.typecheck:
@@ -474,7 +515,7 @@ def _coco_package_impl(ctx):
             dep_package_files = dep_package_files,
             workspace_files = workspace_files,
         )
-        typecheck_marker = _run_typecheck(ctx, package_struct, srcs, test_srcs)
+        typecheck_marker = _run_typecheck(ctx, toolchain, package_struct, srcs, test_srcs)
 
     # Build the list of files for DefaultInfo
     default_files_direct = [package_file]
@@ -488,6 +529,7 @@ def _coco_package_impl(ctx):
             dep_package_files = dep_package_files,
             direct_srcs = depset(ctx.files.srcs),
             direct_test_srcs = depset(ctx.files.test_srcs),
+            popili_toolchain = toolchain,
             srcs = srcs,
             test_srcs = test_srcs,
             typecheck_marker = typecheck_marker,
@@ -616,7 +658,7 @@ def _coco_package_verify(ctx):
 
     return DefaultInfo(
         executable = wrapper_script,
-        runfiles = ctx.runfiles(transitive_files = _coco_runfiles(ctx, ctx.attr.package, True)),
+        runfiles = ctx.runfiles(transitive_files = _coco_package_runfiles(ctx, ctx.attr.package, True)),
     )
 
 _coco_verify_test = rule(
@@ -631,9 +673,7 @@ _coco_verify_test = rule(
         "_windows_constraint": WINDOWS_CONSTRAINT_ATTR,
     }.items()),
     test = True,
-    toolchains = [
-        COCO_TOOLCHAIN_TYPE,
-    ],
+    toolchains = [OPTIONAL_COCO_TOOLCHAIN],
 )
 
 def _coco_verify_test_macro_impl(name, visibility, **kwargs):
@@ -1109,9 +1149,7 @@ _coco_generate = rule(
             doc = "The coco_package target containing the source files to generate from.",
         ),
     }.items()),
-    toolchains = [
-        COCO_TOOLCHAIN_TYPE,
-    ],
+    toolchains = [OPTIONAL_COCO_TOOLCHAIN],
 )
 
 def _coco_test_outputs_impl(ctx):
@@ -1178,7 +1216,6 @@ def _coco_cc_gen_impl(ctx):
     compilation_context = cc_common.create_compilation_context(
         headers = depset(public_hdrs),
     )
-
     return [
         DefaultInfo(files = depset(sources + private_hdrs)),
         CcInfo(compilation_context = compilation_context),
@@ -1240,10 +1277,10 @@ def _popili_version_alias_impl(ctx):
         toolchain,
         platform_common.TemplateVariableInfo({
             "POPILI": toolchain.coco.short_path,
-            "POPILI_STARTUP_ARGS": " ".join(_coco_startup_args(ctx, None, True)),
+            "POPILI_STARTUP_ARGS": " ".join(_coco_startup_args(ctx, toolchain, None, True)),
         }),
         DefaultInfo(
-            runfiles = ctx.runfiles(transitive_files = _coco_runfiles(ctx, None, True)),
+            runfiles = ctx.runfiles(transitive_files = _coco_runfiles(ctx, toolchain, None, True)),
         ),
     ]
 
