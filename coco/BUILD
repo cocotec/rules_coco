@@ -19,7 +19,13 @@ load("//coco/private:coco.bzl", "popili_version_alias")
 
 package(default_visibility = ["//visibility:public"])
 
+# Every popili is registered for both types (see coco/private/toolchain_hub.bzl). The first
+# constrains the target platform: a coco_package resolves it to find the binary its consumers
+# run, which reach the package through an exec transition. The second constrains the execution
+# platform: rules running popili in their own configuration resolve it.
 toolchain_type(name = "toolchain_type")
+
+toolchain_type(name = "exec_toolchain_type")
 
 popili_version_alias(name = "current_popili_version")
 

@@ -38,6 +38,7 @@ bzl_library(
     name = "coco_bzl",
     srcs = ["coco.bzl"],
     deps = [
+        ":platforms_bzl",
         ":version_resolution_bzl",
         "@bazel_skylib//lib:paths",
         "@bazel_skylib//rules:common_settings",
@@ -82,6 +83,7 @@ bzl_library(
     srcs = ["common_repositories.bzl"],
     deps = [
         ":known_shas_bzl",
+        ":platforms_bzl",
         ":version_resolution_bzl",
     ],
 )
@@ -116,6 +118,7 @@ bzl_library(
 bzl_library(
     name = "licensing_bzl",
     srcs = ["licensing.bzl"],
+    deps = [":coco_bzl"],
 )
 
 bzl_library(

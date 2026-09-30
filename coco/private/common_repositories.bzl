@@ -15,6 +15,7 @@
 """Common repository implementations shared between WORKSPACE and bzlmod."""
 
 load(":known_shas.bzl", "FILE_KEY_TO_SHA")
+load(":platforms.bzl", "host_platform", "platform_constraints")
 load(":version_resolution.bzl", "version_tuple")
 
 _CC_RUNTIME_BUILD_TEMPLATE = """
@@ -292,6 +293,10 @@ filegroup(
 """)
     else:
         ctx.file("auth_token.secret", auth_token)
+
+        # The acquisition runs on this machine (fetch_license tags it no-remote-exec), so its
+        # execution platform, and with it the licensing server it runs, must be the host's.
+        host = host_platform(ctx)
         ctx.file("BUILD", """
 load("@rules_coco//coco/private:licensing.bzl", "fetch_license")
 
@@ -301,10 +306,11 @@ fetch_license(
     name = "licenses",
     product = "%s",
     auth_token = "auth_token.secret",
+    exec_compatible_with = %s,
     tags = ["manual"],
     visibility = ["//visibility:public"],
 )
-""" % product_name)
+""" % (product_name, platform_constraints(host[0], host[1]) if host else []))
 
 _coco_fetch_license_repository = repository_rule(
     attrs = {

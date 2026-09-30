@@ -12,14 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # Cross-compiling: the Coco toolchain constrains only the exec platform, and the scripts the rules
-# Cross-compiling: the Coco toolchain constrains only the exec platform, and the scripts the rules
-# emit must follow the popili binary rather than the target platform.
+# emit must follow the execution platform rather than the target platform.
 
 load("@bazel_skylib//rules:write_file.bzl", "write_file")
 load("@rules_coco//coco:defs.bzl", "coco_fmt_test", "coco_package")
 load("@rules_coco//coco:toolchain.bzl", "coco_toolchain")
 load(":script_flavour_test.bzl", "script_flavour_tests")
 
+# Used both as foreign target platforms and as foreign execution platforms.
 [
     platform(
         name = os,
@@ -35,7 +35,8 @@ load(":script_flavour_test.bzl", "script_flavour_tests")
 ]
 
 # Fake Coco toolchains around empty binaries: only the file names matter to the tests, and without
-# C/C++ runtimes nothing needs a C++ toolchain for the foreign target platform.
+# C/C++ runtimes nothing needs a C++ toolchain for the foreign target platform. Registered for both
+# toolchain types, as a bring-your-own toolchain should be; see the README.
 [
     (
         write_file(
@@ -55,6 +56,11 @@ load(":script_flavour_test.bzl", "script_flavour_tests")
             name = "fake_%s_toolchain" % kind,
             toolchain = ":fake_%s_toolchain_impl" % kind,
             toolchain_type = "@rules_coco//coco:toolchain_type",
+        ),
+        toolchain(
+            name = "fake_%s_exec_toolchain" % kind,
+            toolchain = ":fake_%s_toolchain_impl" % kind,
+            toolchain_type = "@rules_coco//coco:exec_toolchain_type",
         ),
     )
     for kind, ext in [
