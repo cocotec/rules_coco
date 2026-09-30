@@ -34,7 +34,7 @@ load(
     "coco_preferences_repository",
     "coco_symlink_license_repository",
 )
-load(":platforms.bzl", "COCO_TOOLCHAIN_PLATFORMS", "platform_constraints")
+load(":platforms.bzl", "COCO_TOOLCHAIN_PLATFORMS", "host_platform", "platform_constraints")
 load(
     ":toolchain_repositories.bzl",
     "coco_local_toolchain_repository",
@@ -60,7 +60,7 @@ LOCAL_C_RUNTIME_REPO_NAME = "io_cocotec_coco_c_runtime__local"
 _TOOLCHAIN_HUB_BUILD_TEMPLATE = """
 toolchain(
     name = "{name}",
-    exec_compatible_with = {exec_compatible_with},
+    target_compatible_with = {target_compatible_with},
     target_settings = {target_settings},
     toolchain = "{toolchain_label}",
     toolchain_type = "@rules_coco//coco:toolchain_type",
@@ -89,6 +89,23 @@ config_setting(
     visibility = ["//visibility:public"],
 )
 """.format(version_flag = VERSION_FLAG)
+
+# Template for the alias handing out the configured version's runtime of one kind. The fallback
+# is a target without CcInfo, which the runtime helper turns into a message naming the kind.
+_RUNTIME_ALIAS_TEMPLATE = """
+alias(
+    name = "{kind}_runtime",
+    actual = select({{{branches}
+        "//conditions:default": ":no_{kind}_runtime",
+    }}),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "no_{kind}_runtime",
+    srcs = [],
+)
+"""
 
 # What the extension registers when no module in the dependency graph declares
 # coco.toolchain. rules_coco's own MODULE.bazel declares the same as a dev dependency, so it
@@ -234,15 +251,19 @@ def resolve_versions(raw_versions, resolve_version = resolve_version_alias):
     return versions, None
 
 def toolchain_hub_entries(versions, has_local = False, hub_name = DEFAULT_HUB_NAME):
-    """Computes the full payload of the toolchain hub repository.
+    """Computes the toolchain() declarations of the hub repository.
 
-    One toolchain is declared per (platform, version), gated on that version's
-    config_setting. Toolchains constrain only the exec platform: popili runs there, and the
-    runtime it hands out is source, so any target platform can use it (cross-compiling
-    included). The first version additionally gets a `__default` toolchain per
-    platform, gated on the version flag being unset. A local toolchain, when present, is
-    host-only (no platform constraints) and gated on `--@rules_coco//:version=local`; it
-    never becomes the default, matching bzlmod.
+    Every (version, platform) pair gets a toolchain `<os>_<arch>__<suffix>` pointing into the
+    platform's repository and gated on the version's config_setting, so that only the
+    repositories of the pairs a build actually resolves are fetched. It constrains the *target*
+    platform only: the rules running popili reach the target resolving it through an exec
+    transition (see coco.bzl), so that target's platform is their execution platform, and the
+    binary runs where their actions run. Cross-compiling keeps resolving a toolchain.
+
+    The first version additionally gets a `__default` entry, gated on the version flag being
+    unset. A local toolchain, when present, gets a `local` entry gated on
+    `--@rules_coco//:version=local` and constrained to the host by `render_toolchain_hub_build`;
+    it never becomes the default, matching bzlmod.
 
     Args:
       versions: Resolved, validated, deduplicated versions in priority order.
@@ -250,65 +271,85 @@ def toolchain_hub_entries(versions, has_local = False, hub_name = DEFAULT_HUB_NA
       hub_name: The name of the hub repository, which its config_settings are read from.
 
     Returns:
-      A struct with `toolchain_names`, `toolchain_labels`, `exec_compatible_with`,
-      `target_settings` and `version_suffixes` fields.
+      A struct with `toolchain_names`, `toolchain_labels`, `target_compatible_with`,
+      `target_settings`, `version_suffixes` and `default_version` fields.
     """
-    toolchain_names = []
-    toolchain_labels = {}
-    exec_compatible_with = {}
-    target_settings = {}
-    version_suffixes = {}
+    entries = struct(
+        toolchain_names = [],
+        toolchain_labels = {},
+        target_compatible_with = {},
+        target_settings = {},
+        version_suffixes = {},
+        default_version = versions[0] if versions else "",
+    )
 
     for version in versions:
         version_suffix = version_to_repo_suffix(version)
-        version_suffixes[version] = version_suffix
+        entries.version_suffixes[version] = version_suffix
 
         for (os, arch) in COCO_TOOLCHAIN_PLATFORMS:
             constraints = platform_constraints(os, arch)
 
-            # Point directly at the toolchain implementation: the hub owns every
-            # toolchain() declaration, so no per-platform proxy repository is needed.
+            # Point directly at the toolchain implementation: the hub owns every toolchain()
+            # declaration, so no per-platform proxy repository is needed.
             label = "@%s//:toolchain_impl" % toolchain_repo_name(os, arch, version_suffix)
 
-            name = "%s_%s__%s" % (os, arch, version_suffix)
-            toolchain_names.append(name)
-            toolchain_labels[name] = label
-            exec_compatible_with[name] = constraints
-            target_settings[name] = ["@%s//:version_%s" % (hub_name, version_suffix)]
+            _add_hub_entries(
+                entries,
+                "%s_%s__%s" % (os, arch, version_suffix),
+                label,
+                ["@%s//:version_%s" % (hub_name, version_suffix)],
+                constraints,
+            )
 
             # The first version is what an unset version flag resolves to.
             if version == versions[0]:
-                default_name = "%s_%s__default" % (os, arch)
-                toolchain_names.append(default_name)
-                toolchain_labels[default_name] = label
-                exec_compatible_with[default_name] = constraints
-                target_settings[default_name] = ["@%s//:version_default" % hub_name]
+                _add_hub_entries(
+                    entries,
+                    "%s_%s__default" % (os, arch),
+                    label,
+                    ["@%s//:version_default" % hub_name],
+                    constraints,
+                )
 
-    # Host-only (no constraints), gated on the "local" version so it needs --version=local.
+    # Gated on the "local" version so it needs --version=local. Its constraints are the host's,
+    # which only the hub repository rule knows: see render_toolchain_hub_build.
     if has_local:
-        version_suffixes[LOCAL_VERSION] = LOCAL_VERSION
+        entries.version_suffixes[LOCAL_VERSION] = LOCAL_VERSION
+        _add_hub_entries(
+            entries,
+            LOCAL_VERSION,
+            "@%s//:toolchain_impl" % LOCAL_TOOLCHAIN_REPO_NAME,
+            ["@%s//:version_%s" % (hub_name, LOCAL_VERSION)],
+            [],
+        )
 
-        toolchain_names.append(LOCAL_VERSION)
-        toolchain_labels[LOCAL_VERSION] = "@%s//:toolchain_impl" % LOCAL_TOOLCHAIN_REPO_NAME
-        exec_compatible_with[LOCAL_VERSION] = []
-        target_settings[LOCAL_VERSION] = ["@%s//:version_%s" % (hub_name, LOCAL_VERSION)]
+    return entries
 
-    return struct(
-        toolchain_names = toolchain_names,
-        toolchain_labels = toolchain_labels,
-        exec_compatible_with = exec_compatible_with,
-        target_settings = target_settings,
-        version_suffixes = version_suffixes,
-    )
+def _add_hub_entries(entries, name, label, settings, constraints):
+    """Adds the toolchain() of one (version, platform) pair."""
+    entries.toolchain_names.append(name)
+    entries.toolchain_labels[name] = label
+    entries.target_compatible_with[name] = constraints
+    entries.target_settings[name] = settings
 
-def render_toolchain_hub_build(entries):
+def render_toolchain_hub_build(entries, host = None, cc_runtimes = {}, c_runtimes = {}):
     """Renders the hub repository's BUILD file.
+
+    Besides the toolchains, the hub hands out the runtimes: `:cc_runtime` and `:c_runtime`
+    alias the runtime of the version the configuration selects, so a rule needing one gets it
+    without resolving a toolchain, and the runtime archive is fetched only when one does. The
+    toolchains themselves name no runtime (see toolchain_repositories.bzl).
 
     The result deliberately uses only native rules, so the hub stays loadable before
     bazel_skylib has been fetched in WORKSPACE mode.
 
     Args:
       entries: A struct as returned by `toolchain_hub_entries`.
+      host: The host as an (os, arch) pair, as returned by `host_platform`, or None. The
+        local toolchain's binaries only run there, so its toolchain() is constrained to it.
+      cc_runtimes: Map of version to its C++ runtime label, for the versions that have one.
+      c_runtimes: Map of version to its C runtime label, for the versions that have one.
 
     Returns:
       The BUILD file content.
@@ -324,18 +365,39 @@ def render_toolchain_hub_build(entries):
         for version, version_suffix in entries.version_suffixes.items()
     ])
 
+    local_constraints = platform_constraints(host[0], host[1]) if host else []
+
     # Generate BUILD file with all toolchain declarations
     toolchains = "\n".join([
         _TOOLCHAIN_HUB_BUILD_TEMPLATE.format(
             name = name,
-            exec_compatible_with = entries.exec_compatible_with[name],
+            target_compatible_with = local_constraints if name == LOCAL_VERSION else entries.target_compatible_with[name],
             target_settings = entries.target_settings[name],
             toolchain_label = entries.toolchain_labels[name],
         )
         for name in entries.toolchain_names
     ])
 
-    return config_settings + "\n" + toolchains
+    runtimes = "".join([
+        _RUNTIME_ALIAS_TEMPLATE.format(
+            kind = kind,
+            branches = _runtime_branches(entries, runtimes_by_version),
+        )
+        for kind, runtimes_by_version in [("cc", cc_runtimes), ("c", c_runtimes)]
+    ])
+
+    return config_settings + "\n" + toolchains + runtimes
+
+def _runtime_branches(entries, runtimes_by_version):
+    """Renders the select() branches of a runtime alias, one per version that has one."""
+    branches = ""
+    for version, label in runtimes_by_version.items():
+        branches += '\n        ":version_%s": "%s",' % (entries.version_suffixes[version], label)
+
+        # The first version is what an unset version flag resolves to.
+        if version == entries.default_version:
+            branches += '\n        ":version_default": "%s",' % label
+    return branches
 
 def _coco_toolchain_hub_impl(repository_ctx):
     """Implementation of the coco toolchain hub repository rule."""
@@ -343,13 +405,20 @@ def _coco_toolchain_hub_impl(repository_ctx):
         repository_ctx.name,
     ))
 
-    repository_ctx.file("BUILD.bazel", render_toolchain_hub_build(struct(
-        toolchain_names = repository_ctx.attr.toolchain_names,
-        toolchain_labels = repository_ctx.attr.toolchain_labels,
-        exec_compatible_with = repository_ctx.attr.exec_compatible_with,
-        target_settings = repository_ctx.attr.target_settings,
-        version_suffixes = repository_ctx.attr.version_suffixes,
-    )))
+    repository_ctx.file("BUILD.bazel", render_toolchain_hub_build(
+        struct(
+            toolchain_names = repository_ctx.attr.toolchain_names,
+            toolchain_labels = repository_ctx.attr.toolchain_labels,
+            target_compatible_with = repository_ctx.attr.target_compatible_with,
+            target_settings = repository_ctx.attr.target_settings,
+            version_suffixes = repository_ctx.attr.version_suffixes,
+            default_version = repository_ctx.attr.default_version,
+        ),
+        # Evaluated on the machine running Bazel: where the local toolchain's binaries run.
+        host = host_platform(repository_ctx),
+        cc_runtimes = repository_ctx.attr.cc_runtimes,
+        c_runtimes = repository_ctx.attr.c_runtimes,
+    ))
 
 coco_toolchain_hub = repository_rule(
     doc = (
@@ -357,8 +426,17 @@ coco_toolchain_hub = repository_rule(
         "This allows registering all toolchains with a single `:all` target."
     ),
     attrs = {
-        "exec_compatible_with": attr.string_list_dict(
-            doc = "Map of toolchain name to exec platform constraints.",
+        "c_runtimes": attr.string_dict(
+            doc = "Map of version to its C runtime label, for the versions that have one.",
+        ),
+        "cc_runtimes": attr.string_dict(
+            doc = "Map of version to its C++ runtime label, for the versions that have one.",
+        ),
+        "default_version": attr.string(
+            doc = "The version an unset --@rules_coco//:version resolves to, or '' if none.",
+        ),
+        "target_compatible_with": attr.string_list_dict(
+            doc = "Map of toolchain name to target platform constraints.",
             mandatory = True,
         ),
         "target_settings": attr.string_list_dict(
@@ -419,64 +497,62 @@ def declare_coco_toolchains(
     )
     coco_symlink_license_repository(name = "io_cocotec_licensing_local")
 
+    # Version -> runtime label, handed out by the hub's runtime aliases.
+    cc_runtimes = {}
+    c_runtimes = {}
+
     for version in versions:
         version_suffix = version_to_repo_suffix(version)
 
         # Set up C++ runtime if requested (version-specific)
-        cc_runtime_label = None
         if cc:
             coco_cc_runtime_repository(
                 name = cc_runtime_repo_name(version_suffix),
                 version = version,
                 extra_deps = cc_runtime_extra_deps_by_version.get(version, []),
             )
-            cc_runtime_label = "@%s//:runtime" % cc_runtime_repo_name(version_suffix)
+            cc_runtimes[version] = "@%s//:runtime" % cc_runtime_repo_name(version_suffix)
 
         # Set up C runtime if requested (version-specific)
-        c_runtime_label = None
         if c:
             coco_c_runtime_repository(
                 name = c_runtime_repo_name(version_suffix),
                 version = version,
             )
-            c_runtime_label = "@%s//:runtime" % c_runtime_repo_name(version_suffix)
+            c_runtimes[version] = "@%s//:runtime" % c_runtime_repo_name(version_suffix)
 
+        # One repository per platform, each declaring the version's toolchain for that platform.
+        # Only the ones the hub's toolchain resolution selects are fetched.
         for (os, arch) in COCO_TOOLCHAIN_PLATFORMS:
             coco_toolchain_repository(
                 name = toolchain_repo_name(os, arch, version_suffix),
                 arch = arch,
                 os = os,
                 version = version,
-                cc_runtime_label = cc_runtime_label,
-                c_runtime_label = c_runtime_label,
                 license_source = license_source,
                 license_token = license_token,
                 auth_token_path = auth_token_path,
             )
 
     if local:
-        cc_runtime_label = None
         if local.cc_runtime:
             coco_cc_local_runtime_repository(
                 name = LOCAL_CC_RUNTIME_REPO_NAME,
                 path = local.cc_runtime,
                 extra_deps = cc_runtime_extra_deps_by_version.get(LOCAL_VERSION, []),
             )
-            cc_runtime_label = "@%s//:runtime" % LOCAL_CC_RUNTIME_REPO_NAME
+            cc_runtimes[LOCAL_VERSION] = "@%s//:runtime" % LOCAL_CC_RUNTIME_REPO_NAME
 
-        c_runtime_label = None
         if local.c_runtime:
             coco_c_local_runtime_repository(
                 name = LOCAL_C_RUNTIME_REPO_NAME,
                 path = local.c_runtime,
             )
-            c_runtime_label = "@%s//:runtime" % LOCAL_C_RUNTIME_REPO_NAME
+            c_runtimes[LOCAL_VERSION] = "@%s//:runtime" % LOCAL_C_RUNTIME_REPO_NAME
 
         coco_local_toolchain_repository(
             name = LOCAL_TOOLCHAIN_REPO_NAME,
             path = local.popili,
-            cc_runtime_label = cc_runtime_label,
-            c_runtime_label = c_runtime_label,
             license_source = license_source,
             license_token = license_token,
             auth_token_path = auth_token_path,
@@ -492,7 +568,10 @@ def declare_coco_toolchains(
         name = hub_name,
         toolchain_names = entries.toolchain_names,
         toolchain_labels = entries.toolchain_labels,
-        exec_compatible_with = entries.exec_compatible_with,
+        target_compatible_with = entries.target_compatible_with,
         target_settings = entries.target_settings,
         version_suffixes = entries.version_suffixes,
+        default_version = entries.default_version,
+        cc_runtimes = cc_runtimes,
+        c_runtimes = c_runtimes,
     )

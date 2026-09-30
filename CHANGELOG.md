@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `coco.toolchain` with `coco.local_toolchain`.
 - `cc_runtime_extra_deps` now accepts a dict mapping a version to its labels, in addition to a flat
   list applied to every registered version.
+- Remote execution on mixed platforms: every rule using a `coco_package` runs the package's Popili
+  version built for the platform the rule executes on, and only the versions and platforms a build
+  uses are downloaded. See the README section "Remote execution".
 
 ### Changed
 
@@ -28,9 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `coco.toolchain` are unaffected and still get `stable` with both runtimes.
 - **Breaking:** the local toolchain registered by `coco_local_repositories()` in WORKSPACE mode is
   now selected by `--@rules_coco//:version=local` and is no longer active by default, matching the
-  bzlmod `coco.local_toolchain` tag. Builds that do not set the flag will report
-  `No matching toolchains found for @rules_coco//coco:toolchain_type`. Add
-  `common --@rules_coco//:version=local` to your `.bazelrc`.
+  bzlmod `coco.local_toolchain` tag. Add `common --@rules_coco//:version=local` to your `.bazelrc`
+  to keep using it.
 - **Breaking:** the generated per-platform repositories are now version-mangled, matching bzlmod:
   `io_cocotec_coco_<os>_<arch>` became `io_cocotec_coco_<os>_<arch>__<version>`, and the local one
   became `io_cocotec_coco_local` (previously `coco_local`). The `io_cocotec_coco_<os>_<arch>_toolchains`
@@ -46,10 +48,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   duplicate-repository warnings and a silently wrong configuration.
 - `"local"` and `"default"` are rejected as version strings; they name the hub's own
   `config_setting`s.
-- The generated `toolchain()` declarations no longer set `target_compatible_with`. Popili runs on
-  the exec platform and the runtime it provides is source, so the toolchain now resolves for any
-  target platform, including when cross-compiling with `--platforms`. Before, bzlmod required the
-  target platform to match the host; WORKSPACE mode never had the constraint.
+- Coco targets now build for any target platform, including when cross-compiling with
+  `--platforms`. Before, bzlmod required the target platform to match the host.
+- A missing Coco toolchain, such as `--@rules_coco//:version=local` without a local toolchain, or
+  Popili running on a platform it isn't published for, is now reported with an error naming the
+  target, instead of Bazel's `No matching toolchains found`.
+- Using the Coco toolchain no longer requires a C++ toolchain for the platform Popili runs on.
+- Using the local toolchain on an execution platform other than the host is now reported up front,
+  instead of failing during execution.
 
 ### Removed
 
@@ -58,13 +64,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Wrapping a `coco_package` in `with_popili_version` had no effect on the Popili used to verify or
+  generate code from it.
 - `coco_repositories(versions = [...])` was accepted but silently ignored in WORKSPACE mode, so a
   workspace following the README's "Popili Version" section got `stable` instead of the versions it
   asked for. It is now honoured — check that your default version has not moved.
-- The `.bat`/`.sh` wrapper and typecheck scripts followed the target platform instead of the exec
-  platform the popili binary was resolved for. Cross-compiling with `--platforms` for Windows from
-  a Linux or macOS host emitted a `.bat` for a POSIX executor, and vice versa. The flavour is now
-  derived from the resolved toolchain's binary: `popili.exe` means Windows.
+- When cross-compiling with `--platforms`, the generated `.bat`/`.sh` scripts followed the target
+  platform instead of the platform they run on.
 - `coco_generate`, the C/C++ library macros and `coco_fmt_test` now work with `tags = ["manual"]` and `testonly`.
 
 ## [0.3.0] - 2026/05/31

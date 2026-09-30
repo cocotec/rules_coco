@@ -19,6 +19,7 @@ load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
 load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load(":common_attrs.bzl", "companion_attrs")
+load(":platforms.bzl", "EXEC_PLATFORM_KEYS")
 load(":version_resolution.bzl", "VERSION_FLAG", "resolve_version_alias")
 
 CocoPackageInfo = provider(
@@ -29,6 +30,11 @@ CocoPackageInfo = provider(
         "direct_test_srcs": "The .coco files that are direct test_sources of this package only",
         "name": "The name of the package",
         "package_file": "The Coco.toml file for this package",
+        "popili_toolchain": "The Coco ToolchainInfo the rules consuming this package run popili with: the " +
+                            "package's version, built for the target platform of the configuration the package " +
+                            "was analysed in. Consumers depend on the package through an exec transition, so for " +
+                            "them that is their own execution platform. None when no popili is registered for " +
+                            "that platform",
         "srcs": "All .coco files that are sources of this package or any of its transitive dependencies",
         "test_srcs": "All .coco files that are test_sources of this package or any of its transitive dependencies",
         "typecheck_marker": "Marker file indicating typecheck passed (or None if typecheck disabled)",
@@ -69,7 +75,20 @@ LICENSE_ATTRIBUTES = {
     "_license_token": attr.label(default = Label("//:license_token")),
 }
 
+# The toolchain type every popili is registered for (see toolchain_hub.bzl). It constrains the
+# target platform. A rule never runs the popili it resolves itself: it reaches the target that
+# resolves it through an exec transition, so that target's platform is the rule's execution
+# platform, and the binary runs where the rule's actions run. A coco_package resolves it and
+# forwards it to its consumers in CocoPackageInfo.popili_toolchain; coco_resolved_popili does the
+# same for rules running popili in their own configuration (a package's typecheck, the version
+# alias, licence acquisition).
 COCO_TOOLCHAIN_TYPE = "@rules_coco//coco:toolchain_type"
+
+# Optional: a package built for a platform popili is not published for (cross-compiling) forwards
+# None, and only a consumer that actually runs popili fails, with a message saying why.
+POPILI_TOOLCHAINS = [
+    config_common.toolchain_type(COCO_TOOLCHAIN_TYPE, mandatory = False),
+]
 
 def _popili_version_transition_impl(_settings, attr):
     """Transition implementation for per-target popili version selection.
@@ -169,11 +188,91 @@ def _runtime_dirname(file, is_test):
     # external-repo deps resolve in the runfiles tree; "." avoids an empty arg.
     return paths.dirname(_runtime_path(file, is_test)) or "."
 
-def _coco_startup_args(ctx, package, is_test):
+def _package_info(package):
+    # Support both CocoPackageInfo providers (targets) and structs with the same fields
+    return package if hasattr(package, "package_file") else package[CocoPackageInfo]
+
+def _popili_toolchain(ctx, package):
+    """Returns the popili a rule runs for `package`.
+
+    That is the toolchain the package resolved (see coco_package), so every rule consuming a
+    package runs the same popili version. The rule reaches the package through an exec
+    transition, so the package was analysed with the rule's execution platform as its target
+    platform, and the toolchain it forwards holds the binary built for that platform.
+
+    Args:
+        ctx: Rule context.
+        package: A target with CocoPackageInfo, reached through an attribute with `cfg = "exec"`
+            or `cfg = config.exec("test")`.
+
+    Returns:
+        The Coco ToolchainInfo.
+    """
+    toolchain = getattr(_package_info(package), "popili_toolchain", None)
+    if toolchain == None:
+        fail(
+            ("%s runs popili for %s on its execution platform, but no Coco toolchain of the configured " +
+             "Popili version is registered for it. rules_coco publishes popili for %s; see the README " +
+             "sections \"Popili Version\", \"Remote execution\" and \"Bring your own toolchain\".") % (
+                ctx.label,
+                package.label,
+                ", ".join(EXEC_PLATFORM_KEYS),
+            ),
+        )
+    return toolchain
+
+CocoResolvedPopiliInfo = provider(
+    doc = "The popili coco_resolved_popili resolved. Internal to rules_coco.",
+    fields = {
+        "toolchain": "The Coco ToolchainInfo of the configured version for this configuration's target " +
+                     "platform, or None when none is registered for it",
+    },
+)
+
+def _coco_resolved_popili_impl(ctx):
+    return [CocoResolvedPopiliInfo(toolchain = ctx.toolchains[COCO_TOOLCHAIN_TYPE])]
+
+# Resolves popili for rules that run it in their own configuration: a coco_package's typecheck,
+# the version alias, licence acquisition. Such a rule depends on it through an exec transition
+# (see RESOLVED_POPILI_ATTR), so the binary is the one for its execution platform.
+# Deliberately without LICENSE_ATTRIBUTES: the licence repositories depend on it.
+coco_resolved_popili = rule(
+    implementation = _coco_resolved_popili_impl,
+    toolchains = POPILI_TOOLCHAINS,
+)
+
+# The attribute through which a rule gets the popili for its own execution platform.
+RESOLVED_POPILI_ATTR = {
+    "_popili": attr.label(
+        cfg = "exec",
+        default = Label("//coco/private:resolved_popili"),
+        providers = [CocoResolvedPopiliInfo],
+    ),
+}
+
+def _resolved_popili(ctx):
+    """Returns the popili for the execution platform of a rule with RESOLVED_POPILI_ATTR, or None."""
+    return ctx.attr._popili[CocoResolvedPopiliInfo].toolchain
+
+def _script_is_windows(popili):
+    """Whether the scripts running `popili` are for cmd.exe rather than bash.
+
+    The scripts run where the binary runs, so the flavour follows the binary's platform rather
+    than the target platform: `--platforms=//:windows` from a Linux host still emits a .sh for
+    the Linux executor. rules_coco's toolchains record their platform; for one that does not,
+    the binary is the signal, as a Windows popili is `popili.exe`.
+    """
+    platform = getattr(popili, "platform", "")
+    if platform:
+        return platform.startswith("windows")
+    return popili.coco.extension == "exe"
+
+def _coco_startup_args(ctx, popili, package, is_test):
     """Build startup arguments for popili.
 
     Args:
         ctx: Rule context
+        popili: The Coco ToolchainInfo to run popili with
         package: The coco_package target with CocoPackageInfo, a struct with package_file
                  and dep_package_files fields, or None for base args only
         is_test: Whether this is for a test (affects path resolution)
@@ -186,33 +285,27 @@ def _coco_startup_args(ctx, package, is_test):
         "--no-crash-reporter",
         "--no-auto-download",
         "--override-preferences",
-        _runtime_path(ctx.toolchains[COCO_TOOLCHAIN_TYPE].preferences_file, is_test),
+        _runtime_path(popili.preferences_file, is_test),
         "--terminal=plain",
     ]
 
     # Handle auth token file for action_file mode
-    license_source = _get_license_source(ctx)
+    license_source = _get_license_source(ctx, popili)
     if license_source == "action_file":
-        auth_token_path = _get_auth_token_path(ctx)
+        auth_token_path = _get_auth_token_path(ctx, popili)
         if auth_token_path:
             arguments.append("--machine-auth-token")
             arguments.append(auth_token_path)
     else:
         # Handle license file for other modes
-        license_file = _get_license_file_from_toolchain(ctx)
+        license_file = _get_license_file_from_toolchain(ctx, popili)
         if license_file:
             arguments.append("--override-licenses")
             arguments.append(_runtime_path(license_file, is_test))
     if package:
-        # Support both CocoPackageInfo providers (targets) and structs with the same fields
-        if hasattr(package, "package_file"):
-            # It's a struct
-            package_file = package.package_file
-            dep_package_files = package.dep_package_files
-        else:
-            # It's a target with CocoPackageInfo provider
-            package_file = package[CocoPackageInfo].package_file
-            dep_package_files = package[CocoPackageInfo].dep_package_files
+        info = _package_info(package)
+        package_file = info.package_file
+        dep_package_files = info.dep_package_files
         arguments += [
             "--package",
             _runtime_dirname(package_file, is_test),
@@ -221,16 +314,16 @@ def _coco_startup_args(ctx, package, is_test):
             arguments += ["--import-path", _runtime_dirname(dep_file, is_test)]
     return arguments
 
-def _get_license_source(ctx):
+def _get_license_source(ctx, toolchain):
     cli_license_source = ctx.attr._license_source[BuildSettingInfo].value
     if cli_license_source:
         return cli_license_source
-    toolchain_license_source = ctx.toolchains[COCO_TOOLCHAIN_TYPE].license_source
+    toolchain_license_source = toolchain.license_source
     if toolchain_license_source:
         return toolchain_license_source
     return "local_user"
 
-def _get_auth_token_path(ctx):
+def _get_auth_token_path(ctx, toolchain):
     """Get the auth token file path from CLI flag or toolchain.
 
     Returns the path string (not a File object) for use with action_file licensing mode.
@@ -238,19 +331,19 @@ def _get_auth_token_path(ctx):
     cli_auth_token_path = ctx.attr._auth_token_path[BuildSettingInfo].value
     if cli_auth_token_path:
         return cli_auth_token_path
-    toolchain_auth_token_path = ctx.toolchains[COCO_TOOLCHAIN_TYPE].auth_token_path
+    toolchain_auth_token_path = toolchain.auth_token_path
     if toolchain_auth_token_path:
         return toolchain_auth_token_path
     return ""
 
-def _get_license_file_from_toolchain(ctx):
+def _get_license_file_from_toolchain(ctx, popili):
     """Get the appropriate license file based on license_source.
 
     Reads license_source from the toolchain (repository default) with optional
     CLI override via --@rules_coco//:license_source flag.
     """
 
-    license_source = _get_license_source(ctx)
+    license_source = _get_license_source(ctx, popili)
     if license_source == "local_acquire":
         files = ctx.attr._license_file_fetch[DefaultInfo].files.to_list()
         return files[0] if files else None
@@ -259,25 +352,25 @@ def _get_license_file_from_toolchain(ctx):
         return files[0] if files else None
     return None
 
-def _coco_env(ctx):
+def _coco_env(ctx, toolchain):
     env = {}
 
-    license_source = _get_license_source(ctx)
+    license_source = _get_license_source(ctx, toolchain)
     if license_source == "token":
         cli_license_token = ctx.attr._license_token[BuildSettingInfo].value
-        toolchain_license_token = ctx.toolchains[COCO_TOOLCHAIN_TYPE].license_token
+        toolchain_license_token = toolchain.license_token
         env["COCOTEC_AUTH_TOKEN"] = cli_license_token if cli_license_token else (toolchain_license_token if toolchain_license_token else "")
 
     return env
 
-def _coco_runfiles(ctx, package, is_test):
+def _coco_runfiles(ctx, popili, package, is_test):
     direct = [
-        ctx.toolchains[COCO_TOOLCHAIN_TYPE].preferences_file,
+        popili.preferences_file,
     ]
     transitive = []
     if is_test:
-        direct.append(ctx.toolchains[COCO_TOOLCHAIN_TYPE].coco)
-    license_file = _get_license_file_from_toolchain(ctx)
+        direct.append(popili.coco)
+    license_file = _get_license_file_from_toolchain(ctx, popili)
     if license_file:
         direct.append(license_file)
     if package:
@@ -295,51 +388,44 @@ def _coco_runfiles(ctx, package, is_test):
     )
 
 def _run_coco(ctx, package, verb, mnemonic, arguments, outputs):
+    popili = _popili_toolchain(ctx, package)
     ctx.actions.run(
-        executable = ctx.toolchains[COCO_TOOLCHAIN_TYPE].coco,
+        executable = popili.coco,
         tools = [
-            ctx.toolchains[COCO_TOOLCHAIN_TYPE].coco,
+            popili.coco,
         ],
-        env = _coco_env(ctx),
+        env = _coco_env(ctx, popili),
         mnemonic = mnemonic,
         progress_message = "%s %s" % (verb, package[CocoPackageInfo].name),
-        inputs = _coco_runfiles(ctx, package, False),
+        inputs = _coco_runfiles(ctx, popili, package, False),
         outputs = outputs,
-        arguments = _coco_startup_args(ctx, package, False) + arguments,
+        arguments = _coco_startup_args(ctx, popili, package, False) + arguments,
     )
 
-def _is_windows(ctx):
-    """Returns True when the exec platform is Windows.
-
-    The generated .bat/.sh scripts run the popili binary from the toolchain, which Bazel resolves
-    for the exec platform, so the script flavour must follow that platform too. The target
-    platform is irrelevant: `--platforms=//:windows` from a Linux host must still emit a .sh for
-    the Linux executor. Starlark has no direct exec-platform API, and the toolchain target itself
-    is analysed in the target configuration, so the binary is the signal: a Windows popili is
-    `popili.exe` (cmd.exe needs the extension to run it), everything else is not.
-    """
-    return ctx.toolchains[COCO_TOOLCHAIN_TYPE].coco.extension == "exe"
-
-def _create_coco_wrapper_script(ctx, package, arguments):
+def _create_coco_wrapper_script(ctx, popili, package, arguments):
     """Creates a platform-specific wrapper script for running Coco commands.
+
+    The script's flavour (.bat or .sh) follows the platform the popili binary runs on; see
+    `_script_is_windows`.
 
     Args:
         ctx: The rule context
+        popili: The Coco ToolchainInfo to run popili with
         package: The coco_package target (or None)
         arguments: List of command arguments (after startup args)
 
     Returns:
         The wrapper script file
     """
-    coco_path = ctx.toolchains[COCO_TOOLCHAIN_TYPE].coco.short_path
-    is_windows = _is_windows(ctx)
+    coco_path = popili.coco.short_path
+    is_windows = _script_is_windows(popili)
     if is_windows:
         coco_path = coco_path.replace("/", "\\")
 
     # Build the full command
-    full_arguments = [coco_path] + _coco_startup_args(ctx, package, True) + arguments
+    full_arguments = [coco_path] + _coco_startup_args(ctx, popili, package, True) + arguments
     command = " ".join(full_arguments)
-    env = _coco_env(ctx)
+    env = _coco_env(ctx, popili)
 
     # Create platform-specific wrapper script
     if is_windows:
@@ -367,20 +453,20 @@ def _create_coco_wrapper_script(ctx, package, arguments):
 
     return wrapper_script
 
-# Export helper functions for use by other private modules (e.g., format.bzl, diagram.bzl)
-# These are implementation details and should not be used by end users
+# Export helper functions for use by other private modules (e.g., format.bzl, diagram.bzl,
+# licensing.bzl). These are implementation details and should not be used by end users.
+popili_toolchain = _popili_toolchain
+resolved_popili = _resolved_popili
 create_coco_wrapper_script = _create_coco_wrapper_script
 coco_runfiles = _coco_runfiles
 run_coco = _run_coco
-coco_startup_args = _coco_startup_args
-coco_env = _coco_env
-get_license_file_from_toolchain = _get_license_file_from_toolchain
 
-def _run_typecheck(ctx, package, srcs, test_srcs):
+def _run_typecheck(ctx, popili, package, srcs, test_srcs):
     """Run typecheck and produce a marker file on success.
 
     Args:
         ctx: Rule context
+        popili: The Coco ToolchainInfo to typecheck with, built for this target's execution platform
         package: Struct with package_file and dep_package_files fields
         srcs: Source files depset
         test_srcs: Test source files depset
@@ -393,28 +479,28 @@ def _run_typecheck(ctx, package, srcs, test_srcs):
     marker = ctx.actions.declare_file(ctx.label.name + ".typecheck")
 
     # Build startup arguments using the shared function
-    startup_arguments = _coco_startup_args(ctx, package = package, is_test = False)
+    startup_arguments = _coco_startup_args(ctx, popili, package = package, is_test = False)
 
     # Build typecheck command arguments
     typecheck_arguments = ["typecheck"]
 
     # Collect inputs
-    license_file = _get_license_file_from_toolchain(ctx)
+    license_file = _get_license_file_from_toolchain(ctx, popili)
     inputs_direct = [
         package.package_file,
-        ctx.toolchains[COCO_TOOLCHAIN_TYPE].preferences_file,
+        popili.preferences_file,
     ]
     if license_file:
         inputs_direct.append(license_file)
 
     # Create wrapper script that runs typecheck and creates marker on success
-    coco_path = ctx.toolchains[COCO_TOOLCHAIN_TYPE].coco.path
-    is_windows = _is_windows(ctx)
+    coco_path = popili.coco.path
+    is_windows = _script_is_windows(popili)
     if is_windows:
         coco_path = coco_path.replace("/", "\\")
 
     command = " ".join([coco_path] + startup_arguments + typecheck_arguments)
-    env = _coco_env(ctx)
+    env = _coco_env(ctx, popili)
 
     if is_windows:
         script = ctx.actions.declare_file(ctx.label.name + "_typecheck.bat")
@@ -435,7 +521,7 @@ def _run_typecheck(ctx, package, srcs, test_srcs):
 
     ctx.actions.run(
         executable = script,
-        tools = [ctx.toolchains[COCO_TOOLCHAIN_TYPE].coco, script],
+        tools = [popili.coco, script],
         mnemonic = "CocoTypecheck",
         progress_message = "Typechecking %s" % ctx.label.name,
         inputs = depset(direct = inputs_direct, transitive = [srcs, test_srcs, package.dep_package_files, package.workspace_files]),
@@ -471,6 +557,11 @@ def _coco_package_impl(ctx):
         workspace_transitive.append(ctx.attr.workspace[CocoWorkspaceInfo].files)
     workspace_files = depset(transitive = workspace_transitive)
 
+    # The popili this package's consumers run: the version of this configuration, built for its
+    # target platform, which through the consumers' exec transition is their execution platform
+    # (see _popili_toolchain). None when there is no popili for that platform.
+    toolchain = ctx.toolchains[COCO_TOOLCHAIN_TYPE]
+
     # Conditionally run typecheck
     typecheck_marker = None
     if ctx.attr.typecheck:
@@ -479,7 +570,13 @@ def _coco_package_impl(ctx):
             dep_package_files = dep_package_files,
             workspace_files = workspace_files,
         )
-        typecheck_marker = _run_typecheck(ctx, package_struct, srcs, test_srcs)
+
+        # The typecheck is this package's own action, so it needs the popili of the package's
+        # own execution platform rather than the one it forwards to its consumers.
+        popili = _resolved_popili(ctx)
+        if popili == None:
+            fail("%s has typecheck = True, but no Coco toolchain is registered for its execution platform." % ctx.label)
+        typecheck_marker = _run_typecheck(ctx, popili, package_struct, srcs, test_srcs)
 
     # Build the list of files for DefaultInfo
     default_files_direct = [package_file]
@@ -493,6 +590,7 @@ def _coco_package_impl(ctx):
             dep_package_files = dep_package_files,
             direct_srcs = depset(ctx.files.srcs),
             direct_test_srcs = depset(ctx.files.test_srcs),
+            popili_toolchain = toolchain,
             srcs = srcs,
             test_srcs = test_srcs,
             typecheck_marker = typecheck_marker,
@@ -503,7 +601,7 @@ def _coco_package_impl(ctx):
 
 _coco_package = rule(
     implementation = _coco_package_impl,
-    attrs = dict(LICENSE_ATTRIBUTES.items() + {
+    attrs = dict(LICENSE_ATTRIBUTES.items() + RESOLVED_POPILI_ATTR.items() + {
         "deps": attr.label_list(
             providers = [CocoPackageInfo],
             doc = "Other coco_package targets this package depends on.",
@@ -533,9 +631,7 @@ _coco_package = rule(
             doc = "Optional coco_workspace whose Coco.toml settings this package inherits.",
         ),
     }.items()),
-    toolchains = [
-        COCO_TOOLCHAIN_TYPE,
-    ],
+    toolchains = POPILI_TOOLCHAINS,
 )
 
 def _coco_package_macro_impl(name, visibility, **kwargs):
@@ -604,11 +700,13 @@ packages. Reference this target from a coco_package's `workspace` attribute.""",
 )
 
 def _coco_package_verify(ctx):
+    popili = _popili_toolchain(ctx, ctx.attr.package)
+
     # Build the verify command arguments
     arguments = [
         "verify",
         "--results-junit",
-        "%%XML_OUTPUT_FILE%%" if _is_windows(ctx) else "$XML_OUTPUT_FILE",
+        "%%XML_OUTPUT_FILE%%" if _script_is_windows(popili) else "$XML_OUTPUT_FILE",
     ]
 
     backend = ctx.attr._verification_backend[BuildSettingInfo].value
@@ -616,11 +714,11 @@ def _coco_package_verify(ctx):
         arguments.append("--backend")
         arguments.append(backend)
 
-    wrapper_script = _create_coco_wrapper_script(ctx, ctx.attr.package, arguments)
+    wrapper_script = _create_coco_wrapper_script(ctx, popili, ctx.attr.package, arguments)
 
     return DefaultInfo(
         executable = wrapper_script,
-        runfiles = ctx.runfiles(transitive_files = _coco_runfiles(ctx, ctx.attr.package, True)),
+        runfiles = ctx.runfiles(transitive_files = _coco_runfiles(ctx, popili, ctx.attr.package, True)),
     )
 
 _coco_verify_test = rule(
@@ -629,14 +727,13 @@ _coco_verify_test = rule(
         "package": attr.label(
             providers = [CocoPackageInfo],
             mandatory = True,
+            # The test runs in the `test` exec group: the package is analysed for its platform.
+            cfg = config.exec("test"),
             doc = "The coco_package target to verify.",
         ),
         "_verification_backend": attr.label(default = Label("//:verification_backend")),
     }.items()),
     test = True,
-    toolchains = [
-        COCO_TOOLCHAIN_TYPE,
-    ],
 )
 
 def _coco_verify_test_macro_impl(name, visibility, **kwargs):
@@ -1058,6 +1155,7 @@ _coco_generate = rule(
         "c_regenerate_packages": attr.label_list(
             providers = [CocoPackageInfo],
             default = [],
+            cfg = "exec",
             doc = "Other coco_package targets to regenerate with this target's C generator settings.",
         ),
         # C++ output path options
@@ -1091,11 +1189,13 @@ _coco_generate = rule(
         "cpp_regenerate_packages": attr.label_list(
             providers = [CocoPackageInfo],
             default = [],
+            cfg = "exec",
             doc = "Other coco_package targets to regenerate with this target's C++ generator settings.",
         ),
         "csharp_regenerate_packages": attr.label_list(
             providers = [CocoPackageInfo],
             default = [],
+            cfg = "exec",
             doc = "Other coco_package targets to regenerate with this target's C# generator settings.",
         ),
         "language": attr.string(
@@ -1109,12 +1209,11 @@ _coco_generate = rule(
         "package": attr.label(
             providers = [CocoPackageInfo],
             mandatory = True,
+            # The package is analysed for this rule's execution platform; see _popili_toolchain.
+            cfg = "exec",
             doc = "The coco_package target containing the source files to generate from.",
         ),
     }.items()),
-    toolchains = [
-        COCO_TOOLCHAIN_TYPE,
-    ],
 )
 
 def _coco_test_outputs_impl(ctx):
@@ -1181,7 +1280,6 @@ def _coco_cc_gen_impl(ctx):
     compilation_context = cc_common.create_compilation_context(
         headers = depset(public_hdrs),
     )
-
     return [
         DefaultInfo(files = depset(sources + private_hdrs)),
         CcInfo(compilation_context = compilation_context),
@@ -1240,22 +1338,26 @@ created that exposes the generated test sources and headers.""",
 )
 
 def _popili_version_alias_impl(ctx):
-    toolchain = ctx.toolchains["@rules_coco//coco:toolchain_type"]
+    # The popili of this configuration's version, for this target's own execution platform. A
+    # genrule using the make variables picks its execution platform without any Coco toolchain
+    # requirement, so it should constrain itself to the same platform.
+    popili = _resolved_popili(ctx)
+    if popili == None:
+        fail("%s: no Coco toolchain is registered for this configuration and execution platform." % ctx.label)
     return [
-        toolchain,
+        popili,
         platform_common.TemplateVariableInfo({
-            "POPILI": toolchain.coco.short_path,
-            "POPILI_STARTUP_ARGS": " ".join(_coco_startup_args(ctx, None, True)),
+            "POPILI": popili.coco.short_path,
+            "POPILI_STARTUP_ARGS": " ".join(_coco_startup_args(ctx, popili, None, True)),
         }),
         DefaultInfo(
-            runfiles = ctx.runfiles(transitive_files = _coco_runfiles(ctx, None, True)),
+            runfiles = ctx.runfiles(transitive_files = _coco_runfiles(ctx, popili, None, True)),
         ),
     ]
 
 _popili_version_alias = rule(
-    attrs = LICENSE_ATTRIBUTES,
+    attrs = dict(LICENSE_ATTRIBUTES.items() + RESOLVED_POPILI_ATTR.items()),
     implementation = _popili_version_alias_impl,
-    toolchains = ["@rules_coco//coco:toolchain_type"],
 )
 
 def popili_version_alias(name, **kwargs):
