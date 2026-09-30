@@ -61,7 +61,6 @@ _TOOLCHAIN_HUB_BUILD_TEMPLATE = """
 toolchain(
     name = "{name}",
     exec_compatible_with = {exec_compatible_with},
-    target_compatible_with = {target_compatible_with},
     target_settings = {target_settings},
     toolchain = "{toolchain_label}",
     toolchain_type = "@rules_coco//coco:toolchain_type",
@@ -181,7 +180,9 @@ def toolchain_hub_entries(versions, has_local = False, hub_name = DEFAULT_HUB_NA
     """Computes the full payload of the toolchain hub repository.
 
     One toolchain is declared per (platform, version), gated on that version's
-    config_setting. The first version additionally gets a `__default` toolchain per
+    config_setting. Toolchains constrain only the exec platform: popili runs there, and the
+    runtime it hands out is source, so any target platform can use it (cross-compiling
+    included). The first version additionally gets a `__default` toolchain per
     platform, gated on the version flag being unset. A local toolchain, when present, is
     host-only (no platform constraints) and gated on `--@rules_coco//:version=local`; it
     never becomes the default, matching bzlmod.
@@ -193,12 +194,11 @@ def toolchain_hub_entries(versions, has_local = False, hub_name = DEFAULT_HUB_NA
 
     Returns:
       A struct with `toolchain_names`, `toolchain_labels`, `exec_compatible_with`,
-      `target_compatible_with`, `target_settings` and `version_suffixes` fields.
+      `target_settings` and `version_suffixes` fields.
     """
     toolchain_names = []
     toolchain_labels = {}
     exec_compatible_with = {}
-    target_compatible_with = {}
     target_settings = {}
     version_suffixes = {}
 
@@ -217,7 +217,6 @@ def toolchain_hub_entries(versions, has_local = False, hub_name = DEFAULT_HUB_NA
             toolchain_names.append(name)
             toolchain_labels[name] = label
             exec_compatible_with[name] = constraints
-            target_compatible_with[name] = constraints
             target_settings[name] = ["@%s//:version_%s" % (hub_name, version_suffix)]
 
             # The first version is what an unset version flag resolves to.
@@ -226,7 +225,6 @@ def toolchain_hub_entries(versions, has_local = False, hub_name = DEFAULT_HUB_NA
                 toolchain_names.append(default_name)
                 toolchain_labels[default_name] = label
                 exec_compatible_with[default_name] = constraints
-                target_compatible_with[default_name] = constraints
                 target_settings[default_name] = ["@%s//:version_default" % hub_name]
 
     # Host-only (no constraints), gated on the "local" version so it needs --version=local.
@@ -236,14 +234,12 @@ def toolchain_hub_entries(versions, has_local = False, hub_name = DEFAULT_HUB_NA
         toolchain_names.append(LOCAL_VERSION)
         toolchain_labels[LOCAL_VERSION] = "@%s//:toolchain_impl" % LOCAL_TOOLCHAIN_REPO_NAME
         exec_compatible_with[LOCAL_VERSION] = []
-        target_compatible_with[LOCAL_VERSION] = []
         target_settings[LOCAL_VERSION] = ["@%s//:version_%s" % (hub_name, LOCAL_VERSION)]
 
     return struct(
         toolchain_names = toolchain_names,
         toolchain_labels = toolchain_labels,
         exec_compatible_with = exec_compatible_with,
-        target_compatible_with = target_compatible_with,
         target_settings = target_settings,
         version_suffixes = version_suffixes,
     )
@@ -276,7 +272,6 @@ def render_toolchain_hub_build(entries):
         _TOOLCHAIN_HUB_BUILD_TEMPLATE.format(
             name = name,
             exec_compatible_with = entries.exec_compatible_with[name],
-            target_compatible_with = entries.target_compatible_with[name],
             target_settings = entries.target_settings[name],
             toolchain_label = entries.toolchain_labels[name],
         )
@@ -295,7 +290,6 @@ def _coco_toolchain_hub_impl(repository_ctx):
         toolchain_names = repository_ctx.attr.toolchain_names,
         toolchain_labels = repository_ctx.attr.toolchain_labels,
         exec_compatible_with = repository_ctx.attr.exec_compatible_with,
-        target_compatible_with = repository_ctx.attr.target_compatible_with,
         target_settings = repository_ctx.attr.target_settings,
         version_suffixes = repository_ctx.attr.version_suffixes,
     )))
@@ -308,10 +302,6 @@ coco_toolchain_hub = repository_rule(
     attrs = {
         "exec_compatible_with": attr.string_list_dict(
             doc = "Map of toolchain name to exec platform constraints.",
-            mandatory = True,
-        ),
-        "target_compatible_with": attr.string_list_dict(
-            doc = "Map of toolchain name to target platform constraints.",
             mandatory = True,
         ),
         "target_settings": attr.string_list_dict(
@@ -444,7 +434,6 @@ def declare_coco_toolchains(
         toolchain_names = entries.toolchain_names,
         toolchain_labels = entries.toolchain_labels,
         exec_compatible_with = entries.exec_compatible_with,
-        target_compatible_with = entries.target_compatible_with,
         target_settings = entries.target_settings,
         version_suffixes = entries.version_suffixes,
     )
