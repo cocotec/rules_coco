@@ -69,3 +69,47 @@ def platform_binary_ext(os):
     if os == "windows":
         return ".exe"
     return ""
+
+def platform_key(os, arch):
+    """Returns the name of a toolchain platform, as recorded in `coco_toolchain.platform`.
+
+    Args:
+      os: The toolchain OS ("osx", "linux" or "windows").
+      arch: The toolchain CPU ("aarch64" or "x86_64").
+
+    Returns:
+      A string such as "linux_x86_64".
+    """
+    return "%s_%s" % (os, arch)
+
+# Every platform key, in COCO_TOOLCHAIN_PLATFORMS order: the platforms popili is published for.
+EXEC_PLATFORM_KEYS = [platform_key(os, arch) for (os, arch) in COCO_TOOLCHAIN_PLATFORMS]
+
+def host_platform(ctx):
+    """Returns the host as a toolchain platform, e.g. ("osx", "aarch64").
+
+    Args:
+      ctx: A repository or module context.
+
+    Returns:
+      The (os, arch) pair, or None when no popili toolchain is published for the host,
+      including hosts popili was once published for, such as Intel Macs.
+    """
+    name = ctx.os.name.lower()
+    if "mac" in name or "os x" in name:
+        os = "osx"
+    elif "windows" in name:
+        os = "windows"
+    elif "linux" in name:
+        os = "linux"
+    else:
+        return None
+    arch = {
+        "aarch64": "aarch64",
+        "amd64": "x86_64",
+        "arm64": "aarch64",
+        "x86_64": "x86_64",
+    }.get(ctx.os.arch)
+    if (os, arch) not in COCO_TOOLCHAIN_PLATFORMS:
+        return None
+    return (os, arch)

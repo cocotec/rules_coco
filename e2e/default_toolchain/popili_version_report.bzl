@@ -14,6 +14,7 @@ load("@rules_coco//coco/private:version_aliases.bzl", "VERSION_ALIASES")
 load("@rules_coco//coco/private:version_resolution.bzl", "version_to_repo_suffix")
 
 def _popili_version_report_impl(ctx):
+    # Resolved in this target's own configuration, like a coco_package built directly does.
     popili = ctx.toolchains["@rules_coco//coco:toolchain_type"].coco.path
     version = VERSION_ALIASES.get(ctx.attr.expected_version, ctx.attr.expected_version)
     suffix = "__" + version_to_repo_suffix(version)

@@ -3,7 +3,12 @@
 # using the with_popili_version() wrapper
 
 load("@rules_coco//coco:cc.bzl", "coco_cc_library")
-load("@rules_coco//coco:defs.bzl", "coco_generate", "coco_package", "coco_verify_test", "with_popili_version")
+load("@rules_coco//coco:defs.bzl", "coco_generate", "coco_package", "coco_state_diagram", "coco_verify_test", "with_popili_version")
+load(
+    ":exec_platform_tests.bzl",
+    "exec_platform_runs_package_version_test",
+    "exec_platform_unpublished_test",
+)
 load(":popili_version_report.bzl", "popili_version_report")
 
 # Which popili a target actually resolves is asserted directly, rather than inferred from a
@@ -47,10 +52,8 @@ with_popili_version(
     version = "1.5.0",
 )
 
-# NOTE: these verify tests take a wrapped package but are not wrapped themselves. The
-# with_popili_version transition is incoming, so it reaches the package and its deps but not
-# the test consuming it -- these run the *default* popili, not the version the package asks
-# for. The popili_version_report targets above are what actually pin version selection.
+# A rule consuming a wrapped package runs the popili the package resolved, here 1.5.0,
+# whatever the consumer's own configuration says. The reports below assert that.
 coco_verify_test(
     name = "modern_verify",
     package = ":modern_v150",
@@ -78,6 +81,12 @@ with_popili_version(
     name = "modern_cc",
     target = ":modern_cc_impl",
     version = "1.5.0",
+)
+
+popili_version_report(
+    name = "modern_is_150",
+    expected_repo_suffix = "__1_5_0",
+    package = ":modern_v150",
 )
 
 # Legacy package - uses 1.5.1
@@ -122,6 +131,12 @@ with_popili_version(
     version = "1.5.1",
 )
 
+popili_version_report(
+    name = "legacy_is_151",
+    expected_repo_suffix = "__1_5_1",
+    package = ":legacy_v151",
+)
+
 # Flexible package - also uses 1.5.0
 coco_package(
     name = "flexible",
@@ -162,4 +177,62 @@ with_popili_version(
     name = "flexible_cc",
     target = ":flexible_cc_impl",
     version = "1.5.0",
+)
+
+# ---------------------------------------------------------------------------------------------
+# Execution platforms: the package hands each consumer the popili built for where it runs
+# ---------------------------------------------------------------------------------------------
+
+# Execution platforms registered by the analysis tests below (see exec_platform_tests.bzl).
+# Neither is the host on CI, so a consumer constrained to one runs somewhere other than where
+# the package is otherwise analysed. popili is published for the first and not for the second.
+platform(
+    name = "linux_aarch64",
+    constraint_values = [
+        "@platforms//os:linux",
+        "@platforms//cpu:aarch64",
+    ],
+)
+
+platform(
+    name = "linux_riscv64",
+    constraint_values = [
+        "@platforms//os:linux",
+        "@platforms//cpu:riscv64",
+    ],
+)
+
+# Draw :modern while running on the extra platform. A diagram rather than coco_generate: it
+# has no companion target, and declares outputs of its own. Manual: outside the analysis
+# tests' configuration there is no such platform to land on.
+[
+    coco_state_diagram(
+        name = "modern_states_on_%s" % platform,
+        exec_compatible_with = [
+            "@platforms//os:linux",
+            "@platforms//cpu:" + cpu,
+        ],
+        package = ":modern",
+        tags = ["manual"],
+    )
+    for platform, cpu in [
+        ("linux_aarch64", "aarch64"),
+        ("linux_riscv64", "riscv64"),
+    ]
+]
+
+exec_platform_runs_package_version_test(
+    name = "exec_platform_runs_package_version_test",
+    expected_repo = "io_cocotec_coco_linux_aarch64__1_5_0",
+    target_under_test = ":modern_states_on_linux_aarch64",
+)
+
+exec_platform_unpublished_test(
+    name = "exec_platform_unpublished_test",
+    expected_messages = [
+        "//:modern_states_on_linux_riscv64 runs popili for",
+        "//:modern on its execution platform, but no Coco toolchain of the configured Popili version is registered for it.",
+        "rules_coco publishes popili for osx_aarch64, linux_aarch64, linux_x86_64, windows_x86_64",
+    ],
+    target_under_test = ":modern_states_on_linux_riscv64",
 )

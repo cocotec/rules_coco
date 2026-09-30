@@ -226,6 +226,29 @@ There are several ways of setting the version of Popili that you would like to u
 
    See `e2e/multi_version` for a full example, in both `MODULE.bazel` and `WORKSPACE` form.
 
+### Remote execution
+
+A `coco_package` decides which Popili _version_ is used; each rule running Popili on it
+(`coco_generate`, `coco_verify_test`, `coco_fmt_test`, the diagram rules) runs that version built
+for the platform it executes on. Only the versions and platforms a build actually uses are
+downloaded.
+
+Popili is published for `linux_x86_64`, `linux_aarch64`, `osx_aarch64` and `windows_x86_64`.
+Running it on any other execution platform is reported as an error before anything executes.
+
+The license modes `local_acquire` and `local_user` only work on the host; use `action_environment`,
+`action_file` or `token` with remote execution.
+
+Three caveats. Bazel decides the execution platform at analysis time, so an action forced to run
+elsewhere by `--strategy=...=local`, `--remote_local_fallback` or `bazel run` of a `.format` binary
+or a test still runs the platform's binary wherever Bazel puts it; this is true of every toolchain
+under remote execution. A `genrule` or `sh_test` using the `$(POPILI)` make variables picks its
+execution platform without any Coco toolchain requirement, so constrain it with
+`exec_compatible_with` to the platform `@rules_coco//coco:current_popili_version` resolved on. And
+`--@rules_coco//:version` has to reach the exec configuration, which it does by default; with
+`--incompatible_exclude_starlark_flags_from_exec_config` add
+`--experimental_propagate_custom_flag=@rules_coco//:version`.
+
 ### Using a local toolchain
 
 To point at a popili toolchain on the local filesystem instead of a download add `coco.local_toolchain` to
@@ -246,8 +269,10 @@ of `popili_<os>_<arch>.zip`, `coco-cpp-runtime.zip`, and `coco-c-runtime.zip` re
 
 For `WORKSPACE` mode use `coco_local_repositories(path=..., cc_runtime_path=..., c_runtime_path=...)`,
 which behaves the same way: the local toolchain is selected by `--@rules_coco//:version=local` and
-never becomes the default, so a build that does not set the flag reports no matching toolchain for
-`@rules_coco//coco:toolchain_type`.
+never becomes the default, so a build that does not set the flag has no Coco toolchain.
+
+The local toolchain only exists on this machine, so it can't run actions on a remote execution
+platform.
 
 To register a local distribution _alongside_ downloaded releases, pass it to `coco_repositories`
 instead, and switch between them with the version flag:
@@ -289,6 +314,12 @@ toolchain(
     toolchain_type = "@rules_coco//coco:toolchain_type",
 )
 ```
+
+A `coco_toolchain` holds one binary. The rules running popili resolve the toolchain through an
+exec transition, so it is resolved with their execution platform as the _target_ platform. With
+remote execution, register one per platform your actions run on, constrain each `toolchain()` with
+`target_compatible_with`, and set `platform = "<os>_<cpu>"`, e.g.
+`"windows_x86_64"`, so the rules drive a Windows popili with `.bat` scripts.
 
 ### Using an older C++ compiler (Boost libraries)
 

@@ -1,33 +1,62 @@
-"""Asserts which popili the Coco toolchain resolves to, without running popili.
+"""Asserts which popili a target resolves to, without running popili.
 
-The resolved toolchain's binary lives in a version-mangled repository
-(`io_cocotec_coco_<os>_<arch>__<suffix>`), so its path is enough to tell which popili a
-target would use. The rule resolves `@rules_coco//coco:toolchain_type` itself, in its own
-configuration, so it sees exactly what a real popili-running rule in that configuration
-would see -- including the effect of a `with_popili_version` transition above it.
+Every resolved popili lives in a version-mangled repository
+(`io_cocotec_coco_<os>_<arch>__<suffix>`), so file paths are enough to tell which version a
+target would use. Everything is checked during analysis: no licence, network or popili
+execution is needed, and it reads identically in WORKSPACE and bzlmod mode.
+
+What is checked depends on which attribute is set:
+
+- none: the rule resolves `@rules_coco//coco:toolchain_type` itself, in its own
+  configuration, so it sees exactly what a coco_package there would resolve;
+- `package`: the toolchain the coco_package forwards to its consumers. Like every consumer,
+  the report reaches the package through an exec transition, so this is the popili the
+  package hands a rule running on the report's execution platform.
 """
 
-def _popili_version_report_impl(ctx):
-    popili = ctx.toolchains["@rules_coco//coco:toolchain_type"].coco.path
+# buildifier: disable=bzl-visibility
+load("@rules_coco//coco/private:coco.bzl", "CocoPackageInfo")
 
-    if not ctx.attr.expected_repo_suffix in popili:
+def _check_toolchain(ctx, toolchain, what):
+    popili = toolchain.coco.path
+    if ctx.attr.expected_repo_suffix + "/" not in popili:
         fail(
-            "%s: expected the Coco toolchain to resolve to a popili in a repository " % ctx.label +
-            "ending %r, but it resolved to %r." % (ctx.attr.expected_repo_suffix, popili),
+            "%s: expected %s to use a popili in a repository ending %r, but it uses %r." % (
+                ctx.label,
+                what,
+                ctx.attr.expected_repo_suffix,
+                popili,
+            ),
         )
+    return popili
+
+def _popili_version_report_impl(ctx):
+    if ctx.attr.package:
+        info = ctx.attr.package[CocoPackageInfo]
+        report = _check_toolchain(ctx, info.popili_toolchain, str(ctx.attr.package.label))
+    else:
+        toolchain = ctx.toolchains["@rules_coco//coco:toolchain_type"]
+        if toolchain == None:
+            fail("%s: no Coco toolchain resolved" % ctx.label)
+        report = _check_toolchain(ctx, toolchain, "the Coco toolchain")
 
     out = ctx.actions.declare_file(ctx.label.name + ".txt")
-    ctx.actions.write(out, popili + "\n")
+    ctx.actions.write(out, report + "\n")
     return [DefaultInfo(files = depset([out]))]
 
 popili_version_report = rule(
-    doc = "Fails at analysis time unless the resolved popili comes from the expected version's repository.",
+    doc = "Fails at analysis time unless the target uses the expected popili version.",
     implementation = _popili_version_report_impl,
     attrs = {
         "expected_repo_suffix": attr.string(
-            doc = "The mangled version the toolchain repository name must end with, e.g. '__1_5_1'.",
+            doc = "The mangled version the repository name must end with, e.g. '__1_5_1'.",
             mandatory = True,
         ),
+        "package": attr.label(
+            doc = "A coco_package whose forwarded toolchain to check.",
+            providers = [CocoPackageInfo],
+            cfg = "exec",
+        ),
     },
-    toolchains = ["@rules_coco//coco:toolchain_type"],
+    toolchains = [config_common.toolchain_type("@rules_coco//coco:toolchain_type", mandatory = False)],
 )
