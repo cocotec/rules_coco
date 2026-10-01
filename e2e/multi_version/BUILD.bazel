@@ -47,10 +47,8 @@ with_popili_version(
     version = "1.5.0",
 )
 
-# NOTE: these verify tests take a wrapped package but are not wrapped themselves. The
-# with_popili_version transition is incoming, so it reaches the package and its deps but not
-# the test consuming it -- these run the *default* popili, not the version the package asks
-# for. The popili_version_report targets above are what actually pin version selection.
+# A rule consuming a wrapped package runs the popili the package resolved to, here 1.5.0,
+# whatever the consumer's own configuration says. The reports below assert that.
 coco_verify_test(
     name = "modern_verify",
     package = ":modern_v150",
@@ -78,6 +76,12 @@ with_popili_version(
     name = "modern_cc",
     target = ":modern_cc_impl",
     version = "1.5.0",
+)
+
+popili_version_report(
+    name = "modern_is_150",
+    expected_repo_suffix = "__1_5_0",
+    package = ":modern_v150",
 )
 
 # Legacy package - uses 1.5.1
@@ -120,6 +124,12 @@ with_popili_version(
     name = "legacy_cc",
     target = ":legacy_cc_impl",
     version = "1.5.1",
+)
+
+popili_version_report(
+    name = "legacy_is_151",
+    expected_repo_suffix = "__1_5_1",
+    package = ":legacy_v151",
 )
 
 # Flexible package - also uses 1.5.0
