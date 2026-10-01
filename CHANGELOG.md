@@ -22,6 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Breaking:** rules_coco's default toolchain (`stable` with the C and C++ runtimes) is now used
+  only when no module declares `coco.toolchain`. If yours declares one, you get only what it lists,
+  so add `c = True` / `cc = True` for the runtimes you use. Modules that don't declare
+  `coco.toolchain` are unaffected and still get `stable` with both runtimes.
 - **Breaking:** the local toolchain registered by `coco_local_repositories()` in WORKSPACE mode is
   now selected by `--@rules_coco//:version=local` and is no longer active by default, matching the
   bzlmod `coco.local_toolchain` tag. Builds that do not set the flag will report

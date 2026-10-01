@@ -47,6 +47,8 @@ Register a Coco toolchain from a popili distribution on the local filesystem, in
 
 ### toolchain
 
+Register Coco toolchains for one or more popili versions. Every module declaring this tag contributes its versions and runtimes. When no module declares one, `stable` is registered with the C and C++ runtimes.
+
 **Attributes**
 
 | Name  | Description | Type | Mandatory | Default |

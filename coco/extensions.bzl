@@ -21,34 +21,16 @@ load(
 load(
     "//coco/private:toolchain_hub.bzl",
     "declare_coco_toolchains",
+    "merge_toolchain_tags",
     "resolve_versions",
 )
 
 def _toolchain_tag_impl(ctx):
     """Implementation of the coco module extension."""
 
-    # Collect all toolchain configurations from tags across all modules
-    # Merge versions from all modules to support different modules requesting different versions
-    all_versions = []
-    cc = False
-    c = False
-    license_source = ""
-    license_token = ""
-    auth_token_path = ""
-
-    for mod in ctx.modules:
-        for toolchain in mod.tags.toolchain:
-            all_versions.extend(toolchain.versions)
-            cc = cc or toolchain.cc
-            c = c or toolchain.c
-
-            # Take the first non-empty license configuration
-            if not license_source and toolchain.license_source:
-                license_source = toolchain.license_source
-            if not license_token and toolchain.license_token:
-                license_token = toolchain.license_token
-            if not auth_token_path and toolchain.auth_token_path:
-                auth_token_path = toolchain.auth_token_path
+    # Merge the toolchain configurations of every module declaring one, so that different
+    # modules can request different versions; the default applies when none does.
+    config = merge_toolchain_tags(ctx.modules)
 
     # Root-module only: a dependency must not force a machine-specific path on consumers.
     local_tag = None
@@ -61,7 +43,7 @@ def _toolchain_tag_impl(ctx):
             local_tag = tag
 
     # Resolve version aliases (like "stable" -> "1.5.1"), validate and deduplicate.
-    versions, error = resolve_versions(all_versions)
+    versions, error = resolve_versions(config.versions)
     if error:
         fail(error)
 
@@ -95,12 +77,12 @@ def _toolchain_tag_impl(ctx):
 
     declare_coco_toolchains(
         versions = versions,
-        c = c,
-        cc = cc,
+        c = config.c,
+        cc = config.cc,
         cc_runtime_extra_deps_by_version = cc_runtime_extra_deps_by_version,
-        license_source = license_source,
-        license_token = license_token,
-        auth_token_path = auth_token_path,
+        license_source = config.license_source,
+        license_token = config.license_token,
+        auth_token_path = config.auth_token_path,
         local = local,
     )
 
@@ -110,6 +92,11 @@ def _toolchain_tag_impl(ctx):
     )
 
 _toolchain_tag = tag_class(
+    doc = (
+        "Register Coco toolchains for one or more popili versions. Every module declaring this " +
+        "tag contributes its versions and runtimes. When no module declares one, `stable` is " +
+        "registered with the C and C++ runtimes."
+    ),
     attrs = {
         "auth_token_path": attr.string(
             doc = "Optional path to auth token file for all toolchains when license_source is 'action_file'. The file must be available in the execution environment.",
