@@ -256,7 +256,6 @@ def _toolchain_tag_impl(ctx):
         # Set up toolchains for all platforms
         for (os, arch) in [
             ("osx", "aarch64"),
-            ("osx", "x86_64"),
             ("linux", "aarch64"),
             ("linux", "x86_64"),
             ("windows", "x86_64"),
