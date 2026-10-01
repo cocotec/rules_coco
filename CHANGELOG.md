@@ -42,6 +42,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   duplicate-repository warnings and a silently wrong configuration.
 - `"local"` and `"default"` are rejected as version strings; they name the hub's own
   `config_setting`s.
+- The generated `toolchain()` declarations no longer set `target_compatible_with`. Popili runs on
+  the exec platform and the runtime it provides is source, so the toolchain now resolves for any
+  target platform, including when cross-compiling with `--platforms`. Before, bzlmod required the
+  target platform to match the host; WORKSPACE mode never had the constraint.
 
 ### Removed
 
