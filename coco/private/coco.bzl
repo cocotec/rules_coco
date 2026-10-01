@@ -18,7 +18,7 @@ load("@bazel_skylib//lib:paths.bzl", "paths")
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
 load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
-load(":version_aliases.bzl", "VERSION_ALIASES")
+load(":version_resolution.bzl", "VERSION_FLAG", "resolve_version_alias")
 
 CocoPackageInfo = provider(
     doc = "Information about a Coco package",
@@ -70,19 +70,6 @@ LICENSE_ATTRIBUTES = {
 
 COCO_TOOLCHAIN_TYPE = "@rules_coco//coco:toolchain_type"
 
-def _resolve_version_alias(version):
-    """Resolve a version alias (like 'stable') to an actual version number.
-
-    Args:
-        version: A version string, which may be an alias like 'stable' or an actual version like '1.5.0'
-
-    Returns:
-        The resolved version string
-    """
-    if version in VERSION_ALIASES:
-        return VERSION_ALIASES[version]
-    return version
-
 def _popili_version_transition_impl(_settings, attr):
     """Transition implementation for per-target popili version selection.
 
@@ -91,14 +78,14 @@ def _popili_version_transition_impl(_settings, attr):
     Otherwise, keep the current configuration's version setting.
     """
     if hasattr(attr, "version") and attr.version:
-        resolved_version = _resolve_version_alias(attr.version)
-        return {"@rules_coco//:version": resolved_version}
+        resolved_version = resolve_version_alias(attr.version)
+        return {VERSION_FLAG: resolved_version}
     return {}
 
 _popili_version_transition = transition(
     implementation = _popili_version_transition_impl,
     inputs = [],
-    outputs = ["@rules_coco//:version"],
+    outputs = [VERSION_FLAG],
 )
 
 # Export for use in cc.bzl
