@@ -24,6 +24,7 @@ load(
     ":toolchain_hub.bzl",
     "merge_toolchain_tags",
     "render_toolchain_hub_build",
+    "render_version_registry_build",
     "resolve_versions",
     "toolchain_hub_entries",
 )
@@ -1595,6 +1596,70 @@ merge_toolchain_tags_merges_modules_in_order_test = unittest.make(_merge_toolcha
 merge_toolchain_tags_dependency_only_test = unittest.make(_merge_toolchain_tags_dependency_only_test)
 merge_toolchain_tags_first_license_setting_wins_test = unittest.make(_merge_toolchain_tags_first_license_setting_wins_test)
 
+# Tests for render_version_registry_build
+
+def _version_registry_build_test(ctx):
+    """The registry records every version, the default and each runtime's version."""
+    env = unittest.begin(ctx)
+
+    build = render_version_registry_build(
+        versions = ["1.5.0", "1.5.1", "local"],
+        default = "1.5.0",
+        host = "linux_x86_64",
+        cc_runtimes = {
+            "@io_cocotec_coco_cc_runtime__1_5_0//:runtime": "1.5.0",
+            "@io_cocotec_coco_cc_runtime__local//:runtime": "local",
+        },
+        c_runtimes = {"@io_cocotec_coco_c_runtime__1_5_1//:runtime": "1.5.1"},
+    )
+
+    asserts.true(env, 'load("@rules_coco//coco/private:version_registry.bzl", "coco_version_registry")' in build, build)
+    asserts.true(env, 'versions = ["1.5.0", "1.5.1", "local"],' in build, build)
+    asserts.true(env, 'default = "1.5.0",' in build, build)
+    asserts.true(env, 'host = "linux_x86_64",' in build, build)
+    asserts.true(env, '"@io_cocotec_coco_cc_runtime__1_5_0//:runtime": "1.5.0"' in build, build)
+    asserts.true(env, '"@io_cocotec_coco_cc_runtime__local//:runtime": "local"' in build, build)
+    asserts.true(env, 'c_runtimes = {"@io_cocotec_coco_c_runtime__1_5_1//:runtime": "1.5.1"},' in build, build)
+
+    # The :versions target every coco_package depends on must not pull in any runtime, and
+    # each runtime registry only its own kind.
+    versions_target = build[build.index('name = "versions"'):build.index('name = "cc_runtimes"')]
+    cc_target = build[build.index('name = "cc_runtimes"'):build.index('name = "c_runtimes"')]
+    c_target = build[build.index('name = "c_runtimes"'):]
+    asserts.true(env, "runtime__" not in versions_target, versions_target)
+    asserts.true(env, "@io_cocotec_coco_c_runtime__" not in cc_target, cc_target)
+    asserts.true(env, "@io_cocotec_coco_cc_runtime__1_5_0" in cc_target, cc_target)
+    asserts.true(env, "@io_cocotec_coco_cc_runtime__" not in c_target, c_target)
+    asserts.true(env, "@io_cocotec_coco_c_runtime__1_5_1" in c_target, c_target)
+
+    return unittest.end(env)
+
+def _version_registry_build_without_runtimes_test(ctx):
+    """With cc and c disabled the runtime maps are empty, not missing."""
+    env = unittest.begin(ctx)
+
+    build = render_version_registry_build(versions = ["1.5.7"], default = "1.5.7")
+
+    asserts.true(env, "cc_runtimes = {}," in build, build)
+    asserts.true(env, "c_runtimes = {}," in build, build)
+    asserts.true(env, 'host = "",' in build, build)
+
+    return unittest.end(env)
+
+version_registry_build_test = unittest.make(_version_registry_build_test)
+version_registry_build_without_runtimes_test = unittest.make(_version_registry_build_without_runtimes_test)
+
+def _toolchain_build_records_version_test(ctx):
+    """The generated coco_toolchain declares the version it provides."""
+    env = unittest.begin(ctx)
+
+    asserts.true(env, 'version = "1.5.1",' in BUILD_for_coco_toolchain(name = "toolchain", version = "1.5.1"))
+    asserts.true(env, "version =" not in BUILD_for_coco_toolchain(name = "toolchain"))
+
+    return unittest.end(env)
+
+toolchain_build_records_version_test = unittest.make(_toolchain_build_records_version_test)
+
 def coco_test_suite(name):
     """Create test suite for coco functions.
 
@@ -1696,6 +1761,7 @@ def coco_test_suite(name):
 
         # BUILD_for_coco_toolchain tests
         toolchain_build_records_platform_test,
+        toolchain_build_records_version_test,
 
         # normalize_cc_runtime_extra_deps tests
         normalize_extra_deps_list_applies_to_all_test,
@@ -1713,4 +1779,8 @@ def coco_test_suite(name):
         merge_toolchain_tags_merges_modules_in_order_test,
         merge_toolchain_tags_dependency_only_test,
         merge_toolchain_tags_first_license_setting_wins_test,
+
+        # render_version_registry_build tests
+        version_registry_build_test,
+        version_registry_build_without_runtimes_test,
     )

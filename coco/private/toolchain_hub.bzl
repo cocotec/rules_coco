@@ -34,7 +34,7 @@ load(
     "coco_preferences_repository",
     "coco_symlink_license_repository",
 )
-load(":platforms.bzl", "COCO_TOOLCHAIN_PLATFORMS", "host_platform", "platform_constraints")
+load(":platforms.bzl", "COCO_TOOLCHAIN_PLATFORMS", "host_platform", "platform_constraints", "platform_key")
 load(
     ":toolchain_repositories.bzl",
     "coco_local_toolchain_repository",
@@ -432,11 +432,73 @@ def _runtime_branches(entries, runtimes_by_version):
             branches += '\n        ":version_default": "%s",' % label
     return branches
 
+def render_version_registry_build(versions, default, host = "", cc_runtimes = {}, c_runtimes = {}):
+    """Renders the BUILD file of the hub's `//versions` package.
+
+    Kept out of the hub's root package, which `register_toolchains` loads early in
+    WORKSPACE mode and which therefore uses only native rules.
+
+    `:versions` lists the registered versions and is depended on by every coco_package, so it
+    must not depend on anything. `:cc_runtimes` and `:c_runtimes` additionally map each
+    version to its C++ or C runtime, and are depended on only by coco_cc_library and
+    coco_c_library respectively, so that only those make Bazel fetch every registered
+    version's runtime of that kind.
+
+    Args:
+      versions: Every registered version, including "local" when registered.
+      default: The version an unset `--@rules_coco//:version` resolves to, or "".
+      host: The host as a platform key, e.g. "linux_x86_64", or "" when popili is not
+        published for it.
+      cc_runtimes: Map of C++ runtime label string to the version it belongs to.
+      c_runtimes: Map of C runtime label string to the version it belongs to.
+
+    Returns:
+      The BUILD file content.
+    """
+    return """load("@rules_coco//coco/private:version_registry.bzl", "coco_version_registry")
+
+coco_version_registry(
+    name = "versions",
+    versions = {versions},
+    default = {default},
+    host = {host},
+    visibility = ["//visibility:public"],
+)
+
+coco_version_registry(
+    name = "cc_runtimes",
+    versions = {versions},
+    default = {default},
+    host = {host},
+    cc_runtimes = {cc_runtimes},
+    visibility = ["//visibility:public"],
+)
+
+coco_version_registry(
+    name = "c_runtimes",
+    versions = {versions},
+    default = {default},
+    host = {host},
+    c_runtimes = {c_runtimes},
+    visibility = ["//visibility:public"],
+)
+""".format(
+        versions = repr(versions),
+        default = repr(default),
+        host = repr(host),
+        cc_runtimes = repr(cc_runtimes),
+        c_runtimes = repr(c_runtimes),
+    )
+
 def _coco_toolchain_hub_impl(repository_ctx):
     """Implementation of the coco toolchain hub repository rule."""
     repository_ctx.file("WORKSPACE.bazel", """workspace(name = "{}")""".format(
         repository_ctx.name,
     ))
+
+    # Evaluated on the machine running Bazel: where the local toolchain's binaries run, and
+    # where a licence acquired or installed on the host is.
+    host = host_platform(repository_ctx)
 
     repository_ctx.file("BUILD.bazel", render_toolchain_hub_build(
         struct(
@@ -449,10 +511,17 @@ def _coco_toolchain_hub_impl(repository_ctx):
             version_suffixes = repository_ctx.attr.version_suffixes,
             default_version = repository_ctx.attr.default_version,
         ),
-        # Evaluated on the machine running Bazel: where the local toolchain's binaries run.
-        host = host_platform(repository_ctx),
+        host = host,
         cc_runtimes = repository_ctx.attr.cc_runtimes,
         c_runtimes = repository_ctx.attr.c_runtimes,
+    ))
+
+    repository_ctx.file("versions/BUILD.bazel", render_version_registry_build(
+        versions = repository_ctx.attr.registered_versions,
+        default = repository_ctx.attr.default_version,
+        host = platform_key(host[0], host[1]) if host else "",
+        cc_runtimes = {label: version for version, label in repository_ctx.attr.cc_runtimes.items()},
+        c_runtimes = {label: version for version, label in repository_ctx.attr.c_runtimes.items()},
     ))
 
 coco_toolchain_hub = repository_rule(
@@ -473,6 +542,9 @@ coco_toolchain_hub = repository_rule(
         "exec_compatible_with": attr.string_list_dict(
             doc = "Map of toolchain name to exec platform constraints.",
             mandatory = True,
+        ),
+        "registered_versions": attr.string_list(
+            doc = "Every registered version, including 'local' when registered.",
         ),
         "target_compatible_with": attr.string_list_dict(
             doc = "Map of toolchain name to target platform constraints.",
@@ -540,7 +612,8 @@ def declare_coco_toolchains(
     )
     coco_symlink_license_repository(name = "io_cocotec_licensing_local")
 
-    # Version -> runtime label, handed out by the hub's runtime aliases.
+    # Version -> runtime label, handed out by the hub's runtime aliases and recorded in its
+    # version registry.
     cc_runtimes = {}
     c_runtimes = {}
 
@@ -619,4 +692,5 @@ def declare_coco_toolchains(
         default_version = entries.default_version,
         cc_runtimes = cc_runtimes,
         c_runtimes = c_runtimes,
+        registered_versions = versions + ([LOCAL_VERSION] if local else []),
     )

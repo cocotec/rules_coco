@@ -26,9 +26,9 @@ load(
 )
 load(":known_shas.bzl", "FILE_KEY_TO_SHA")
 load(":platforms.bzl", "archive_platform", "host_platform", "platform_binary_ext", "platform_key")
-load(":version_resolution.bzl", "version_tuple")
+load(":version_resolution.bzl", "LOCAL_VERSION", "version_tuple")
 
-def BUILD_for_coco_toolchain(name, license_source = None, license_token = None, auth_token_path = None, platform = None):
+def BUILD_for_coco_toolchain(name, license_source = None, license_token = None, auth_token_path = None, version = None, platform = None):
     """Emits a toolchain declaration for the popili binaries in the repository.
 
     Args:
@@ -36,6 +36,7 @@ def BUILD_for_coco_toolchain(name, license_source = None, license_token = None, 
       license_source: Optional license source mode (e.g., "local_user", "local_acquire", "token", "action_environment", "action_file")
       license_token: Optional license token string
       auth_token_path: Optional auth token file path string
+      version: Optional popili version the toolchain provides (e.g. "1.5.1" or "local")
       platform: Optional platform the binary runs on, e.g. "linux_x86_64" (see coco_toolchain)
 
     Returns:
@@ -56,6 +57,10 @@ def BUILD_for_coco_toolchain(name, license_source = None, license_token = None, 
     if auth_token_path and auth_token_path != "":
         auth_token_path_attr = '\n    auth_token_path = "{}",'.format(auth_token_path)
 
+    version_attr = ""
+    if version:
+        version_attr = '\n    version = "{}",'.format(version)
+
     platform_attr = ""
     if platform:
         platform_attr = '\n    platform = "{}",'.format(platform)
@@ -64,7 +69,7 @@ def BUILD_for_coco_toolchain(name, license_source = None, license_token = None, 
 coco_toolchain(
     name = "{toolchain_name}_impl",
     coco = "//:coco",
-    cocotec_licensing_server = "//:cocotec_licensing_server",{license_source_attr}{license_token_attr}{auth_token_path_attr}{platform_attr}
+    cocotec_licensing_server = "//:cocotec_licensing_server",{license_source_attr}{license_token_attr}{auth_token_path_attr}{version_attr}{platform_attr}
     visibility = ["//visibility:public"],
 )
 """.format(
@@ -72,6 +77,7 @@ coco_toolchain(
         license_source_attr = license_source_attr,
         license_token_attr = license_token_attr,
         auth_token_path_attr = auth_token_path_attr,
+        version_attr = version_attr,
         platform_attr = platform_attr,
     )
 
@@ -163,6 +169,7 @@ def _coco_toolchain_repository_impl(ctx):
             license_source = ctx.attr.license_source,
             license_token = ctx.attr.license_token,
             auth_token_path = ctx.attr.auth_token_path,
+            version = ctx.attr.version,
             platform = platform_key(ctx.attr.os, ctx.attr.arch),
         ),
     ]))
@@ -215,6 +222,7 @@ def _coco_local_toolchain_repository_impl(ctx):
             license_source = ctx.attr.license_source,
             license_token = ctx.attr.license_token,
             auth_token_path = ctx.attr.auth_token_path,
+            version = LOCAL_VERSION,
             platform = platform_key(host[0], host[1]) if host else None,
         ),
     ]))
