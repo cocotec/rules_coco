@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `coco_generate` with `language = "c"` and `mocks = True` now fails with a clear error, since C mocks are not
   supported.
 
+### Removed
+
+- The macOS Intel (`osx`/`x86_64`) toolchain is no longer supported, as Popili dropped Intel macOS with
+  1.5.0.
+
 ## [0.3.0] - 2026/05/31
 
 ### Added
