@@ -14,14 +14,35 @@
 
 """Helper for aggregating coco.cc_runtime_deps tags across modules."""
 
-def _collect_cc_runtime_extra_deps(tag_entries, registered_versions, resolve_version):
+load(":version_resolution.bzl", "resolve_version_alias")
+
+def _merge_deps_by_version(entries, registered_versions, what, resolve_version):
+    """Resolve, validate and merge (version, deps) pairs into deps_by_version.
+
+    `what` names the user-facing argument in errors. Returns (deps_by_version, error);
+    deps_by_version is empty on error.
+    """
+    result = {}
+    for raw_version, deps in entries:
+        resolved = resolve_version(raw_version)
+        if resolved not in registered_versions:
+            return {}, (
+                "%s version %r does not match any registered Coco version. " % (what, raw_version) +
+                "Registered versions (after alias resolution): %s" % sorted(registered_versions.keys())
+            )
+        bucket = result.setdefault(resolved, [])
+        for dep in deps:
+            if dep not in bucket:
+                bucket.append(dep)
+    return result, None
+
+def _collect_cc_runtime_extra_deps(tag_entries, registered_versions, resolve_version = resolve_version_alias):
     """Merge and validate coco.cc_runtime_deps tags.
 
     Only root-module tags are accepted: which deps are needed depends on the
     compiler the root build is using, so transitive deps must not speak for
     it. Returns (deps_by_version, error); deps_by_version is empty on error.
     """
-    result = {}
     for entry in tag_entries:
         if not entry.is_root:
             return {}, (
@@ -30,16 +51,39 @@ def _collect_cc_runtime_extra_deps(tag_entries, registered_versions, resolve_ver
                 "compiler the root build uses (e.g. Boost libraries for old libstdc++) " +
                 "and cannot be set by transitive dependencies."
             )
-        resolved = resolve_version(entry.version)
-        if resolved not in registered_versions:
-            return {}, (
-                "coco.cc_runtime_deps version %r does not match any registered Coco version. " % entry.version +
-                "Registered versions (after alias resolution): %s" % sorted(registered_versions.keys())
-            )
-        bucket = result.setdefault(resolved, [])
-        for dep in entry.deps:
-            if dep not in bucket:
-                bucket.append(dep)
-    return result, None
+    return _merge_deps_by_version(
+        [(entry.version, entry.deps) for entry in tag_entries],
+        registered_versions,
+        "coco.cc_runtime_deps",
+        resolve_version,
+    )
+
+def _normalize_cc_runtime_extra_deps(spec, registered_versions, resolve_version = resolve_version_alias):
+    """Accept the WORKSPACE `cc_runtime_extra_deps` argument in either form.
+
+    A list applies to every registered version, which is how the argument behaved when
+    WORKSPACE mode could only register one. A dict maps a version (or alias) to the deps
+    for that version alone, mirroring bzlmod's per-version `coco.cc_runtime_deps` tag and
+    its error contract. None is accepted as no deps, so a wrapper macro can forward an
+    optional argument unchanged. Returns (deps_by_version, error); deps_by_version is
+    empty on error.
+    """
+    if spec == None:
+        return {}, None
+
+    if type(spec) == type([]):
+        if not spec:
+            return {}, None
+        entries = [(version, spec) for version in registered_versions]
+    elif type(spec) == type({}):
+        entries = spec.items()
+    else:
+        return {}, (
+            "cc_runtime_extra_deps must be a list of labels, applied to every registered " +
+            "Coco version, or a dict mapping a version to its labels. Got: %s" % type(spec)
+        )
+
+    return _merge_deps_by_version(entries, registered_versions, "cc_runtime_extra_deps", resolve_version)
 
 collect_cc_runtime_extra_deps = _collect_cc_runtime_extra_deps
+normalize_cc_runtime_extra_deps = _normalize_cc_runtime_extra_deps
