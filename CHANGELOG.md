@@ -38,6 +38,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   only when no module declares `coco.toolchain`. If yours declares one, you get only what it lists,
   so add `c = True` / `cc = True` for the runtimes you use. Modules that don't declare
   `coco.toolchain` are unaffected and still get `stable` with both runtimes.
+- `coco_cc_library` and `coco_c_library` now link the runtime matching the version the code was
+  generated with, instead of resolving it in the library's own configuration. `//coco:cc_runtime`
+  and `//coco:c_runtime` are unchanged. The cost is at analysis time only: analysing
+  `coco_cc_library` fetches the C++ runtime archive of every registered version (`coco_c_library`
+  the C runtime). Only the runtime a library links is compiled.
 - **Breaking:** the local toolchain registered by `coco_local_repositories()` in WORKSPACE mode is
   now selected by `--@rules_coco//:version=local` and is no longer active by default, matching the
   bzlmod `coco.local_toolchain` tag. Builds that do not set the flag have no Coco toolchain and

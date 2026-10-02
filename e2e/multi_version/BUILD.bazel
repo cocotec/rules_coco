@@ -89,6 +89,18 @@ popili_version_report(
     package = ":modern_v150",
 )
 
+popili_version_report(
+    name = "modern_cpp_is_150",
+    expected_repo_suffix = "__1_5_0",
+    generated = ":modern_cpp",
+)
+
+popili_version_report(
+    name = "modern_cc_links_150",
+    expected_repo_suffix = "__1_5_0",
+    library = ":modern_cc",
+)
+
 # Legacy package - uses 1.5.1
 coco_package(
     name = "legacy",
@@ -135,6 +147,18 @@ popili_version_report(
     name = "legacy_is_151",
     expected_repo_suffix = "__1_5_1",
     package = ":legacy_v151",
+)
+
+popili_version_report(
+    name = "legacy_cpp_is_151",
+    expected_repo_suffix = "__1_5_1",
+    generated = ":legacy_cpp",
+)
+
+popili_version_report(
+    name = "legacy_cc_links_151",
+    expected_repo_suffix = "__1_5_1",
+    library = ":legacy_cc",
 )
 
 # Flexible package - also uses 1.5.0

@@ -1,7 +1,8 @@
 """Asserts which popili a target resolves to, without running popili.
 
 Every resolved popili lives in a version-mangled repository
-(`io_cocotec_coco_<os>_<arch>__<suffix>`), so file paths are enough to tell which version a
+(`io_cocotec_coco_<os>_<arch>__<suffix>`), and every C/C++ runtime in
+`io_cocotec_coco_cc_runtime__<suffix>`, so file paths are enough to tell which version a
 target would use. Everything is checked during analysis: no licence, network or popili
 execution is needed, and it reads identically in WORKSPACE and bzlmod mode.
 
@@ -11,11 +12,20 @@ What is checked depends on which attribute is set:
   configuration, so it sees exactly what a coco_package there would resolve;
 - `package`: the toolchain the coco_package forwards to its consumers. Like every consumer,
   the report reaches the package through an exec transition, so this is the popili the
-  package hands a rule running on the report's execution platform.
+  package hands a rule running on the report's execution platform;
+- `generated`: the popili version a coco_generate target generated its code with;
+- `library`: the C++ runtime linked into a coco_cc_library, which must be exactly one.
 """
 
+load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
+
 # buildifier: disable=bzl-visibility
-load("@rules_coco//coco/private:coco.bzl", "CocoPackageInfo")
+load("@rules_coco//coco/private:coco.bzl", "CocoCcGeneratedInfo", "CocoPackageInfo")
+
+# buildifier: disable=bzl-visibility
+load("@rules_coco//coco/private:version_resolution.bzl", "version_to_repo_suffix")
+
+_RUNTIME_REPO = "io_cocotec_coco_cc_runtime__"
 
 def _check_toolchain(ctx, toolchain, what):
     popili = toolchain.coco.path
@@ -30,10 +40,44 @@ def _check_toolchain(ctx, toolchain, what):
         )
     return popili
 
+def _check_version(ctx, version, what):
+    if "__" + version_to_repo_suffix(version) != ctx.attr.expected_repo_suffix:
+        fail("%s: expected %s to be generated with popili %r, but it was generated with %r." % (
+            ctx.label,
+            what,
+            ctx.attr.expected_repo_suffix,
+            version,
+        ))
+    return version
+
+def _check_runtime(ctx):
+    repos = {}
+    for header in ctx.attr.library[CcInfo].compilation_context.headers.to_list():
+        for segment in header.path.split("/"):
+            if _RUNTIME_REPO in segment:
+                repos[segment] = True
+    expected = [r for r in repos if r.endswith(_RUNTIME_REPO + ctx.attr.expected_repo_suffix.lstrip("_"))]
+    if len(repos) != 1 or len(expected) != 1:
+        fail("%s: expected %s to link exactly the runtime ending %r, but it links %r." % (
+            ctx.label,
+            ctx.attr.library.label,
+            ctx.attr.expected_repo_suffix,
+            sorted(repos.keys()),
+        ))
+    return sorted(repos.keys())[0]
+
 def _popili_version_report_impl(ctx):
+    set_attrs = [a for a in ["package", "generated", "library"] if getattr(ctx.attr, a)]
+    if len(set_attrs) > 1:
+        fail("%s: set at most one of package, generated and library" % ctx.label)
+
     if ctx.attr.package:
         info = ctx.attr.package[CocoPackageInfo]
         report = _check_toolchain(ctx, info.popili_toolchain, str(ctx.attr.package.label))
+    elif ctx.attr.generated:
+        report = _check_version(ctx, ctx.attr.generated[CocoCcGeneratedInfo].popili_version, str(ctx.attr.generated.label))
+    elif ctx.attr.library:
+        report = _check_runtime(ctx)
     else:
         toolchain = ctx.toolchains["@rules_coco//coco:toolchain_type"]
         if toolchain == None:
@@ -51,6 +95,14 @@ popili_version_report = rule(
         "expected_repo_suffix": attr.string(
             doc = "The mangled version the repository name must end with, e.g. '__1_5_1'.",
             mandatory = True,
+        ),
+        "generated": attr.label(
+            doc = "A coco_generate target whose code-generation version to check.",
+            providers = [CocoCcGeneratedInfo],
+        ),
+        "library": attr.label(
+            doc = "A coco_cc_library whose linked C++ runtime to check.",
+            providers = [CcInfo],
         ),
         "package": attr.label(
             doc = "A coco_package whose forwarded toolchain to check.",
