@@ -12,7 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Coco toolchain implementation."""
+"""Coco toolchain implementation.
+
+`coco_toolchain` describes one popili binary, for one execution platform, with the runtime and
+licence settings that go with it. rules_coco's toolchain repositories declare one per published
+platform of every registered version, and bring-your-own toolchains are declared with it too.
+
+This file loads nothing, so generated repositories can load it before bazel_skylib has been
+fetched in WORKSPACE mode.
+"""
 
 def _coco_toolchain_impl(ctx):
     toolchain = platform_common.ToolchainInfo(
@@ -24,6 +32,7 @@ def _coco_toolchain_impl(ctx):
         license_source = ctx.attr.license_source,
         license_token = ctx.attr.license_token,
         auth_token_path = ctx.attr.auth_token_path,
+        platform = ctx.attr.platform,
     )
     return toolchain
 
@@ -62,6 +71,13 @@ coco_toolchain = rule(
         ),
         "license_token": attr.string(
             doc = "The license token to use when license_source is 'token'. Optional.",
+            default = "",
+        ),
+        "platform": attr.string(
+            doc = "The platform this popili runs on, as `<os>_<cpu>` in the vocabulary of `@platforms`, e.g. " +
+                  "'linux_x86_64' or 'windows_x86_64'. Set by rules_coco's toolchain repositories; it decides " +
+                  "whether the rules drive popili with .bat or .sh scripts. Optional: when unset, a `popili.exe` " +
+                  "binary is taken to run on Windows and any other on a POSIX platform.",
             default = "",
         ),
         "preferences_file": attr.label(

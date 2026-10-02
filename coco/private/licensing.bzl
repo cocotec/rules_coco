@@ -14,9 +14,15 @@
 
 """Licensing rules and helpers for Coco."""
 
-load(":coco.bzl", "COCO_TOOLCHAIN_TYPE")
+load(":coco.bzl", "POPILI_TOOLCHAINS", "exec_popili")
 
 def _fetch_license_impl(ctx):
+    # The licensing server of this target's own execution platform. Tagged no-remote-exec (see
+    # fetch_license), so the generated target is also constrained to the host, where it runs.
+    popili = exec_popili(ctx)
+    if popili == None:
+        fail("%s: no Coco toolchain is registered for this configuration and execution platform." % ctx.label)
+
     # Create the wrapper script to invoke Coco. We try and avoid using bash on Windows.
     output = ctx.actions.declare_file("licenses.lic")
     arguments = [
@@ -30,9 +36,9 @@ def _fetch_license_impl(ctx):
     ]
 
     ctx.actions.run(
-        executable = ctx.toolchains[COCO_TOOLCHAIN_TYPE].cocotec_licensing_server,
+        executable = popili.cocotec_licensing_server,
         arguments = arguments,
-        tools = [ctx.toolchains[COCO_TOOLCHAIN_TYPE].cocotec_licensing_server],
+        tools = [popili.cocotec_licensing_server],
         mnemonic = "CocoFetchLicense",
         progress_message = "Acquiring Coco license",
         inputs = [ctx.file.auth_token],
@@ -49,9 +55,7 @@ _fetch_license = rule(
         "product": attr.string(),
     },
     implementation = _fetch_license_impl,
-    toolchains = [
-        COCO_TOOLCHAIN_TYPE,
-    ],
+    toolchains = POPILI_TOOLCHAINS,
 )
 
 def fetch_license(tags = [], **kwargs):

@@ -19,6 +19,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `coco.toolchain` with `coco.local_toolchain`.
 - `cc_runtime_extra_deps` now accepts a dict mapping a version to its labels, in addition to a flat
   list applied to every registered version.
+- Heterogeneous remote execution: every rule running popili on a `coco_package` now runs the
+  package's Popili version built for the rule's _own_ execution platform. The rule depends on the
+  package through an exec transition, so the package resolves the popili for that platform, and only
+  the versions and platforms a build resolves are downloaded. A consumer landing on a platform popili
+  is not published for fails at analysis, naming the published ones. See the README section "Remote
+  execution".
+- A second toolchain type, `@rules_coco//coco:exec_toolchain_type`, constrained on the execution
+  platform where `@rules_coco//coco:toolchain_type` is now constrained on the target platform.
+  rules_coco registers every popili for both; bring-your-own toolchains should too, see the README
+  section "Bring your own toolchain".
+- `coco_toolchain` has an optional `platform` attribute, set by rules_coco's toolchain repositories,
+  that decides whether the rules drive the binary with `.bat` or `.sh` scripts.
 
 ### Changed
 
@@ -28,9 +40,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `coco.toolchain` are unaffected and still get `stable` with both runtimes.
 - **Breaking:** the local toolchain registered by `coco_local_repositories()` in WORKSPACE mode is
   now selected by `--@rules_coco//:version=local` and is no longer active by default, matching the
-  bzlmod `coco.local_toolchain` tag. Builds that do not set the flag will report
-  `No matching toolchains found for @rules_coco//coco:toolchain_type`. Add
-  `common --@rules_coco//:version=local` to your `.bazelrc`.
+  bzlmod `coco.local_toolchain` tag. Builds that do not set the flag have no Coco toolchain and
+  fail at analysis as soon as a rule runs popili. Add `common --@rules_coco//:version=local` to
+  your `.bazelrc`.
 - **Breaking:** the generated per-platform repositories are now version-mangled, matching bzlmod:
   `io_cocotec_coco_<os>_<arch>` became `io_cocotec_coco_<os>_<arch>__<version>`, and the local one
   became `io_cocotec_coco_local` (previously `coco_local`). The `io_cocotec_coco_<os>_<arch>_toolchains`
@@ -50,6 +62,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the exec platform and the runtime it provides is source, so the toolchain now resolves for any
   target platform, including when cross-compiling with `--platforms`. Before, bzlmod required the
   target platform to match the host; WORKSPACE mode never had the constraint.
+- The generated `toolchain()` declarations for `@rules_coco//coco:toolchain_type` set
+  `target_compatible_with` instead of `exec_compatible_with`: a `coco_package` resolves that type
+  with its consumers' execution platform as its target platform (see above). The Coco toolchain
+  types are optional for every rule, so a configuration without a matching toolchain, such as
+  `--@rules_coco//:version=local` without a local toolchain, now fails at analysis with a rules_coco
+  message naming the consumer instead of Bazel's `No matching toolchains found`.
+- The toolchains rules_coco generates no longer name the C and C++ runtimes. `@rules_coco//coco:cc_runtime`
+  and `@rules_coco//coco:c_runtime` take the configured version's runtime from the `@coco_toolchains`
+  hub instead, so resolving a toolchain no longer configures a `cc_library`, which needs a C++
+  toolchain for its platform, nor fetches a runtime archive. A `cc_runtime` or `c_runtime` named by a
+  bring-your-own `coco_toolchain` is still used.
+- The local toolchain is constrained to the host. Its binaries exist on this machine only, so a
+  consumer running on another execution platform now fails at analysis instead of at execution.
 
 ### Removed
 
@@ -58,13 +83,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Wrapping a `coco_package` in `with_popili_version` had no effect on the Popili used to verify or
+  generate from it, because the transition reached only the package. The consumers of a package
+  now always run the package's version, each the popili built for its own execution platform.
 - `coco_repositories(versions = [...])` was accepted but silently ignored in WORKSPACE mode, so a
   workspace following the README's "Popili Version" section got `stable` instead of the versions it
   asked for. It is now honoured — check that your default version has not moved.
-- The `.bat`/`.sh` wrapper and typecheck scripts followed the target platform instead of the exec
-  platform the popili binary was resolved for. Cross-compiling with `--platforms` for Windows from
-  a Linux or macOS host emitted a `.bat` for a POSIX executor, and vice versa. The flavour is now
-  derived from the resolved toolchain's binary: `popili.exe` means Windows.
+- The `.bat`/`.sh` wrapper and typecheck scripts followed the target platform instead of the
+  execution platform. Cross-compiling with `--platforms` for Windows from a Linux or macOS host
+  emitted a `.bat` for a POSIX executor, and vice versa. The flavour now follows the execution
+  platform the action runs on; for a `.format` binary, which `bazel run` executes on the host, it
+  follows the host.
 
 ## [0.3.0] - 2026/05/31
 
