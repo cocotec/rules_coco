@@ -1380,12 +1380,15 @@ def _coco_generate_macro_impl(name, visibility, **kwargs):
         **kwargs
     )
 
-    # Companion target for the generated test sources/headers. Only visibility is
-    # forwarded (kwargs holds generator-only attrs); see test/visibility_propagation.
+    # Companion target for the generated test sources/headers. Only visibility
+    # and tags are forwarded (kwargs otherwise holds generator-only attrs); see
+    # test/visibility_propagation. Tags matter because a `manual` coco_generate
+    # must not be dragged into a wildcard build through its companion.
     _coco_test_outputs(
         name = coco_test_outputs_name(name),
         package = name,
         visibility = visibility,
+        tags = kwargs.get("tags"),
     )
 
 coco_generate = macro(
