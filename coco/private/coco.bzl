@@ -307,13 +307,17 @@ def _run_coco(ctx, package, verb, mnemonic, arguments, outputs):
         arguments = _coco_startup_args(ctx, package, False) + arguments,
     )
 
-WINDOWS_CONSTRAINT_ATTR = attr.label(default = "@platforms//os:windows")
-
 def _is_windows(ctx):
-    """Returns True when the target platform is Windows (via the implicit _windows_constraint attr)."""
-    return ctx.target_platform_has_constraint(
-        ctx.attr._windows_constraint[platform_common.ConstraintValueInfo],
-    )
+    """Returns True when the exec platform is Windows.
+
+    The generated .bat/.sh scripts run the popili binary from the toolchain, which Bazel resolves
+    for the exec platform, so the script flavour must follow that platform too. The target
+    platform is irrelevant: `--platforms=//:windows` from a Linux host must still emit a .sh for
+    the Linux executor. Starlark has no direct exec-platform API, and the toolchain target itself
+    is analysed in the target configuration, so the binary is the signal: a Windows popili is
+    `popili.exe` (cmd.exe needs the extension to run it), everything else is not.
+    """
+    return ctx.toolchains[COCO_TOOLCHAIN_TYPE].coco.extension == "exe"
 
 def _create_coco_wrapper_script(ctx, package, arguments):
     """Creates a platform-specific wrapper script for running Coco commands.
@@ -527,7 +531,6 @@ _coco_package = rule(
             providers = [CocoWorkspaceInfo],
             doc = "Optional coco_workspace whose Coco.toml settings this package inherits.",
         ),
-        "_windows_constraint": WINDOWS_CONSTRAINT_ATTR,
     }.items()),
     toolchains = [
         COCO_TOOLCHAIN_TYPE,
@@ -628,7 +631,6 @@ _coco_verify_test = rule(
             doc = "The coco_package target to verify.",
         ),
         "_verification_backend": attr.label(default = Label("//:verification_backend")),
-        "_windows_constraint": WINDOWS_CONSTRAINT_ATTR,
     }.items()),
     test = True,
     toolchains = [
