@@ -33,12 +33,17 @@ load(
     "coco_fetch_license_repository",
     "coco_preferences_repository",
     "coco_symlink_license_repository",
+    "toolchain_repo_name",
 )
+load(":known_shas.bzl", "FILE_KEY_TO_SHA")
+load(":license_versions.bzl", "is_newer_than_known", "known_license_versions", "license_representatives", "license_version")
 load(":platforms.bzl", "COCO_TOOLCHAIN_PLATFORMS", "host_platform", "platform_constraints", "platform_key")
 load(
     ":toolchain_repositories.bzl",
     "coco_local_toolchain_repository",
     "coco_toolchain_repository",
+    "license_fetch_label",
+    "license_local_label",
 )
 load(
     ":version_resolution.bzl",
@@ -173,19 +178,6 @@ def merge_toolchain_tags(modules):
         auth_token_path = auth_token_path,
         declared = True,
     )
-
-def toolchain_repo_name(os, arch, version_suffix):
-    """Returns the name of the repository holding one platform's popili distribution.
-
-    Args:
-      os: The toolchain OS ("osx", "linux" or "windows").
-      arch: The toolchain CPU ("aarch64" or "x86_64").
-      version_suffix: The mangled version, as returned by `version_to_repo_suffix`.
-
-    Returns:
-      The repository name.
-    """
-    return "io_cocotec_coco_%s_%s__%s" % (os, arch, version_suffix)
 
 def cc_runtime_repo_name(version_suffix):
     """Returns the name of the C++ runtime repository for a mangled version.
@@ -574,6 +566,10 @@ coco_toolchain_hub = repository_rule(
     implementation = _coco_toolchain_hub_impl,
 )
 
+def _known_versions():
+    """Returns the popili versions this rules_coco release has checksums for."""
+    return {key.split("/")[0]: True for key in FILE_KEY_TO_SHA}.keys()
+
 def declare_coco_toolchains(
         versions,
         c = False,
@@ -606,16 +602,43 @@ def declare_coco_toolchains(
       hub_name: The name of the hub repository to create.
     """
     coco_preferences_repository(name = "io_cocotec_coco_preferences")
+
+    known_versions = _known_versions()
+    for version in versions:
+        if is_newer_than_known(version, known_versions):
+            # buildifier: disable=print
+            print(("WARNING: popili %s is newer than the versions this rules_coco release " % version) +
+                  "knows. rules_coco assumes it can use the same licence as the newest popili it " +
+                  "knows. If popili reports an invalid or unreadable licence, upgrade rules_coco.")
+
+    # One licence target per licence version, plus one for a local toolchain, which always
+    # acquires its own. See coco_fetch_license_repository.
     coco_fetch_license_repository(
         name = "io_cocotec_licensing_fetch",
-        versions = versions,
+        representatives = {
+            str(lv): version_to_repo_suffix(version)
+            for lv, version in license_representatives(versions).items()
+        },
+        has_local = local != None,
     )
-    coco_symlink_license_repository(name = "io_cocotec_licensing_local")
+
+    # A local toolchain's licence version is only known once its repository is fetched, which
+    # must happen only under --@rules_coco//:version=local; this repository is fetched by every
+    # build, so it must not ask. Instead it provides a target for every licence version known.
+    license_versions = {license_version(v): True for v in versions if license_version(v) != None}
+    if local:
+        license_versions.update({lv: True for lv in known_license_versions()})
+    coco_symlink_license_repository(
+        name = "io_cocotec_licensing_local",
+        license_versions = [str(lv) for lv in sorted(license_versions)],
+    )
 
     # Version -> runtime label, handed out by the hub's runtime aliases and recorded in its
-    # version registry.
+    # version registry; version -> licence label, held by the per-platform toolchains.
     cc_runtimes = {}
     c_runtimes = {}
+    license_fetch = {}
+    license_local = {}
 
     for version in versions:
         version_suffix = version_to_repo_suffix(version)
@@ -637,6 +660,11 @@ def declare_coco_toolchains(
             )
             c_runtimes[version] = "@%s//:runtime" % c_runtime_repo_name(version_suffix)
 
+        lv = license_version(version)
+        if lv != None:
+            license_fetch[version] = license_fetch_label(lv)
+            license_local[version] = license_local_label(lv)
+
         # One repository per platform, each declaring the version's toolchain for that platform.
         # Only the ones the hub's toolchain resolution selects are fetched.
         for (os, arch) in COCO_TOOLCHAIN_PLATFORMS:
@@ -648,6 +676,8 @@ def declare_coco_toolchains(
                 license_source = license_source,
                 license_token = license_token,
                 auth_token_path = auth_token_path,
+                license_fetch = license_fetch.get(version, ""),
+                license_local = license_local.get(version, ""),
             )
 
     if local:

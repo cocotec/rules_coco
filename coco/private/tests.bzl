@@ -17,8 +17,9 @@
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
 load(":cc_runtime_deps.bzl", "collect_cc_runtime_extra_deps", "normalize_cc_runtime_extra_deps")
 load(":coco.bzl", "compute_output_filenames", "mangle_name", "pin_warnings", "pinned_version")
-load(":common_repositories.bzl", "download_prefix", "find_local_license_path")
+load(":common_repositories.bzl", "download_prefix", "find_local_license", "local_license_paths", "render_fetch_license_build", "render_local_license_build")
 load(":known_shas.bzl", "FILE_KEY_TO_SHA")
+load(":license_versions.bzl", "is_newer_than_known", "known_license_versions", "license_representatives", "license_version", "parse_version_json")
 load(":platforms.bzl", "COCO_TOOLCHAIN_PLATFORMS", "EXEC_PLATFORM_KEYS", "archive_platform", "host_platform", "platform_binary_ext", "platform_key")
 load(
     ":toolchain_hub.bzl",
@@ -591,183 +592,317 @@ compute_output_filenames_c_with_mangling_test = unittest.make(_compute_output_fi
 compute_output_filenames_c_flat_hierarchy_test = unittest.make(_compute_output_filenames_c_flat_hierarchy_test)
 compute_output_filenames_c_combined_test = unittest.make(_compute_output_filenames_c_combined_test)
 
-# Tests for find_local_license_path
+# Tests for find_local_license
 
 _LINUX_HOME = "/home/dev"
 _MAC_HOME = "/Users/dev"
-_WINDOWS_APPDATA = "C:\\Users\\dev\\AppData\\Roaming"
+_WINDOWS_LOCALAPPDATA = "C:\\Users\\dev\\AppData\\Local"
 
-def _fake_repository_ctx(os_name, existing, home = _LINUX_HOME, appdata = _WINDOWS_APPDATA):
+def _fake_repository_ctx(os_name, existing, environ = None, arch = "aarch64"):
     """Builds a stand-in for a repository ctx that only knows about `existing` paths.
 
-    Passing None for `home` or `appdata` leaves that variable out of the
-    environment entirely, modelling an unset variable rather than an empty one.
+    `environ` defaults to a home directory, or %LOCALAPPDATA% on Windows. Leaving a variable
+    out models it being unset, not empty.
     """
-    environ = {}
-    if appdata != None:
-        environ["APPDATA"] = appdata
-    if home != None:
-        environ["HOME"] = home
-
+    if environ == None:
+        if "windows" in os_name:
+            environ = {"LOCALAPPDATA": _WINDOWS_LOCALAPPDATA}
+        elif "mac" in os_name:
+            environ = {"HOME": _MAC_HOME}
+        else:
+            environ = {"HOME": _LINUX_HOME}
     return struct(
-        os = struct(
-            name = os_name,
-            environ = environ,
-        ),
+        os = struct(name = os_name, arch = arch, environ = environ),
         existing = existing,
     )
 
 def _fake_path_exists(ctx, path_str):
     return path_str in ctx.existing
 
-def _local_license_suffixed_linux_test(ctx):
-    """The default local_user case: a suffixed Popili license under $HOME is found."""
+def _local_license_linux_test(ctx):
+    """popili 1.6.0's directory is preferred; 1.5.x's is the fallback."""
     env = unittest.begin(ctx)
 
-    license = "%s/.local/share/popili/licenses_6.lic" % _LINUX_HOME
-    fake = _fake_repository_ctx("linux", [license])
+    new = "%s/.local/share/popili/licenses_8.lic" % _LINUX_HOME
+    old = "%s/.local/share/coco_platform/licenses_6.lic" % _LINUX_HOME
+    fake = _fake_repository_ctx("linux", [new, old])
 
-    asserts.equals(env, license, find_local_license_path(fake, _fake_path_exists))
+    asserts.equals(env, new, find_local_license(fake, 8, _fake_path_exists))
+    asserts.equals(env, old, find_local_license(fake, 6, _fake_path_exists))
 
     return unittest.end(env)
 
-def _local_license_suffixed_mac_test(ctx):
+def _local_license_picks_its_own_version_test(ctx):
+    """Only the licence of the requested version counts, not the first licence found."""
     env = unittest.begin(ctx)
 
-    license = "%s/Library/Application Support/Popili/licenses_6.lic" % _MAC_HOME
-    fake = _fake_repository_ctx("mac os x", [license], home = _MAC_HOME)
+    fake = _fake_repository_ctx("linux", ["%s/.local/share/popili/licenses_8.lic" % _LINUX_HOME])
 
-    asserts.equals(env, license, find_local_license_path(fake, _fake_path_exists))
+    asserts.equals(env, None, find_local_license(fake, 6, _fake_path_exists))
 
     return unittest.end(env)
 
-def _local_license_suffixed_windows_test(ctx):
+def _local_license_xdg_data_home_test(ctx):
+    """On Linux, popili honours $XDG_DATA_HOME, and so does the lookup."""
     env = unittest.begin(ctx)
 
-    license = "%s\\..\\LocalLow\\Popili\\licenses_6.lic" % _WINDOWS_APPDATA
-    fake = _fake_repository_ctx("windows 10", [license])
+    license = "/xdg/coco_platform/licenses_6.lic"
+    fake = _fake_repository_ctx("linux", [license], environ = {"HOME": _LINUX_HOME, "XDG_DATA_HOME": "/xdg"})
 
-    asserts.equals(env, license, find_local_license_path(fake, _fake_path_exists))
+    asserts.equals(env, license, find_local_license(fake, 6, _fake_path_exists))
 
     return unittest.end(env)
 
-def _local_license_unsuffixed_test(ctx):
-    """A license with no version suffix is found once the suffixed candidates miss."""
+def _local_license_popili_data_test(ctx):
+    """$POPILI_DATA replaces the per-user directories entirely, on every platform."""
     env = unittest.begin(ctx)
 
-    license = "%s/.local/share/popili/licenses.lic" % _LINUX_HOME
-    fake = _fake_repository_ctx("linux", [license])
+    license = "/data/licenses_6.lic"
+    fake = _fake_repository_ctx("mac os x", [license, "%s/Library/Application Support/Coco Platform/licenses_6.lic" % _MAC_HOME], environ = {"HOME": _MAC_HOME, "POPILI_DATA": "/data"})
 
-    asserts.equals(env, license, find_local_license_path(fake, _fake_path_exists))
+    asserts.equals(env, license, find_local_license(fake, 6, _fake_path_exists))
 
     return unittest.end(env)
 
-def _local_license_legacy_fallback_test(ctx):
-    """With no Popili license installed, the legacy Coco Platform path is used."""
+def _local_license_mac_test(ctx):
+    """On macOS the data directories live under ~/Library/Application Support."""
     env = unittest.begin(ctx)
 
-    license = "%s/.local/share/coco_platform/licenses_6.lic" % _LINUX_HOME
-    fake = _fake_repository_ctx("linux", [license])
+    license = "%s/Library/Application Support/Coco Platform/licenses_6.lic" % _MAC_HOME
+    fake = _fake_repository_ctx("mac os x", [license])
 
-    asserts.equals(env, license, find_local_license_path(fake, _fake_path_exists))
+    asserts.equals(env, license, find_local_license(fake, 6, _fake_path_exists))
 
     return unittest.end(env)
 
-def _local_license_prefers_popili_over_legacy_test(ctx):
+def _local_license_windows_test(ctx):
+    """On Windows popili uses %LOCALAPPDATA% (FOLDERID_LocalAppData), not LocalLow."""
     env = unittest.begin(ctx)
 
-    popili = "%s/.local/share/popili/licenses_6.lic" % _LINUX_HOME
-    legacy = "%s/.local/share/coco_platform/licenses_6.lic" % _LINUX_HOME
-    fake = _fake_repository_ctx("linux", [legacy, popili])
+    license = "%s\\Coco Platform\\licenses_6.lic" % _WINDOWS_LOCALAPPDATA
+    fake = _fake_repository_ctx("windows 11", [license])
 
-    asserts.equals(env, popili, find_local_license_path(fake, _fake_path_exists))
+    asserts.equals(env, license, find_local_license(fake, 6, _fake_path_exists))
 
     return unittest.end(env)
 
-def _local_license_prefers_suffixed_over_unsuffixed_test(ctx):
-    """Suffix order wins over product order: a legacy _6 beats an unsuffixed Popili."""
+def _local_license_windows_appdata_fallback_test(ctx):
+    """Without %LOCALAPPDATA%, the Local directory next to %APPDATA% is used, then LocalLow."""
     env = unittest.begin(ctx)
 
-    legacy_suffixed = "%s/.local/share/coco_platform/licenses_6.lic" % _LINUX_HOME
-    popili_unsuffixed = "%s/.local/share/popili/licenses.lic" % _LINUX_HOME
-    fake = _fake_repository_ctx("linux", [popili_unsuffixed, legacy_suffixed])
+    fake = _fake_repository_ctx("windows 11", [], environ = {"APPDATA": "C:\\Users\\dev\\AppData\\Roaming"})
 
-    asserts.equals(env, legacy_suffixed, find_local_license_path(fake, _fake_path_exists))
+    asserts.equals(
+        env,
+        [
+            "C:\\Users\\dev\\AppData\\Roaming\\..\\Local\\Popili\\licenses_6.lic",
+            "C:\\Users\\dev\\AppData\\Roaming\\..\\Local\\Coco Platform\\licenses_6.lic",
+            "C:\\Users\\dev\\AppData\\Roaming\\..\\LocalLow\\Popili\\licenses_6.lic",
+            "C:\\Users\\dev\\AppData\\Roaming\\..\\LocalLow\\Coco Platform\\licenses_6.lic",
+        ],
+        local_license_paths(fake, 6),
+    )
 
     return unittest.end(env)
 
-def _local_license_absent_test(ctx):
-    """With nothing installed the caller gets None, and emits the empty stub."""
+def _local_license_windows_locallow_fallback_test(ctx):
+    """A licence that only exists in LocalLow, where earlier rules_coco looked, is still found."""
     env = unittest.begin(ctx)
 
-    fake = _fake_repository_ctx("linux", [])
+    license = "C:\\Users\\dev\\AppData\\Roaming\\..\\LocalLow\\Popili\\licenses_6.lic"
+    fake = _fake_repository_ctx(
+        "windows 11",
+        [license],
+        environ = {"APPDATA": "C:\\Users\\dev\\AppData\\Roaming", "LOCALAPPDATA": _WINDOWS_LOCALAPPDATA},
+    )
 
-    asserts.equals(env, None, find_local_license_path(fake, _fake_path_exists))
+    asserts.equals(env, license, find_local_license(fake, 6, _fake_path_exists))
+
+    # %LOCALAPPDATA% wins when both have one.
+    preferred = "%s\\Popili\\licenses_6.lic" % _WINDOWS_LOCALAPPDATA
+    fake = _fake_repository_ctx(
+        "windows 11",
+        [license, preferred],
+        environ = {"APPDATA": "C:\\Users\\dev\\AppData\\Roaming", "LOCALAPPDATA": _WINDOWS_LOCALAPPDATA},
+    )
+
+    asserts.equals(env, preferred, find_local_license(fake, 6, _fake_path_exists))
+
+    return unittest.end(env)
+
+def _host_platform_test(ctx):
+    """The host maps to a toolchain platform, or None where no toolchain is published."""
+    env = unittest.begin(ctx)
+
+    asserts.equals(env, ("osx", "aarch64"), host_platform(_fake_repository_ctx("mac os x", [])))
+    asserts.equals(env, ("linux", "x86_64"), host_platform(_fake_repository_ctx("linux", [], arch = "amd64")))
+    asserts.equals(env, ("windows", "x86_64"), host_platform(_fake_repository_ctx("windows 11", [], arch = "x86_64")))
+    asserts.equals(env, None, host_platform(_fake_repository_ctx("linux", [], arch = "s390x")))
+    asserts.equals(env, None, host_platform(_fake_repository_ctx("sunos", [])))
+
+    # Popili dropped Intel macOS with 1.5.0, so an Intel Mac has no toolchain to point at.
+    asserts.equals(env, None, host_platform(_fake_repository_ctx("mac os x", [], arch = "x86_64")))
 
     return unittest.end(env)
 
 def _local_license_unset_home_test(ctx):
-    """An unset $HOME must probe nothing, not a path anchored at literal "None".
-
-    "%s" % None yields "None/...", a relative path, and ctx.path() resolves a
-    relative path inside the generated repository directory - a location that
-    also moves depending on whether rules_coco is the root module or a
-    dependency of someone else's.
-    """
+    """With no home directory there is nowhere to look, rather than a path under "None"."""
     env = unittest.begin(ctx)
 
-    degenerate = "None/.local/share/popili/licenses_6.lic"
-    fake = _fake_repository_ctx("linux", [degenerate], home = None)
+    fake = _fake_repository_ctx("linux", ["None/.local/share/coco_platform/licenses_6.lic"], environ = {})
 
-    asserts.equals(env, None, find_local_license_path(fake, _fake_path_exists))
+    asserts.equals(env, [], local_license_paths(fake, 6))
+    asserts.equals(env, None, find_local_license(fake, 6, _fake_path_exists))
 
     return unittest.end(env)
 
-def _local_license_empty_home_test(ctx):
-    """An empty $HOME is treated as unset rather than as the filesystem root."""
-    env = unittest.begin(ctx)
-
-    degenerate = "/.local/share/popili/licenses_6.lic"
-    fake = _fake_repository_ctx("linux", [degenerate], home = "")
-
-    asserts.equals(env, None, find_local_license_path(fake, _fake_path_exists))
-
-    return unittest.end(env)
-
-def _local_license_unset_appdata_windows_test(ctx):
-    """On Windows the anchor is %APPDATA%, so a set $HOME must not rescue it."""
-    env = unittest.begin(ctx)
-
-    degenerate = "None\\..\\LocalLow\\Popili\\licenses_6.lic"
-    fake = _fake_repository_ctx("windows 10", [degenerate], appdata = None)
-
-    asserts.equals(env, None, find_local_license_path(fake, _fake_path_exists))
-
-    return unittest.end(env)
-
-def _local_license_unset_appdata_ignored_off_windows_test(ctx):
-    """Off Windows %APPDATA% is irrelevant, so an unset one must not block the probe."""
-    env = unittest.begin(ctx)
-
-    license = "%s/.local/share/popili/licenses_6.lic" % _LINUX_HOME
-    fake = _fake_repository_ctx("linux", [license], appdata = None)
-
-    asserts.equals(env, license, find_local_license_path(fake, _fake_path_exists))
-
-    return unittest.end(env)
-
-local_license_suffixed_linux_test = unittest.make(_local_license_suffixed_linux_test)
-local_license_suffixed_mac_test = unittest.make(_local_license_suffixed_mac_test)
-local_license_suffixed_windows_test = unittest.make(_local_license_suffixed_windows_test)
-local_license_unsuffixed_test = unittest.make(_local_license_unsuffixed_test)
-local_license_legacy_fallback_test = unittest.make(_local_license_legacy_fallback_test)
-local_license_prefers_popili_over_legacy_test = unittest.make(_local_license_prefers_popili_over_legacy_test)
-local_license_prefers_suffixed_over_unsuffixed_test = unittest.make(_local_license_prefers_suffixed_over_unsuffixed_test)
-local_license_absent_test = unittest.make(_local_license_absent_test)
+local_license_linux_test = unittest.make(_local_license_linux_test)
+local_license_picks_its_own_version_test = unittest.make(_local_license_picks_its_own_version_test)
+local_license_xdg_data_home_test = unittest.make(_local_license_xdg_data_home_test)
+local_license_popili_data_test = unittest.make(_local_license_popili_data_test)
+local_license_mac_test = unittest.make(_local_license_mac_test)
+local_license_windows_test = unittest.make(_local_license_windows_test)
+local_license_windows_appdata_fallback_test = unittest.make(_local_license_windows_appdata_fallback_test)
+local_license_windows_locallow_fallback_test = unittest.make(_local_license_windows_locallow_fallback_test)
+host_platform_test = unittest.make(_host_platform_test)
 local_license_unset_home_test = unittest.make(_local_license_unset_home_test)
-local_license_empty_home_test = unittest.make(_local_license_empty_home_test)
-local_license_unset_appdata_windows_test = unittest.make(_local_license_unset_appdata_windows_test)
-local_license_unset_appdata_ignored_off_windows_test = unittest.make(_local_license_unset_appdata_ignored_off_windows_test)
+
+# Tests for license_versions.bzl
+
+def _license_version_test(ctx):
+    """1.5.x uses one licence version and 1.6.0 on another; newer versions get the newest."""
+    env = unittest.begin(ctx)
+
+    asserts.equals(env, license_version("1.5.0"), license_version("1.5.8"))
+    asserts.equals(env, license_version("1.6.0"), license_version("1.6.0-alpha.15899"))
+    asserts.equals(env, license_version("1.6.0"), license_version("1.7.3"))
+    asserts.true(env, license_version("1.5.7") != license_version("1.6.0"))
+    asserts.equals(env, None, license_version("local"))
+    asserts.equals(env, None, license_version("1.4.9"))
+
+    return unittest.end(env)
+
+def _parse_version_json_test(ctx):
+    """The version is read from `popili --version-format=json --version`."""
+    env = unittest.begin(ctx)
+
+    output = """{
+     "command": "popili",
+     "version": "1.6.0-alpha.15899",
+     "revision": "ce35674655cd9462bd65fe88f73837cbfd0c884c",
+     "csm_ast_version": "1606",
+     "csm_results_version": "516"
+    }
+"""
+    asserts.equals(env, "1.6.0-alpha.15899", parse_version_json(output))
+    asserts.equals(env, "1.5.7", parse_version_json('{"version": "1.5.7"}'))
+    asserts.equals(env, None, parse_version_json("popili 1.5.7"))
+    asserts.equals(env, None, parse_version_json('{"version": "unknown"}'))
+    asserts.equals(env, None, parse_version_json("{not json"))
+
+    return unittest.end(env)
+
+def _is_newer_than_known_test(ctx):
+    """Only versions past everything rules_coco knows are unknown."""
+    env = unittest.begin(ctx)
+
+    known = ["1.5.0", "1.5.7"]
+    asserts.false(env, is_newer_than_known("1.5.7", known))
+    asserts.false(env, is_newer_than_known("1.5.2", known))
+
+    # The licence table knows 1.6.0 before its checksums are known.
+    asserts.false(env, is_newer_than_known("1.6.0", known))
+    asserts.true(env, is_newer_than_known("1.6.1", known))
+    asserts.false(env, is_newer_than_known("local", known))
+
+    return unittest.end(env)
+
+def _license_representatives_test(ctx):
+    """The default version acquires its own licence version; others use their newest version."""
+    env = unittest.begin(ctx)
+
+    v15 = license_version("1.5.0")
+    v16 = license_version("1.6.0")
+    asserts.equals(env, {v15: "1.5.0"}, license_representatives(["1.5.0", "1.5.7", "1.5.3"]))
+    asserts.equals(env, {v15: "1.5.3"}, license_representatives(["1.5.3", "1.5.7"]))
+    asserts.equals(env, {v15: "1.5.7", v16: "1.6.0"}, license_representatives(["1.6.0", "1.5.3", "1.5.7"]))
+    asserts.equals(env, {}, license_representatives([]))
+
+    return unittest.end(env)
+
+license_version_test = unittest.make(_license_version_test)
+parse_version_json_test = unittest.make(_parse_version_json_test)
+is_newer_than_known_test = unittest.make(_is_newer_than_known_test)
+license_representatives_test = unittest.make(_license_representatives_test)
+
+# Tests for the licence repositories' BUILD files
+
+def _fetch_license_build_test(ctx):
+    """Each licence version is acquired with the host's licensing server of its representative."""
+    env = unittest.begin(ctx)
+
+    build = render_fetch_license_build({6: "1_5_7"}, has_local = True, host = ("linux", "x86_64"), has_token = True)
+
+    asserts.true(env, 'name = "licenses_6"' in build, build)
+    asserts.true(env, '"@io_cocotec_coco_linux_x86_64__1_5_7//:cocotec_licensing_server"' in build, build)
+    asserts.true(env, '["@platforms//os:linux", "@platforms//cpu:x86_64"]' in build, build)
+    asserts.true(env, '"@io_cocotec_coco_local//:cocotec_licensing_server"' in build, build)
+
+    # The toolchain-resolving fallback, for toolchains registered outside rules_coco.
+    asserts.true(env, 'name = "licenses",\n    auth_token' in build, build)
+
+    return unittest.end(env)
+
+def _fetch_license_build_without_token_test(ctx):
+    """Without a token every target exists, but is empty."""
+    env = unittest.begin(ctx)
+
+    build = render_fetch_license_build({6: "1_5_7"}, has_local = True, host = ("linux", "x86_64"), has_token = False)
+
+    asserts.true(env, "fetch_license" not in build, build)
+    for name in ["licenses", "licenses_6", "licenses_local"]:
+        asserts.true(env, 'name = "%s",\n    srcs = [],' % name in build, build)
+
+    return unittest.end(env)
+
+def _local_license_build_test(ctx):
+    """Each licence version gets its file, and the fallback is the newest one found."""
+    env = unittest.begin(ctx)
+
+    build = render_local_license_build({6: "licenses_6.lic", 8: None})
+
+    asserts.true(env, 'name = "licenses_6",\n    srcs = ["licenses_6.lic"]' in build, build)
+    asserts.true(env, 'name = "licenses_8",\n    srcs = [],' in build, build)
+    asserts.true(env, 'actual = ":licenses_6"' in build, build)
+
+    return unittest.end(env)
+
+def _toolchain_build_declares_licenses_test(ctx):
+    """A toolchain repository names the licences of its own licence version."""
+    env = unittest.begin(ctx)
+
+    build = BUILD_for_coco_toolchain(name = "toolchain", license_fetch = "@f//:l", license_local = "@l//:l")
+
+    asserts.true(env, 'license_fetch = "@f//:l",' in build, build)
+    asserts.true(env, 'license_local = "@l//:l",' in build, build)
+    asserts.true(env, "license_" not in BUILD_for_coco_toolchain(name = "toolchain"))
+
+    return unittest.end(env)
+
+fetch_license_build_test = unittest.make(_fetch_license_build_test)
+fetch_license_build_without_token_test = unittest.make(_fetch_license_build_without_token_test)
+local_license_build_test = unittest.make(_local_license_build_test)
+
+def _known_license_versions_test(ctx):
+    """Every licence version of the table, once, ascending: what a local toolchain may need."""
+    env = unittest.begin(ctx)
+
+    asserts.equals(env, [6, 8], known_license_versions())
+
+    return unittest.end(env)
+
+known_license_versions_test = unittest.make(_known_license_versions_test)
+toolchain_build_declares_licenses_test = unittest.make(_toolchain_build_declares_licenses_test)
 
 # Tests for coco_toolchain_download
 
@@ -995,30 +1130,10 @@ def _platform_key_test(ctx):
 
     return unittest.end(env)
 
-def _fake_os_ctx(name, arch):
-    return struct(os = struct(name = name, arch = arch, environ = {}))
-
-def _host_platform_test(ctx):
-    """The host maps onto a published platform, or None where popili is not published."""
-    env = unittest.begin(ctx)
-
-    asserts.equals(env, ("osx", "aarch64"), host_platform(_fake_os_ctx("mac os x", "aarch64")))
-    asserts.equals(env, ("linux", "x86_64"), host_platform(_fake_os_ctx("linux", "amd64")))
-    asserts.equals(env, ("linux", "aarch64"), host_platform(_fake_os_ctx("linux", "arm64")))
-    asserts.equals(env, ("windows", "x86_64"), host_platform(_fake_os_ctx("windows 10", "amd64")))
-
-    # Intel Macs, and anything else popili is not published for.
-    asserts.equals(env, None, host_platform(_fake_os_ctx("mac os x", "x86_64")))
-    asserts.equals(env, None, host_platform(_fake_os_ctx("linux", "s390x")))
-    asserts.equals(env, None, host_platform(_fake_os_ctx("sunos", "x86_64")))
-
-    return unittest.end(env)
-
 version_tuple_test = unittest.make(_version_tuple_test)
 download_prefix_test = unittest.make(_download_prefix_test)
 archive_platform_test = unittest.make(_archive_platform_test)
 platform_key_test = unittest.make(_platform_key_test)
-host_platform_test = unittest.make(_host_platform_test)
 
 # Tests for resolve_versions
 
@@ -1798,19 +1913,30 @@ def coco_test_suite(name):
         cc_runtime_deps_non_root_rejected_even_when_root_also_present_test,
         cc_runtime_deps_unknown_version_test,
 
-        # find_local_license_path tests
-        local_license_suffixed_linux_test,
-        local_license_suffixed_mac_test,
-        local_license_suffixed_windows_test,
-        local_license_unsuffixed_test,
-        local_license_legacy_fallback_test,
-        local_license_prefers_popili_over_legacy_test,
-        local_license_prefers_suffixed_over_unsuffixed_test,
-        local_license_absent_test,
+        # find_local_license tests
+        local_license_linux_test,
+        local_license_picks_its_own_version_test,
+        local_license_xdg_data_home_test,
+        local_license_popili_data_test,
+        local_license_mac_test,
+        local_license_windows_test,
+        local_license_windows_appdata_fallback_test,
+        local_license_windows_locallow_fallback_test,
+        host_platform_test,
         local_license_unset_home_test,
-        local_license_empty_home_test,
-        local_license_unset_appdata_windows_test,
-        local_license_unset_appdata_ignored_off_windows_test,
+
+        # license_versions.bzl tests
+        license_version_test,
+        parse_version_json_test,
+        is_newer_than_known_test,
+        license_representatives_test,
+
+        # licence repository BUILD file tests
+        fetch_license_build_test,
+        fetch_license_build_without_token_test,
+        local_license_build_test,
+        known_license_versions_test,
+        toolchain_build_declares_licenses_test,
 
         # coco_toolchain_download tests
         coco_toolchain_download_url_test,
@@ -1830,7 +1956,6 @@ def coco_test_suite(name):
         download_prefix_test,
         archive_platform_test,
         platform_key_test,
-        host_platform_test,
 
         # resolve_versions tests
         resolve_versions_alias_test,

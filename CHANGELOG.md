@@ -27,6 +27,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `No matching toolchains found`.
 - `coco_toolchain` has an optional `version` attribute, set automatically for the toolchains
   rules_coco registers. A bring-your-own toolchain declaring it can satisfy a matching pin.
+- Every Popili version now gets a license it can read. With `license_source = "local_acquire"`,
+  Popili versions that can share a license share one acquisition per execution platform their
+  consumers run on, whatever pin or configuration they come from, and only the licenses of the
+  versions a build uses are acquired. With
+  `local_user`, each version uses the license Popili itself would read. `coco_toolchain` has new
+  `license_fetch` and `license_local` attributes for this; rules_coco sets them for the toolchains it
+  declares, and toolchains registered outside rules_coco leave them unset and keep the previous
+  behaviour.
+- A local toolchain's version is detected by running `popili --version-format=json --version`
+  on it, so that it gets the right license. This happens only when the toolchain is selected with
+  `--@rules_coco//:version=local`; without the flag its path is never touched. With
+  `local_acquire` it always acquires its own license, with its own `cocotec-licensing-server`,
+  and never shares an acquisition with a downloaded release of the same license version.
+- A warning is printed for a registered Popili version newer than the versions this rules_coco
+  release knows. rules_coco then assumes it can use the newest license it knows.
 - `CocoWorkspaceInfo` has new optional fields `popili_version`, `popili_toolchain`,
   `popili_exec_toolchain` and `popili_pinned_by`, which carry a workspace's pin to its member packages. They are optional:
   rules outside rules_coco that return `CocoWorkspaceInfo(files = ...)` keep working, and their
@@ -60,6 +75,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   only when no module declares `coco.toolchain`. If yours declares one, you get only what it lists,
   so add `c = True` / `cc = True` for the runtimes you use. Modules that don't declare
   `coco.toolchain` are unaffected and still get `stable` with both runtimes.
+- With `local_acquire`, a license is acquired with the host's `cocotec-licensing-server`, and the
+  action is constrained to the host. Previously the server came from the Coco toolchain resolved
+  for the action's execution platform, which with a remote execution platform registered could
+  be a binary that can't run on the host.
 - `with_popili_version` now sets `--@rules_coco//:force_version` as well as
   `--@rules_coco//:version` for the subgraph it wraps, so it also overrides `popili_version` pins
   there.
@@ -113,6 +132,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `local_user` used the first license file it found, whatever the Popili version in use. It now
+  uses each version's own license file. It also looked in the wrong directory on Windows
+  (`%APPDATA%\..\LocalLow` instead of Popili's `%LOCALAPPDATA%`), and ignored `POPILI_DATA` and
+  `XDG_DATA_HOME`.
 - Wrapping a `coco_package` in `with_popili_version` had no effect on the Popili used to verify or
   generate from it, because the transition reached only the package. The consumers of a package
   now always run the package's version, each the popili built for its own execution platform.

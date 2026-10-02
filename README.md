@@ -113,10 +113,12 @@ Contact [Cocotec Support](https://cocotec.io/support/) to set this up or discuss
   other mechanisms. **Requires popili 1.5.2 or later.**
 
 - `local_acquire`: A license will be acquired on the local machine as part of the build using `COCOTEC_AUTH_TOKEN`.
-  This is not compatible with remote execution: a popili action that would run on another execution platform than
-  the host fails at analysis in this mode.
-- `local_user`: The user's existing license on this machine will be reused. This is not compatible with remote
-  execution, and refused the same way.
+  Each Popili version gets a license it can read; Popili versions that can share a license share one acquisition,
+  and only the licenses of the versions a build uses are acquired. This is not compatible with remote execution: a
+  popili action that would run on another execution platform than the host fails at analysis in this mode.
+- `local_user`: The user's existing license on this machine will be reused: for each Popili version, the license that
+  Popili itself would read, honouring `POPILI_DATA` and, on Linux, `XDG_DATA_HOME`. This is not compatible with
+  remote execution, and refused the same way.
 - `token`: The explicitly provided token should be used as `COCOTEC_AUTH_TOKEN`. In this case,
   `--@rules_coco//:license_token` must be set as well. This works with remote execution but it is only recommended when
   using workload identity federation as `COCOTEC_AUTH_TOKEN` is not a secret in that case.
@@ -354,6 +356,13 @@ coco.local_toolchain(
 Each path (absolute, or workspace-relative) mirrors the **extracted release archive layout** — i.e. the contents
 of `popili_<os>_<arch>.zip`, `coco-cpp-runtime.zip`, and `coco-c-runtime.zip` respectively. To use it, run with
 `bazel build --@rules_coco//:version=local //...` (consider a `.bazelrc` `--config`).
+
+When the local toolchain is selected, rules_coco runs `popili --version-format=json --version` on the distribution
+to find out which license it needs, and fails if that doesn't work. Without `--@rules_coco//:version=local` the path
+is never touched, so a `coco.local_toolchain` in a shared `MODULE.bazel` does not affect machines that lack it. With
+`local_acquire`, a local toolchain always acquires its own license with its own `cocotec-licensing-server`: it never
+shares an acquisition with a downloaded release, so a build using both a local 1.5.x and a downloaded 1.5.x acquires
+that license version twice.
 
 For `WORKSPACE` mode use `coco_local_repositories(path=..., cc_runtime_path=..., c_runtime_path=...)`,
 which behaves the same way: the local toolchain is selected by `--@rules_coco//:version=local` and
