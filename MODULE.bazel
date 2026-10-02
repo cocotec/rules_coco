@@ -37,7 +37,10 @@ coco = use_extension("//coco:extensions.bzl", "coco")
 coco.toolchain(
     c = True,
     cc = True,
-    versions = ["stable"],
+    versions = [
+        "stable",
+        "testing",
+    ],
 )
 
 # Rules providers must explicitly import and register toolchains

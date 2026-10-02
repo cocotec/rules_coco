@@ -1,0 +1,17 @@
+// Instantiates the generic component from another module. The generated
+// App.cc has to include Relay_impl.h to do so, which is what makes the _impl
+// pair a compile-time dependency rather than dead output.
+
+import Relay
+
+@runtime(.SingleThreaded)
+component App {
+  val server : Provided<Relay.Channel<String>>
+  val onwards : Required<Relay.Channel<String>>
+  val forwarder : Relay.Forwarder<String>
+
+  init() = {
+    server = forwarder.server;
+    forwarder.onwards = onwards;
+  }
+}
