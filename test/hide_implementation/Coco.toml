@@ -1,0 +1,14 @@
+[package]
+name = "hide_implementation_test"
+sources = ["src"]
+
+[language]
+standard = "2026"
+profiles = ["C++"]
+
+[generator]
+defaultLanguage = "C++"
+
+[generator.cpp]
+componentStyle = "HideImplementation"
+generateMocks = "GMock"

@@ -49,11 +49,15 @@ use_repo(
 # Register all toolchains - inherited by consumers automatically
 register_toolchains("@coco_toolchains//:all")
 
-# The toolchain rules_coco's own tests run with: the same as the extension's default. A dev
-# dependency, so it never reaches consumers (e2e/default_toolchain covers the default path).
+# The toolchains rules_coco's own tests run with: the default (stable), plus "testing" for
+# test/hide_implementation. A dev dependency, so it never reaches consumers
+# (e2e/default_toolchain covers the default path).
 coco_dev = use_extension("//coco:extensions.bzl", "coco", dev_dependency = True)
 coco_dev.toolchain(
     c = True,
     cc = True,
-    versions = ["stable"],
+    versions = [
+        "stable",
+        "testing",
+    ],
 )

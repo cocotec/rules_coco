@@ -1,0 +1,27 @@
+// A generic component: under HideImplementation its whole definition goes into
+// Relay_impl.h, since a class template cannot be pimpl'd.
+
+port Channel<T> where !Verified<T> {
+  function push(x : T) : Nil
+  signal received(y : T)
+
+  machine M {
+    state Idle {
+      push(_ : T) = received(_)
+    }
+  }
+}
+
+@queue(2)
+@runtime(.SingleThreaded)
+component Forwarder<T> where !Verified<T> {
+  val server : Provided<Channel<T>>
+  val onwards : Required<Channel<T>>
+
+  machine M {
+    state Idle {
+      server.push(x : T) = onwards.push(x)
+      onwards.received(y : T) = server.received(y)
+    }
+  }
+}
