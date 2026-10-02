@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `coco_generate` has a `cpp_component_style` attribute mirroring `generator.cpp.componentStyle`. Under
+  `HideImplementation` popili writes a `<Module>_impl` header and implementation file for every module, and
+  rules_coco now declares them as outputs, so such packages build instead of failing with missing outputs.
+
 ### Removed
 
 - The macOS Intel (`osx`/`x86_64`) toolchain is no longer supported, as Popili dropped Intel macOS with
