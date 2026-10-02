@@ -13,8 +13,8 @@ local_repository(
 load("@rules_coco//coco:repositories.bzl", "coco_repositories")
 
 # Register both versions, mirroring MODULE.bazel. The first entry is the one used when
-# --@rules_coco//:version is unset; the other is reachable via the flag or a
-# with_popili_version transition.
+# --@rules_coco//:version is unset; the other is reachable via popili_version pins, the flag or
+# with_popili_version.
 coco_repositories(
     cc = True,
     versions = [
