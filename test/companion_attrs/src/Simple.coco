@@ -1,0 +1,8 @@
+port Simple {
+  function run() : Nil
+  machine M {
+    state Idle {
+      run() = setNextState(Idle)
+    }
+  }
+}

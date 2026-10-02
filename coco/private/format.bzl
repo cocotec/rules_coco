@@ -23,6 +23,7 @@ load(
     "coco_runfiles",
     "create_coco_wrapper_script",
 )
+load("//coco/private:common_attrs.bzl", "companion_attrs")
 
 def _coco_fmt_test_impl(ctx):
     """Implementation for coco_fmt_test rule.
@@ -139,12 +140,12 @@ def _coco_fmt_test_macro_impl(name, visibility, package, **kwargs):
     )
 
     # Companion `bazel run` formatter. Named "<name>.format" because symbolic-macro
-    # naming requires the macro-name prefix; only non-test attrs are forwarded.
+    # naming requires the macro-name prefix; only common attrs are forwarded.
     _coco_fmt_binary(
         name = name + ".format",
         package = package,
         visibility = visibility,
-        tags = kwargs.get("tags"),
+        **companion_attrs(kwargs)
     )
 
 coco_fmt_test = macro(
