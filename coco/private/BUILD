@@ -39,6 +39,7 @@ bzl_library(
     srcs = ["coco.bzl"],
     deps = [
         ":platforms_bzl",
+        ":version_registry_bzl",
         ":version_resolution_bzl",
         "@bazel_skylib//lib:paths",
         "@bazel_skylib//rules:common_settings",
