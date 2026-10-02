@@ -418,7 +418,6 @@ def coco_repositories(version = "stable", **kwargs):
 
     for (os, arch) in [
         ("osx", "aarch64"),
-        ("osx", "x86_64"),
         ("linux", "aarch64"),
         ("linux", "x86_64"),
         ("windows", "x86_64"),
