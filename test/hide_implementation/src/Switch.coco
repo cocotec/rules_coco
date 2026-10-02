@@ -1,0 +1,40 @@
+// A non-generic module. Under HideImplementation popili still writes
+// Switch_impl.{h,cc} for it, empty apart from the boilerplate, so that build
+// systems can list the outputs without knowing which modules hold generics.
+
+port Switch {
+  function on() : Nil
+  function off() : Nil
+
+  machine M {
+    state Off {
+      on() = setNextState(On)
+      off() = illegal
+    }
+    state On {
+      off() = setNextState(Off)
+      on() = illegal
+    }
+  }
+}
+
+@runtime(.SingleThreaded)
+external component SwitchDriver {
+  val p : Provided<Switch>
+}
+
+@runtime(.SingleThreaded)
+component SwitchImpl {
+  val p : Provided<Switch>
+
+  machine M {
+    state Off {
+      p.on() = setNextState(On)
+      p.off() = illegal
+    }
+    state On {
+      p.off() = setNextState(Off)
+      p.on() = illegal
+    }
+  }
+}
