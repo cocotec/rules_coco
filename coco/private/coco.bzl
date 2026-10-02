@@ -505,16 +505,21 @@ def _get_license_file_from_toolchain(ctx, popili):
 
     Reads license_source from the toolchain (repository default) with optional
     CLI override via --@rules_coco//:license_source flag.
-    """
 
+
+    Toolchains registered by rules_coco carry the licence of their own popili version.
+    Only toolchains registered outside rules_coco use this rule's licence attributes.
+    """
     license_source = _get_license_source(ctx, popili)
+    if license_source not in ("local_acquire", "local_user"):
+        return None
+    if getattr(popili, "declares_licenses", False):
+        return popili.license_fetch if license_source == "local_acquire" else popili.license_local
     if license_source == "local_acquire":
         files = ctx.attr._license_file_fetch[DefaultInfo].files.to_list()
-        return files[0] if files else None
-    if license_source == "local_user":
+    else:
         files = ctx.attr._license_file_local[DefaultInfo].files.to_list()
-        return files[0] if files else None
-    return None
+    return files[0] if files else None
 
 def _coco_env(ctx, toolchain):
     env = {}

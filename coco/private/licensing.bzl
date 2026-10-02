@@ -16,19 +16,9 @@
 
 load(":coco.bzl", "POPILI_TOOLCHAINS", "exec_popili")
 
-def _fetch_license_impl(ctx):
-    # The licensing server of this target's own execution platform. Tagged no-remote-exec (see
-    # fetch_license), so the generated target is also constrained to the host, where it runs.
-    #
-    # Workaround: no toolchain in this configuration, e.g. one forcing an unregistered popili
-    # version. Every rule depends on this target, so failing here would pre-empt rules_coco's
-    # own "not registered" error. The rules that need a toolchain fail clearly on their own.
-    popili = exec_popili(ctx)
-    if popili == None:
-        return DefaultInfo(files = depset())
-
-    # Create the wrapper script to invoke Coco. We try and avoid using bash on Windows.
-    output = ctx.actions.declare_file("licenses.lic")
+def _acquire_license(ctx, licensing_server):
+    # Named after the target: a repository defines several of them, one per licence version.
+    output = ctx.actions.declare_file(ctx.label.name + ".lic")
     arguments = [
         "--no-crash-reporter",
         "--machine-auth-token",
@@ -40,9 +30,9 @@ def _fetch_license_impl(ctx):
     ]
 
     ctx.actions.run(
-        executable = popili.cocotec_licensing_server,
+        executable = licensing_server,
         arguments = arguments,
-        tools = [popili.cocotec_licensing_server],
+        tools = [licensing_server],
         mnemonic = "CocoFetchLicense",
         progress_message = "Acquiring Coco license",
         inputs = [ctx.file.auth_token],
@@ -53,20 +43,62 @@ def _fetch_license_impl(ctx):
         files = depset([output]),
     )
 
-_fetch_license = rule(
-    attrs = {
-        "auth_token": attr.label(allow_single_file = True),
-        "product": attr.string(),
-    },
-    implementation = _fetch_license_impl,
+def _fetch_license_with_toolchain_impl(ctx):
+    # For toolchains registered outside rules_coco only (see @io_cocotec_licensing_fetch). It
+    # is analysed in each consuming rule's configuration, which may have no Coco toolchain,
+    # e.g. one forcing an unregistered popili version. Failing here would pre-empt
+    # rules_coco's own "not registered" error, and the rules that need a toolchain fail
+    # clearly on their own.
+    toolchain = exec_popili(ctx)
+    if toolchain == None:
+        return DefaultInfo(files = depset())
+
+    # The licensing server of this target's own execution platform. Tagged no-remote-exec (see
+    # fetch_license), so the generated target is also constrained to the host, where it runs.
+    return _acquire_license(ctx, toolchain.cocotec_licensing_server)
+
+def _fetch_license_with_server_impl(ctx):
+    return _acquire_license(ctx, ctx.file.licensing_server)
+
+_FETCH_LICENSE_ATTRS = {
+    "auth_token": attr.label(allow_single_file = True),
+    "product": attr.string(default = "popili"),
+}
+
+_fetch_license_with_toolchain = rule(
+    attrs = _FETCH_LICENSE_ATTRS,
+    implementation = _fetch_license_with_toolchain_impl,
     toolchains = POPILI_TOOLCHAINS,
 )
 
-def fetch_license(tags = [], **kwargs):
-    _fetch_license(
-        tags = ["no-remote-exec", "no-remote-cache", "requires-network"] + tags,
-        **kwargs
-    )
+# Deliberately no toolchain: resolving one would analyse, and so download, a Coco toolchain
+# just to acquire a licence.
+_fetch_license_with_server = rule(
+    attrs = dict(_FETCH_LICENSE_ATTRS.items() + {
+        "licensing_server": attr.label(
+            allow_single_file = True,
+            cfg = "exec",
+            mandatory = True,
+        ),
+    }.items()),
+    implementation = _fetch_license_with_server_impl,
+)
+
+def fetch_license(tags = [], licensing_server = None, **kwargs):
+    """Acquires a licence with COCOTEC_AUTH_TOKEN.
+
+    Args:
+      tags: Extra tags. Acquisition needs the network and the host, so it is never run
+        remotely or cached remotely.
+      licensing_server: The cocotec-licensing-server to acquire with. Without it, the Coco
+        toolchain resolved for this target's configuration provides one.
+      **kwargs: Passed to the rule.
+    """
+    tags = ["no-remote-exec", "no-remote-cache", "requires-network"] + tags
+    if licensing_server:
+        _fetch_license_with_server(tags = tags, licensing_server = licensing_server, **kwargs)
+    else:
+        _fetch_license_with_toolchain(tags = tags, **kwargs)
 
 LICENSE_SOURCES = [
     # Suitable credentials will be provided in the execution environment of each action. What is supported will depend

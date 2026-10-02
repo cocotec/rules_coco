@@ -63,6 +63,7 @@ bzl_library(
     deps = [
         ":common_repositories_bzl",
         ":known_shas_bzl",
+        ":license_versions_bzl",
         ":platforms_bzl",
         ":version_resolution_bzl",
     ],
@@ -73,6 +74,8 @@ bzl_library(
     srcs = ["toolchain_hub.bzl"],
     deps = [
         ":common_repositories_bzl",
+        ":known_shas_bzl",
+        ":license_versions_bzl",
         ":platforms_bzl",
         ":toolchain_repositories_bzl",
         ":version_resolution_bzl",
@@ -84,9 +87,16 @@ bzl_library(
     srcs = ["common_repositories.bzl"],
     deps = [
         ":known_shas_bzl",
+        ":license_versions_bzl",
         ":platforms_bzl",
         ":version_resolution_bzl",
     ],
+)
+
+bzl_library(
+    name = "license_versions_bzl",
+    srcs = ["license_versions.bzl"],
+    deps = [":version_resolution_bzl"],
 )
 
 bzl_library(
@@ -165,6 +175,7 @@ bzl_library(
         ":diagram_bzl",
         ":format_bzl",
         ":known_shas_bzl",
+        ":license_versions_bzl",
         ":licensing_bzl",
         ":platforms_bzl",
         ":repositories_bzl",
