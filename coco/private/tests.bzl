@@ -17,13 +17,14 @@
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
 load(
     "//testdata:name_mangling_corpus.bzl",
+    "CORPUS_COMPONENT_STYLES",
     "CORPUS_STYLES",
     "MANGLE_CASES",
     "PATH_CASES",
     "PATH_CASE_DEFAULTS",
 )
 load(":cc_runtime_deps.bzl", "collect_cc_runtime_extra_deps", "normalize_cc_runtime_extra_deps")
-load(":coco.bzl", "FILE_NAME_MANGLER_STYLES", "compute_output_paths", "mangle_name", "module_path_for", "package_relative_dir")
+load(":coco.bzl", "FILE_NAME_MANGLER_STYLES", "component_styles", "compute_output_paths", "mangle_name", "module_path_for", "package_relative_dir")
 load(":common_repositories.bzl", "download_prefix", "find_local_license_path")
 load(":known_shas.bzl", "FILE_KEY_TO_SHA")
 load(":platforms.bzl", "COCO_TOOLCHAIN_PLATFORMS", "archive_platform", "platform_binary_ext")
@@ -232,6 +233,7 @@ def _path_corpus_test_impl(ctx):
             impl_extension = case.get("impl_extension", PATH_CASE_DEFAULTS["impl_extension"]),
             mocks = case.get("mocks", PATH_CASE_DEFAULTS["mocks"]),
             flat_hierarchy = case.get("flat_hierarchy", PATH_CASE_DEFAULTS["flat_hierarchy"]),
+            component_style = case.get("component_style", PATH_CASE_DEFAULTS["component_style"]),
         )
         result = compute_output_paths(case["module_path"], config)
         expected = case["expected"]
@@ -241,6 +243,8 @@ def _path_corpus_test_impl(ctx):
         asserts.equals(env, expected["impl"], result.impl, label + " (impl)")
         asserts.equals(env, expected.get("mock_header"), result.mock_header, label + " (mock header)")
         asserts.equals(env, expected.get("mock_impl"), result.mock_impl, label + " (mock impl)")
+        asserts.equals(env, expected.get("hidden_header"), result.hidden_header, label + " (hidden impl header)")
+        asserts.equals(env, expected.get("hidden_impl"), result.hidden_impl, label + " (hidden impl impl)")
 
     return unittest.end(env)
 
@@ -268,6 +272,24 @@ def _corpus_styles_test_impl(ctx):
             env,
             style in styles_in_corpus,
             "no corpus case exercises style %s" % style,
+        )
+
+    # The same two guards for componentStyle, which only the path cases see.
+    asserts.equals(
+        env,
+        sorted(CORPUS_COMPONENT_STYLES),
+        sorted(component_styles),
+        "the corpus and coco.bzl disagree about which component styles exist",
+    )
+    component_styles_in_corpus = {
+        case.get("component_style", PATH_CASE_DEFAULTS["component_style"]): True
+        for case in PATH_CASES
+    }
+    for style in CORPUS_COMPONENT_STYLES:
+        asserts.true(
+            env,
+            style in component_styles_in_corpus,
+            "no corpus path case exercises component style %s" % style,
         )
 
     return unittest.end(env)

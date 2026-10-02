@@ -16,7 +16,9 @@
     MANGLE_CASES         (input, style) -> expected, for popili's name mangler
     PATH_CASES           a module path plus generator options -> the generated
                          file paths. A case lists only the fields that differ
-                         from PATH_CASE_DEFAULTS.
+                         from PATH_CASE_DEFAULTS. Optional outputs (mocks, the
+                         HideImplementation _impl pair) are listed only when
+                         popili writes them.
 """
 
 # Every style used in this corpus
@@ -31,8 +33,15 @@ CORPUS_STYLES = [
     "UpperUnderscore",
 ]
 
+# Every generator.cpp.componentStyle value
+CORPUS_COMPONENT_STYLES = [
+    "HideImplementation",
+    "Regular",
+]
+
 # Default values to reduce verbosity of corpus
 PATH_CASE_DEFAULTS = {
+    "component_style": "Regular",
     "flat_hierarchy": False,
     "header_extension": ".h",
     "header_prefix": "",
@@ -1775,6 +1784,194 @@ PATH_CASES = [
         "expected": {
             "header": "Level2sensor.h",
             "impl": "Level2sensor.cc",
+        },
+    },
+    {
+        "module_path": [
+            "GenLib",
+        ],
+        "style": "Unaltered",
+        "component_style": "HideImplementation",
+        "expected": {
+            "header": "GenLib.h",
+            "impl": "GenLib.cc",
+            "hidden_header": "GenLib_impl.h",
+            "hidden_impl": "GenLib_impl.cc",
+        },
+    },
+    {
+        "module_path": [
+            "App",
+        ],
+        "style": "Unaltered",
+        "expected": {
+            "header": "App.h",
+            "impl": "App.cc",
+        },
+    },
+    {
+        "module_path": [
+            "GenericImplLib",
+        ],
+        "style": "Unaltered",
+        "component_style": "HideImplementation",
+        "expected": {
+            "header": "GenericImplLib.h",
+            "impl": "GenericImplLib.cc",
+            "hidden_header": "GenericImplLib_impl.h",
+            "hidden_impl": "GenericImplLib_impl.cc",
+        },
+    },
+    {
+        "module_path": [
+            "GenericComponents",
+        ],
+        "style": "Unaltered",
+        "component_style": "HideImplementation",
+        "expected": {
+            "header": "GenericComponents.h",
+            "impl": "GenericComponents.cc",
+            "hidden_header": "GenericComponents_impl.h",
+            "hidden_impl": "GenericComponents_impl.cc",
+        },
+    },
+    {
+        "module_path": [
+            "GenericComponents",
+        ],
+        "style": "Unaltered",
+        "component_style": "HideImplementation",
+        "mocks": True,
+        "expected": {
+            "header": "GenericComponents.h",
+            "impl": "GenericComponents.cc",
+            "mock_header": "GenericComponentsMock.h",
+            "mock_impl": "GenericComponentsMock.cc",
+            "hidden_header": "GenericComponents_impl.h",
+            "hidden_impl": "GenericComponents_impl.cc",
+        },
+    },
+    {
+        "module_path": [
+            "GenericMocks",
+        ],
+        "style": "Unaltered",
+        "component_style": "HideImplementation",
+        "mocks": True,
+        "expected": {
+            "header": "GenericMocks.h",
+            "impl": "GenericMocks.cc",
+            "mock_header": "GenericMocksMock.h",
+            "mock_impl": "GenericMocksMock.cc",
+            "hidden_header": "GenericMocks_impl.h",
+            "hidden_impl": "GenericMocks_impl.cc",
+        },
+    },
+    {
+        "module_path": [
+            "Dir2",
+            "ExampleImpl",
+        ],
+        "style": "Unaltered",
+        "component_style": "HideImplementation",
+        "header_prefix": "CP",
+        "impl_prefix": "CP",
+        "expected": {
+            "header": "Dir2/CPExampleImpl.h",
+            "impl": "Dir2/CPExampleImpl.cc",
+            "hidden_header": "Dir2/CPExampleImpl_impl.h",
+            "hidden_impl": "Dir2/CPExampleImpl_impl.cc",
+        },
+    },
+    {
+        "module_path": [
+            "Dir2",
+            "ExampleImpl",
+        ],
+        "style": "Unaltered",
+        "component_style": "HideImplementation",
+        "header_prefix": "CP",
+        "impl_prefix": "CP",
+        "flat_hierarchy": True,
+        "expected": {
+            "header": "CPExampleImpl.h",
+            "impl": "CPExampleImpl.cc",
+            "hidden_header": "CPExampleImpl_impl.h",
+            "hidden_impl": "CPExampleImpl_impl.cc",
+        },
+    },
+    {
+        "module_path": [
+            "Geometry",
+            "IOHandler",
+        ],
+        "style": "LowerUnderscore",
+        "component_style": "HideImplementation",
+        "expected": {
+            "header": "geometry/iohandler.h",
+            "impl": "geometry/iohandler.cc",
+            "hidden_header": "geometry/iohandler_impl.h",
+            "hidden_impl": "geometry/iohandler_impl.cc",
+        },
+    },
+    {
+        "module_path": [
+            "Geometry",
+            "IOHandler",
+        ],
+        "style": "CapsUpperUnderscore",
+        "component_style": "HideImplementation",
+        "expected": {
+            "header": "GEOMETRY/IOHANDLER.h",
+            "impl": "GEOMETRY/IOHANDLER.cc",
+            "hidden_header": "GEOMETRY/IOHANDLER_impl.h",
+            "hidden_impl": "GEOMETRY/IOHANDLER_impl.cc",
+        },
+    },
+    {
+        "module_path": [
+            "Geometry",
+            "IOHandler",
+        ],
+        "style": "UpperCamelCase",
+        "component_style": "HideImplementation",
+        "mocks": True,
+        "expected": {
+            "header": "Geometry/Iohandler.h",
+            "impl": "Geometry/Iohandler.cc",
+            "mock_header": "Geometry/IohandlerMock.h",
+            "mock_impl": "Geometry/IohandlerMock.cc",
+            "hidden_header": "Geometry/Iohandler_impl.h",
+            "hidden_impl": "Geometry/Iohandler_impl.cc",
+        },
+    },
+    {
+        "module_path": [
+            "Level2Sensor",
+        ],
+        "style": "Unaltered",
+        "component_style": "HideImplementation",
+        "header_extension": ".hpp",
+        "impl_extension": ".cpp",
+        "expected": {
+            "header": "Level2Sensor.hpp",
+            "impl": "Level2Sensor.cpp",
+            "hidden_header": "Level2Sensor_impl.hpp",
+            "hidden_impl": "Level2Sensor_impl.cpp",
+        },
+    },
+    {
+        "module_path": [
+            "GenLib",
+        ],
+        "style": "Unaltered",
+        "component_style": "Regular",
+        "mocks": True,
+        "expected": {
+            "header": "GenLib.h",
+            "impl": "GenLib.cc",
+            "mock_header": "GenLibMock.h",
+            "mock_impl": "GenLibMock.cc",
         },
     },
 ]
