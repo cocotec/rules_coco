@@ -15,7 +15,8 @@ coco_cc_library(<a href="#coco_cc_library-name">name</a>, <a href="#coco_cc_libr
 
 Creates a C++ library from Coco-generated C++ code.
 
-This automatically adds the Coco C++ runtime as a dependency.
+This automatically adds the Coco C++ runtime as a dependency, matching the popili
+version the code was generated with (see coco_package).
 
 Generated headers are made available to downstream targets via CcInfo.
 The `public_hdrs` parameter controls which generated headers are public:
