@@ -1,0 +1,10 @@
+[package]
+name = "local_toolchain_absent"
+sources = ["src"]
+
+[language]
+standard = "1.2"
+profiles = ["C++"]
+
+[generator]
+defaultLanguage = "C++"

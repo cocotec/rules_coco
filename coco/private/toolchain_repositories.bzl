@@ -25,10 +25,21 @@ load(
     "resolve_local_path",
 )
 load(":known_shas.bzl", "FILE_KEY_TO_SHA")
+load(":license_versions.bzl", "license_version", "parse_version_json")
 load(":platforms.bzl", "archive_platform", "host_platform", "platform_binary_ext", "platform_key")
 load(":version_resolution.bzl", "LOCAL_VERSION", "version_tuple")
 
-def BUILD_for_coco_toolchain(name, license_source = None, license_token = None, auth_token_path = None, version = None, platform = None):
+# The licences a toolchain of a given licence version uses, one per licence source that needs
+# a file. See coco_fetch_license_repository and coco_symlink_license_repository.
+def license_fetch_label(lv):
+    return "@io_cocotec_licensing_fetch//:licenses_%d" % lv
+
+def license_local_label(lv):
+    return "@io_cocotec_licensing_local//:licenses_%d" % lv
+
+LOCAL_LICENSE_FETCH_LABEL = "@io_cocotec_licensing_fetch//:licenses_local"
+
+def BUILD_for_coco_toolchain(name, license_source = None, license_token = None, auth_token_path = None, version = None, platform = None, license_fetch = None, license_local = None):
     """Emits a toolchain declaration for the popili binaries in the repository.
 
     Args:
@@ -38,6 +49,8 @@ def BUILD_for_coco_toolchain(name, license_source = None, license_token = None, 
       auth_token_path: Optional auth token file path string
       version: Optional popili version the toolchain provides (e.g. "1.5.1" or "local")
       platform: Optional platform the binary runs on, e.g. "linux_x86_64" (see coco_toolchain)
+      license_fetch: Optional label of the licence to use for license_source "local_acquire"
+      license_local: Optional label of the licence to use for license_source "local_user"
 
     Returns:
       A string containing BUILD file content for the toolchain.
@@ -65,11 +78,17 @@ def BUILD_for_coco_toolchain(name, license_source = None, license_token = None, 
     if platform:
         platform_attr = '\n    platform = "{}",'.format(platform)
 
+    license_attr = ""
+    if license_fetch:
+        license_attr += '\n    license_fetch = "{}",'.format(license_fetch)
+    if license_local:
+        license_attr += '\n    license_local = "{}",'.format(license_local)
+
     return """
 coco_toolchain(
     name = "{toolchain_name}_impl",
     coco = "//:coco",
-    cocotec_licensing_server = "//:cocotec_licensing_server",{license_source_attr}{license_token_attr}{auth_token_path_attr}{version_attr}{platform_attr}
+    cocotec_licensing_server = "//:cocotec_licensing_server",{license_source_attr}{license_token_attr}{auth_token_path_attr}{version_attr}{platform_attr}{license_attr}
     visibility = ["//visibility:public"],
 )
 """.format(
@@ -79,6 +98,7 @@ coco_toolchain(
         auth_token_path_attr = auth_token_path_attr,
         version_attr = version_attr,
         platform_attr = platform_attr,
+        license_attr = license_attr,
     )
 
 def BUILD_for_coco_archive(binary_ext, product):
@@ -171,6 +191,8 @@ def _coco_toolchain_repository_impl(ctx):
             auth_token_path = ctx.attr.auth_token_path,
             version = ctx.attr.version,
             platform = platform_key(ctx.attr.os, ctx.attr.arch),
+            license_fetch = ctx.attr.license_fetch,
+            license_local = ctx.attr.license_local,
         ),
     ]))
 
@@ -179,6 +201,14 @@ coco_toolchain_repository = repository_rule(
         "arch": attr.string(mandatory = True),
         "auth_token_path": attr.string(
             doc = "Optional auth token file path string",
+            default = "",
+        ),
+        "license_fetch": attr.string(
+            doc = "Optional label of the licence to use for license_source 'local_acquire'",
+            default = "",
+        ),
+        "license_local": attr.string(
+            doc = "Optional label of the licence to use for license_source 'local_user'",
             default = "",
         ),
         "license_source": attr.string(
@@ -194,6 +224,20 @@ coco_toolchain_repository = repository_rule(
     },
     implementation = _coco_toolchain_repository_impl,
 )
+
+def _local_license_version(ctx, binary_ext):
+    """Asks the local popili for its version, and returns the licence version it needs."""
+    popili = ctx.path("bin/popili" + binary_ext)
+    result = ctx.execute([popili, "--version-format=json", "--version"])
+    version = parse_version_json(result.stdout) if result.return_code == 0 else None
+    lv = license_version(version) if version else None
+    if lv == None:
+        fail(
+            ("Could not determine the version of the local popili toolchain at %s: " % popili) +
+            ("`popili --version-format=json --version` exited with %d.\n" % result.return_code) +
+            ("stdout: %s\nstderr: %s" % (result.stdout.strip(), result.stderr.strip())),
+        )
+    return lv
 
 def _coco_local_toolchain_repository_impl(ctx):
     """Coco toolchain repository symlinked from a local path instead of downloaded.
@@ -214,6 +258,11 @@ def _coco_local_toolchain_repository_impl(ctx):
     # The binaries only run on the machine that staged them.
     host = host_platform(ctx)
 
+    # Only this repository asks the local popili anything, and it is fetched only when
+    # --@rules_coco//:version=local selects it. The licence repositories provide a target for
+    # every known licence version, so whichever `lv` this is, its target exists.
+    lv = _local_license_version(ctx, binary_ext)
+
     ctx.file("WORKSPACE", "")
     ctx.file("BUILD", "\n".join([
         BUILD_for_coco_archive(binary_ext = binary_ext, product = "popili"),
@@ -224,6 +273,10 @@ def _coco_local_toolchain_repository_impl(ctx):
             auth_token_path = ctx.attr.auth_token_path,
             version = LOCAL_VERSION,
             platform = platform_key(host[0], host[1]) if host else None,
+            # A local toolchain always acquires its own licence, with its own licensing
+            # server, so that needs no version. Only the user's licence file does.
+            license_fetch = LOCAL_LICENSE_FETCH_LABEL,
+            license_local = license_local_label(lv),
         ),
     ]))
 

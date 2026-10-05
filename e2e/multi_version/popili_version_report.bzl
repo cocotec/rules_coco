@@ -139,3 +139,35 @@ popili_version_report = rule(
     },
     toolchains = [config_common.toolchain_type("@rules_coco//coco:toolchain_type", mandatory = False)],
 )
+
+def _shared_license_report_impl(ctx):
+    # Without COCOTEC_AUTH_TOKEN nothing is acquired, so every licence is None and trivially
+    # shared; with one, all of these popili versions need the same licence.
+    licenses = {}
+    for package in ctx.attr.packages:
+        toolchain = package[CocoPackageInfo].popili_toolchain
+        if not getattr(toolchain, "declares_licenses", False):
+            fail("%s: %s's toolchain doesn't declare its licences" % (ctx.label, package.label))
+        fetched = toolchain.license_fetch
+        licenses[fetched.path if fetched else "None"] = True
+    if len(licenses) != 1:
+        fail("%s: expected %s to share one acquired licence, but they use %s" % (
+            ctx.label,
+            [str(p.label) for p in ctx.attr.packages],
+            sorted(licenses.keys()),
+        ))
+
+    out = ctx.actions.declare_file(ctx.label.name + ".txt")
+    ctx.actions.write(out, "\n".join(licenses.keys()) + "\n")
+    return [DefaultInfo(files = depset([out]))]
+
+shared_license_report = rule(
+    doc = "Fails at analysis time unless the packages' toolchains use one and the same acquired licence.",
+    implementation = _shared_license_report_impl,
+    attrs = {
+        "packages": attr.label_list(
+            doc = "coco_package targets whose popili versions need the same licence.",
+            providers = [CocoPackageInfo],
+        ),
+    },
+)

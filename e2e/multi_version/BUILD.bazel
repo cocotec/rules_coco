@@ -18,7 +18,7 @@ load(
     "exec_platform_unpublished_test",
 )
 load(":pinning_failure_test.bzl", "pinning_failure_test")
-load(":popili_version_report.bzl", "popili_version_report")
+load(":popili_version_report.bzl", "popili_version_report", "shared_license_report")
 load(":typecheck_tests.bzl", "typecheck_flag_151_test", "typecheck_test")
 
 # ---------------------------------------------------------------------------------------------
@@ -462,6 +462,23 @@ exec_platform_unpublished_test(
         ("local_acquire", exec_platform_local_acquire_license_test),
     ]
 ]
+
+# ---------------------------------------------------------------------------------------------
+# Licences: popili versions that can share a licence acquire it once
+# ---------------------------------------------------------------------------------------------
+
+# 1.5.0 and 1.5.1 need the same licence, so all of these, pinned, inherited, unpinned and
+# forced alike, share a single acquisition (license_source local_acquire).
+shared_license_report(
+    name = "one_licence_for_all_1_5",
+    packages = [
+        ":legacy",
+        ":modern",
+        ":modern_on_151",
+        ":uses_legacy",
+        ":ws_app",
+    ],
+)
 
 # ---------------------------------------------------------------------------------------------
 # Typecheck runs the package's version, from its own pin or its workspace's

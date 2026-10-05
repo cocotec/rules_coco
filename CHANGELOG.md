@@ -24,6 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   instead of Bazel's `No matching toolchains found`.
 - `coco_toolchain` has an optional `version` attribute, for the Popili version the toolchain
   provides. A bring-your-own toolchain declaring it can satisfy a matching pin.
+- Builds using several Popili versions, including a local toolchain, now get a valid license for
+  each. With `local_acquire`, only the licenses of the versions a build uses are acquired, and
+  versions that can share a license share one.
+- A warning is printed for a registered Popili version newer than this rules_coco release knows.
 - `CocoWorkspaceInfo` has new optional fields for a workspace's `popili_version`. Existing rules
   returning `CocoWorkspaceInfo(files = ...)` keep working.
 - WORKSPACE mode now supports multiple Popili versions, like bzlmod already did.
@@ -85,6 +89,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `local_user` now uses the license of the Popili version in use, instead of the first one it found.
+- With `local_acquire` and a remote execution platform registered, the license could be acquired
+  with a licensing server that can't run on the host.
 - `local_user` now finds the license in the correct directory (`XDG_DATA_HOME` or
   `%LOCALAPPDATA%`), and respects the `POPILI_DATA` override.
 - Wrapping a `coco_package` in `with_popili_version` had no effect on the Popili used to verify or

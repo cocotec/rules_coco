@@ -1,0 +1,3 @@
+# Keep LF on every platform. Starlark string literals become the content of generated BUILD
+# files and of test expectations, and pre-commit's mixed-line-ending hook enforces LF anyway.
+* text=auto eol=lf

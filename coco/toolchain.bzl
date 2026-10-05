@@ -18,9 +18,40 @@
 licence settings that go with it. rules_coco's toolchain repositories declare one per published
 platform of every registered version, and bring-your-own toolchains are declared with it too.
 
-This file loads nothing, so generated repositories can load it before bazel_skylib has been
-fetched in WORKSPACE mode.
+This file loads only `version_resolution.bzl`, so generated repositories can load it before
+bazel_skylib has been fetched in WORKSPACE mode.
 """
+
+load("//coco/private:version_resolution.bzl", "FORCE_VERSION_FLAG", "VERSION_FLAG")
+
+def _reset_version_impl(_settings, _attr):
+    return {
+        FORCE_VERSION_FLAG: False,
+        VERSION_FLAG: "",
+    }
+
+# Toolchains of the same licence version point at the same licence target, but are analysed
+# in whatever configuration selected them. Resetting the version flags on the way to the
+# licence makes all of them reach one configured target, so the licence is acquired once per
+# platform the toolchains were resolved for.
+_reset_version = transition(
+    implementation = _reset_version_impl,
+    inputs = [],
+    outputs = [FORCE_VERSION_FLAG, VERSION_FLAG],
+)
+
+def _is_set(attr_value):
+    # An attribute with a transition is a list, which is empty when unset.
+    return bool(attr_value) if type(attr_value) == type([]) else attr_value != None
+
+def _single_file(attr_value):
+    """Returns the only file of a label attribute, or None if it is unset or empty."""
+    if type(attr_value) == type([]):
+        attr_value = attr_value[0] if attr_value else None
+    if attr_value == None:
+        return None
+    files = attr_value[DefaultInfo].files.to_list()
+    return files[0] if files else None
 
 def _coco_toolchain_impl(ctx):
     toolchain = platform_common.ToolchainInfo(
@@ -34,6 +65,11 @@ def _coco_toolchain_impl(ctx):
         auth_token_path = ctx.attr.auth_token_path,
         platform = ctx.attr.platform,
         version = ctx.attr.version,
+        # Whether the licences below come from this toolchain. Toolchains registered outside
+        # rules_coco leave them unset, and use the consuming rule's licences instead.
+        declares_licenses = _is_set(ctx.attr.license_fetch) or _is_set(ctx.attr.license_local),
+        license_fetch = _single_file(ctx.attr.license_fetch),
+        license_local = _single_file(ctx.attr.license_local),
     )
     return toolchain
 
@@ -65,6 +101,15 @@ coco_toolchain = rule(
             doc = "The location of the `cocotec-licensing-server` binary. Can be a direct source or a filegroup containing one item.",
             allow_single_file = True,
             mandatory = True,
+        ),
+        "license_fetch": attr.label(
+            doc = "The licence to use for license_source 'local_acquire'. Set by rules_coco's " +
+                  "toolchain repositories; leave unset for a toolchain of your own.",
+            cfg = _reset_version,
+        ),
+        "license_local": attr.label(
+            doc = "The licence to use for license_source 'local_user'. Set by rules_coco's " +
+                  "toolchain repositories; leave unset for a toolchain of your own.",
         ),
         "license_source": attr.string(
             doc = "The license source mode for this toolchain. Can be 'local_user', 'local_acquire', 'token', 'action_environment', or 'action_file'. If not specified, defaults to 'local_user'. Can be overridden via --@rules_coco//:license_source flag.",

@@ -1,0 +1,28 @@
+# E2E for a declared local toolchain whose path does not exist on this machine, as happens
+# when one developer's MODULE.bazel (or WORKSPACE) names a popili checkout that colleagues and
+# CI don't have. The local toolchain is only ever selected with --@rules_coco//:version=local,
+# so without the flag the build must not touch that path: it must analyse, verify and report
+# `stable` exactly as if coco.local_toolchain were not declared. Also run in WORKSPACE mode.
+
+module(
+    name = "rules_coco_local_toolchain_absent_test",
+    version = "0.0.0",
+)
+
+# Override rules_coco to use the local development version.
+bazel_dep(name = "rules_coco", version = "")
+local_path_override(
+    module_name = "rules_coco",
+    path = "../..",
+)
+
+# Required dependencies
+bazel_dep(name = "bazel_skylib", version = "1.9.2")
+bazel_dep(name = "platforms", version = "1.1.0")
+bazel_dep(name = "rules_cc", version = "0.2.18")
+
+coco = use_extension("@rules_coco//coco:extensions.bzl", "coco")
+coco.toolchain(versions = ["stable"])
+
+# Deliberately absent. Nothing here sets --@rules_coco//:version=local.
+coco.local_toolchain(popili = "absent/popili")
