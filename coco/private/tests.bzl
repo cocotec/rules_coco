@@ -595,8 +595,9 @@ compute_output_filenames_c_combined_test = unittest.make(_compute_output_filenam
 _LINUX_HOME = "/home/dev"
 _MAC_HOME = "/Users/dev"
 _WINDOWS_APPDATA = "C:\\Users\\dev\\AppData\\Roaming"
+_WINDOWS_LOCALAPPDATA = "C:\\Users\\dev\\AppData\\Local"
 
-def _fake_repository_ctx(os_name, existing, home = _LINUX_HOME, appdata = _WINDOWS_APPDATA):
+def _fake_repository_ctx(os_name, existing, home = _LINUX_HOME, appdata = _WINDOWS_APPDATA, **extra_environ):
     """Builds a stand-in for a repository ctx that only knows about `existing` paths.
 
     Passing None for `home` or `appdata` leaves that variable out of the
@@ -607,6 +608,7 @@ def _fake_repository_ctx(os_name, existing, home = _LINUX_HOME, appdata = _WINDO
         environ["APPDATA"] = appdata
     if home != None:
         environ["HOME"] = home
+    environ.update(extra_environ)
 
     return struct(
         os = struct(
@@ -643,7 +645,7 @@ def _local_license_suffixed_mac_test(ctx):
 def _local_license_suffixed_windows_test(ctx):
     env = unittest.begin(ctx)
 
-    license = "%s\\..\\LocalLow\\Popili\\licenses_6.lic" % _WINDOWS_APPDATA
+    license = "%s\\..\\Local\\Popili\\licenses_6.lic" % _WINDOWS_APPDATA
     fake = _fake_repository_ctx("windows 10", [license])
 
     asserts.equals(env, license, find_local_license_path(fake, _fake_path_exists))
@@ -737,7 +739,7 @@ def _local_license_unset_appdata_windows_test(ctx):
     """On Windows the anchor is %APPDATA%, so a set $HOME must not rescue it."""
     env = unittest.begin(ctx)
 
-    degenerate = "None\\..\\LocalLow\\Popili\\licenses_6.lic"
+    degenerate = "None\\..\\Local\\Popili\\licenses_6.lic"
     fake = _fake_repository_ctx("windows 10", [degenerate], appdata = None)
 
     asserts.equals(env, None, find_local_license_path(fake, _fake_path_exists))
@@ -755,6 +757,79 @@ def _local_license_unset_appdata_ignored_off_windows_test(ctx):
 
     return unittest.end(env)
 
+def _local_license_windows_localappdata_test(ctx):
+    """On Windows popili uses %LOCALAPPDATA%."""
+    env = unittest.begin(ctx)
+
+    license = "%s\\Popili\\licenses_6.lic" % _WINDOWS_LOCALAPPDATA
+    fake = _fake_repository_ctx("windows 10", [license], LOCALAPPDATA = _WINDOWS_LOCALAPPDATA)
+
+    asserts.equals(env, license, find_local_license_path(fake, _fake_path_exists))
+
+    return unittest.end(env)
+
+def _local_license_xdg_data_home_test(ctx):
+    """$XDG_DATA_HOME is honoured on Linux."""
+    env = unittest.begin(ctx)
+
+    license = "/xdg/popili/licenses_6.lic"
+    shadowed = "%s/.local/share/popili/licenses_6.lic" % _LINUX_HOME
+    fake = _fake_repository_ctx("linux", [shadowed, license], XDG_DATA_HOME = "/xdg")
+
+    asserts.equals(env, license, find_local_license_path(fake, _fake_path_exists))
+
+    return unittest.end(env)
+
+def _local_license_popili_data_test(ctx):
+    """$POPILI_DATA replaces the per-user directories."""
+    env = unittest.begin(ctx)
+
+    license = "/data/licenses_6.lic"
+    shadowed = "%s/.local/share/popili/licenses_6.lic" % _LINUX_HOME
+    fake = _fake_repository_ctx("linux", [shadowed, license], POPILI_DATA = "/data")
+
+    asserts.equals(env, license, find_local_license_path(fake, _fake_path_exists))
+
+    return unittest.end(env)
+
+def _local_license_coco_platform_data_test(ctx):
+    """$COCO_PLATFORM_DATA is honoured too, below $POPILI_DATA."""
+    env = unittest.begin(ctx)
+
+    license = "/legacy/licenses_6.lic"
+    fake = _fake_repository_ctx("linux", [license], COCO_PLATFORM_DATA = "/legacy")
+
+    asserts.equals(env, license, find_local_license_path(fake, _fake_path_exists))
+
+    preferred = "/data/licenses_6.lic"
+    fake = _fake_repository_ctx("linux", [license, preferred], COCO_PLATFORM_DATA = "/legacy", POPILI_DATA = "/data")
+
+    asserts.equals(env, preferred, find_local_license_path(fake, _fake_path_exists))
+
+    return unittest.end(env)
+
+def _local_license_popili_data_windows_test(ctx):
+    """On Windows the override is joined with a backslash."""
+    env = unittest.begin(ctx)
+
+    license = "D:\\data\\licenses_6.lic"
+    fake = _fake_repository_ctx("windows 10", [license], POPILI_DATA = "D:\\data")
+
+    asserts.equals(env, license, find_local_license_path(fake, _fake_path_exists))
+
+    return unittest.end(env)
+
+def _local_license_unset_home_mac_test(ctx):
+    """An unset $HOME on macOS probes nothing either."""
+    env = unittest.begin(ctx)
+
+    degenerate = "None/Library/Application Support/Popili/licenses_6.lic"
+    fake = _fake_repository_ctx("mac os x", [degenerate], home = None)
+
+    asserts.equals(env, None, find_local_license_path(fake, _fake_path_exists))
+
+    return unittest.end(env)
+
 local_license_suffixed_linux_test = unittest.make(_local_license_suffixed_linux_test)
 local_license_suffixed_mac_test = unittest.make(_local_license_suffixed_mac_test)
 local_license_suffixed_windows_test = unittest.make(_local_license_suffixed_windows_test)
@@ -767,6 +842,12 @@ local_license_unset_home_test = unittest.make(_local_license_unset_home_test)
 local_license_empty_home_test = unittest.make(_local_license_empty_home_test)
 local_license_unset_appdata_windows_test = unittest.make(_local_license_unset_appdata_windows_test)
 local_license_unset_appdata_ignored_off_windows_test = unittest.make(_local_license_unset_appdata_ignored_off_windows_test)
+local_license_windows_localappdata_test = unittest.make(_local_license_windows_localappdata_test)
+local_license_xdg_data_home_test = unittest.make(_local_license_xdg_data_home_test)
+local_license_popili_data_test = unittest.make(_local_license_popili_data_test)
+local_license_coco_platform_data_test = unittest.make(_local_license_coco_platform_data_test)
+local_license_popili_data_windows_test = unittest.make(_local_license_popili_data_windows_test)
+local_license_unset_home_mac_test = unittest.make(_local_license_unset_home_mac_test)
 
 # Tests for coco_toolchain_download
 
@@ -1557,6 +1638,12 @@ def coco_test_suite(name):
         local_license_empty_home_test,
         local_license_unset_appdata_windows_test,
         local_license_unset_appdata_ignored_off_windows_test,
+        local_license_windows_localappdata_test,
+        local_license_xdg_data_home_test,
+        local_license_popili_data_test,
+        local_license_coco_platform_data_test,
+        local_license_popili_data_windows_test,
+        local_license_unset_home_mac_test,
 
         # coco_toolchain_download tests
         coco_toolchain_download_url_test,
