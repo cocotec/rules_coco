@@ -38,6 +38,9 @@ bazel_dep(name = "stardoc", version = "0.8.1", dev_dependency = True)
 # repositories by the names below, so consumers inherit this use_repo and the registration and
 # need neither themselves.
 coco = use_extension("//coco:extensions.bzl", "coco")
+
+# Rules providers must explicitly import and register toolchains
+# Consumer modules (your projects) inherit these automatically and don't need use_repo/register_toolchains
 use_repo(
     coco,
     "coco_toolchains",
@@ -55,5 +58,8 @@ coco_dev = use_extension("//coco:extensions.bzl", "coco", dev_dependency = True)
 coco_dev.toolchain(
     c = True,
     cc = True,
-    versions = ["stable"],
+    versions = [
+        "stable",
+        "testing",
+    ],
 )
