@@ -197,7 +197,7 @@ jobs:
         shell: bash
         env:
           USE_BAZEL_VERSION: ${{ matrix.bazel_version }}
-          BAZEL_SH: C:\msys64\usr\bin\bash.exe
+          BAZEL_SH: ${{ runner.os == 'Windows' && 'C:\msys64\usr\bin\bash.exe' || '/bin/bash' }}
       - name: Test e2e scenarios
         run: |
           export COCOTEC_AUTH_TOKEN="{\"external\": { \
@@ -246,7 +246,7 @@ jobs:
         shell: bash
         env:
           USE_BAZEL_VERSION: ${{ matrix.bazel_version }}
-          BAZEL_SH: C:\msys64\usr\bin\bash.exe
+          BAZEL_SH: ${{ runner.os == 'Windows' && 'C:\msys64\usr\bin\bash.exe' || '/bin/bash' }}
   # This allows us to have a branch protection rule for tests and deploys with matrix
   build:
     runs-on: ubuntu-latest
