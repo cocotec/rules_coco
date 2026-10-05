@@ -21,7 +21,8 @@ End-to-end test for using several popili versions in one build, in **both** `MOD
   `coco_cc_library`.
 - A consumer running on another execution platform than the host gets its package's version built
   for its own platform, and nothing else is fetched (`exec_platform_tests.bzl`); on a platform
-  popili is not published for it fails at analysis, naming the published ones.
+  popili is not published for it fails at analysis, naming the published ones, and with a licence
+  mode that reads a licence on the host it fails naming the mode.
 
 ## Structure
 

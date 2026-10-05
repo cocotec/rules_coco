@@ -32,7 +32,8 @@ CocoPackageInfo = provider(
         "name": "The name of the package",
         "package_file": "The Coco.toml file for this package",
         "popili_error": "Why this package's consumers cannot run popili, or None: there is no popili of its " +
-                        "version for their execution platform. A consumer fails with it when it does run popili",
+                        "version for their execution platform, or its licence mode reads a licence on the host " +
+                        "and that is not where they run. A consumer fails with it when it does run popili",
         "popili_pinned": "Whether this package's popili version comes from a popili_version pin on the package or its workspace",
         "popili_pinned_by": "Label of the coco_package or coco_workspace whose pin decided the version, or None when unpinned",
         "popili_pins": "Depset of struct(label, pinned_by, version) for every pinned package among this package and its transitive dependencies",
@@ -210,7 +211,7 @@ def _check_resolved_popili(ctx, toolchain, pin):
     if not requested and not registry.default:
         fail("%s needs a Coco toolchain, but none is registered. %s" % (ctx.label, how_to_register))
 
-def _popili_error(ctx, toolchain, version):
+def _popili_error(ctx, toolchain, version, registry):
     """Returns why this package's consumers cannot run popili, or None.
 
     The package is analysed, through its consumers' exec transition, with their execution
@@ -222,6 +223,7 @@ def _popili_error(ctx, toolchain, version):
         ctx: The coco_package's rule context.
         toolchain: The Coco ToolchainInfo it forwards, or None.
         version: The package's popili version.
+        registry: The hub's CocoVersionRegistryInfo.
 
     Returns:
         A message, or None.
@@ -232,6 +234,18 @@ def _popili_error(ctx, toolchain, version):
             "registered for it. rules_coco publishes popili for %s; see the README sections \"Popili " +
             "Version\", \"Remote execution\" and \"Bring your own toolchain\"."
         ) % (version, ctx.label, ", ".join(EXEC_PLATFORM_KEYS))
+
+    # local_acquire and local_user read a licence acquired or installed on the machine running
+    # Bazel. Sending it to another execution platform would be wrong whether or not popili
+    # accepted it there, so with heterogeneous remote execution those modes are refused.
+    license_source = _get_license_source(ctx, toolchain)
+    platform = getattr(toolchain, "platform", "")
+    if license_source in ("local_acquire", "local_user") and platform and registry.host and platform != registry.host:
+        return (
+            "runs popili for %s with license_source %r, which reads a licence on the host (%s), but its " +
+            "execution platform is %s. Use license_source action_environment, action_file or token with " +
+            "remote execution."
+        ) % (ctx.label, license_source, registry.host, platform)
     return None
 
 def _with_popili_version_impl(ctx):
@@ -811,7 +825,7 @@ def _coco_package_impl(ctx):
         _check_resolved_popili(ctx, toolchain, pin)
         version = _toolchain_version(toolchain) or _configured_version(ctx, registry)
         pinned_by = ctx.label if pin else None
-    popili_error = _popili_error(ctx, toolchain, version)
+    popili_error = _popili_error(ctx, toolchain, version, registry)
 
     dep_pins = depset(transitive = [
         getattr(dep[CocoPackageInfo], "popili_pins", depset())

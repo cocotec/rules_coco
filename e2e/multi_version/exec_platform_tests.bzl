@@ -59,15 +59,41 @@ def _failure_impl(ctx):
         asserts.expect_failure(env, message)
     return analysistest.end(env)
 
+_FAILURE_ATTRS = {
+    "expected_messages": attr.string_list(
+        doc = "Substrings the analysis failure message must contain.",
+    ),
+}
+
 # A consumer constrained to a platform popili is not published for fails at analysis, naming
 # the platforms it is published for, rather than on the worker with a binary for another OS.
 exec_platform_unpublished_test = analysistest.make(
     _failure_impl,
     expect_failure = True,
-    attrs = {
-        "expected_messages": attr.string_list(
-            doc = "Substrings the analysis failure message must contain.",
-        ),
-    },
+    attrs = _FAILURE_ATTRS,
     config_settings = _remote_settings(_LINUX_RISCV64),
+)
+
+# The platform is published for, but the licence mode reads a licence on the host: refused, so
+# that a licence acquired or installed on a Mac is never handed to a Linux popili. One test per
+# mode the guard covers. The mode is pinned here rather than inherited from the command line,
+# so the tests read the same whatever --@rules_coco//:license_source a CI job passes.
+def _local_license_settings(license_source):
+    return {
+        "//command_line_option:extra_execution_platforms": [_HOST, _LINUX_AARCH64],
+        _LICENSE_SOURCE_FLAG: license_source,
+    }
+
+exec_platform_local_user_license_test = analysistest.make(
+    _failure_impl,
+    expect_failure = True,
+    attrs = _FAILURE_ATTRS,
+    config_settings = _local_license_settings("local_user"),
+)
+
+exec_platform_local_acquire_license_test = analysistest.make(
+    _failure_impl,
+    expect_failure = True,
+    attrs = _FAILURE_ATTRS,
+    config_settings = _local_license_settings("local_acquire"),
 )
