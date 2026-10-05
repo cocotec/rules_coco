@@ -85,53 +85,68 @@ def download_prefix(version):
         return "archive/%s" % version
     return version
 
-def _get_all_license_paths(ctx, version_suffix):
-    """Returns all possible license file paths in priority order.
+def _license_data_directories(ctx):
+    """Returns popili's candidate data directories on the host, in the order popili uses them.
 
-    Checks both modern (Popili, >= 1.5.0) and legacy (Coco Platform, < 1.5.0) paths.
-    Returns paths in priority order: Popili first, then Coco Platform. Requires
-    $HOME or %APPDATA% to be set.
+    Mirrors popili's own lookup: the POPILI_DATA or COCO_PLATFORM_DATA override, else the
+    per-user data directory. There, popili uses a "Popili" directory and falls back to the
+    "Coco Platform" one of earlier releases, so both are probed in that order.
+
+    On Windows the per-user data directory is %LOCALAPPDATA% (FOLDERID_LocalAppData). The
+    LocalLow directory next to it, which earlier rules_coco releases probed, is kept as a
+    fallback: no test covers Windows local_user, so a licence that only exists there keeps
+    working.
 
     Args:
-        ctx: Repository context
-        version_suffix: Version suffix for the license file (e.g., "_6" or "")
+      ctx: A repository context.
 
     Returns:
-        List of possible license file paths to check
+      A list of directory paths. Empty when the variables it needs are unset.
     """
-    home = ctx.os.environ.get("HOME")
-    appdata = ctx.os.environ.get("APPDATA")
+    environ = ctx.os.environ
+    for override in ["POPILI_DATA", "COCO_PLATFORM_DATA"]:
+        if environ.get(override):
+            return [environ[override]]
 
-    # Host OS, not target platform
-    is_windows = "windows" in ctx.os.name
-    is_mac = "os x" in ctx.os.name or "mac" in ctx.os.name
+    name = ctx.os.name.lower()
+    if "windows" in name:
+        appdata = environ.get("APPDATA")
+        parents = [environ.get("LOCALAPPDATA") or (appdata + "\\..\\Local" if appdata else None)]
+        if appdata:
+            parents.append(appdata + "\\..\\LocalLow")
+        return [
+            parent + "\\" + product
+            for parent in parents
+            if parent
+            for product in ["Popili", "Coco Platform"]
+        ]
 
-    # Unset env var would show up as "None" in the path
-    if not (appdata if is_windows else home):
-        return []
+    home = environ.get("HOME")
+    if "mac" in name or "os x" in name:
+        if not home:
+            return []
+        parent = home + "/Library/Application Support"
+        return [parent + "/Popili", parent + "/Coco Platform"]
 
-    paths = []
+    parent = environ.get("XDG_DATA_HOME")
+    if not parent:
+        if not home:
+            return []
+        parent = home + "/.local/share"
+    return [parent + "/popili", parent + "/coco_platform"]
 
-    if is_mac:
-        # Try Popili path first (>= 1.5.0)
-        paths.append("%s/Library/Application Support/Popili/licenses%s.lic" % (home, version_suffix))
+def local_license_paths(ctx, version_suffix):
+    """Returns where popili may keep the local user's licence file with a version suffix.
 
-        # Fall back to Coco Platform path (< 1.5.0)
-        paths.append("%s/Library/Application Support/Coco Platform/licenses%s.lic" % (home, version_suffix))
-    elif is_windows:
-        # Try Popili path first (>= 1.5.0)
-        paths.append("%s\\..\\LocalLow\\Popili\\licenses%s.lic" % (appdata, version_suffix))
+    Args:
+      ctx: A repository context.
+      version_suffix: The licence file's version suffix, e.g. "_6" or "".
 
-        # Fall back to Coco Platform path (< 1.5.0)
-        paths.append("%s\\..\\LocalLow\\Coco Platform\\licenses%s.lic" % (appdata, version_suffix))
-    else:  # Linux/Unix
-        # Try popili path first (>= 1.5.0)
-        paths.append("%s/.local/share/popili/licenses%s.lic" % (home, version_suffix))
-
-        # Fall back to coco_platform path (< 1.5.0)
-        paths.append("%s/.local/share/coco_platform/licenses%s.lic" % (home, version_suffix))
-
-    return paths
+    Returns:
+      Candidate file paths, in priority order.
+    """
+    separator = "\\" if "windows" in ctx.os.name.lower() else "/"
+    return ["%s%slicenses%s.lic" % (directory, separator, version_suffix) for directory in _license_data_directories(ctx)]
 
 def _coco_cc_runtime_repository_impl(ctx):
     """Implementation for C++ runtime repository rule."""
@@ -331,10 +346,9 @@ def _repository_path_exists(ctx, path_str):
 def find_local_license_path(ctx, path_exists = _repository_path_exists):
     """Finds the locally installed license file, if there is one.
 
-    Checks both modern (Popili, >= 1.5.0) and legacy (Coco Platform, < 1.5.0)
-    license file locations, for every known version suffix. Suffixes are tried
-    in KNOWN_VERSION_SUFFIXES order, and within each suffix the Popili path
-    takes priority over the legacy Coco Platform one.
+    Checks popili's data directories (see local_license_paths) for every known version
+    suffix. Suffixes are tried in KNOWN_VERSION_SUFFIXES order, and within each suffix the
+    directories in popili's own order.
 
     Args:
         ctx: Repository context, used to build the candidate paths.
@@ -346,7 +360,7 @@ def find_local_license_path(ctx, path_exists = _repository_path_exists):
     """
     for suffix in KNOWN_VERSION_SUFFIXES:
         # Try each path until we find one that exists
-        for path_str in _get_all_license_paths(ctx, suffix):
+        for path_str in local_license_paths(ctx, suffix):
             if path_exists(ctx, path_str):
                 return path_str
 
@@ -355,9 +369,7 @@ def find_local_license_path(ctx, path_exists = _repository_path_exists):
 def _coco_symlink_license_repository_impl(ctx):
     """Creates a repository to symlink to locally installed licenses.
 
-    Checks both modern (Popili, >= 1.5.0) and legacy (Coco Platform, < 1.5.0)
-    license file locations. Prioritizes Popili paths but falls back to legacy paths
-    for backward compatibility.
+    Uses the first licence find_local_license_path finds in popili's data directories.
     """
     ctx.file("WORKSPACE", "")
     build_content = None
@@ -389,7 +401,7 @@ filegroup(
 _coco_symlink_license_repository = repository_rule(
     attrs = {},
     implementation = _coco_symlink_license_repository_impl,
-    environ = ["APPDATA", "HOME"],
+    environ = ["APPDATA", "COCO_PLATFORM_DATA", "HOME", "LOCALAPPDATA", "POPILI_DATA", "XDG_DATA_HOME"],
     local = True,
 )
 

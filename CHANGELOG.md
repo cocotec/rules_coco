@@ -85,6 +85,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `local_user` now finds the license in the correct directory (`XDG_DATA_HOME` or
+  `%LOCALAPPDATA%`), and respects the `POPILI_DATA` override.
 - Wrapping a `coco_package` in `with_popili_version` had no effect on the Popili used to verify or
   generate code from it.
 - `coco_repositories(versions = [...])` was accepted but silently ignored in WORKSPACE mode, so a
