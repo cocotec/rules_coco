@@ -1578,6 +1578,7 @@ def _version_registry_build_test(ctx):
     build = render_version_registry_build(
         versions = ["1.5.0", "1.5.1", "local"],
         default = "1.5.0",
+        host = "linux_x86_64",
         cc_runtimes = {
             "@io_cocotec_coco_cc_runtime__1_5_0//:runtime": "1.5.0",
             "@io_cocotec_coco_cc_runtime__local//:runtime": "local",
@@ -1588,6 +1589,7 @@ def _version_registry_build_test(ctx):
     asserts.true(env, 'load("@rules_coco//coco/private:version_registry.bzl", "coco_version_registry")' in build, build)
     asserts.true(env, 'versions = ["1.5.0", "1.5.1", "local"],' in build, build)
     asserts.true(env, 'default = "1.5.0",' in build, build)
+    asserts.true(env, 'host = "linux_x86_64",' in build, build)
     asserts.true(env, '"@io_cocotec_coco_cc_runtime__1_5_0//:runtime": "1.5.0"' in build, build)
     asserts.true(env, '"@io_cocotec_coco_cc_runtime__local//:runtime": "local"' in build, build)
     asserts.true(env, 'c_runtimes = {"@io_cocotec_coco_c_runtime__1_5_1//:runtime": "1.5.1"},' in build, build)
@@ -1613,6 +1615,7 @@ def _version_registry_build_without_runtimes_test(ctx):
 
     asserts.true(env, "cc_runtimes = {}," in build, build)
     asserts.true(env, "c_runtimes = {}," in build, build)
+    asserts.true(env, 'host = "",' in build, build)
 
     return unittest.end(env)
 

@@ -75,6 +75,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Using the Coco toolchain no longer requires a C++ toolchain for the platform Popili runs on.
 - Using the local toolchain on an execution platform other than the host is now reported up front,
   instead of failing during execution.
+- With `license_source` `local_acquire` or `local_user`, running Popili on an execution platform
+  other than the host is now reported as an error, instead of passing the host's license to it.
 
 ### Removed
 
