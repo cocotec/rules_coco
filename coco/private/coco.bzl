@@ -18,6 +18,7 @@ load("@bazel_skylib//lib:paths.bzl", "paths")
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
 load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
+load(":common_attrs.bzl", "companion_attrs")
 load(":version_resolution.bzl", "VERSION_FLAG", "resolve_version_alias")
 
 CocoPackageInfo = provider(
@@ -1212,12 +1213,14 @@ def _coco_generate_macro_impl(name, visibility, **kwargs):
         **kwargs
     )
 
-    # Companion target for the generated test sources/headers. Only visibility is
-    # forwarded (kwargs holds generator-only attrs); see test/visibility_propagation.
+    # Companion target for the generated test sources/headers. It gets the generator's
+    # visibility and common attrs; the rest of kwargs are generator-only. See
+    # test/visibility_propagation and test/companion_attrs.
     _coco_test_outputs(
         name = coco_test_outputs_name(name),
         package = name,
         visibility = visibility,
+        **companion_attrs(kwargs)
     )
 
 coco_generate = macro(

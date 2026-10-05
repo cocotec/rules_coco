@@ -65,6 +65,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   platform the popili binary was resolved for. Cross-compiling with `--platforms` for Windows from
   a Linux or macOS host emitted a `.bat` for a POSIX executor, and vice versa. The flavour is now
   derived from the resolved toolchain's binary: `popili.exe` means Windows.
+- `coco_generate`, the C/C++ library macros and `coco_fmt_test` now work with `tags = ["manual"]` and `testonly`.
 
 ## [0.3.0] - 2026/05/31
 
