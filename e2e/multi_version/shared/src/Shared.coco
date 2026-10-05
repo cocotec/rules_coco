@@ -1,0 +1,9 @@
+// Unpinned library package, used by packages on both popili versions. It has no
+// popili_version, so it is processed with whichever version its consumer resolves to.
+
+port SharedInterface {
+  function share() : Nil
+  machine {
+    share() = {}
+  }
+}

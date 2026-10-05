@@ -19,9 +19,13 @@ load(":coco.bzl", "RESOLVED_POPILI_ATTR", "resolved_popili")
 def _fetch_license_impl(ctx):
     # The licensing server of this target's own execution platform. Tagged no-remote-exec (see
     # fetch_license), so the generated target is also constrained to the host, where it runs.
+    #
+    # Workaround: no toolchain in this configuration, e.g. one forcing an unregistered popili
+    # version. Every rule depends on this target, so failing here would pre-empt rules_coco's
+    # own "not registered" error. The rules that need a toolchain fail clearly on their own.
     popili = resolved_popili(ctx)
     if popili == None:
-        fail("%s: no Coco toolchain is registered for this configuration and execution platform." % ctx.label)
+        return DefaultInfo(files = depset())
 
     # Create the wrapper script to invoke Coco. We try and avoid using bash on Windows.
     output = ctx.actions.declare_file("licenses.lic")

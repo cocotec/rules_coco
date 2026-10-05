@@ -1,5 +1,5 @@
 // Example Coco source for multi-version testing (flexible package)
-// This package uses version 1.5.0
+// Unpinned; depends on "modern", pinned to 1.5.0, which is also the default. No warning.
 
 port FlexibleInterface {
   function execute() : Nil

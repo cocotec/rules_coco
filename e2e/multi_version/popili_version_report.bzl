@@ -10,9 +10,10 @@ What is checked depends on which attribute is set:
 
 - none: the rule resolves `@rules_coco//coco:toolchain_type` itself, in its own
   configuration, so it sees exactly what a coco_package there would resolve;
-- `package`: the toolchain the coco_package forwards to its consumers. Like every consumer,
-  the report reaches the package through an exec transition, so this is the popili the
-  package hands a rule running on the report's execution platform;
+- `package`: the toolchain the coco_package forwards to its consumers, plus the warnings it
+  raised about pinned dependencies. Like every consumer, the report reaches the package through
+  an exec transition, so this is the popili the package hands a rule running on the report's
+  execution platform;
 - `generated`: the popili version a coco_generate target generated its code with;
 - `library`: the C++ runtime linked into a coco_cc_library, which must be exactly one.
 """
@@ -50,6 +51,25 @@ def _check_version(ctx, version, what):
         ))
     return version
 
+def _check_warnings(ctx, info):
+    warnings = info.popili_warnings
+    if len(warnings) != len(ctx.attr.expected_warnings):
+        fail("%s: expected %d popili warning(s) from %s, got %d: %r" % (
+            ctx.label,
+            len(ctx.attr.expected_warnings),
+            ctx.attr.package.label,
+            len(warnings),
+            warnings,
+        ))
+    for expected in ctx.attr.expected_warnings:
+        if not [w for w in warnings if expected in w]:
+            fail("%s: no popili warning from %s contains %r; got %r" % (
+                ctx.label,
+                ctx.attr.package.label,
+                expected,
+                warnings,
+            ))
+
 def _check_runtime(ctx):
     repos = {}
     for header in ctx.attr.library[CcInfo].compilation_context.headers.to_list():
@@ -70,10 +90,13 @@ def _popili_version_report_impl(ctx):
     set_attrs = [a for a in ["package", "generated", "library"] if getattr(ctx.attr, a)]
     if len(set_attrs) > 1:
         fail("%s: set at most one of package, generated and library" % ctx.label)
+    if ctx.attr.expected_warnings and not ctx.attr.package:
+        fail("%s: expected_warnings needs package" % ctx.label)
 
     if ctx.attr.package:
         info = ctx.attr.package[CocoPackageInfo]
         report = _check_toolchain(ctx, info.popili_toolchain, str(ctx.attr.package.label))
+        _check_warnings(ctx, info)
     elif ctx.attr.generated:
         report = _check_version(ctx, ctx.attr.generated[CocoCcGeneratedInfo].popili_version, str(ctx.attr.generated.label))
     elif ctx.attr.library:
@@ -96,6 +119,10 @@ popili_version_report = rule(
             doc = "The mangled version the repository name must end with, e.g. '__1_5_1'.",
             mandatory = True,
         ),
+        "expected_warnings": attr.string_list(
+            doc = "With `package`: one substring per expected pinned-dependency warning. " +
+                  "Empty asserts there are none.",
+        ),
         "generated": attr.label(
             doc = "A coco_generate target whose code-generation version to check.",
             providers = [CocoCcGeneratedInfo],
@@ -105,7 +132,7 @@ popili_version_report = rule(
             providers = [CcInfo],
         ),
         "package": attr.label(
-            doc = "A coco_package whose forwarded toolchain to check.",
+            doc = "A coco_package whose forwarded toolchain and warnings to check.",
             providers = [CocoPackageInfo],
             cfg = "exec",
         ),

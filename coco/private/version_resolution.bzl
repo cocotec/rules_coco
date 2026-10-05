@@ -24,6 +24,9 @@ load(":version_aliases.bzl", "VERSION_ALIASES")
 # The build setting that selects which registered Coco version a build uses.
 VERSION_FLAG = "@rules_coco//:version"
 
+# The build setting that makes VERSION_FLAG override per-package version pins.
+FORCE_VERSION_FLAG = "@rules_coco//:force_version"
+
 # The version a popili distribution on the local filesystem is registered as.
 LOCAL_VERSION = "local"
 

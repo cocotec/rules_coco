@@ -87,9 +87,9 @@ coco_toolchain = rule(
             default = "@io_cocotec_coco_preferences//:preferences",
         ),
         "version": attr.string(
-            doc = "The popili version this toolchain provides, e.g. '1.5.1', or 'local'. Used to pick " +
-                  "the runtime matching the code it generates. Optional; set automatically for " +
-                  "toolchains registered by rules_coco.",
+            doc = "The popili version this toolchain provides, e.g. '1.5.1', or 'local'. Used to match " +
+                  "the toolchain against popili_version pins and to pick the matching runtime. Optional; " +
+                  "set automatically for toolchains registered by rules_coco.",
             default = "",
         ),
     },
