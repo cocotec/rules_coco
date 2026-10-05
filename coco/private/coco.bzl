@@ -20,6 +20,7 @@ load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
 load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load(":common_attrs.bzl", "companion_attrs")
 load(":platforms.bzl", "EXEC_PLATFORM_KEYS")
+load(":version_registry.bzl", "CocoVersionRegistryInfo")
 load(":version_resolution.bzl", "VERSION_FLAG", "resolve_version_alias")
 
 CocoPackageInfo = provider(
@@ -53,6 +54,7 @@ CocoCcGeneratedInfo = provider(
     doc = "Generated C/C++ code from a Coco package",
     fields = {
         "headers": "Generated header files as a depset",
+        "popili_version": "The popili version the code was generated with, or '' if unknown",
         "sources": "Generated implementation files as a depset",
         "test_headers": "Generated test/mock header files as a depset",
         "test_sources": "Generated test/mock implementation files as a depset",
@@ -110,6 +112,9 @@ _popili_version_transition = transition(
 
 # Export for use in cc.bzl
 popili_version_transition = _popili_version_transition
+
+def _toolchain_version(toolchain):
+    return getattr(toolchain, "version", "") or ""
 
 def _with_popili_version_impl(ctx):
     """Wrapper rule that applies popili version transition to a target.
@@ -1050,6 +1055,8 @@ def _coco_package_generate_impl(ctx):
     # Regenerated files go into the current package's output directory
     # Compute path relative to BUILD file: from ctx.label.package to package_dir
     package_relative_dir = paths.relativize(package_dir, ctx.label.package) if ctx.label.package else package_dir
+    toolchain = _popili_toolchain(ctx, package)
+    popili_version = _toolchain_version(toolchain)
     for regen_pkg in regenerate_pkgs:
         regen_pkg_dir = regen_pkg[CocoPackageInfo].package_file.dirname
         regen_root_output_dir = _output_directory(regen_pkg_dir, regen_pkg[CocoPackageInfo].direct_srcs)
@@ -1101,6 +1108,7 @@ def _coco_package_generate_impl(ctx):
 
     if ctx.attr.language in ("cpp", "c"):
         lang_provider = CocoCcGeneratedInfo(
+            popili_version = popili_version,
             headers = depset(headers),
             sources = depset(sources),
             test_headers = depset(test_headers),
@@ -1240,6 +1248,40 @@ _coco_test_outputs = rule(
 def coco_test_outputs_name(name):
     return "%s.tst" % name
 
+def _generated_code_runtime(ctx, gen_info):
+    """Returns the runtime target matching the popili version the code was generated with.
+
+    Taken from the hub's version registry, so the runtime is built in this target's own
+    configuration rather than in the one the package's pinned toolchain was resolved in.
+
+    Args:
+        ctx: The _coco_cc_gen rule context.
+        gen_info: The CocoCcGeneratedInfo of the generated package.
+
+    Returns:
+        The runtime Target, or None when `ctx.attr.runtime` is empty.
+    """
+    kind = ctx.attr.runtime
+    if not kind:
+        return None
+    if ctx.attr.runtime_registry == None:
+        fail("%s sets runtime = %r but no runtime_registry; use coco_cc_library or coco_c_library, which set both." % (ctx.label, kind))
+    registry = ctx.attr.runtime_registry[CocoVersionRegistryInfo]
+    registered = registry.cc_runtimes if kind == "cc" else registry.c_runtimes
+    version = getattr(gen_info, "popili_version", "")
+    if version in registered:
+        return registered[version]
+
+    # Not registered in the hub, e.g. a bring-your-own toolchain: use the runtime the toolchain
+    # of this target's own configuration names, if any.
+    toolchain = ctx.toolchains[COCO_TOOLCHAIN_TYPE]
+    runtime = getattr(toolchain, "cc_runtime" if kind == "cc" else "c_runtime", None) if toolchain != None else None
+    if not runtime:
+        if kind == "cc":
+            fail("C++ runtime not available. Did you enable cc=True in coco.toolchain()?")
+        fail("C runtime not available. Did you enable c=True in coco.toolchain()?")
+    return runtime
+
 def _coco_cc_gen_impl(ctx):
     """Extracts generated C/C++ sources and headers, providing CcInfo for headers.
 
@@ -1280,9 +1322,15 @@ def _coco_cc_gen_impl(ctx):
     compilation_context = cc_common.create_compilation_context(
         headers = depset(public_hdrs),
     )
+    cc_info = CcInfo(compilation_context = compilation_context)
+
+    runtime = _generated_code_runtime(ctx, gen_info)
+    if runtime:
+        cc_info = cc_common.merge_cc_infos(direct_cc_infos = [cc_info], cc_infos = [runtime[CcInfo]])
+
     return [
         DefaultInfo(files = depset(sources + private_hdrs)),
-        CcInfo(compilation_context = compilation_context),
+        cc_info,
     ]
 
 _coco_cc_gen = rule(
@@ -1299,8 +1347,20 @@ _coco_cc_gen = rule(
                   "Use bare filenames (e.g., 'ISensor.h') to match by name, or " +
                   "path suffixes (e.g., 'src/ISensor.h') to disambiguate.",
         ),
+        "runtime": attr.string(
+            default = "",
+            values = ["", "c", "cc"],
+            doc = "Which Coco runtime to link, matching the popili version the code was generated " +
+                  "with: 'cc' for C++, 'c' for C, or '' for none.",
+        ),
+        "runtime_registry": attr.label(
+            providers = [CocoVersionRegistryInfo],
+            doc = "The hub's registry of `runtime` runtimes by version. Set by coco_library: a " +
+                  "private attribute would make every library fetch both kinds.",
+        ),
         "use_test_outputs": attr.bool(default = False, doc = "If True, extract test/mock outputs instead of regular outputs"),
     },
+    toolchains = POPILI_TOOLCHAINS,
 )
 
 def _coco_generate_macro_impl(name, visibility, **kwargs):

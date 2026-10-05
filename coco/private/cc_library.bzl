@@ -18,6 +18,12 @@ load("@rules_cc//cc:defs.bzl", "cc_library")
 load(":coco.bzl", _coco_cc_gen = "coco_cc_gen")
 load(":common_attrs.bzl", "companion_attrs")
 
+# The hub's per-kind runtime registries: each library depends only on its own kind's.
+_RUNTIME_REGISTRIES = {
+    "c": Label("@coco_toolchains//versions:c_runtimes"),
+    "cc": Label("@coco_toolchains//versions:cc_runtimes"),
+}
+
 def coco_library(
         name,
         runtime,
@@ -32,7 +38,8 @@ def coco_library(
 
     Args:
         name: The name of the library
-        runtime: The Coco runtime label (cc_runtime or c_runtime)
+        runtime: Which Coco runtime to link, "cc" or "c". The runtime matches the popili
+            version each generated package was generated with.
         generated_package: A single coco_generate target (use this or generated_packages, not both)
         generated_packages: Multiple coco_generate targets to merge into one library
         srcs: Additional source files
@@ -55,6 +62,8 @@ def coco_library(
             package = pkg,
             all_hdrs_public = (public_hdrs == None),
             public_hdrs = public_hdrs if public_hdrs != None else [],
+            runtime = runtime,
+            runtime_registry = _RUNTIME_REGISTRIES[runtime],
             **companion_attrs(kwargs, extra_tags = ["manual"])
         )
         gen_targets.append(gen_name)
@@ -63,7 +72,7 @@ def coco_library(
         name = name,
         srcs = srcs + gen_targets,
         hdrs = hdrs,
-        deps = deps + gen_targets + [runtime],
+        deps = deps + gen_targets,
         **kwargs
     )
 
@@ -82,7 +91,8 @@ def coco_test_library(
 
     Args:
         name: The name of the test library
-        runtime: The Coco runtime label (cc_runtime or c_runtime)
+        runtime: Which Coco runtime to link, "cc" or "c". The runtime matches the popili
+            version each generated package was generated with.
         generated_package: A single coco_generate target (use this or generated_packages, not both)
         generated_packages: Multiple coco_generate targets to merge into one library
         srcs: Additional source files
@@ -108,6 +118,8 @@ def coco_test_library(
             use_test_outputs = True,
             all_hdrs_public = (public_hdrs == None),
             public_hdrs = public_hdrs if public_hdrs != None else [],
+            runtime = runtime,
+            runtime_registry = _RUNTIME_REGISTRIES[runtime],
             **companion_attrs(kwargs, extra_tags = ["manual"])
         )
         gen_targets.append(gen_name)
@@ -118,6 +130,6 @@ def coco_test_library(
         name = name,
         srcs = srcs + gen_targets,
         hdrs = hdrs,
-        deps = deps + gen_targets + gmock_deps + [runtime],
+        deps = deps + gen_targets + gmock_deps,
         **kwargs
     )
