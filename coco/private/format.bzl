@@ -19,7 +19,6 @@ load(
     "COCO_TOOLCHAIN_TYPE",
     "CocoPackageInfo",
     "LICENSE_ATTRIBUTES",
-    "WINDOWS_CONSTRAINT_ATTR",
     "coco_runfiles",
     "create_coco_wrapper_script",
 )
@@ -51,7 +50,6 @@ _coco_fmt_test = rule(
             mandatory = True,
             doc = "The coco_package target to check formatting for",
         ),
-        "_windows_constraint": WINDOWS_CONSTRAINT_ATTR,
     }.items()),
     doc = """Test rule that verifies Coco code formatting.
 
@@ -112,7 +110,6 @@ _coco_fmt_binary = rule(
             mandatory = True,
             doc = "The coco_package target to format",
         ),
-        "_windows_constraint": WINDOWS_CONSTRAINT_ATTR,
     }.items()),
     doc = """Binary rule that formats Coco code.
 

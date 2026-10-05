@@ -42,6 +42,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   duplicate-repository warnings and a silently wrong configuration.
 - `"local"` and `"default"` are rejected as version strings; they name the hub's own
   `config_setting`s.
+- The generated `toolchain()` declarations no longer set `target_compatible_with`. Popili runs on
+  the exec platform and the runtime it provides is source, so the toolchain now resolves for any
+  target platform, including when cross-compiling with `--platforms`. Before, bzlmod required the
+  target platform to match the host; WORKSPACE mode never had the constraint.
 
 ### Removed
 
@@ -53,6 +57,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `coco_repositories(versions = [...])` was accepted but silently ignored in WORKSPACE mode, so a
   workspace following the README's "Popili Version" section got `stable` instead of the versions it
   asked for. It is now honoured — check that your default version has not moved.
+- The `.bat`/`.sh` wrapper and typecheck scripts followed the target platform instead of the exec
+  platform the popili binary was resolved for. Cross-compiling with `--platforms` for Windows from
+  a Linux or macOS host emitted a `.bat` for a POSIX executor, and vice versa. The flavour is now
+  derived from the resolved toolchain's binary: `popili.exe` means Windows.
 
 ## [0.3.0] - 2026/05/31
 

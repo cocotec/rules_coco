@@ -1113,7 +1113,6 @@ def _hub_entries_single_version_test(ctx):
 
     constraints = ["@platforms//os:linux", "@platforms//cpu:x86_64"]
     asserts.equals(env, constraints, entries.exec_compatible_with["linux_x86_64__1_5_7"])
-    asserts.equals(env, constraints, entries.target_compatible_with["linux_x86_64__1_5_7"])
 
     return unittest.end(env)
 
@@ -1164,7 +1163,6 @@ def _hub_entries_local_only_test(ctx):
 
     # Host-only: the local binaries only exist on the machine that staged them.
     asserts.equals(env, [], entries.exec_compatible_with["local"])
-    asserts.equals(env, [], entries.target_compatible_with["local"])
 
     return unittest.end(env)
 
@@ -1239,8 +1237,24 @@ def _hub_build_has_no_loads_test(ctx):
 
     return unittest.end(env)
 
+def _hub_build_constrains_exec_only_test(ctx):
+    """Toolchains constrain the exec platform only, so cross-compiling still resolves one."""
+    env = unittest.begin(ctx)
+
+    build = render_toolchain_hub_build(toolchain_hub_entries(["1.5.7"], has_local = True))
+
+    asserts.true(env, "exec_compatible_with" in build, "exec constraint missing: %s" % build)
+    asserts.true(
+        env,
+        "target_compatible_with" not in build,
+        "hub BUILD must not constrain the target platform: %s" % build,
+    )
+
+    return unittest.end(env)
+
 hub_build_labels_test = unittest.make(_hub_build_labels_test)
 hub_build_has_no_loads_test = unittest.make(_hub_build_has_no_loads_test)
+hub_build_constrains_exec_only_test = unittest.make(_hub_build_constrains_exec_only_test)
 
 # Tests for normalize_cc_runtime_extra_deps
 
@@ -1485,6 +1499,7 @@ def coco_test_suite(name):
         # render_toolchain_hub_build tests
         hub_build_labels_test,
         hub_build_has_no_loads_test,
+        hub_build_constrains_exec_only_test,
 
         # normalize_cc_runtime_extra_deps tests
         normalize_extra_deps_list_applies_to_all_test,
