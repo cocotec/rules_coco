@@ -16,7 +16,7 @@
 
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
 load(":cc_runtime_deps.bzl", "collect_cc_runtime_extra_deps", "normalize_cc_runtime_extra_deps")
-load(":coco.bzl", "compute_output_filenames", "mangle_name")
+load(":coco.bzl", "compute_output_filenames", "mangle_name", "pin_warnings", "pinned_version")
 load(":common_repositories.bzl", "download_prefix", "find_local_license_path")
 load(":known_shas.bzl", "FILE_KEY_TO_SHA")
 load(":platforms.bzl", "COCO_TOOLCHAIN_PLATFORMS", "EXEC_PLATFORM_KEYS", "archive_platform", "host_platform", "platform_binary_ext", "platform_key")
@@ -1572,10 +1572,12 @@ merge_toolchain_tags_first_license_setting_wins_test = unittest.make(_merge_tool
 # Tests for render_version_registry_build
 
 def _version_registry_build_test(ctx):
-    """Each runtime registry records each runtime's version, and only its own kind."""
+    """The registry records every version, the default and each runtime's version."""
     env = unittest.begin(ctx)
 
     build = render_version_registry_build(
+        versions = ["1.5.0", "1.5.1", "local"],
+        default = "1.5.0",
         cc_runtimes = {
             "@io_cocotec_coco_cc_runtime__1_5_0//:runtime": "1.5.0",
             "@io_cocotec_coco_cc_runtime__local//:runtime": "local",
@@ -1584,12 +1586,18 @@ def _version_registry_build_test(ctx):
     )
 
     asserts.true(env, 'load("@rules_coco//coco/private:version_registry.bzl", "coco_version_registry")' in build, build)
+    asserts.true(env, 'versions = ["1.5.0", "1.5.1", "local"],' in build, build)
+    asserts.true(env, 'default = "1.5.0",' in build, build)
     asserts.true(env, '"@io_cocotec_coco_cc_runtime__1_5_0//:runtime": "1.5.0"' in build, build)
     asserts.true(env, '"@io_cocotec_coco_cc_runtime__local//:runtime": "local"' in build, build)
     asserts.true(env, 'c_runtimes = {"@io_cocotec_coco_c_runtime__1_5_1//:runtime": "1.5.1"},' in build, build)
 
+    # The :versions target every coco_package depends on must not pull in any runtime, and
+    # each runtime registry only its own kind.
+    versions_target = build[build.index('name = "versions"'):build.index('name = "cc_runtimes"')]
     cc_target = build[build.index('name = "cc_runtimes"'):build.index('name = "c_runtimes"')]
     c_target = build[build.index('name = "c_runtimes"'):]
+    asserts.true(env, "runtime__" not in versions_target, versions_target)
     asserts.true(env, "@io_cocotec_coco_c_runtime__" not in cc_target, cc_target)
     asserts.true(env, "@io_cocotec_coco_cc_runtime__1_5_0" in cc_target, cc_target)
     asserts.true(env, "@io_cocotec_coco_cc_runtime__" not in c_target, c_target)
@@ -1601,7 +1609,7 @@ def _version_registry_build_without_runtimes_test(ctx):
     """With cc and c disabled the runtime maps are empty, not missing."""
     env = unittest.begin(ctx)
 
-    build = render_version_registry_build()
+    build = render_version_registry_build(versions = ["1.5.7"], default = "1.5.7")
 
     asserts.true(env, "cc_runtimes = {}," in build, build)
     asserts.true(env, "c_runtimes = {}," in build, build)
@@ -1621,6 +1629,100 @@ def _toolchain_build_records_version_test(ctx):
     return unittest.end(env)
 
 toolchain_build_records_version_test = unittest.make(_toolchain_build_records_version_test)
+
+# Tests for pinned_version
+
+def _pinned_version_uses_pin_test(ctx):
+    """A pin overrides the configuration's version."""
+    env = unittest.begin(ctx)
+
+    asserts.equals(env, "1.5.1", pinned_version("1.5.1", False, ""))
+    asserts.equals(env, "1.5.1", pinned_version("1.5.1", False, "1.5.0"))
+
+    return unittest.end(env)
+
+def _pinned_version_resolves_alias_test(ctx):
+    """Aliases are resolved, so a "stable" pin matches the concrete version's toolchain."""
+    env = unittest.begin(ctx)
+
+    asserts.equals(env, VERSION_ALIASES["stable"], pinned_version("stable", False, ""))
+
+    return unittest.end(env)
+
+def _pinned_version_unpinned_keeps_current_test(ctx):
+    """Without a pin the configuration is left alone, so no new configuration is created."""
+    env = unittest.begin(ctx)
+
+    asserts.equals(env, "", pinned_version("", False, ""))
+    asserts.equals(env, "1.5.0", pinned_version("", False, "1.5.0"))
+
+    return unittest.end(env)
+
+def _pinned_version_force_beats_pin_test(ctx):
+    """--@rules_coco//:force_version makes the configuration's version win over any pin."""
+    env = unittest.begin(ctx)
+
+    asserts.equals(env, "1.5.0", pinned_version("1.5.1", True, "1.5.0"))
+    asserts.equals(env, "", pinned_version("1.5.1", True, ""))
+
+    return unittest.end(env)
+
+pinned_version_uses_pin_test = unittest.make(_pinned_version_uses_pin_test)
+pinned_version_resolves_alias_test = unittest.make(_pinned_version_resolves_alias_test)
+pinned_version_unpinned_keeps_current_test = unittest.make(_pinned_version_unpinned_keeps_current_test)
+pinned_version_force_beats_pin_test = unittest.make(_pinned_version_force_beats_pin_test)
+
+# Tests for pin_warnings
+
+def _pin(label, version, pinned_by = None):
+    return struct(label = Label(label), pinned_by = Label(pinned_by or label), version = version)
+
+def _pin_warnings_differing_pin_test(ctx):
+    """A pinned dependency on another version is reported, naming both packages and versions."""
+    env = unittest.begin(ctx)
+
+    warnings = pin_warnings(Label("//:p1"), "1.5.0", [_pin("//:l", "1.5.1")])
+
+    asserts.equals(env, 1, len(warnings))
+    asserts.true(env, "//:l pins popili_version \"1.5.1\"" in warnings[0], warnings[0])
+    asserts.true(env, "//:p1 depends on it and uses popili \"1.5.0\"" in warnings[0], warnings[0])
+
+    return unittest.end(env)
+
+def _pin_warnings_matching_pin_test(ctx):
+    """A pinned dependency on the same version is not worth a warning."""
+    env = unittest.begin(ctx)
+
+    asserts.equals(env, [], pin_warnings(Label("//:p1"), "1.5.1", [_pin("//:l", "1.5.1")]))
+
+    return unittest.end(env)
+
+def _pin_warnings_names_workspace_test(ctx):
+    """A dependency pinned through its workspace says so."""
+    env = unittest.begin(ctx)
+
+    warnings = pin_warnings(Label("//:p1"), "1.5.0", [_pin("//:l", "1.5.1", pinned_by = "//:ws")])
+
+    asserts.equals(env, 1, len(warnings))
+    asserts.true(env, "(through " in warnings[0] and "//:ws)" in warnings[0], warnings[0])
+
+    return unittest.end(env)
+
+def _pin_warnings_sorted_test(ctx):
+    """Warnings are sorted by label, so their order doesn't depend on depset traversal."""
+    env = unittest.begin(ctx)
+
+    warnings = pin_warnings(Label("//:p1"), "1.5.0", [_pin("//:b", "1.5.1"), _pin("//:a", "1.5.1")])
+
+    asserts.equals(env, 2, len(warnings))
+    asserts.true(env, "//:a pins" in warnings[0] and "//:b pins" in warnings[1], warnings)
+
+    return unittest.end(env)
+
+pin_warnings_differing_pin_test = unittest.make(_pin_warnings_differing_pin_test)
+pin_warnings_matching_pin_test = unittest.make(_pin_warnings_matching_pin_test)
+pin_warnings_names_workspace_test = unittest.make(_pin_warnings_names_workspace_test)
+pin_warnings_sorted_test = unittest.make(_pin_warnings_sorted_test)
 
 def coco_test_suite(name):
     """Create test suite for coco functions.
@@ -1745,4 +1847,16 @@ def coco_test_suite(name):
         # render_version_registry_build tests
         version_registry_build_test,
         version_registry_build_without_runtimes_test,
+
+        # pinned_version tests
+        pinned_version_uses_pin_test,
+        pinned_version_resolves_alias_test,
+        pinned_version_unpinned_keeps_current_test,
+        pinned_version_force_beats_pin_test,
+
+        # pin_warnings tests
+        pin_warnings_differing_pin_test,
+        pin_warnings_matching_pin_test,
+        pin_warnings_names_workspace_test,
+        pin_warnings_sorted_test,
     )
