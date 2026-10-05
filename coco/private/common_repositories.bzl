@@ -14,8 +14,8 @@
 
 """Common repository implementations shared between WORKSPACE and bzlmod."""
 
-load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load(":known_shas.bzl", "FILE_KEY_TO_SHA")
+load(":version_resolution.bzl", "version_tuple")
 
 _CC_RUNTIME_BUILD_TEMPLATE = """
 load("@rules_cc//cc:defs.bzl", "cc_library")
@@ -53,54 +53,6 @@ KNOWN_VERSION_SUFFIXES = [
     "",
 ]
 
-def _version_tuple(version):
-    """Converts a version string to a tuple of integers for comparison.
-
-    Args:
-        version: Version string like "1.5.0" or "1.4.9-rc.1"
-
-    Returns:
-        Tuple of integers representing the version (e.g., (1, 5, 0)), or None if parsing fails
-    """
-
-    base_version = version.split("-")[0]
-    result = []
-    for p in base_version.split("."):
-        # Check if all characters are digits
-        if not p or not p.isdigit():
-            return None
-        result.append(int(p))
-
-    return tuple(result) if result else None
-
-def validate_minimum_version(version):
-    """Validates that a version meets the minimum requirement of 1.5.0.
-
-    Args:
-        version: Version string to validate (e.g., "1.5.0", "1.4.9-rc.1")
-
-    Returns:
-        None if version is valid, error message string if version is too old
-    """
-    MINIMUM_VERSION = (1, 5, 0)
-
-    # Skip validation for version aliases (they're validated separately)
-    if not version or "." not in version:
-        return None
-
-    parsed = _version_tuple(version)
-    if parsed == None:
-        return "Invalid version string: %s" % version
-
-    if parsed < MINIMUM_VERSION:
-        return (
-            "Popili version %s is not supported. " % version +
-            "rules_coco requires Popili 1.5.0 or higher. " +
-            "Please upgrade to a newer version."
-        )
-
-    return None
-
 def _determine_product_name(versions):
     """Determines the product name based on versions in use.
 
@@ -113,7 +65,7 @@ def _determine_product_name(versions):
     if not versions:
         return "popili"
     for version in versions:
-        parsed = _version_tuple(version)
+        parsed = version_tuple(version)
         if parsed == None or parsed >= (1, 5, 0):
             return "popili"
     return "coco-platform"
@@ -127,26 +79,10 @@ def download_prefix(version):
     Returns:
       The download path prefix string.
     """
-    parts = version.split("-")[0].split(".")
-    if len(parts) >= 2:
+    parsed = version_tuple(version)
+    if parsed != None and len(parsed) >= 2:
         return "archive/%s" % version
     return version
-
-def version_to_repo_suffix(version):
-    """Converts a version string to a valid repository name suffix.
-
-    Examples:
-        "1.5.0" -> "1_5_0"
-        "1.5.0-rc.3" -> "1_5_0_rc_3"
-        "stable" -> "stable"
-
-    Args:
-        version: Version string to normalize
-
-    Returns:
-        Normalized version string suitable for use in repository names
-    """
-    return version.replace(".", "_").replace("-", "_")
 
 def _get_all_license_paths(ctx, version_suffix):
     """Returns all possible license file paths in priority order.
@@ -272,13 +208,19 @@ def _coco_cc_local_runtime_repository_impl(ctx):
     ctx.symlink(runtime_dir, "coco")
 
     ctx.file("WORKSPACE", """workspace(name = "{}")""".format(ctx.name))
-    ctx.file("BUILD.bazel", _CC_RUNTIME_BUILD_TEMPLATE.format(deps = "[]"))
+    ctx.file("BUILD.bazel", _CC_RUNTIME_BUILD_TEMPLATE.format(
+        deps = json.encode(ctx.attr.extra_deps),
+    ))
 
 _coco_cc_local_runtime_repository = repository_rule(
     implementation = _coco_cc_local_runtime_repository_impl,
     # Reevaluated on every fetch so a replaced runtime tree is picked up.
     local = True,
     attrs = {
+        "extra_deps": attr.string_list(
+            doc = "Canonical label strings appended to the runtime's deps; typically Boost libraries for old compilers.",
+            default = [],
+        ),
         "path": attr.string(
             doc = "Local filesystem path to a directory containing the C++ runtime `coco/` subtree.",
             mandatory = True,
@@ -307,24 +249,6 @@ _coco_c_local_runtime_repository = repository_rule(
         ),
     },
 )
-
-def _coco_cc_repositories(version, extra_deps = []):
-    """WORKSPACE-mode sibling of _coco_cc_runtime_repository."""
-    version_suffix = version_to_repo_suffix(version)
-    repo_name = "io_cocotec_coco_cc_runtime__%s" % version_suffix
-
-    http_archive(
-        name = repo_name,
-        urls = [
-            "https://dl.cocotec.io/popili/{download_prefix}/coco-cpp-runtime.zip".format(
-                download_prefix = download_prefix(version),
-            ),
-        ],
-        sha256 = FILE_KEY_TO_SHA.get("{version}/coco-cpp-runtime.zip".format(version = version)),
-        build_file_content = _CC_RUNTIME_BUILD_TEMPLATE.format(
-            deps = json.encode(extra_deps),
-        ),
-    )
 
 def _coco_preferences_repository_impl(ctx):
     """Creates a repository for user preferences."""
@@ -466,7 +390,6 @@ _coco_symlink_license_repository = repository_rule(
 # Public API - these are the functions/rules that should be imported
 coco_c_runtime_repository = _coco_c_runtime_repository
 coco_c_local_runtime_repository = _coco_c_local_runtime_repository
-coco_cc_repositories = _coco_cc_repositories
 coco_cc_runtime_repository = _coco_cc_runtime_repository
 coco_cc_local_runtime_repository = _coco_cc_local_runtime_repository
 coco_preferences_repository = _coco_preferences_repository

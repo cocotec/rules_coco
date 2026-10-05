@@ -38,7 +38,7 @@ bzl_library(
     name = "coco_bzl",
     srcs = ["coco.bzl"],
     deps = [
-        ":version_aliases_bzl",
+        ":version_resolution_bzl",
         "@bazel_skylib//lib:paths",
         "@bazel_skylib//rules:common_settings",
         "@rules_cc//cc:defs_bzl",
@@ -50,21 +50,46 @@ bzl_library(
     srcs = ["repositories.bzl"],
     deps = [
         ":bazel_tools_bzl_lib",
+        ":cc_runtime_deps_bzl",
+        ":toolchain_hub_bzl",
+    ],
+)
+
+bzl_library(
+    name = "toolchain_repositories_bzl",
+    srcs = ["toolchain_repositories.bzl"],
+    deps = [
         ":common_repositories_bzl",
         ":known_shas_bzl",
-        ":version_aliases_bzl",
+        ":platforms_bzl",
+        ":version_resolution_bzl",
+    ],
+)
+
+bzl_library(
+    name = "toolchain_hub_bzl",
+    srcs = ["toolchain_hub.bzl"],
+    deps = [
+        ":common_repositories_bzl",
+        ":platforms_bzl",
+        ":toolchain_repositories_bzl",
+        ":version_resolution_bzl",
     ],
 )
 
 bzl_library(
     name = "common_repositories_bzl",
     srcs = ["common_repositories.bzl"],
-    deps = [":known_shas_bzl"],
+    deps = [
+        ":known_shas_bzl",
+        ":version_resolution_bzl",
+    ],
 )
 
 bzl_library(
     name = "cc_runtime_deps_bzl",
     srcs = ["cc_runtime_deps.bzl"],
+    deps = [":version_resolution_bzl"],
 )
 
 bzl_library(
@@ -73,8 +98,19 @@ bzl_library(
 )
 
 bzl_library(
+    name = "platforms_bzl",
+    srcs = ["platforms.bzl"],
+)
+
+bzl_library(
     name = "version_aliases_bzl",
     srcs = ["version_aliases.bzl"],
+)
+
+bzl_library(
+    name = "version_resolution_bzl",
+    srcs = ["version_resolution.bzl"],
+    deps = [":version_aliases_bzl"],
 )
 
 bzl_library(
@@ -121,7 +157,11 @@ bzl_library(
         ":format_bzl",
         ":known_shas_bzl",
         ":licensing_bzl",
+        ":platforms_bzl",
         ":repositories_bzl",
+        ":toolchain_hub_bzl",
+        ":toolchain_repositories_bzl",
         ":version_aliases_bzl",
+        ":version_resolution_bzl",
     ],
 )
