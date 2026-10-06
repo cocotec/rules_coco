@@ -9,12 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The Popili version is now a property of a package: set `popili_version` on a `coco_package` or
+  `coco_workspace` (inherited by member packages and nested workspaces), and every rule using the
+  package uses that version, including the runtime linked by `coco_cc_library` / `coco_c_library`.
+  Different parts of a repository can use different registered versions. See the README section
+  "Popili Version".
+  - A pinned package ignores `--@rules_coco//:version`, unless the new
+    `--@rules_coco//:force_version` is also set. `with_popili_version` overrides the pins in the
+    target it wraps.
+  - A package pinning a different version from its workspace is an error. A dependency pinning a
+    different version prints a warning, and its pin is ignored there, as in Popili itself.
+  - Builds without pins behave as before.
+- Naming an unregistered Popili version now fails with a message listing the registered versions,
+  instead of Bazel's `No matching toolchains found`.
 - `coco_toolchain` has an optional `version` attribute, for the Popili version the toolchain
-  provides.
+  provides. A bring-your-own toolchain declaring it can satisfy a matching pin.
+- `CocoWorkspaceInfo` has new optional fields for a workspace's `popili_version`. Existing rules
+  returning `CocoWorkspaceInfo(files = ...)` keep working.
 - WORKSPACE mode now supports multiple Popili versions, like bzlmod already did.
   `coco_repositories(versions = ["1.5.1", "1.5.0"])` registers a toolchain per version, selected
-  with `--@rules_coco//:version=1.5.0` or per target with `with_popili_version`. The first entry is
-  used when the flag is unset.
+  per package with `popili_version` (see above) or with `--@rules_coco//:version=1.5.0`. The first
+  entry is used when neither is set.
 - `coco_repositories` gained `local_popili`, `local_cc_runtime` and `local_c_runtime`, so a Popili
   distribution on the local filesystem can be registered alongside downloaded releases and selected
   with `--@rules_coco//:version=local`. This is the WORKSPACE equivalent of combining

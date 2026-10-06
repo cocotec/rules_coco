@@ -12,19 +12,58 @@ load("@rules_coco//coco:defs.bzl", "with_popili_version")
 with_popili_version(<a href="#with_popili_version-name">name</a>, <a href="#with_popili_version-target">target</a>, <a href="#with_popili_version-version">version</a>)
 </pre>
 
-Wrapper rule to build a target with a specific popili version.
+Wrapper rule to build a target, and everything below it, with a specific popili version.
 
-Use this when you need to build different targets with different popili versions
-in the same build. For most cases, just use --@rules_coco//:version=X.Y.Z.
+The version is forced: it overrides the `popili_version` pinned by any coco_package or
+coco_workspace in the wrapped subgraph, exactly like building with
+`--@rules_coco//:version=<version> --@rules_coco//:force_version`. Use it to check whether
+an existing target also builds with another version without editing any pins.
+
+Wrap the outermost target you want to rebuild: wrapping a `coco_cc_library` retargets the
+code generation, the package, its dependencies and the runtime beneath it.
+
+The wrapper forwards the wrapped target's `DefaultInfo`, `CocoPackageInfo`,
+`CocoCcGeneratedInfo`, `CocoCSharpGeneratedInfo`, `CcInfo` and `OutputGroupInfo`, and
+nothing else. So a target depending on the wrapper stays in its own configuration, but
+uses what the wrapper forwards, at the forced version:
+
+- a `coco_verify_test`, `coco_generate`, `coco_fmt_test` or diagram rule whose `package`
+  is a wrapped coco_package runs the forced popili version;
+- a `cc_library` or `cc_binary` depending on a wrapped `coco_cc_library` compiles against
+  its code and links the runtime of the forced version.
+
+The wrapper is neither a test nor executable, so wrapping a test or binary gives a target
+that can only be built, not tested or run. To verify a package on another version, wrap
+the package and point a `coco_verify_test` at the wrapper, as below, or run the test with
+`--@rules_coco//:version=<version> --@rules_coco//:force_version`.
+
+To generate code on another version, wrap the existing `coco_generate` (or the
+`coco_cc_library` using it) rather than adding a second `coco_generate` for the wrapped
+package: two `coco_generate` targets for the same package in the same BUILD package declare
+the same output files. A wrapped one builds in a configuration of its own, so it doesn't clash.
 
 Example:
-    coco_package(name = "pkg", ...)
 
-    with_popili_version(
-        name = "pkg_v147",
-        target = ":pkg",
-        version = "1.4.7",
-    )
+```python
+coco_package(name = "pkg", package = "Coco.toml", srcs = glob(["src/**/*.coco"]), popili_version = "1.5.0")
+
+coco_generate(name = "pkg_cpp", package = ":pkg", language = "cpp")
+
+# Generate and verify the same package on 1.5.1 as well, without touching its pin.
+with_popili_version(
+    name = "pkg_cpp_on_151",
+    target = ":pkg_cpp",
+    version = "1.5.1",
+)
+
+with_popili_version(
+    name = "pkg_on_151",
+    target = ":pkg",
+    version = "1.5.1",
+)
+
+coco_verify_test(name = "pkg_verify_on_151", package = ":pkg_on_151")
+```
 
 **ATTRIBUTES**
 
@@ -32,8 +71,8 @@ Example:
 | Name  | Description | Type | Mandatory | Default |
 | :------------- | :------------- | :------------- | :------------- | :------------- |
 | <a id="with_popili_version-name"></a>name |  A unique name for this target.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
-| <a id="with_popili_version-target"></a>target |  The target to build with a specific popili version   | <a href="https://bazel.build/concepts/labels">Label</a> | required |  |
-| <a id="with_popili_version-version"></a>version |  The popili version to use (e.g., '1.5.0', '1.4.7')   | String | required |  |
+| <a id="with_popili_version-target"></a>target |  The target to build, together with everything below it, with the forced popili version.   | <a href="https://bazel.build/concepts/labels">Label</a> | required |  |
+| <a id="with_popili_version-version"></a>version |  The popili version to use (e.g., '1.5.0', '1.5.1' or 'stable'). Must be registered.   | String | required |  |
 
 
 <a id="CocoWorkspaceInfo"></a>
@@ -43,7 +82,7 @@ Example:
 <pre>
 load("@rules_coco//coco:defs.bzl", "CocoWorkspaceInfo")
 
-CocoWorkspaceInfo(<a href="#CocoWorkspaceInfo-files">files</a>)
+CocoWorkspaceInfo(<a href="#CocoWorkspaceInfo-files">files</a>, <a href="#CocoWorkspaceInfo-popili_pinned_by">popili_pinned_by</a>, <a href="#CocoWorkspaceInfo-popili_toolchain">popili_toolchain</a>, <a href="#CocoWorkspaceInfo-popili_version">popili_version</a>)
 </pre>
 
 Information about a Coco workspace root whose shared settings flow down to member packages
@@ -53,6 +92,9 @@ Information about a Coco workspace root whose shared settings flow down to membe
 | Name  | Description |
 | :------------- | :------------- |
 | <a id="CocoWorkspaceInfo-files"></a>files |  Coco.toml files a member must ship: this workspace's root manifest plus any parent workspaces    |
+| <a id="CocoWorkspaceInfo-popili_pinned_by"></a>popili_pinned_by |  Label of the coco_workspace whose pin decided popili_version, or None when unpinned    |
+| <a id="CocoWorkspaceInfo-popili_toolchain"></a>popili_toolchain |  The Coco ToolchainInfo of popili_version for the target platform of the configuration this workspace was analysed in, or None when unpinned or not published for it    |
+| <a id="CocoWorkspaceInfo-popili_version"></a>popili_version |  The popili_version pinned by this workspace or a parent workspace, aliases resolved, or '' when unpinned. This is the pin as declared; under --@rules_coco//:force_version, popili_toolchain is the forced version instead    |
 
 
 <a id="coco_counterexample_diagram"></a>
@@ -305,8 +347,8 @@ created that exposes the generated test sources and headers.
 load("@rules_coco//coco:defs.bzl", "coco_package")
 
 coco_package(*, <a href="#coco_package-name">name</a>, <a href="#coco_package-deps">deps</a>, <a href="#coco_package-srcs">srcs</a>, <a href="#coco_package-compatible_with">compatible_with</a>, <a href="#coco_package-deprecation">deprecation</a>, <a href="#coco_package-exec_compatible_with">exec_compatible_with</a>,
-             <a href="#coco_package-exec_properties">exec_properties</a>, <a href="#coco_package-features">features</a>, <a href="#coco_package-package">package</a>, <a href="#coco_package-package_metadata">package_metadata</a>, <a href="#coco_package-restricted_to">restricted_to</a>, <a href="#coco_package-tags">tags</a>,
-             <a href="#coco_package-target_compatible_with">target_compatible_with</a>, <a href="#coco_package-test_srcs">test_srcs</a>, <a href="#coco_package-testonly">testonly</a>, <a href="#coco_package-toolchains">toolchains</a>, <a href="#coco_package-typecheck">typecheck</a>, <a href="#coco_package-visibility">visibility</a>,
+             <a href="#coco_package-exec_properties">exec_properties</a>, <a href="#coco_package-features">features</a>, <a href="#coco_package-package">package</a>, <a href="#coco_package-package_metadata">package_metadata</a>, <a href="#coco_package-popili_version">popili_version</a>, <a href="#coco_package-restricted_to">restricted_to</a>,
+             <a href="#coco_package-tags">tags</a>, <a href="#coco_package-target_compatible_with">target_compatible_with</a>, <a href="#coco_package-test_srcs">test_srcs</a>, <a href="#coco_package-testonly">testonly</a>, <a href="#coco_package-toolchains">toolchains</a>, <a href="#coco_package-typecheck">typecheck</a>, <a href="#coco_package-visibility">visibility</a>,
              <a href="#coco_package-workspace">workspace</a>)
 </pre>
 
@@ -316,6 +358,20 @@ A coco_package is the unit the other Coco rules operate on: pass it to
 coco_generate to produce code, to coco_verify_test to verify it, or to
 coco_fmt_test to check formatting. Packages may depend on other packages via
 `deps`, and may inherit shared settings from a coco_workspace via `workspace`.
+
+The popili version is a property of the package: every rule consuming it (typecheck,
+verify, generate, format, diagrams, and the C/C++ runtime of `coco_cc_library` /
+`coco_c_library`) uses the same one. It is, in order of precedence:
+
+1. `--@rules_coco//:version` when `--@rules_coco//:force_version` is set, e.g. by
+   `with_popili_version`;
+2. this package's `popili_version`;
+3. its workspace's `popili_version`, which must not differ from the package's;
+4. `--@rules_coco//:version`;
+5. the first version registered.
+
+Dependencies never decide a package's version. When a dependency pins a different version, a
+warning is printed and its sources are processed with this package's version.
 
 **ATTRIBUTES**
 
@@ -332,6 +388,7 @@ coco_fmt_test to check formatting. Packages may depend on other packages via
 | <a id="coco_package-features"></a>features |  <a href="https://bazel.build/reference/be/common-definitions#common.features">Inherited rule attribute</a>   | List of strings | optional |  `None`  |
 | <a id="coco_package-package"></a>package |  Label pointing to the Coco.toml file for this package.   | <a href="https://bazel.build/concepts/labels">Label</a> | required |  |
 | <a id="coco_package-package_metadata"></a>package_metadata |  <a href="https://bazel.build/reference/be/common-definitions#common.package_metadata">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a>; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
+| <a id="coco_package-popili_version"></a>popili_version |  The popili version to use for this target, e.g. '1.5.1' or 'stable'. The version must be registered in coco.toolchain (bzlmod) or coco_repositories (WORKSPACE). Overridden by --@rules_coco//:force_version and with_popili_version.   | String | optional |  `None`  |
 | <a id="coco_package-restricted_to"></a>restricted_to |  <a href="https://bazel.build/reference/be/common-definitions#common.restricted_to">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a>; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
 | <a id="coco_package-tags"></a>tags |  <a href="https://bazel.build/reference/be/common-definitions#common.tags">Inherited rule attribute</a>   | List of strings; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
 | <a id="coco_package-target_compatible_with"></a>target_compatible_with |  <a href="https://bazel.build/reference/be/common-definitions#common.target_compatible_with">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a> | optional |  `None`  |
@@ -435,14 +492,19 @@ verification does not pass.
 load("@rules_coco//coco:defs.bzl", "coco_workspace")
 
 coco_workspace(*, <a href="#coco_workspace-name">name</a>, <a href="#coco_workspace-compatible_with">compatible_with</a>, <a href="#coco_workspace-deprecation">deprecation</a>, <a href="#coco_workspace-exec_compatible_with">exec_compatible_with</a>, <a href="#coco_workspace-exec_properties">exec_properties</a>,
-               <a href="#coco_workspace-features">features</a>, <a href="#coco_workspace-package_metadata">package_metadata</a>, <a href="#coco_workspace-parent">parent</a>, <a href="#coco_workspace-restricted_to">restricted_to</a>, <a href="#coco_workspace-tags">tags</a>, <a href="#coco_workspace-target_compatible_with">target_compatible_with</a>,
-               <a href="#coco_workspace-testonly">testonly</a>, <a href="#coco_workspace-toolchains">toolchains</a>, <a href="#coco_workspace-visibility">visibility</a>, <a href="#coco_workspace-workspace">workspace</a>)
+               <a href="#coco_workspace-features">features</a>, <a href="#coco_workspace-package_metadata">package_metadata</a>, <a href="#coco_workspace-parent">parent</a>, <a href="#coco_workspace-popili_version">popili_version</a>, <a href="#coco_workspace-restricted_to">restricted_to</a>, <a href="#coco_workspace-tags">tags</a>,
+               <a href="#coco_workspace-target_compatible_with">target_compatible_with</a>, <a href="#coco_workspace-testonly">testonly</a>, <a href="#coco_workspace-toolchains">toolchains</a>, <a href="#coco_workspace-visibility">visibility</a>, <a href="#coco_workspace-workspace">workspace</a>)
 </pre>
 
 Declares a Coco workspace root.
 
 A workspace's Coco.toml carries shared settings that popili applies to member
 packages. Reference this target from a coco_package's `workspace` attribute.
+
+A workspace's `popili_version` is inherited by every member package that doesn't pin one,
+and by nested workspaces (via `parent`). A member or nested workspace pinning a different
+version is an error. Workspaces only pass settings down: they are not themselves consumed
+by coco_generate, coco_verify_test and friends, which always take a coco_package.
 
 **ATTRIBUTES**
 
@@ -457,6 +519,7 @@ packages. Reference this target from a coco_package's `workspace` attribute.
 | <a id="coco_workspace-features"></a>features |  <a href="https://bazel.build/reference/be/common-definitions#common.features">Inherited rule attribute</a>   | List of strings | optional |  `None`  |
 | <a id="coco_workspace-package_metadata"></a>package_metadata |  <a href="https://bazel.build/reference/be/common-definitions#common.package_metadata">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a>; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
 | <a id="coco_workspace-parent"></a>parent |  An enclosing coco_workspace, when this workspace is nested inside another   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  `None`  |
+| <a id="coco_workspace-popili_version"></a>popili_version |  The popili version to use for this target, e.g. '1.5.1' or 'stable'. The version must be registered in coco.toolchain (bzlmod) or coco_repositories (WORKSPACE). Overridden by --@rules_coco//:force_version and with_popili_version.   | String | optional |  `None`  |
 | <a id="coco_workspace-restricted_to"></a>restricted_to |  <a href="https://bazel.build/reference/be/common-definitions#common.restricted_to">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a>; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
 | <a id="coco_workspace-tags"></a>tags |  <a href="https://bazel.build/reference/be/common-definitions#common.tags">Inherited rule attribute</a>   | List of strings; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
 | <a id="coco_workspace-target_compatible_with"></a>target_compatible_with |  <a href="https://bazel.build/reference/be/common-definitions#common.target_compatible_with">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a> | optional |  `None`  |

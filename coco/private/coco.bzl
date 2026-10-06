@@ -20,8 +20,8 @@ load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
 load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load(":common_attrs.bzl", "companion_attrs")
 load(":platforms.bzl", "EXEC_PLATFORM_KEYS")
-load(":version_registry.bzl", "CocoVersionRegistryInfo")
-load(":version_resolution.bzl", "VERSION_FLAG", "resolve_version_alias")
+load(":version_registry.bzl", "CocoVersionRegistryInfo", "format_registered_versions")
+load(":version_resolution.bzl", "FORCE_VERSION_FLAG", "VERSION_FLAG", "resolve_version_alias")
 
 CocoPackageInfo = provider(
     doc = "Information about a Coco package",
@@ -31,11 +31,18 @@ CocoPackageInfo = provider(
         "direct_test_srcs": "The .coco files that are direct test_sources of this package only",
         "name": "The name of the package",
         "package_file": "The Coco.toml file for this package",
+        "popili_error": "Why this package's consumers cannot run popili, or None: there is no popili of its " +
+                        "version for their execution platform. A consumer fails with it when it does run popili",
+        "popili_pinned": "Whether this package's popili version comes from a popili_version pin on the package or its workspace",
+        "popili_pinned_by": "Label of the coco_package or coco_workspace whose pin decided the version, or None when unpinned",
+        "popili_pins": "Depset of struct(label, pinned_by, version) for every pinned package among this package and its transitive dependencies",
         "popili_toolchain": "The Coco ToolchainInfo the rules consuming this package run popili with: the " +
                             "package's version, built for the target platform of the configuration the package " +
                             "was analysed in. Consumers depend on the package through an exec transition, so for " +
-                            "them that is their own execution platform. None when no popili is registered for " +
-                            "that platform",
+                            "them that is their own execution platform. None when no popili of the version is " +
+                            "registered for that platform",
+        "popili_version": "The popili version of this package, e.g. '1.5.1' or 'local'. Under --@rules_coco//:force_version this is the forced version, not the pin",
+        "popili_warnings": "List of warnings about pinned dependencies being used with a different popili version",
         "srcs": "All .coco files that are sources of this package or any of its transitive dependencies",
         "test_srcs": "All .coco files that are test_sources of this package or any of its transitive dependencies",
         "typecheck_marker": "Marker file indicating typecheck passed (or None if typecheck disabled)",
@@ -47,6 +54,9 @@ CocoWorkspaceInfo = provider(
     doc = "Information about a Coco workspace root whose shared settings flow down to member packages",
     fields = {
         "files": "Coco.toml files a member must ship: this workspace's root manifest plus any parent workspaces",
+        "popili_pinned_by": "Label of the coco_workspace whose pin decided popili_version, or None when unpinned",
+        "popili_toolchain": "The Coco ToolchainInfo of popili_version for the target platform of the configuration this workspace was analysed in, or None when unpinned or not published for it",
+        "popili_version": "The popili_version pinned by this workspace or a parent workspace, aliases resolved, or '' when unpinned. This is the pin as declared; under --@rules_coco//:force_version, popili_toolchain is the forced version instead",
     },
 )
 
@@ -92,39 +102,150 @@ POPILI_TOOLCHAINS = [
     config_common.toolchain_type(COCO_TOOLCHAIN_TYPE, mandatory = False),
 ]
 
-def _popili_version_transition_impl(_settings, attr):
-    """Transition implementation for per-target popili version selection.
+def _pinned_version(pin, force, current):
+    """Returns the value of --@rules_coco//:version to resolve a pinned toolchain in.
 
-    If the target specifies a version attribute, transition to that version.
-    Version aliases (like "stable") are resolved to actual version numbers.
-    Otherwise, keep the current configuration's version setting.
+    Args:
+        pin: The popili_version attribute as written by the user, possibly an alias, or "".
+        force: The value of --@rules_coco//:force_version.
+        current: The current value of --@rules_coco//:version.
+
+    Returns:
+        The resolved pin, or `current` when forced or unpinned.
     """
-    if hasattr(attr, "version") and attr.version:
-        resolved_version = resolve_version_alias(attr.version)
-        return {VERSION_FLAG: resolved_version}
-    return {}
+    if force or not pin:
+        return current
+    return resolve_version_alias(pin)
 
-_popili_version_transition = transition(
-    implementation = _popili_version_transition_impl,
-    inputs = [],
+def _pin_transition_impl(settings, attr):
+    return {VERSION_FLAG: _pinned_version(
+        attr.popili_version,
+        settings[FORCE_VERSION_FLAG],
+        settings[VERSION_FLAG],
+    )}
+
+# The rule transition of coco_package and coco_workspace: a pinned target is analysed in the
+# configuration of its pin, so the toolchains it resolves, and its typecheck, are the pinned
+# version's. Nothing above it is affected: its consumers stay in their own configuration and
+# take the toolchain it forwards.
+_pin_transition = transition(
+    implementation = _pin_transition_impl,
+    inputs = [VERSION_FLAG, FORCE_VERSION_FLAG],
     outputs = [VERSION_FLAG],
 )
 
-# Export for use in cc.bzl
-popili_version_transition = _popili_version_transition
+def _force_version_transition_impl(_settings, attr):
+    return {
+        FORCE_VERSION_FLAG: True,
+        VERSION_FLAG: resolve_version_alias(attr.version),
+    }
+
+_force_version_transition = transition(
+    implementation = _force_version_transition_impl,
+    inputs = [],
+    outputs = [VERSION_FLAG, FORCE_VERSION_FLAG],
+)
+
+_POPILI_PIN_ATTRS = {
+    "popili_version": attr.string(
+        doc = "The popili version to use for this target, e.g. '1.5.1' or 'stable'. The version " +
+              "must be registered in coco.toolchain (bzlmod) or coco_repositories (WORKSPACE). " +
+              "Overridden by --@rules_coco//:force_version and with_popili_version.",
+    ),
+    "_force_version_flag": attr.label(default = Label("//:force_version")),
+    "_popili_registry": attr.label(
+        default = Label("@coco_toolchains//versions"),
+        providers = [CocoVersionRegistryInfo],
+    ),
+    "_version_flag": attr.label(default = Label("//:version")),
+}
+
+def _single(attr_value):
+    # An attribute with a transition is a list, even for a 1:1 transition.
+    return attr_value[0] if type(attr_value) == type([]) else attr_value
 
 def _toolchain_version(toolchain):
     return getattr(toolchain, "version", "") or ""
 
-def _with_popili_version_impl(ctx):
-    """Wrapper rule that applies popili version transition to a target.
+def _configured_version(ctx, registry):
+    """Returns the popili version this configuration selects: the version flag, else the default."""
+    return ctx.attr._version_flag[BuildSettingInfo].value or registry.default
 
-    This allows users to build a specific target with a different popili version
-    than the default specified by --@rules_coco//:version.
+def _check_resolved_popili(ctx, toolchain, pin):
+    """Fails with a clear message when the version `ctx` asks for is not registered.
+
+    A registered version may still resolve no toolchain: the configuration's target platform
+    is one popili is not published for, as when cross-compiling, or when a consumer on such an
+    execution platform reaches the package. That is not an error here; the consumer that
+    actually runs popili reports it (see _popili_error).
+
+    Args:
+        ctx: The rule context of a coco_package or coco_workspace, in the configuration its
+            pin transition produced.
+        toolchain: The Coco ToolchainInfo it resolved, or None.
+        pin: The resolved popili_version pin, or "" when unpinned.
     """
+    registry = ctx.attr._popili_registry[CocoVersionRegistryInfo]
+    how_to_register = (
+        "Registered versions: %s. Register more with coco.toolchain(versions = [...]) in " % format_registered_versions(registry) +
+        "MODULE.bazel, or coco_repositories(versions = [...]) in WORKSPACE."
+    )
 
-    # When using configuration transitions, ctx.attr.target becomes a list
-    target = ctx.attr.target[0] if type(ctx.attr.target) == type([]) else ctx.attr.target
+    # A toolchain declaring the pinned version is fine even if the hub doesn't know it,
+    # e.g. a bring-your-own toolchain with `version` set.
+    if pin and pin not in registry.versions and _toolchain_version(toolchain) != pin:
+        fail("%s pins popili_version %r, which is not registered. %s" % (ctx.label, pin, how_to_register))
+
+    if toolchain != None:
+        return
+
+    forced = ctx.attr._force_version_flag[BuildSettingInfo].value
+    if pin and not forced:
+        # Registered, but not published for this configuration's platform.
+        return
+    requested = ctx.attr._version_flag[BuildSettingInfo].value
+    if requested and requested not in registry.versions:
+        source = "forced by --@rules_coco//:force_version or with_popili_version" if forced else "set by --@rules_coco//:version"
+        fail("%s needs popili %r (%s), but no Coco toolchain for it is registered. %s" % (ctx.label, requested, source, how_to_register))
+    if not requested and not registry.default:
+        fail("%s needs a Coco toolchain, but none is registered. %s" % (ctx.label, how_to_register))
+
+def _popili_error(ctx, toolchain, version):
+    """Returns why this package's consumers cannot run popili, or None.
+
+    The package is analysed, through its consumers' exec transition, with their execution
+    platform as its target platform, so this is where that platform is known. The consumers
+    fail with the message when they do run popili; a package merely built, e.g. for a target
+    platform popili is not published for, is fine.
+
+    Args:
+        ctx: The coco_package's rule context.
+        toolchain: The Coco ToolchainInfo it forwards, or None.
+        version: The package's popili version.
+
+    Returns:
+        A message, or None.
+    """
+    if toolchain == None:
+        return (
+            "runs popili %s for %s on its execution platform, but no Coco toolchain of that version is " +
+            "registered for it. rules_coco publishes popili for %s; see the README sections \"Popili " +
+            "Version\", \"Remote execution\" and \"Bring your own toolchain\"."
+        ) % (version, ctx.label, ", ".join(EXEC_PLATFORM_KEYS))
+    return None
+
+def _with_popili_version_impl(ctx):
+    """Wrapper rule that builds a target, and everything below it, with a forced popili version."""
+    registry = ctx.attr._popili_registry[CocoVersionRegistryInfo]
+    version = resolve_version_alias(ctx.attr.version)
+    if version not in registry.versions:
+        fail("%s asks for popili version %r, which is not registered. Registered versions: %s." % (
+            ctx.label,
+            ctx.attr.version,
+            format_registered_versions(registry),
+        ))
+
+    target = _single(ctx.attr.target)
 
     # Forward all providers from the target
     # We need to explicitly check for each provider type and forward them
@@ -159,31 +280,72 @@ with_popili_version = rule(
     attrs = {
         "target": attr.label(
             mandatory = True,
-            doc = "The target to build with a specific popili version",
+            doc = "The target to build, together with everything below it, with the forced popili version.",
         ),
         "version": attr.string(
             mandatory = True,
-            doc = "The popili version to use (e.g., '1.5.0', '1.4.7')",
+            doc = "The popili version to use (e.g., '1.5.0', '1.5.1' or 'stable'). Must be registered.",
+        ),
+        "_popili_registry": attr.label(
+            default = Label("@coco_toolchains//versions"),
+            providers = [CocoVersionRegistryInfo],
         ),
     },
-    cfg = _popili_version_transition,
-    doc = """Wrapper rule to build a target with a specific popili version.
+    cfg = _force_version_transition,
+    doc = """Wrapper rule to build a target, and everything below it, with a specific popili version.
 
-    Use this when you need to build different targets with different popili versions
-    in the same build. For most cases, just use --@rules_coco//:version=X.Y.Z.
+The version is forced: it overrides the `popili_version` pinned by any coco_package or
+coco_workspace in the wrapped subgraph, exactly like building with
+`--@rules_coco//:version=<version> --@rules_coco//:force_version`. Use it to check whether
+an existing target also builds with another version without editing any pins.
 
-    Example:
-        coco_package(name = "pkg", ...)
+Wrap the outermost target you want to rebuild: wrapping a `coco_cc_library` retargets the
+code generation, the package, its dependencies and the runtime beneath it.
 
-        with_popili_version(
-            name = "pkg_v147",
-            target = ":pkg",
-            version = "1.4.7",
-        )
-    """,
+The wrapper forwards the wrapped target's `DefaultInfo`, `CocoPackageInfo`,
+`CocoCcGeneratedInfo`, `CocoCSharpGeneratedInfo`, `CcInfo` and `OutputGroupInfo`, and
+nothing else. So a target depending on the wrapper stays in its own configuration, but
+uses what the wrapper forwards, at the forced version:
+
+- a `coco_verify_test`, `coco_generate`, `coco_fmt_test` or diagram rule whose `package`
+  is a wrapped coco_package runs the forced popili version;
+- a `cc_library` or `cc_binary` depending on a wrapped `coco_cc_library` compiles against
+  its code and links the runtime of the forced version.
+
+The wrapper is neither a test nor executable, so wrapping a test or binary gives a target
+that can only be built, not tested or run. To verify a package on another version, wrap
+the package and point a `coco_verify_test` at the wrapper, as below, or run the test with
+`--@rules_coco//:version=<version> --@rules_coco//:force_version`.
+
+To generate code on another version, wrap the existing `coco_generate` (or the
+`coco_cc_library` using it) rather than adding a second `coco_generate` for the wrapped
+package: two `coco_generate` targets for the same package in the same BUILD package declare
+the same output files. A wrapped one builds in a configuration of its own, so it doesn't clash.
+
+Example:
+
+```python
+coco_package(name = "pkg", package = "Coco.toml", srcs = glob(["src/**/*.coco"]), popili_version = "1.5.0")
+
+coco_generate(name = "pkg_cpp", package = ":pkg", language = "cpp")
+
+# Generate and verify the same package on 1.5.1 as well, without touching its pin.
+with_popili_version(
+    name = "pkg_cpp_on_151",
+    target = ":pkg_cpp",
+    version = "1.5.1",
 )
 
-# License files are now obtained from the toolchain, not passed as attributes
+with_popili_version(
+    name = "pkg_on_151",
+    target = ":pkg",
+    version = "1.5.1",
+)
+
+coco_verify_test(name = "pkg_verify_on_151", package = ":pkg_on_151")
+```
+""",
+)
 
 def _runtime_path(file, is_test):
     return file.short_path if is_test else file.path
@@ -213,17 +375,13 @@ def _popili_toolchain(ctx, package):
     Returns:
         The Coco ToolchainInfo.
     """
-    toolchain = getattr(_package_info(package), "popili_toolchain", None)
+    info = _package_info(package)
+    error = getattr(info, "popili_error", None)
+    if error:
+        fail("%s %s" % (ctx.label, error))
+    toolchain = getattr(info, "popili_toolchain", None)
     if toolchain == None:
-        fail(
-            ("%s runs popili for %s on its execution platform, but no Coco toolchain of the configured " +
-             "Popili version is registered for it. rules_coco publishes popili for %s; see the README " +
-             "sections \"Popili Version\", \"Remote execution\" and \"Bring your own toolchain\".") % (
-                ctx.label,
-                package.label,
-                ", ".join(EXEC_PLATFORM_KEYS),
-            ),
-        )
+        fail("%s runs popili for %s, which carries no Coco toolchain." % (ctx.label, package.label))
     return toolchain
 
 CocoResolvedPopiliInfo = provider(
@@ -540,6 +698,66 @@ def _require_coco_toml(file, attr):
     if file.basename != "Coco.toml":
         fail("%s must point to a file called exactly 'Coco.toml'" % attr.capitalize(), attr = attr)
 
+def _resolved_pin(ctx):
+    return resolve_version_alias(ctx.attr.popili_version) if ctx.attr.popili_version else ""
+
+def _workspace_pin(workspace):
+    """Returns struct(version, toolchain, pinned_by) for a CocoWorkspaceInfo, or None.
+
+    CocoWorkspaceInfo is public, so it may come from a rule outside rules_coco that sets only
+    `files`, the provider's original field. Such a workspace, or one without both a version
+    and a toolchain, counts as unpinned.
+
+    Args:
+        workspace: A CocoWorkspaceInfo, or None.
+
+    Returns:
+        The workspace's pin, or None when there is none.
+    """
+    if workspace == None:
+        return None
+    version = getattr(workspace, "popili_version", "") or ""
+    if not version:
+        return None
+    return struct(
+        version = version,
+        toolchain = getattr(workspace, "popili_toolchain", None),
+        pinned_by = getattr(workspace, "popili_pinned_by", None),
+    )
+
+def _pin_warnings(label, version, pins, relation = "depends on it"):
+    """Returns a warning for each pinned package in `pins` whose pin differs from `version`.
+
+    Args:
+        label: The package that uses the pinned packages.
+        version: The popili version `label` resolved to.
+        pins: A list of struct(label, pinned_by, version) for pinned packages among `label`'s
+          dependencies.
+        relation: How `label` uses the pinned packages, for the message.
+
+    Returns:
+        A list of warning strings, sorted by the pinned package's label.
+    """
+    warnings = []
+    for pin in sorted(pins, key = lambda p: str(p.label)):
+        if pin.version == version:
+            continue
+        via = "" if pin.pinned_by == pin.label else " (through %s)" % pin.pinned_by
+        warnings.append(
+            ("%s pins popili_version %r%s, but %s %s and uses popili %r. That pin is " +
+             "ignored there: %s's sources are processed with popili %r.") % (
+                pin.label,
+                pin.version,
+                via,
+                label,
+                relation,
+                version,
+                pin.label,
+                version,
+            ),
+        )
+    return warnings
+
 def _coco_package_impl(ctx):
     _require_coco_toml(ctx.file.package, "package")
     package_file = ctx.file.package
@@ -557,15 +775,56 @@ def _coco_package_impl(ctx):
     )
 
     # Workspace Coco.toml files for this package and its deps, so popili can resolve inherited settings
+    workspace = ctx.attr.workspace[CocoWorkspaceInfo] if ctx.attr.workspace else None
     workspace_transitive = [dep[CocoPackageInfo].workspace_files for dep in ctx.attr.deps]
-    if ctx.attr.workspace:
-        workspace_transitive.append(ctx.attr.workspace[CocoWorkspaceInfo].files)
+    if workspace:
+        workspace_transitive.append(workspace.files)
     workspace_files = depset(transitive = workspace_transitive)
 
-    # The popili this package's consumers run: the version of this configuration, built for its
-    # target platform, which through the consumers' exec transition is their execution platform
-    # (see _popili_toolchain). None when there is no popili for that platform.
-    toolchain = ctx.toolchains[COCO_TOOLCHAIN_TYPE]
+    # Resolve the popili version: the package's own pin, else its workspace's, else the
+    # configuration's. Dependencies never decide it, as in popili itself. A pin is applied by
+    # this rule's transition, so the toolchains of this configuration are the pinned version's.
+    registry = ctx.attr._popili_registry[CocoVersionRegistryInfo]
+    pin = _resolved_pin(ctx)
+    workspace_pin = _workspace_pin(workspace)
+    if pin and workspace_pin and pin != workspace_pin.version:
+        fail(
+            ("%s pins popili_version %r, but its workspace %s pins %r. A package and its " +
+             "workspace must agree: remove one of the pins, or make them equal.") % (
+                ctx.label,
+                pin,
+                workspace_pin.pinned_by,
+                workspace_pin.version,
+            ),
+        )
+    if workspace_pin and not pin:
+        # Already checked by the workspace, which resolved its toolchains in this configuration
+        # with its pin applied.
+        toolchain = workspace_pin.toolchain
+        version = workspace_pin.version
+        pinned_by = workspace_pin.pinned_by
+    else:
+        # The popili this package's consumers run: the version of this configuration, built for
+        # its target platform, which through the consumers' exec transition is their execution
+        # platform (see _popili_toolchain). None when there is no popili for that platform.
+        toolchain = ctx.toolchains[COCO_TOOLCHAIN_TYPE]
+        _check_resolved_popili(ctx, toolchain, pin)
+        version = _toolchain_version(toolchain) or _configured_version(ctx, registry)
+        pinned_by = ctx.label if pin else None
+    popili_error = _popili_error(ctx, toolchain, version)
+
+    dep_pins = depset(transitive = [
+        getattr(dep[CocoPackageInfo], "popili_pins", depset())
+        for dep in ctx.attr.deps
+    ])
+    warnings = _pin_warnings(ctx.label, version, dep_pins.to_list())
+    for warning in warnings:
+        # buildifier: disable=print
+        print("WARNING: " + warning)
+    popili_pins = depset(
+        direct = [struct(label = ctx.label, pinned_by = pinned_by, version = version)] if pinned_by else [],
+        transitive = [dep_pins],
+    )
 
     # Conditionally run typecheck
     typecheck_marker = None
@@ -577,10 +836,15 @@ def _coco_package_impl(ctx):
         )
 
         # The typecheck is this package's own action, so it needs the popili of the package's
-        # own execution platform rather than the one it forwards to its consumers.
-        popili = _resolved_popili(ctx)
+        # own execution platform rather than the one it forwards to its consumers: the same
+        # version, from a target reached through an exec transition. A version inherited from the
+        # workspace is not in this configuration, so it comes from the workspace analysed there.
+        if workspace_pin and not pin:
+            popili = _workspace_pin(ctx.attr.exec_workspace[CocoWorkspaceInfo]).toolchain
+        else:
+            popili = _resolved_popili(ctx)
         if popili == None:
-            fail("%s has typecheck = True, but no Coco toolchain is registered for its execution platform." % ctx.label)
+            fail("%s has typecheck = True, but no Coco toolchain of popili %s is registered for its execution platform." % (ctx.label, version))
         typecheck_marker = _run_typecheck(ctx, popili, package_struct, srcs, test_srcs)
 
     # Build the list of files for DefaultInfo
@@ -595,7 +859,13 @@ def _coco_package_impl(ctx):
             dep_package_files = dep_package_files,
             direct_srcs = depset(ctx.files.srcs),
             direct_test_srcs = depset(ctx.files.test_srcs),
+            popili_error = popili_error,
+            popili_pinned = pinned_by != None,
+            popili_pinned_by = pinned_by,
+            popili_pins = popili_pins,
             popili_toolchain = toolchain,
+            popili_version = version,
+            popili_warnings = warnings,
             srcs = srcs,
             test_srcs = test_srcs,
             typecheck_marker = typecheck_marker,
@@ -606,10 +876,16 @@ def _coco_package_impl(ctx):
 
 _coco_package = rule(
     implementation = _coco_package_impl,
-    attrs = dict(LICENSE_ATTRIBUTES.items() + RESOLVED_POPILI_ATTR.items() + {
+    attrs = dict(LICENSE_ATTRIBUTES.items() + RESOLVED_POPILI_ATTR.items() + _POPILI_PIN_ATTRS.items() + {
         "deps": attr.label_list(
             providers = [CocoPackageInfo],
             doc = "Other coco_package targets this package depends on.",
+        ),
+        "exec_workspace": attr.label(
+            providers = [CocoWorkspaceInfo],
+            cfg = "exec",
+            doc = "The `workspace`, analysed for this package's execution platform: the popili of " +
+                  "a version inherited from it, for the typecheck. Set by the coco_package macro.",
         ),
         "package": attr.label(
             mandatory = True,
@@ -636,6 +912,7 @@ _coco_package = rule(
             doc = "Optional coco_workspace whose Coco.toml settings this package inherits.",
         ),
     }.items()),
+    cfg = _pin_transition,
     toolchains = POPILI_TOOLCHAINS,
 )
 
@@ -643,6 +920,7 @@ def _coco_package_macro_impl(name, visibility, **kwargs):
     _coco_package(
         name = name,
         visibility = visibility,
+        exec_workspace = kwargs.get("workspace"),
         **kwargs
     )
 
@@ -652,29 +930,79 @@ coco_package = macro(
 A coco_package is the unit the other Coco rules operate on: pass it to
 coco_generate to produce code, to coco_verify_test to verify it, or to
 coco_fmt_test to check formatting. Packages may depend on other packages via
-`deps`, and may inherit shared settings from a coco_workspace via `workspace`.""",
+`deps`, and may inherit shared settings from a coco_workspace via `workspace`.
+
+The popili version is a property of the package: every rule consuming it (typecheck,
+verify, generate, format, diagrams, and the C/C++ runtime of `coco_cc_library` /
+`coco_c_library`) uses the same one. It is, in order of precedence:
+
+1. `--@rules_coco//:version` when `--@rules_coco//:force_version` is set, e.g. by
+   `with_popili_version`;
+2. this package's `popili_version`;
+3. its workspace's `popili_version`, which must not differ from the package's;
+4. `--@rules_coco//:version`;
+5. the first version registered.
+
+Dependencies never decide a package's version. When a dependency pins a different version, a
+warning is printed and its sources are processed with this package's version.""",
     inherit_attrs = _coco_package,
+    attrs = {
+        # Derived from `workspace` by the macro.
+        "exec_workspace": None,
+    },
     implementation = _coco_package_macro_impl,
 )
 
 def _coco_workspace_impl(ctx):
     _require_coco_toml(ctx.file.workspace, "workspace")
 
+    parent = ctx.attr.parent[CocoWorkspaceInfo] if ctx.attr.parent else None
     parent_transitive = []
-    if ctx.attr.parent:
-        parent_transitive.append(ctx.attr.parent[CocoWorkspaceInfo].files)
+    if parent:
+        parent_transitive.append(parent.files)
     files = depset(direct = [ctx.file.workspace], transitive = parent_transitive)
+
+    pin = _resolved_pin(ctx)
+    parent_pin = _workspace_pin(parent)
+    if pin and parent_pin and pin != parent_pin.version:
+        fail(
+            ("%s pins popili_version %r, but its parent workspace %s pins %r. A workspace and " +
+             "its parent must agree: remove one of the pins, or make them equal.") % (
+                ctx.label,
+                pin,
+                parent_pin.pinned_by,
+                parent_pin.version,
+            ),
+        )
+    if pin:
+        # This rule's transition applied the pin, so these are the pinned version's toolchains,
+        # resolved for the configuration of the member package that depends on this workspace.
+        toolchain = ctx.toolchains[COCO_TOOLCHAIN_TYPE]
+        _check_resolved_popili(ctx, toolchain, pin)
+        version = pin
+        pinned_by = ctx.label
+    elif parent_pin:
+        toolchain = parent_pin.toolchain
+        version = parent_pin.version
+        pinned_by = parent_pin.pinned_by
+    else:
+        toolchain = None
+        version = ""
+        pinned_by = None
 
     return [
         CocoWorkspaceInfo(
             files = files,
+            popili_pinned_by = pinned_by,
+            popili_toolchain = toolchain,
+            popili_version = version,
         ),
         DefaultInfo(files = files),
     ]
 
 _coco_workspace = rule(
     implementation = _coco_workspace_impl,
-    attrs = {
+    attrs = dict(_POPILI_PIN_ATTRS.items() + {
         "parent": attr.label(
             providers = [CocoWorkspaceInfo],
             doc = "An enclosing coco_workspace, when this workspace is nested inside another",
@@ -684,8 +1012,10 @@ _coco_workspace = rule(
             allow_single_file = [".toml"],
             doc = "Label pointing to the workspace's root Coco.toml (must contain a [workspace] section)",
         ),
-    },
+    }.items()),
+    cfg = _pin_transition,
     doc = "Declares a Coco workspace root whose shared settings flow down to member coco_package targets.",
+    toolchains = POPILI_TOOLCHAINS,
 )
 
 def _coco_workspace_macro_impl(name, visibility, **kwargs):
@@ -699,7 +1029,12 @@ coco_workspace = macro(
     doc = """Declares a Coco workspace root.
 
 A workspace's Coco.toml carries shared settings that popili applies to member
-packages. Reference this target from a coco_package's `workspace` attribute.""",
+packages. Reference this target from a coco_package's `workspace` attribute.
+
+A workspace's `popili_version` is inherited by every member package that doesn't pin one,
+and by nested workspaces (via `parent`). A member or nested workspace pinning a different
+version is an error. Workspaces only pass settings down: they are not themselves consumed
+by coco_generate, coco_verify_test and friends, which always take a coco_package.""",
     inherit_attrs = _coco_workspace,
     implementation = _coco_workspace_macro_impl,
 )
@@ -1028,8 +1363,7 @@ def _output_directory(package_dir, srcs):
     return root_output_dir
 
 def _coco_package_generate_impl(ctx):
-    # When using configuration transitions, ctx.attr.package becomes a list
-    package = ctx.attr.package[0] if type(ctx.attr.package) == type([]) else ctx.attr.package
+    package = ctx.attr.package
     srcs = package[CocoPackageInfo].direct_srcs
     test_srcs = package[CocoPackageInfo].direct_test_srcs
     package_dir = package[CocoPackageInfo].package_file.dirname
@@ -1057,6 +1391,18 @@ def _coco_package_generate_impl(ctx):
     package_relative_dir = paths.relativize(package_dir, ctx.label.package) if ctx.label.package else package_dir
     toolchain = _popili_toolchain(ctx, package)
     popili_version = _toolchain_version(toolchain)
+    for warning in _pin_warnings(
+        ctx.label,
+        popili_version,
+        depset(transitive = [
+            getattr(regen_pkg[CocoPackageInfo], "popili_pins", depset())
+            for regen_pkg in regenerate_pkgs
+        ]).to_list(),
+        relation = "regenerates it",
+    ):
+        # buildifier: disable=print
+        print("WARNING: " + warning)
+
     for regen_pkg in regenerate_pkgs:
         regen_pkg_dir = regen_pkg[CocoPackageInfo].package_file.dirname
         regen_root_output_dir = _output_directory(regen_pkg_dir, regen_pkg[CocoPackageInfo].direct_srcs)
@@ -1442,6 +1788,10 @@ def popili_version_alias(name, **kwargs):
 
 # Exported for use by cc.bzl and c.bzl
 coco_cc_gen = _coco_cc_gen
+
+# Exported for testing
+pinned_version = _pinned_version
+pin_warnings = _pin_warnings
 
 # Exported for testing
 mangle_name = _mangle_name
