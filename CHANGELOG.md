@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `coco_toolchain` has an optional `version` attribute, for the Popili version the toolchain
+  provides.
 - WORKSPACE mode now supports multiple Popili versions, like bzlmod already did.
   `coco_repositories(versions = ["1.5.1", "1.5.0"])` registers a toolchain per version, selected
   with `--@rules_coco//:version=1.5.0` or per target with `with_popili_version`. The first entry is
@@ -29,6 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   only when no module declares `coco.toolchain`. If yours declares one, you get only what it lists,
   so add `c = True` / `cc = True` for the runtimes you use. Modules that don't declare
   `coco.toolchain` are unaffected and still get `stable` with both runtimes.
+- `coco_cc_library` and `coco_c_library` now always link the runtime of the Popili version the code
+  was generated with.
 - **Breaking:** the local toolchain registered by `coco_local_repositories()` in WORKSPACE mode is
   now selected by `--@rules_coco//:version=local` and is no longer active by default, matching the
   bzlmod `coco.local_toolchain` tag. Add `common --@rules_coco//:version=local` to your `.bazelrc`
