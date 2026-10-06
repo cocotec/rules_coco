@@ -12,6 +12,8 @@ load("@rules_coco//coco:cc.bzl", "coco_cc_library")
 load("@rules_coco//coco:defs.bzl", "coco_generate", "coco_package", "coco_state_diagram", "coco_verify_test", "coco_workspace", "with_popili_version")
 load(
     ":exec_platform_tests.bzl",
+    "exec_platform_local_acquire_license_test",
+    "exec_platform_local_user_license_test",
     "exec_platform_runs_package_version_test",
     "exec_platform_unpublished_test",
 )
@@ -441,6 +443,25 @@ exec_platform_unpublished_test(
     ],
     target_under_test = ":modern_states_on_linux_riscv64",
 )
+
+# The platform is published for, but the licence mode reads a licence on the host: refused, so
+# that a licence installed (local_user) or acquired (local_acquire) on a Mac is never handed to
+# a Linux popili.
+[
+    test(
+        name = "exec_platform_%s_license_test" % mode,
+        expected_messages = [
+            "//:modern_states_on_linux_aarch64 runs popili for",
+            '//:modern with license_source "%s", which reads a licence on the host' % mode,
+            "but its execution platform is linux_aarch64",
+        ],
+        target_under_test = ":modern_states_on_linux_aarch64",
+    )
+    for mode, test in [
+        ("local_user", exec_platform_local_user_license_test),
+        ("local_acquire", exec_platform_local_acquire_license_test),
+    ]
+]
 
 # ---------------------------------------------------------------------------------------------
 # Typecheck runs the package's version, from its own pin or its workspace's

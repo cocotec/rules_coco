@@ -28,6 +28,7 @@ CocoVersionRegistryInfo = provider(
         "c_runtimes": "Dict of version to the C runtime target registered for it",
         "cc_runtimes": "Dict of version to the C++ runtime target registered for it",
         "default": "The version used when --@rules_coco//:version is unset, or '' if none",
+        "host": "The host as a platform key, e.g. 'linux_x86_64', or '' when popili is not published for it",
         "versions": "List of registered versions, including 'local' when a local toolchain is registered",
     },
 )
@@ -36,6 +37,7 @@ def _coco_version_registry_impl(ctx):
     return [CocoVersionRegistryInfo(
         versions = ctx.attr.versions,
         default = ctx.attr.default,
+        host = ctx.attr.host,
         cc_runtimes = {version: target for target, version in ctx.attr.cc_runtimes.items()},
         c_runtimes = {version: target for target, version in ctx.attr.c_runtimes.items()},
     )]
@@ -52,6 +54,9 @@ coco_version_registry = rule(
         ),
         "default": attr.string(
             doc = "The version used when --@rules_coco//:version is unset.",
+        ),
+        "host": attr.string(
+            doc = "The host as a platform key, e.g. 'linux_x86_64', or '' when popili is not published for it.",
         ),
         "versions": attr.string_list(
             doc = "The registered versions.",
