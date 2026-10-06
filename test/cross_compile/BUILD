@@ -11,15 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-# Cross-compiling: the Coco toolchain constrains only the exec platform, and the scripts the rules
-# Cross-compiling: the Coco toolchain constrains only the exec platform, and the scripts the rules
-# emit must follow the popili binary rather than the target platform.
+# Cross-compiling: the scripts the rules emit must follow the execution platform rather than the
+# target platform.
 
 load("@bazel_skylib//rules:write_file.bzl", "write_file")
 load("@rules_coco//coco:defs.bzl", "coco_fmt_test", "coco_package")
 load("@rules_coco//coco:toolchain.bzl", "coco_toolchain")
 load(":script_flavour_test.bzl", "script_flavour_tests")
 
+# Used both as foreign target platforms and as foreign execution platforms.
 [
     platform(
         name = os,

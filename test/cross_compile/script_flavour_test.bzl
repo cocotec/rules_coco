@@ -12,10 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # Cross-compiling: the Coco toolchain constrains only the exec platform, and the scripts the rules
-"""Analysis tests: generated scripts follow the popili binary's platform, not the target platform.
+"""Analysis tests: generated scripts follow the execution platform, not the target platform.
 
-Each test builds for a foreign target platform with a fake Coco toolchain wrapping either `popili`
-or `popili.exe`, and asserts the wrapper or typecheck script has the extension the binary demands.
+Each test builds for a foreign target platform on a foreign execution platform, with a fake Coco
+toolchain wrapping the `popili` or `popili.exe` that platform would run, and asserts the typecheck
+and wrapper scripts have the extension the execution platform demands. The fake toolchains record
+no platform, so the flavour follows the binary's name, as it does for a bring-your-own toolchain.
 """
 
 load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts")
@@ -34,20 +36,24 @@ def _typecheck_test_impl(ctx):
         asserts.true(env, script.endswith("." + ctx.attr.expected_ext), "typecheck script %s is not a .%s" % (script, ctx.attr.expected_ext))
     return analysistest.end(env)
 
-def _settings(target_os, toolchain):
+def _settings(target_os, exec_os, toolchain):
     return {
-        "//command_line_option:extra_toolchains": [str(Label("//test/cross_compile:fake_%s_toolchain" % toolchain))],
+        "//command_line_option:extra_execution_platforms": [str(Label("//test/cross_compile:" + exec_os))],
+        "//command_line_option:extra_toolchains": [
+            str(Label("//test/cross_compile:fake_%s_toolchain" % toolchain)),
+        ],
         "//command_line_option:platforms": str(Label("//test/cross_compile:" + target_os)),
     }
 
 _ATTRS = {"expected_ext": attr.string(mandatory = True)}
 
 # rule() must be called at top level and bound to a global, hence one pair per combination. Each
-# combination mismatches the target OS and the binary's OS, which is what the real hosts never do.
-posix_on_windows_wrapper_test = analysistest.make(_wrapper_test_impl, attrs = _ATTRS, config_settings = _settings("windows", "posix"))
-posix_on_windows_typecheck_test = analysistest.make(_typecheck_test_impl, attrs = _ATTRS, config_settings = _settings("windows", "posix"))
-windows_on_linux_wrapper_test = analysistest.make(_wrapper_test_impl, attrs = _ATTRS, config_settings = _settings("linux", "windows"))
-windows_on_linux_typecheck_test = analysistest.make(_typecheck_test_impl, attrs = _ATTRS, config_settings = _settings("linux", "windows"))
+# combination mismatches the target OS and the execution platform's OS, which is what the real
+# hosts never do.
+posix_on_windows_wrapper_test = analysistest.make(_wrapper_test_impl, attrs = _ATTRS, config_settings = _settings("windows", "linux", "posix"))
+posix_on_windows_typecheck_test = analysistest.make(_typecheck_test_impl, attrs = _ATTRS, config_settings = _settings("windows", "linux", "posix"))
+windows_on_linux_wrapper_test = analysistest.make(_wrapper_test_impl, attrs = _ATTRS, config_settings = _settings("linux", "windows", "windows"))
+windows_on_linux_typecheck_test = analysistest.make(_typecheck_test_impl, attrs = _ATTRS, config_settings = _settings("linux", "windows", "windows"))
 
 def script_flavour_tests(name, package, wrapper):
     """Declares the typecheck and wrapper tests for both mismatching combinations, plus a test_suite.

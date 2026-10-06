@@ -19,7 +19,7 @@ load(":cc_runtime_deps.bzl", "collect_cc_runtime_extra_deps", "normalize_cc_runt
 load(":coco.bzl", "compute_output_filenames", "mangle_name")
 load(":common_repositories.bzl", "download_prefix", "find_local_license_path")
 load(":known_shas.bzl", "FILE_KEY_TO_SHA")
-load(":platforms.bzl", "COCO_TOOLCHAIN_PLATFORMS", "archive_platform", "platform_binary_ext")
+load(":platforms.bzl", "COCO_TOOLCHAIN_PLATFORMS", "EXEC_PLATFORM_KEYS", "archive_platform", "host_platform", "platform_binary_ext", "platform_key")
 load(
     ":toolchain_hub.bzl",
     "merge_toolchain_tags",
@@ -27,7 +27,7 @@ load(
     "resolve_versions",
     "toolchain_hub_entries",
 )
-load(":toolchain_repositories.bzl", "coco_toolchain_download")
+load(":toolchain_repositories.bzl", "BUILD_for_coco_toolchain", "coco_toolchain_download")
 load(":version_aliases.bzl", "VERSION_ALIASES")
 load(":version_resolution.bzl", "resolve_version_alias", "version_tuple")
 
@@ -980,9 +980,44 @@ def _archive_platform_test(ctx):
 
     return unittest.end(env)
 
+def _platform_key_test(ctx):
+    """Platform keys are "<os>_<arch>", one per published platform, in platform order."""
+    env = unittest.begin(ctx)
+
+    asserts.equals(env, "linux_x86_64", platform_key("linux", "x86_64"))
+    asserts.equals(env, "osx_aarch64", platform_key("osx", "aarch64"))
+    asserts.equals(env, ["osx_aarch64", "linux_aarch64", "linux_x86_64", "windows_x86_64"], EXEC_PLATFORM_KEYS)
+
+    # _script_is_windows reads the OS off a key's prefix, so no OS may contain an underscore.
+    for (os, _arch) in COCO_TOOLCHAIN_PLATFORMS:
+        asserts.false(env, "_" in os, "OS %r would break platform keys" % os)
+
+    return unittest.end(env)
+
+def _fake_os_ctx(name, arch):
+    return struct(os = struct(name = name, arch = arch, environ = {}))
+
+def _host_platform_test(ctx):
+    """The host maps onto a published platform, or None where popili is not published."""
+    env = unittest.begin(ctx)
+
+    asserts.equals(env, ("osx", "aarch64"), host_platform(_fake_os_ctx("mac os x", "aarch64")))
+    asserts.equals(env, ("linux", "x86_64"), host_platform(_fake_os_ctx("linux", "amd64")))
+    asserts.equals(env, ("linux", "aarch64"), host_platform(_fake_os_ctx("linux", "arm64")))
+    asserts.equals(env, ("windows", "x86_64"), host_platform(_fake_os_ctx("windows 10", "amd64")))
+
+    # Intel Macs, and anything else popili is not published for.
+    asserts.equals(env, None, host_platform(_fake_os_ctx("mac os x", "x86_64")))
+    asserts.equals(env, None, host_platform(_fake_os_ctx("linux", "s390x")))
+    asserts.equals(env, None, host_platform(_fake_os_ctx("sunos", "x86_64")))
+
+    return unittest.end(env)
+
 version_tuple_test = unittest.make(_version_tuple_test)
 download_prefix_test = unittest.make(_download_prefix_test)
 archive_platform_test = unittest.make(_archive_platform_test)
+platform_key_test = unittest.make(_platform_key_test)
+host_platform_test = unittest.make(_host_platform_test)
 
 # Tests for resolve_versions
 
@@ -1084,36 +1119,28 @@ resolve_versions_suffix_collision_rejected_test = unittest.make(_resolve_version
 # Tests for toolchain_hub_entries
 
 def _hub_entries_single_version_test(ctx):
-    """One version yields a per-platform toolchain plus a per-platform default."""
+    """One version yields, per platform, its own toolchain plus the default one."""
     env = unittest.begin(ctx)
 
     entries = toolchain_hub_entries(["1.5.7"])
 
-    asserts.equals(
-        env,
-        2 * len(COCO_TOOLCHAIN_PLATFORMS),
-        len(entries.toolchain_names),
-    )
+    asserts.equals(env, 8, len(entries.toolchain_names))
     asserts.equals(env, {"1.5.7": "1_5_7"}, entries.version_suffixes)
 
-    # Both the version-gated and the default toolchain point at the same repository.
+    # The version-gated and the default entry point at the same per-platform toolchain.
     label = "@io_cocotec_coco_linux_x86_64__1_5_7//:toolchain_impl"
-    asserts.equals(env, label, entries.toolchain_labels["linux_x86_64__1_5_7"])
-    asserts.equals(env, label, entries.toolchain_labels["linux_x86_64__default"])
+    for name in ["linux_x86_64__1_5_7", "linux_x86_64__default"]:
+        asserts.true(env, name in entries.toolchain_names, name)
+        asserts.equals(env, label, entries.toolchain_labels[name])
+    asserts.equals(env, "1.5.7", entries.default_version)
 
-    asserts.equals(
-        env,
-        ["@coco_toolchains//:version_1_5_7"],
-        entries.target_settings["linux_x86_64__1_5_7"],
-    )
-    asserts.equals(
-        env,
-        ["@coco_toolchains//:version_default"],
-        entries.target_settings["linux_x86_64__default"],
-    )
-
+    # Only the target platform is constrained.
     constraints = ["@platforms//os:linux", "@platforms//cpu:x86_64"]
-    asserts.equals(env, constraints, entries.exec_compatible_with["linux_x86_64__1_5_7"])
+    asserts.equals(env, constraints, entries.target_compatible_with["linux_x86_64__1_5_7"])
+    asserts.equals(env, constraints, entries.target_compatible_with["linux_x86_64__default"])
+
+    asserts.equals(env, ["@coco_toolchains//:version_1_5_7"], entries.target_settings["linux_x86_64__1_5_7"])
+    asserts.equals(env, ["@coco_toolchains//:version_default"], entries.target_settings["linux_x86_64__default"])
 
     return unittest.end(env)
 
@@ -1123,23 +1150,11 @@ def _hub_entries_default_is_first_version_only_test(ctx):
 
     entries = toolchain_hub_entries(["1.5.0", "1.5.1"])
 
-    asserts.equals(
-        env,
-        3 * len(COCO_TOOLCHAIN_PLATFORMS),
-        len(entries.toolchain_names),
-    )
     asserts.equals(env, {"1.5.0": "1_5_0", "1.5.1": "1_5_1"}, entries.version_suffixes)
-
-    asserts.equals(
-        env,
-        "@io_cocotec_coco_linux_x86_64__1_5_0//:toolchain_impl",
-        entries.toolchain_labels["linux_x86_64__default"],
-    )
-    asserts.true(
-        env,
-        "linux_x86_64__1_5_1" in entries.toolchain_names,
-        "the non-default version still gets a gated toolchain",
-    )
+    asserts.equals(env, 12, len(entries.toolchain_names))
+    asserts.equals(env, "@io_cocotec_coco_osx_aarch64__1_5_0//:toolchain_impl", entries.toolchain_labels["osx_aarch64__default"])
+    asserts.equals(env, "@io_cocotec_coco_osx_aarch64__1_5_1//:toolchain_impl", entries.toolchain_labels["osx_aarch64__1_5_1"])
+    asserts.equals(env, "1.5.0", entries.default_version)
 
     return unittest.end(env)
 
@@ -1147,7 +1162,8 @@ def _hub_entries_local_only_test(ctx):
     """A local-only setup registers exactly one toolchain, gated on --version=local.
 
     Matching bzlmod: local never becomes the default, so a build that does not set the
-    flag resolves no Coco toolchain at all.
+    flag resolves no Coco toolchain at all. The constraints are left to the hub repository
+    rule, which knows the host.
     """
     env = unittest.begin(ctx)
 
@@ -1155,15 +1171,10 @@ def _hub_entries_local_only_test(ctx):
 
     asserts.equals(env, ["local"], entries.toolchain_names)
     asserts.equals(env, {"local": "local"}, entries.version_suffixes)
-    asserts.equals(
-        env,
-        "@io_cocotec_coco_local//:toolchain_impl",
-        entries.toolchain_labels["local"],
-    )
+    asserts.equals(env, "", entries.default_version)
+    asserts.equals(env, "@io_cocotec_coco_local//:toolchain_impl", entries.toolchain_labels["local"])
     asserts.equals(env, ["@coco_toolchains//:version_local"], entries.target_settings["local"])
-
-    # Host-only: the local binaries only exist on the machine that staged them.
-    asserts.equals(env, [], entries.exec_compatible_with["local"])
+    asserts.equals(env, [], entries.target_compatible_with["local"])
 
     return unittest.end(env)
 
@@ -1173,16 +1184,8 @@ def _hub_entries_local_alongside_versions_test(ctx):
 
     entries = toolchain_hub_entries(["1.5.7"], has_local = True)
 
-    asserts.equals(
-        env,
-        2 * len(COCO_TOOLCHAIN_PLATFORMS) + 1,
-        len(entries.toolchain_names),
-    )
-    asserts.equals(
-        env,
-        "@io_cocotec_coco_linux_x86_64__1_5_7//:toolchain_impl",
-        entries.toolchain_labels["linux_x86_64__default"],
-    )
+    asserts.equals(env, 9, len(entries.toolchain_names))
+    asserts.equals(env, "@io_cocotec_coco_linux_x86_64__1_5_7//:toolchain_impl", entries.toolchain_labels["linux_x86_64__default"])
     asserts.equals(env, ["@coco_toolchains//:version_local"], entries.target_settings["local"])
 
     return unittest.end(env)
@@ -1194,8 +1197,15 @@ hub_entries_local_alongside_versions_test = unittest.make(_hub_entries_local_alo
 
 # Tests for render_toolchain_hub_build
 
+_HOST = ("linux", "x86_64")
+
+def _toolchain_decl(build, name):
+    """Returns the toolchain() declaration named `name` from a rendered hub BUILD."""
+    start = build.index('name = "%s",' % name)
+    return build[start:build.index(")", start)]
+
 def _hub_build_labels_test(ctx):
-    """The rendered BUILD wires the version flag and toolchain type by absolute label.
+    """The rendered BUILD wires the version flag and the toolchain type by absolute label.
 
     Those labels have to resolve from a generated repository in both WORKSPACE mode
     (global repository namespace) and bzlmod (the extension's repo mapping), so they are
@@ -1203,7 +1213,7 @@ def _hub_build_labels_test(ctx):
     """
     env = unittest.begin(ctx)
 
-    build = render_toolchain_hub_build(toolchain_hub_entries(["1.5.7"]))
+    build = render_toolchain_hub_build(toolchain_hub_entries(["1.5.7"]), host = _HOST)
 
     asserts.true(
         env,
@@ -1217,14 +1227,13 @@ def _hub_build_labels_test(ctx):
     )
     asserts.true(
         env,
-        'toolchain_type = "@rules_coco//coco:toolchain_type"' in build,
-        "toolchain_type missing: %s" % build,
-    )
-    asserts.true(
-        env,
         'target_settings = ["@coco_toolchains//:version_1_5_7"]' in build,
         "target_settings missing: %s" % build,
     )
+
+    entry = _toolchain_decl(build, "linux_x86_64__1_5_7")
+    asserts.true(env, 'toolchain_type = "@rules_coco//coco:toolchain_type"' in entry, entry)
+    asserts.true(env, 'toolchain = "@io_cocotec_coco_linux_x86_64__1_5_7//:toolchain_impl"' in entry, entry)
 
     return unittest.end(env)
 
@@ -1232,30 +1241,89 @@ def _hub_build_has_no_loads_test(ctx):
     """The hub uses only native rules, so it stays loadable before skylib is fetched."""
     env = unittest.begin(ctx)
 
-    build = render_toolchain_hub_build(toolchain_hub_entries(["1.5.7"], has_local = True))
+    build = render_toolchain_hub_build(toolchain_hub_entries(["1.5.7"], has_local = True), host = _HOST)
 
     asserts.true(env, "load(" not in build, "hub BUILD must not load anything: %s" % build)
 
     return unittest.end(env)
 
-def _hub_build_constrains_exec_only_test(ctx):
-    """Toolchains constrain the exec platform only, so cross-compiling still resolves one."""
+def _hub_build_constraints_test(ctx):
+    """Each entry constrains the target platform only; the local one is pinned to the host.
+
+    It is resolved by a target analysed, through an exec transition, for the execution platform
+    of the rule running popili as its target platform. The execution platform is left free, so
+    cross-compiling still resolves it.
+    """
     env = unittest.begin(ctx)
 
-    build = render_toolchain_hub_build(toolchain_hub_entries(["1.5.7"], has_local = True))
+    build = render_toolchain_hub_build(toolchain_hub_entries(["1.5.7"], has_local = True), host = _HOST)
 
-    asserts.true(env, "exec_compatible_with" in build, "exec constraint missing: %s" % build)
-    asserts.true(
-        env,
-        "target_compatible_with" not in build,
-        "hub BUILD must not constrain the target platform: %s" % build,
+    constraints = '["@platforms//os:osx", "@platforms//cpu:aarch64"]'
+    entry = _toolchain_decl(build, "osx_aarch64__1_5_7")
+    asserts.true(env, "target_compatible_with = %s" % constraints in entry, entry)
+    asserts.true(env, "exec_compatible_with" not in entry, entry)
+
+    host_constraints = '["@platforms//os:linux", "@platforms//cpu:x86_64"]'
+    local_entry = _toolchain_decl(build, "local")
+    asserts.true(env, "target_compatible_with = %s" % host_constraints in local_entry, local_entry)
+
+    # Where popili is not published for the host, the local toolchain stays unconstrained:
+    # nothing else can run on that host anyway.
+    build = render_toolchain_hub_build(toolchain_hub_entries([], has_local = True), host = None)
+    asserts.true(env, "@platforms//os" not in build, build)
+
+    return unittest.end(env)
+
+def _hub_build_runtime_aliases_test(ctx):
+    """The hub aliases each kind's runtime of the configured version, with the default's."""
+    env = unittest.begin(ctx)
+
+    build = render_toolchain_hub_build(
+        toolchain_hub_entries(["1.5.0", "1.5.1"], has_local = True),
+        host = _HOST,
+        cc_runtimes = {
+            "1.5.0": "@io_cocotec_coco_cc_runtime__1_5_0//:runtime",
+            "1.5.1": "@io_cocotec_coco_cc_runtime__1_5_1//:runtime",
+            "local": "@io_cocotec_coco_cc_runtime__local//:runtime",
+        },
+        c_runtimes = {"1.5.1": "@io_cocotec_coco_c_runtime__1_5_1//:runtime"},
     )
+
+    cc = build[build.index('name = "cc_runtime"'):build.index('name = "no_cc_runtime"')]
+    asserts.true(env, '":version_1_5_0": "@io_cocotec_coco_cc_runtime__1_5_0//:runtime",' in cc, cc)
+    asserts.true(env, '":version_default": "@io_cocotec_coco_cc_runtime__1_5_0//:runtime",' in cc, cc)
+    asserts.true(env, '":version_1_5_1": "@io_cocotec_coco_cc_runtime__1_5_1//:runtime",' in cc, cc)
+    asserts.true(env, '":version_local": "@io_cocotec_coco_cc_runtime__local//:runtime",' in cc, cc)
+    asserts.true(env, '"//conditions:default": ":no_cc_runtime",' in cc, cc)
+
+    # The first version has no C runtime, so an unset flag gets the fallback.
+    c = build[build.index('name = "c_runtime"'):build.index('name = "no_c_runtime"')]
+    asserts.true(env, '":version_1_5_1": "@io_cocotec_coco_c_runtime__1_5_1//:runtime",' in c, c)
+    asserts.true(env, "version_default" not in c, c)
+    asserts.true(env, "version_1_5_0" not in c, c)
+
+    # The toolchains name no runtime.
+    asserts.true(env, "runtime" not in build[:build.index('name = "cc_runtime"')], build)
 
     return unittest.end(env)
 
 hub_build_labels_test = unittest.make(_hub_build_labels_test)
 hub_build_has_no_loads_test = unittest.make(_hub_build_has_no_loads_test)
-hub_build_constrains_exec_only_test = unittest.make(_hub_build_constrains_exec_only_test)
+hub_build_constraints_test = unittest.make(_hub_build_constraints_test)
+hub_build_runtime_aliases_test = unittest.make(_hub_build_runtime_aliases_test)
+
+# Tests for BUILD_for_coco_toolchain
+
+def _toolchain_build_records_platform_test(ctx):
+    """A platform repository's toolchain says which platform its binary runs on."""
+    env = unittest.begin(ctx)
+
+    asserts.true(env, 'platform = "linux_x86_64",' in BUILD_for_coco_toolchain(name = "toolchain", platform = "linux_x86_64"))
+    asserts.true(env, "platform" not in BUILD_for_coco_toolchain(name = "toolchain"))
+
+    return unittest.end(env)
+
+toolchain_build_records_platform_test = unittest.make(_toolchain_build_records_platform_test)
 
 # Tests for normalize_cc_runtime_extra_deps
 
@@ -1575,6 +1643,8 @@ def coco_test_suite(name):
         version_tuple_test,
         download_prefix_test,
         archive_platform_test,
+        platform_key_test,
+        host_platform_test,
 
         # resolve_versions tests
         resolve_versions_alias_test,
@@ -1594,7 +1664,11 @@ def coco_test_suite(name):
         # render_toolchain_hub_build tests
         hub_build_labels_test,
         hub_build_has_no_loads_test,
-        hub_build_constrains_exec_only_test,
+        hub_build_constraints_test,
+        hub_build_runtime_aliases_test,
+
+        # BUILD_for_coco_toolchain tests
+        toolchain_build_records_platform_test,
 
         # normalize_cc_runtime_extra_deps tests
         normalize_extra_deps_list_applies_to_all_test,
