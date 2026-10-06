@@ -1,0 +1,20 @@
+# E2E for a declared but absent local toolchain, WORKSPACE mode. See MODULE.bazel.
+
+workspace(name = "rules_coco_local_toolchain_absent_test")
+
+load("@bazel_tools//tools/build_defs/repo:local.bzl", "local_repository")
+
+# Use the local development version of rules_coco.
+local_repository(
+    name = "rules_coco",
+    path = "../..",
+)
+
+load("@rules_coco//coco:repositories.bzl", "coco_repositories")
+
+# Deliberately absent local distribution alongside stable. Nothing here sets
+# --@rules_coco//:version=local.
+coco_repositories(
+    local_popili = "absent/popili",
+    versions = ["stable"],
+)

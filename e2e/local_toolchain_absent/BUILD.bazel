@@ -1,0 +1,22 @@
+# E2E for a declared but absent local toolchain: see MODULE.bazel.
+
+load("@rules_coco//coco:defs.bzl", "coco_package", "coco_verify_test")
+load(":popili_version_report.bzl", "popili_version_report")
+
+# Without --@rules_coco//:version=local the registered release is used. Fails during
+# analysis otherwise, so being part of //... is enough.
+popili_version_report(
+    name = "popili_is_stable",
+    expected_version = "stable",
+)
+
+coco_package(
+    name = "example",
+    srcs = glob(["src/**/*.coco"]),
+    package = "Coco.toml",
+)
+
+coco_verify_test(
+    name = "example_verify",
+    package = ":example",
+)
