@@ -86,7 +86,7 @@ def coco_c_test_library(
 
     Args:
         name: The name of the test library
-        generated_package: A coco_generate target with mocks enabled (mutually exclusive with generated_packages)
+        generated_package: A coco_generate target whose package has test sources (mutually exclusive with generated_packages)
         generated_packages: Multiple coco_generate targets to merge into one library
         srcs: Additional C source files
         hdrs: Additional C header files

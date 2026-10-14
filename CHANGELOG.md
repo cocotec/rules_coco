@@ -66,6 +66,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a Linux or macOS host emitted a `.bat` for a POSIX executor, and vice versa. The flavour is now
   derived from the resolved toolchain's binary: `popili.exe` means Windows.
 - `coco_generate`, the C/C++ library macros and `coco_fmt_test` now work with `tags = ["manual"]` and `testonly`.
+- `coco_generate` with `language = "c"` and `mocks = True` now fails with a clear error, since C mocks are not
+  supported.
 
 ## [0.3.0] - 2026/05/31
 

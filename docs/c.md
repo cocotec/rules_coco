@@ -71,7 +71,7 @@ The `public_hdrs` parameter controls which generated test headers are public:
 | Name  | Description | Default Value |
 | :------------- | :------------- | :------------- |
 | <a id="coco_c_test_library-name"></a>name |  The name of the test library   |  none |
-| <a id="coco_c_test_library-generated_package"></a>generated_package |  A coco_generate target with mocks enabled (mutually exclusive with generated_packages)   |  `None` |
+| <a id="coco_c_test_library-generated_package"></a>generated_package |  A coco_generate target whose package has test sources (mutually exclusive with generated_packages)   |  `None` |
 | <a id="coco_c_test_library-generated_packages"></a>generated_packages |  Multiple coco_generate targets to merge into one library   |  `[]` |
 | <a id="coco_c_test_library-srcs"></a>srcs |  Additional C source files   |  `[]` |
 | <a id="coco_c_test_library-hdrs"></a>hdrs |  Additional C header files   |  `[]` |
