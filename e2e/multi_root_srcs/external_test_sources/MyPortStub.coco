@@ -1,0 +1,6 @@
+import unqualified MyPort
+
+@runtime(.MultiThreaded)
+external component MyPortStub {
+  val client : Provided<MyPort>
+}

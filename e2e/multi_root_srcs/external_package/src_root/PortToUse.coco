@@ -1,0 +1,7 @@
+port PortToUse {
+  function g() : Nil
+
+  machine {
+    g() = {}
+  }
+}

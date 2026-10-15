@@ -1,0 +1,10 @@
+import unqualified PortToUse
+
+@runtime(.MultiThreaded)
+component ComponentToUse {
+  val client : Provided<PortToUse>
+
+  machine {
+    client.g() = {}
+  }
+}

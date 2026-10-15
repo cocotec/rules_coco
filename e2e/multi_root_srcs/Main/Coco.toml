@@ -1,0 +1,14 @@
+[package]
+name = "Main"
+sources = ["src_root", "../external_sources"]
+testSources = ["test_root", "../external_test_sources"]
+
+[language]
+standard = "2024"
+profiles = ["C++"]
+
+[generator]
+defaultLanguage = "C++"
+
+[dependencies]
+external_package = "*"
