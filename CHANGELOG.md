@@ -73,6 +73,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `coco_generate`, the C/C++ library macros and `coco_fmt_test` now work with `tags = ["manual"]` and `testonly`.
 - `coco_generate` with `language = "c"` and `mocks = True` now fails with a clear error, since C mocks are not
   supported.
+- The `.coco` files in `test_srcs` are now inputs of the popili actions, so a package with `testSources` no longer
+  fails with `could not open the directory ...` under Bazel's sandbox.
 
 ## [0.3.0] - 2026/05/31
 
