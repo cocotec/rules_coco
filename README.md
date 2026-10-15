@@ -48,7 +48,8 @@ the dependency graph declares one, `stable` is registered with both runtimes.
 
 ### WORKSPACE (Deprecated)
 
-> [!WARNING] > `WORKSPACE` mode is deprecated and will be removed in a future version. Please migrate to bzlmod.
+> [!WARNING]
+> Beware that `WORKSPACE` mode is deprecated and will be removed in a future version. Please migrate to bzlmod.
 
 Add the following to your `WORKSPACE` file:
 
