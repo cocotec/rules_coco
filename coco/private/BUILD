@@ -44,6 +44,7 @@ bzl_library(
     srcs = ["coco.bzl"],
     deps = [
         ":common_attrs_bzl",
+        ":source_roots_bzl",
         ":version_resolution_bzl",
         "@bazel_skylib//lib:paths",
         "@bazel_skylib//rules:common_settings",
@@ -96,6 +97,12 @@ bzl_library(
     name = "cc_runtime_deps_bzl",
     srcs = ["cc_runtime_deps.bzl"],
     deps = [":version_resolution_bzl"],
+)
+
+bzl_library(
+    name = "source_roots_bzl",
+    srcs = ["source_roots.bzl"],
+    deps = ["@bazel_skylib//lib:paths"],
 )
 
 bzl_library(
@@ -170,6 +177,7 @@ bzl_library(
         ":licensing_bzl",
         ":platforms_bzl",
         ":repositories_bzl",
+        ":source_roots_bzl",
         ":toolchain_hub_bzl",
         ":toolchain_repositories_bzl",
         ":version_aliases_bzl",

@@ -29,13 +29,13 @@ coco_generate(
 )
 
 # Use path-suffix matching instead of bare basename to select public headers.
-# This is the disambiguation syntax: "src/IPublicApi.h" matches by path suffix
+# This is the disambiguation syntax: "cpp_path_hdrs/IPublicApi.h" matches by path suffix
 # rather than just the filename, avoiding ambiguity when multiple files share
 # a basename in different directories.
 coco_cc_library(
     name = "path_hdrs_lib",
     generated_package = ":path_hdrs_cpp",
-    public_hdrs = ["src/IPublicApi.h"],
+    public_hdrs = ["cpp_path_hdrs/IPublicApi.h"],
 )
 
 cc_test(

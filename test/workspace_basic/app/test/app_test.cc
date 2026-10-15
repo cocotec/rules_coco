@@ -1,8 +1,8 @@
 #include "gtest/gtest.h"
 
-#include "test/workspace_basic/app/src/IApp.h"
-#include "test/workspace_basic/middle/src/IMiddle.h"
-#include "test/workspace_basic/base/src/IBase.h"
+#include "test/workspace_basic/app/IApp.h"
+#include "test/workspace_basic/middle/IMiddle.h"
+#include "test/workspace_basic/base/IBase.h"
 
 TEST(WorkspaceBasicTest, TestEnumFromBasePackage) {
   Status status = Status::OK;

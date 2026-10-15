@@ -40,7 +40,7 @@ def coco_library(
         deps: Additional dependencies
         public_hdrs: List of generated header names to make public, or None for all.
                         Use bare filenames (e.g., 'ISensor.h') to match by name, or
-                        path suffixes (e.g., 'src/ISensor.h') to disambiguate.
+                        path suffixes (e.g., 'sensors/ISensor.h') to disambiguate.
         **kwargs: Additional arguments passed to cc_library
     """
     if generated_package and generated_packages:
@@ -90,7 +90,7 @@ def coco_test_library(
         deps: Additional dependencies
         public_hdrs: List of generated test header names to make public, or None for all.
                         Use bare filenames (e.g., 'RunnableMock.h') to match by name, or
-                        path suffixes (e.g., 'src/RunnableMock.h') to disambiguate.
+                        path suffixes (e.g., 'runnable/RunnableMock.h') to disambiguate.
         gmock: The GoogleTest/GoogleMock library to use (default: @googletest//:gtest).
                Set to None to omit gmock dependency.
         **kwargs: Additional arguments passed to cc_library

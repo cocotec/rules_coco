@@ -1,5 +1,5 @@
 #include <iostream>
-#include "src/Example.h"
+#include "Example.h"
 
 int main() {
   std::cout << "Smoke test binary ran successfully!" << std::endl;

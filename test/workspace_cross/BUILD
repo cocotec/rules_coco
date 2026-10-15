@@ -72,13 +72,13 @@ coco_generate(
 coco_cc_library(
     name = "lib_cc",
     generated_package = ":lib_cpp",
-    includes = ["lib/src"],
+    includes = ["lib"],
 )
 
 coco_cc_library(
     name = "app_cc",
     generated_package = ":app_cpp",
-    includes = ["app/src"],
+    includes = ["app"],
     deps = [":lib_cc"],
 )
 

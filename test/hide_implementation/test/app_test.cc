@@ -17,12 +17,12 @@
 #include <string>
 
 // Public headers must be usable on their own.
-#include "test/hide_implementation/src/App.h"
-#include "test/hide_implementation/src/Switch.h"
+#include "test/hide_implementation/App.h"
+#include "test/hide_implementation/Switch.h"
 
 // Forwarder lives only in the _impl header: instantiating it proves that file
 // was generated and declared.
-#include "test/hide_implementation/src/Relay_impl.h"
+#include "test/hide_implementation/Relay_impl.h"
 
 TEST(HideImplementation, AppCompilesAndLinks) {
   App app;

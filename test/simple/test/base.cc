@@ -2,8 +2,8 @@
 #include "gtest/gtest.h"
 
 #include "coco/stream_logger.h"
-#include "test/simple/src/Runnable.h"
-#include "test/simple/src/RunnableMock.h"
+#include "test/simple/Runnable.h"
+#include "test/simple/RunnableMock.h"
 
 using ::testing::_;
 using ::testing::AtLeast;

@@ -8,7 +8,7 @@
 
 set -uo pipefail
 
-readonly SRC_DIR="test/file_name_mangling/src"
+readonly GEN_DIR="test/file_name_mangling"
 status=0
 
 fail() {
@@ -18,20 +18,20 @@ fail() {
 
 # 1. `ls` reports directory entries as they are stored, so this distinguishes
 #    `geometry` from `Geometry` even on a case-insensitive filesystem.
-entries="$(ls "${SRC_DIR}" 2>/dev/null)"
+entries="$(ls "${GEN_DIR}" 2>/dev/null)"
 if ! grep -qx "geometry" <<<"${entries}"; then
-  fail "expected mangled directory '${SRC_DIR}/geometry'; found: $(tr '\n' ' ' <<<"${entries}")"
+  fail "expected mangled directory '${GEN_DIR}/geometry'; found: $(tr '\n' ' ' <<<"${entries}")"
 fi
 if grep -qx "Geometry" <<<"${entries}"; then
-  fail "found unmangled directory '${SRC_DIR}/Geometry'; the mangler must be applied to directory components too"
+  fail "found unmangled directory '${GEN_DIR}/Geometry'; the mangler must be applied to directory components too"
 fi
 
 # 2. Check popili mangling via its generated `#include` statements
-impl="$(find "${SRC_DIR}" -name "dims.cc" -print -quit 2>/dev/null)"
+impl="$(find "${GEN_DIR}" -name "dims.cc" -print -quit 2>/dev/null)"
 if [[ -z "${impl}" ]]; then
-  fail "could not find the generated dims.cc under ${SRC_DIR}"
+  fail "could not find the generated dims.cc under ${GEN_DIR}"
 else
-  expected="#include \"${SRC_DIR}/geometry/dims.h\""
+  expected="#include \"${GEN_DIR}/geometry/dims.h\""
   if ! grep -qF "${expected}" "${impl}"; then
     fail "expected ${impl} to contain ${expected}; got: $(grep -m1 'dims.h' "${impl}")"
   fi
