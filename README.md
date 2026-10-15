@@ -436,7 +436,7 @@ load("@rules_coco//coco:defs.bzl", "coco_package")
 coco_package(
     name = "my_package",
     srcs = glob(["*.coco"]),
-    manifest = "Coco.toml",
+    package = "Coco.toml",
 )
 ```
 
@@ -448,7 +448,7 @@ load("@rules_coco//coco:defs.bzl", "coco_package")
 coco_package(
     name = "my_package",
     srcs = glob(["*.coco"]),
-    manifest = "Coco.toml",
+    package = "Coco.toml",
     deps = [
         "//my:other_pkg",
     ]
@@ -461,7 +461,7 @@ To enable type checking as part of the build, add `typecheck = True`:
 coco_package(
     name = "my_package",
     srcs = glob(["*.coco"]),
-    manifest = "Coco.toml",
+    package = "Coco.toml",
     typecheck = True,  # Validates types before code generation
 )
 ```
