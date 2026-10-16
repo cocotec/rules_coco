@@ -34,7 +34,7 @@ load(
     "coco_preferences_repository",
     "coco_symlink_license_repository",
 )
-load(":platforms.bzl", "COCO_TOOLCHAIN_PLATFORMS", "platform_constraints")
+load(":platforms.bzl", "COCO_TOOLCHAIN_PLATFORMS", "host_platform", "platform_constraints")
 load(
     ":toolchain_repositories.bzl",
     "coco_local_toolchain_repository",
@@ -233,7 +233,7 @@ def resolve_versions(raw_versions, resolve_version = resolve_version_alias):
 
     return versions, None
 
-def toolchain_hub_entries(versions, has_local = False, hub_name = DEFAULT_HUB_NAME):
+def toolchain_hub_entries(versions, host, has_local = False, hub_name = DEFAULT_HUB_NAME):
     """Computes the full payload of the toolchain hub repository.
 
     One toolchain is declared per (platform, version), gated on that version's
@@ -241,11 +241,14 @@ def toolchain_hub_entries(versions, has_local = False, hub_name = DEFAULT_HUB_NA
     runtime it hands out is source, so any target platform can use it (cross-compiling
     included). The first version additionally gets a `__default` toolchain per
     platform, gated on the version flag being unset. A local toolchain, when present, is
-    host-only (no platform constraints) and gated on `--@rules_coco//:version=local`; it
-    never becomes the default, matching bzlmod.
+    constrained to the host (its binaries only exist on the machine that staged them) and
+    gated on `--@rules_coco//:version=local`; it never becomes the default, matching
+    bzlmod.
 
     Args:
       versions: Resolved, validated, deduplicated versions in priority order.
+      host: The (os, arch) pair the local toolchain runs on, as returned by
+        `host_platform`.
       has_local: Whether a local popili distribution is also registered.
       hub_name: The name of the hub repository, which its config_settings are read from.
 
@@ -284,13 +287,12 @@ def toolchain_hub_entries(versions, has_local = False, hub_name = DEFAULT_HUB_NA
                 exec_compatible_with[default_name] = constraints
                 target_settings[default_name] = ["@%s//:version_default" % hub_name]
 
-    # Host-only (no constraints), gated on the "local" version so it needs --version=local.
     if has_local:
         version_suffixes[LOCAL_VERSION] = LOCAL_VERSION
 
         toolchain_names.append(LOCAL_VERSION)
         toolchain_labels[LOCAL_VERSION] = "@%s//:toolchain_impl" % LOCAL_TOOLCHAIN_REPO_NAME
-        exec_compatible_with[LOCAL_VERSION] = []
+        exec_compatible_with[LOCAL_VERSION] = platform_constraints(*host)
         target_settings[LOCAL_VERSION] = ["@%s//:version_%s" % (hub_name, LOCAL_VERSION)]
 
     return struct(
@@ -338,18 +340,23 @@ def render_toolchain_hub_build(entries):
     return config_settings + "\n" + toolchains
 
 def _coco_toolchain_hub_impl(repository_ctx):
-    """Implementation of the coco toolchain hub repository rule."""
+    """Implementation of the coco toolchain hub repository rule.
+
+    The entries are computed here rather than by the caller because only the repository
+    rule runs on the host: a module extension's result is locked, so a host-dependent
+    hub payload would make the lockfile host-specific.
+    """
     repository_ctx.file("WORKSPACE.bazel", """workspace(name = "{}")""".format(
         repository_ctx.name,
     ))
 
-    repository_ctx.file("BUILD.bazel", render_toolchain_hub_build(struct(
-        toolchain_names = repository_ctx.attr.toolchain_names,
-        toolchain_labels = repository_ctx.attr.toolchain_labels,
-        exec_compatible_with = repository_ctx.attr.exec_compatible_with,
-        target_settings = repository_ctx.attr.target_settings,
-        version_suffixes = repository_ctx.attr.version_suffixes,
-    )))
+    entries = toolchain_hub_entries(
+        repository_ctx.attr.versions,
+        host = host_platform(repository_ctx.os.name, repository_ctx.os.arch),
+        has_local = repository_ctx.attr.has_local,
+        hub_name = repository_ctx.attr.hub_name,
+    )
+    repository_ctx.file("BUILD.bazel", render_toolchain_hub_build(entries))
 
 coco_toolchain_hub = repository_rule(
     doc = (
@@ -357,24 +364,16 @@ coco_toolchain_hub = repository_rule(
         "This allows registering all toolchains with a single `:all` target."
     ),
     attrs = {
-        "exec_compatible_with": attr.string_list_dict(
-            doc = "Map of toolchain name to exec platform constraints.",
+        "has_local": attr.bool(
+            doc = "Whether a local popili distribution is registered, as a host-only toolchain.",
+            default = False,
+        ),
+        "hub_name": attr.string(
+            doc = "The apparent name of this repository, which its config_settings are read from.",
             mandatory = True,
         ),
-        "target_settings": attr.string_list_dict(
-            doc = "Map of toolchain name to target settings (e.g., version constraints).",
-            mandatory = True,
-        ),
-        "toolchain_labels": attr.string_dict(
-            doc = "Map of toolchain name to toolchain implementation label.",
-            mandatory = True,
-        ),
-        "toolchain_names": attr.string_list(
-            doc = "List of toolchain names to include in the hub.",
-            mandatory = True,
-        ),
-        "version_suffixes": attr.string_dict(
-            doc = "Map of version string to normalized suffix for config_setting names.",
+        "versions": attr.string_list(
+            doc = "Resolved, deduplicated versions in priority order; the first is the default.",
             mandatory = True,
         ),
     },
@@ -482,17 +481,9 @@ def declare_coco_toolchains(
             auth_token_path = auth_token_path,
         )
 
-    entries = toolchain_hub_entries(
-        versions,
-        has_local = local != None,
-        hub_name = hub_name,
-    )
-
     coco_toolchain_hub(
         name = hub_name,
-        toolchain_names = entries.toolchain_names,
-        toolchain_labels = entries.toolchain_labels,
-        exec_compatible_with = entries.exec_compatible_with,
-        target_settings = entries.target_settings,
-        version_suffixes = entries.version_suffixes,
+        versions = versions,
+        has_local = local != None,
+        hub_name = hub_name,
     )

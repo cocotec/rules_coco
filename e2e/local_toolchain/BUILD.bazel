@@ -4,6 +4,7 @@
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_test")
 load("@rules_coco//coco:cc.bzl", "coco_cc_library", "coco_cc_test_library")
 load("@rules_coco//coco:defs.bzl", "coco_generate", "coco_package", "coco_verify_test")
+load(":exec_platform_report.bzl", "exec_platform_probe", "popili_exec_platform_report")
 
 # Define Coco package
 coco_package(
@@ -51,4 +52,47 @@ cc_test(
     name = "local_toolchain_test",
     srcs = ["test/local_toolchain_test.cc"],
     deps = [":local_toolchain_cc_tst"],
+)
+
+# An execution platform no popili is published for, listed before the host in .bazelrc.
+# Only the CPU differs from the host: unconstrained targets such as the auto-detected
+# cc_toolchain_config also resolve for it, and rules_cc interprets their tool paths with
+# its OS, so a foreign OS breaks MSVC's `C:\...` paths on Windows.
+platform(
+    name = "foreign",
+    constraint_values = ["@platforms//cpu:riscv64"],
+    parents = ["@platforms//host"],
+)
+
+# Probe toolchains, registered in MODULE.bazel and WORKSPACE; see exec_platform_report.bzl.
+toolchain_type(name = "exec_platform_probe_type")
+
+exec_platform_probe(
+    name = "probe_foreign_impl",
+    exec_platform = "foreign",
+)
+
+toolchain(
+    name = "probe_foreign",
+    exec_compatible_with = ["@platforms//cpu:riscv64"],
+    toolchain = ":probe_foreign_impl",
+    toolchain_type = ":exec_platform_probe_type",
+)
+
+exec_platform_probe(
+    name = "probe_host_impl",
+    exec_platform = "host",
+)
+
+toolchain(
+    name = "probe_host",
+    toolchain = ":probe_host_impl",
+    toolchain_type = ":exec_platform_probe_type",
+)
+
+# Fails during analysis if the local toolchain resolves for :foreign, so it needs only be
+# part of //... (like popili_version_report in ../multi_version).
+popili_exec_platform_report(
+    name = "popili_runs_on_host",
+    expected = "host",
 )

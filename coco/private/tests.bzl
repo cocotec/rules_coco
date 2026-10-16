@@ -27,7 +27,7 @@ load(":cc_runtime_deps.bzl", "collect_cc_runtime_extra_deps", "normalize_cc_runt
 load(":coco.bzl", "FILE_NAME_MANGLER_STYLES", "component_styles", "compute_output_paths", "mangle_name", "module_path_for", "package_relative_dir")
 load(":common_repositories.bzl", "download_prefix", "find_local_license_path")
 load(":known_shas.bzl", "FILE_KEY_TO_SHA")
-load(":platforms.bzl", "COCO_TOOLCHAIN_PLATFORMS", "archive_platform", "platform_binary_ext")
+load(":platforms.bzl", "COCO_TOOLCHAIN_PLATFORMS", "archive_platform", "host_platform", "platform_binary_ext")
 load(
     ":toolchain_hub.bzl",
     "merge_toolchain_tags",
@@ -917,13 +917,40 @@ resolve_versions_below_minimum_rejected_test = unittest.make(_resolve_versions_b
 resolve_versions_reserved_rejected_test = unittest.make(_resolve_versions_reserved_rejected_test)
 resolve_versions_suffix_collision_rejected_test = unittest.make(_resolve_versions_suffix_collision_rejected_test)
 
+# Tests for host_platform
+
+def _host_platform_test(ctx):
+    """Bazel's os.name / os.arch spellings map onto @platforms names, beyond the published ones."""
+    env = unittest.begin(ctx)
+
+    for (os_name, os_arch), expected in {
+        ("mac os x", "aarch64"): ("osx", "aarch64"),
+        ("mac os x", "x86_64"): ("osx", "x86_64"),
+        ("linux", "amd64"): ("linux", "x86_64"),
+        ("linux", "arm64"): ("linux", "aarch64"),
+        ("linux", "riscv64"): ("linux", "riscv64"),
+        ("windows 11", "amd64"): ("windows", "x86_64"),
+        ("windows server 2022", "aarch64"): ("windows", "aarch64"),
+        ("freebsd", "amd64"): ("freebsd", "x86_64"),
+    }.items():
+        asserts.equals(env, expected, host_platform(os_name, os_arch), "%s / %s" % (os_name, os_arch))
+
+    return unittest.end(env)
+
+host_platform_test = unittest.make(_host_platform_test)
+
 # Tests for toolchain_hub_entries
+
+# A host popili is not published for, so that the local entry cannot be confused with a
+# versioned one.
+_HOST = ("osx", "x86_64")
+_HOST_CONSTRAINTS = ["@platforms//os:osx", "@platforms//cpu:x86_64"]
 
 def _hub_entries_single_version_test(ctx):
     """One version yields a per-platform toolchain plus a per-platform default."""
     env = unittest.begin(ctx)
 
-    entries = toolchain_hub_entries(["1.5.7"])
+    entries = toolchain_hub_entries(["1.5.7"], _HOST)
 
     asserts.equals(
         env,
@@ -957,7 +984,7 @@ def _hub_entries_default_is_first_version_only_test(ctx):
     """Only the first version gets the default toolchains."""
     env = unittest.begin(ctx)
 
-    entries = toolchain_hub_entries(["1.5.0", "1.5.1"])
+    entries = toolchain_hub_entries(["1.5.0", "1.5.1"], _HOST)
 
     asserts.equals(
         env,
@@ -987,7 +1014,7 @@ def _hub_entries_local_only_test(ctx):
     """
     env = unittest.begin(ctx)
 
-    entries = toolchain_hub_entries([], has_local = True)
+    entries = toolchain_hub_entries([], _HOST, has_local = True)
 
     asserts.equals(env, ["local"], entries.toolchain_names)
     asserts.equals(env, {"local": "local"}, entries.version_suffixes)
@@ -998,8 +1025,7 @@ def _hub_entries_local_only_test(ctx):
     )
     asserts.equals(env, ["@coco_toolchains//:version_local"], entries.target_settings["local"])
 
-    # Host-only: the local binaries only exist on the machine that staged them.
-    asserts.equals(env, [], entries.exec_compatible_with["local"])
+    asserts.equals(env, _HOST_CONSTRAINTS, entries.exec_compatible_with["local"])
 
     return unittest.end(env)
 
@@ -1007,7 +1033,7 @@ def _hub_entries_local_alongside_versions_test(ctx):
     """A local toolchain does not displace the downloaded default."""
     env = unittest.begin(ctx)
 
-    entries = toolchain_hub_entries(["1.5.7"], has_local = True)
+    entries = toolchain_hub_entries(["1.5.7"], _HOST, has_local = True)
 
     asserts.equals(
         env,
@@ -1020,6 +1046,14 @@ def _hub_entries_local_alongside_versions_test(ctx):
         entries.toolchain_labels["linux_x86_64__default"],
     )
     asserts.equals(env, ["@coco_toolchains//:version_local"], entries.target_settings["local"])
+
+    asserts.equals(env, _HOST_CONSTRAINTS, entries.exec_compatible_with["local"])
+    for (os, arch) in COCO_TOOLCHAIN_PLATFORMS:
+        asserts.equals(
+            env,
+            ["@platforms//os:%s" % os, "@platforms//cpu:%s" % arch],
+            entries.exec_compatible_with["%s_%s__1_5_7" % (os, arch)],
+        )
 
     return unittest.end(env)
 
@@ -1039,7 +1073,7 @@ def _hub_build_labels_test(ctx):
     """
     env = unittest.begin(ctx)
 
-    build = render_toolchain_hub_build(toolchain_hub_entries(["1.5.7"]))
+    build = render_toolchain_hub_build(toolchain_hub_entries(["1.5.7"], _HOST))
 
     asserts.true(
         env,
@@ -1068,7 +1102,7 @@ def _hub_build_has_no_loads_test(ctx):
     """The hub uses only native rules, so it stays loadable before skylib is fetched."""
     env = unittest.begin(ctx)
 
-    build = render_toolchain_hub_build(toolchain_hub_entries(["1.5.7"], has_local = True))
+    build = render_toolchain_hub_build(toolchain_hub_entries(["1.5.7"], _HOST, has_local = True))
 
     asserts.true(env, "load(" not in build, "hub BUILD must not load anything: %s" % build)
 
@@ -1078,7 +1112,7 @@ def _hub_build_constrains_exec_only_test(ctx):
     """Toolchains constrain the exec platform only, so cross-compiling still resolves one."""
     env = unittest.begin(ctx)
 
-    build = render_toolchain_hub_build(toolchain_hub_entries(["1.5.7"], has_local = True))
+    build = render_toolchain_hub_build(toolchain_hub_entries(["1.5.7"], _HOST, has_local = True))
 
     asserts.true(env, "exec_compatible_with" in build, "exec constraint missing: %s" % build)
     asserts.true(
@@ -1089,9 +1123,24 @@ def _hub_build_constrains_exec_only_test(ctx):
 
     return unittest.end(env)
 
+def _hub_build_local_is_host_only_test(ctx):
+    """The local toolchain() carries the host's constraints, spelled as @platforms labels."""
+    env = unittest.begin(ctx)
+
+    build = render_toolchain_hub_build(toolchain_hub_entries([], _HOST, has_local = True))
+
+    asserts.true(
+        env,
+        'exec_compatible_with = ["@platforms//os:osx", "@platforms//cpu:x86_64"]' in build,
+        "local toolchain must be constrained to the host: %s" % build,
+    )
+
+    return unittest.end(env)
+
 hub_build_labels_test = unittest.make(_hub_build_labels_test)
 hub_build_has_no_loads_test = unittest.make(_hub_build_has_no_loads_test)
 hub_build_constrains_exec_only_test = unittest.make(_hub_build_constrains_exec_only_test)
+hub_build_local_is_host_only_test = unittest.make(_hub_build_local_is_host_only_test)
 
 # Tests for normalize_cc_runtime_extra_deps
 
@@ -1418,6 +1467,9 @@ def coco_test_suite(name):
         resolve_versions_reserved_rejected_test,
         resolve_versions_suffix_collision_rejected_test,
 
+        # host_platform tests
+        host_platform_test,
+
         # toolchain_hub_entries tests
         hub_entries_single_version_test,
         hub_entries_default_is_first_version_only_test,
@@ -1428,6 +1480,7 @@ def coco_test_suite(name):
         hub_build_labels_test,
         hub_build_has_no_loads_test,
         hub_build_constrains_exec_only_test,
+        hub_build_local_is_host_only_test,
 
         # normalize_cc_runtime_extra_deps tests
         normalize_extra_deps_list_applies_to_all_test,
