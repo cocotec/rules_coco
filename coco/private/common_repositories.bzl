@@ -84,6 +84,29 @@ def download_prefix(version):
         return "archive/%s" % version
     return version
 
+def coco_download(version, archive):
+    """Returns where to download a release archive from, and its known checksum.
+
+    Args:
+      version: The resolved Coco version (aliases must already be resolved), e.g. "1.5.7".
+      archive: The archive's file name within the release, e.g. "coco-cpp-runtime.zip".
+
+    Returns:
+      A struct with `url` and `sha256` fields. `sha256` is "" when no checksum is known
+      for the archive, which makes the download unverified.
+    """
+
+    # known_shas.bzl is keyed by version, not by download path, so the "archive/"
+    # prefix that download_prefix() adds must not be part of the lookup key.
+    key = "{version}/{archive}".format(version = version, archive = archive)
+    return struct(
+        url = "https://dl.cocotec.io/popili/{download_prefix}/{archive}".format(
+            download_prefix = download_prefix(version),
+            archive = archive,
+        ),
+        sha256 = FILE_KEY_TO_SHA.get(key) or "",
+    )
+
 def _get_all_license_paths(ctx, version_suffix):
     """Returns all possible license file paths in priority order.
 
@@ -129,13 +152,8 @@ def _get_all_license_paths(ctx, version_suffix):
 
 def _coco_cc_runtime_repository_impl(ctx):
     """Implementation for C++ runtime repository rule."""
-    version = ctx.attr.version
-    ctx.download_and_extract(
-        url = "https://dl.cocotec.io/popili/{download_prefix}/coco-cpp-runtime.zip".format(
-            download_prefix = download_prefix(version),
-        ),
-        sha256 = FILE_KEY_TO_SHA.get("{version}/coco-cpp-runtime.zip".format(version = version)),
-    )
+    download = coco_download(ctx.attr.version, "coco-cpp-runtime.zip")
+    ctx.download_and_extract(url = download.url, sha256 = download.sha256)
 
     ctx.file("WORKSPACE", """workspace(name = "{}")""".format(ctx.name))
     ctx.file("BUILD.bazel", _CC_RUNTIME_BUILD_TEMPLATE.format(
@@ -158,13 +176,8 @@ _coco_cc_runtime_repository = repository_rule(
 
 def _coco_c_runtime_repository_impl(ctx):
     """Implementation for C runtime repository rule."""
-    version = ctx.attr.version
-    ctx.download_and_extract(
-        url = "https://dl.cocotec.io/popili/{download_prefix}/coco-c-runtime.zip".format(
-            download_prefix = download_prefix(version),
-        ),
-        sha256 = FILE_KEY_TO_SHA.get("{version}/coco-c-runtime.zip".format(version = version)),
-    )
+    download = coco_download(ctx.attr.version, "coco-c-runtime.zip")
+    ctx.download_and_extract(url = download.url, sha256 = download.sha256)
 
     ctx.file("WORKSPACE", """workspace(name = "{}")""".format(ctx.name))
 
