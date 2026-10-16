@@ -27,6 +27,38 @@ COCO_TOOLCHAIN_PLATFORMS = [
     ("windows", "x86_64"),
 ]
 
+def host_platform(os_name, os_arch):
+    """Returns the platform Bazel runs on, spelled like `COCO_TOOLCHAIN_PLATFORMS`.
+
+    Not limited to the platforms popili is published for: a local toolchain on, say, an
+    Intel Mac yields ("osx", "x86_64").
+
+    Args:
+      os_name: `repository_ctx.os.name`, e.g. "mac os x", "linux" or "windows 11".
+      os_arch: `repository_ctx.os.arch`, e.g. "aarch64", "arm64", "amd64" or "x86_64".
+
+    Returns:
+      An (os, arch) pair naming `@platforms//os:<os>` and `@platforms//cpu:<arch>`.
+    """
+    os_name = os_name.lower()
+    if os_name.startswith("windows"):
+        os = "windows"
+    elif os_name.startswith("mac") or os_name == "darwin":
+        os = "osx"
+    else:
+        os = os_name.split(" ")[0]
+
+    os_arch = os_arch.lower()
+    arch = {
+        "amd64": "x86_64",
+        "arm64": "aarch64",
+        "i386": "x86_32",
+        "i686": "x86_32",
+        "x86": "x86_32",
+    }.get(os_arch, os_arch)
+
+    return (os, arch)
+
 def platform_constraints(os, arch):
     """Returns the platform constraints for a Coco toolchain platform.
 

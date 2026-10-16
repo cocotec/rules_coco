@@ -15,6 +15,10 @@ common:workspace --enable_workspace=true
 # toolchain for @rules_coco//coco:toolchain_type.
 common --@rules_coco//:version=local
 
+# A foreign execution platform first, so that an unconstrained local toolchain would be
+# resolved for it instead of for the host.
+common --extra_execution_platforms=//:foreign,@platforms//host
+
 # Windows-specific: Enable conforming preprocessor for proper macro handling
 build:windows --copt=/Zc:preprocessor
 build:windows --host_copt=/Zc:preprocessor
