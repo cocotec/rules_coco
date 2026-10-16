@@ -61,6 +61,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `coco_cc_library` and `coco_c_library` now find the generated headers of a `coco_generate`
+  analysed in another configuration, for example beneath `with_popili_version`, both from the
+  generated sources and through the library's `includes`; the compiler searched only the library's
+  own bin dir, not the generate's.
 - `local_user` now finds the license in the correct directory (`XDG_DATA_HOME` or
   `%LOCALAPPDATA%`), and respects the `POPILI_DATA` override.
 - The local toolchain (`coco.local_toolchain` in bzlmod, `coco_local_repositories` in WORKSPACE) is

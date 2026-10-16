@@ -1353,8 +1353,17 @@ def _coco_cc_gen_impl(ctx):
             else:
                 private_hdrs.append(h)
 
+    # A coco_generate analysed in another configuration lives under a bin dir that the consuming
+    # cc_library (which adds only its own, also for its `includes`) would not search.
+    roots = {file.root.path: None for file in all_headers + sources}
     compilation_context = cc_common.create_compilation_context(
         headers = depset(public_hdrs),
+        quote_includes = depset(roots.keys()),
+        includes = depset([
+            "/".join([part for part in [root, ctx.label.workspace_root, ctx.label.package, include] if part])
+            for root in roots
+            for include in ctx.attr.includes
+        ]),
     )
 
     return [
@@ -1366,6 +1375,9 @@ _coco_cc_gen = rule(
     implementation = _coco_cc_gen_impl,
     attrs = {
         "all_hdrs_public": attr.bool(default = True),
+        "includes": attr.string_list(
+            doc = "The consuming cc_library's `includes`, made to cover the generated files' bin dir too.",
+        ),
         "package": attr.label(
             providers = [CocoCcGeneratedInfo],
             mandatory = True,
