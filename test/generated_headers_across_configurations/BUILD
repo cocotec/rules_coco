@@ -14,7 +14,7 @@
 
 load("@rules_cc//cc:defs.bzl", "cc_test")
 load("@rules_coco//coco:cc.bzl", "coco_cc_library")
-load("@rules_coco//coco:defs.bzl", "coco_generate", "coco_package", "with_popili_version")
+load("@rules_coco//coco:defs.bzl", "coco_generate", "coco_package")
 load(":wrapped_cc_library.bzl", "wrapped_cc_library")
 
 coco_package(
@@ -23,23 +23,20 @@ coco_package(
     package = "Coco.toml",
 )
 
+# The library is pinned to "testing", which the root registers next to the default "stable".
+# The pin transitions the unpinned generate beneath it, so the generate lands in another
+# configuration (and bin dir) than the library's cc_library and the test reading its headers,
+# which stay in the top-level configuration.
 coco_generate(
     name = "base_cpp",
     language = "cpp",
     package = ":base",
 )
 
-# The root leaves --@rules_coco//:version unset, so the wrapper puts the generate in another
-# configuration (and bin dir) than the library and test reading it.
-with_popili_version(
-    name = "stable_cpp",
-    target = ":base_cpp",
-    version = "stable",
-)
-
 coco_cc_library(
     name = "base_cc",
-    generated_package = ":stable_cpp",
+    generated_package = ":base_cpp",
+    popili_version = "testing",
 )
 
 cc_test(
@@ -49,8 +46,8 @@ cc_test(
 )
 
 # A project's own wrapper of cc_library compiles the generate through library_rule. It builds
-# base_cpp in this configuration too, beside the copy beneath stable_cpp, which the compiles above
-# must not pick up even without a sandbox.
+# base_cpp in the top-level configuration too, beside the copy beneath base_cc's pin, which the
+# compiles above must not pick up even without a sandbox.
 coco_cc_library(
     name = "wrapped_cc",
     generated_package = ":base_cpp",
