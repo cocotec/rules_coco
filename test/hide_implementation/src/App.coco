@@ -1,0 +1,16 @@
+// Instantiates a generic from another module, so App.cc must include
+// Relay_impl.h.
+
+import Relay
+
+@runtime(.SingleThreaded)
+component App {
+  val server : Provided<Relay.Channel<String>>
+  val onwards : Required<Relay.Channel<String>>
+  val forwarder : Relay.Forwarder<String>
+
+  init() = {
+    server = forwarder.server;
+    forwarder.onwards = onwards;
+  }
+}
