@@ -24,7 +24,7 @@ load(
     "PATH_CASE_DEFAULTS",
 )
 load(":cc_runtime_deps.bzl", "collect_cc_runtime_extra_deps", "normalize_cc_runtime_extra_deps")
-load(":coco.bzl", "FILE_NAME_MANGLER_STYLES", "component_styles", "compute_output_paths", "mangle_name", "missing_popili_message", "module_path_for", "package_relative_dir", "pin_transition_settings", "version_source", "wrapper_transition_settings")
+load(":coco.bzl", "FILE_NAME_MANGLER_STYLES", "component_styles", "compute_output_paths", "mangle_name", "missing_popili_message", "module_path_for", "package_relative_dir", "pin_transition_settings", "version_source", "wrapper_on_package_message", "wrapper_transition_settings")
 load(":common_repositories.bzl", "coco_download", "download_prefix", "find_local_license_path")
 load(":known_shas.bzl", "FILE_KEY_TO_SHA")
 load(":platforms.bzl", "COCO_TOOLCHAIN_PLATFORMS", "archive_platform", "platform_binary_ext")
@@ -37,7 +37,7 @@ load(
 )
 load(":toolchain_repositories.bzl", "BUILD_for_coco_toolchain", "coco_toolchain_download")
 load(":version_aliases.bzl", "VERSION_ALIASES")
-load(":version_resolution.bzl", "PINNED_SOURCE", "VERSION_FLAG", "VERSION_SOURCE_SETTING", "resolve_version_alias", "version_tuple")
+load(":version_resolution.bzl", "PINNED_SOURCE", "VERSION_FLAG", "VERSION_SOURCE_SETTING", "WRAPPED_VERSION_SETTING", "resolve_version_alias", "version_tuple")
 
 # Tests for collect_cc_runtime_extra_deps
 
@@ -1073,7 +1073,7 @@ def _missing_popili_pinned_version_test(ctx):
 
     # The package beneath the pinned consumer fails first and points above itself.
     message = missing_popili_message("//a:pkg", "1.99.0", version_source("1.99.0", "", PINNED_SOURCE), _REGISTRY)
-    _assert_mentions(env, message, ["//a:pkg needs popili 1.99.0 (pinned by popili_version on a target above it), but no registered"])
+    _assert_mentions(env, message, ["//a:pkg needs popili 1.99.0 (selected by popili_version or with_popili_version on a target above it), but no registered"])
     return unittest.end(env)
 
 def _missing_popili_test_platform_test(ctx):
@@ -1132,7 +1132,15 @@ def _version_source_test(ctx):
     asserts.equals(env, "set by --@rules_coco//:version", version_source("1.5.1", "", ""))
     asserts.equals(env, "pinned by popili_version", version_source("1.5.1", "1.5.1", PINNED_SOURCE))
     asserts.equals(env, "pinned by popili_version = \"stable\"", version_source(resolve_version_alias("stable"), "stable", PINNED_SOURCE))
-    asserts.equals(env, "pinned by popili_version on a target above it", version_source("1.5.1", "", PINNED_SOURCE))
+    asserts.equals(env, "selected by popili_version or with_popili_version on a target above it", version_source("1.5.1", "", PINNED_SOURCE))
+    return unittest.end(env)
+
+def _version_source_wrapped_test(ctx):
+    """A pin that differs from the configured version was overridden by a wrapper above."""
+    env = unittest.begin(ctx)
+    asserts.equals(env, "set by with_popili_version above it, overriding popili_version = \"1.5.0\"", version_source("1.5.1", "1.5.0", PINNED_SOURCE))
+    asserts.equals(env, "set by with_popili_version above it, overriding popili_version = \"stable\"", version_source("1.5.0", "stable", PINNED_SOURCE))
+    asserts.equals(env, "pinned by popili_version", version_source("1.5.1", "1.5.1", PINNED_SOURCE))
     return unittest.end(env)
 
 def _version_source_forced_test(ctx):
@@ -1153,7 +1161,7 @@ def _pin_transition_settings_unpinned_test(ctx):
 def _pin_transition_settings_pinned_test(ctx):
     """A pin sets the version flag, over the default and over a flag naming another version."""
     env = unittest.begin(ctx)
-    pinned = {VERSION_FLAG: "1.5.1", VERSION_SOURCE_SETTING: PINNED_SOURCE}
+    pinned = {VERSION_FLAG: "1.5.1", VERSION_SOURCE_SETTING: PINNED_SOURCE, WRAPPED_VERSION_SETTING: ""}
     asserts.equals(env, pinned, pin_transition_settings("1.5.1", ""))
     asserts.equals(env, pinned, pin_transition_settings("1.5.1", "1.5.0"))
     return unittest.end(env)
@@ -1161,7 +1169,7 @@ def _pin_transition_settings_pinned_test(ctx):
 def _pin_transition_settings_alias_test(ctx):
     """Aliases are resolved, so the flag never carries one."""
     env = unittest.begin(ctx)
-    asserts.equals(env, {VERSION_FLAG: resolve_version_alias("stable"), VERSION_SOURCE_SETTING: PINNED_SOURCE}, pin_transition_settings("stable", ""))
+    asserts.equals(env, {VERSION_FLAG: resolve_version_alias("stable"), VERSION_SOURCE_SETTING: PINNED_SOURCE, WRAPPED_VERSION_SETTING: ""}, pin_transition_settings("stable", ""))
     return unittest.end(env)
 
 def _pin_transition_settings_already_pinned_test(ctx):
@@ -1178,27 +1186,57 @@ def _pin_transition_settings_forced_test(ctx):
     asserts.equals(env, {}, pin_transition_settings("1.5.1", "1.5.0", True))
     asserts.equals(env, {}, pin_transition_settings("stable", "1.5.0", True))
     asserts.equals(env, {}, pin_transition_settings("", "1.5.0", True))
+    asserts.equals(env, {}, pin_transition_settings("1.5.1", "1.5.0", True, "1.5.0", PINNED_SOURCE))
+    return unittest.end(env)
+
+def _pin_transition_settings_wrapped_test(ctx):
+    """A wrapper's version beats the pin and is reset, so the target lands in the pin configuration."""
+    env = unittest.begin(ctx)
+    wrapped = {VERSION_FLAG: "1.5.1", VERSION_SOURCE_SETTING: PINNED_SOURCE, WRAPPED_VERSION_SETTING: ""}
+    asserts.equals(env, wrapped, pin_transition_settings("1.5.0", "1.5.1", False, "1.5.1", PINNED_SOURCE))
+    asserts.equals(env, wrapped, pin_transition_settings("stable", "1.5.1", False, "1.5.1", PINNED_SOURCE))
+    asserts.equals(env, wrapped, pin_transition_settings("", "1.5.1", False, "1.5.1", PINNED_SOURCE))
+    asserts.equals(env, wrapped, pin_transition_settings("1.5.1", "1.5.1", False, "1.5.1", PINNED_SOURCE))
+    asserts.equals(env, pin_transition_settings("1.5.1", "", False), pin_transition_settings("1.5.0", "1.5.1", False, "1.5.1", PINNED_SOURCE))
+    return unittest.end(env)
+
+def _pin_transition_settings_wrapped_keeps_source_test(ctx):
+    """Beneath a wrapper the source setting is passed through: the wrapper decided it."""
+    env = unittest.begin(ctx)
+    asserts.equals(env, {VERSION_FLAG: "1.5.1", VERSION_SOURCE_SETTING: "", WRAPPED_VERSION_SETTING: ""}, pin_transition_settings("1.5.0", "1.5.1", False, "1.5.1", ""))
     return unittest.end(env)
 
 def _wrapper_transition_settings_test(ctx):
-    """The wrapper sets the flag to its version with aliases resolved, except when forced."""
+    """The wrapper sets the flag and the wrapped setting to its version with aliases resolved, except when forced."""
     env = unittest.begin(ctx)
-    asserts.equals(env, {VERSION_FLAG: "1.5.1"}, wrapper_transition_settings("1.5.1", False))
-    asserts.equals(env, {VERSION_FLAG: resolve_version_alias("stable")}, wrapper_transition_settings("stable", False))
+    wrapped = {VERSION_FLAG: "1.5.1", VERSION_SOURCE_SETTING: PINNED_SOURCE, WRAPPED_VERSION_SETTING: "1.5.1"}
+    asserts.equals(env, wrapped, wrapper_transition_settings("1.5.1", False))
+    asserts.equals(env, wrapped, wrapper_transition_settings("1.5.1", False, "1.5.0", ""))
+    asserts.equals(env, wrapped, wrapper_transition_settings("1.5.1", False, "1.5.0", PINNED_SOURCE))
+    stable = resolve_version_alias("stable")
+    asserts.equals(env, {VERSION_FLAG: stable, VERSION_SOURCE_SETTING: PINNED_SOURCE, WRAPPED_VERSION_SETTING: stable}, wrapper_transition_settings("stable", False))
     asserts.equals(env, {}, wrapper_transition_settings("", False))
     asserts.equals(env, {}, wrapper_transition_settings("1.5.1", True))
+    asserts.equals(env, {}, wrapper_transition_settings("1.5.1", True, "1.5.0", PINNED_SOURCE))
+    return unittest.end(env)
+
+def _wrapper_transition_settings_same_version_test(ctx):
+    """A wrapper naming the incoming version keeps the incoming source: it changed nothing about it."""
+    env = unittest.begin(ctx)
+    asserts.equals(env, {VERSION_FLAG: "1.5.1", VERSION_SOURCE_SETTING: "", WRAPPED_VERSION_SETTING: "1.5.1"}, wrapper_transition_settings("1.5.1", False, "1.5.1", ""))
+    asserts.equals(env, {VERSION_FLAG: "1.5.1", VERSION_SOURCE_SETTING: PINNED_SOURCE, WRAPPED_VERSION_SETTING: "1.5.1"}, wrapper_transition_settings("1.5.1", False, "1.5.1", PINNED_SOURCE))
     return unittest.end(env)
 
 def _pin_transition_settings_alias_flag_test(ctx):
     """An alias in the flag is resolved, keeping the source; a pin equal to it lands in the same configuration."""
     env = unittest.begin(ctx)
     stable = resolve_version_alias("stable")
-    resolved = {VERSION_FLAG: stable, VERSION_SOURCE_SETTING: ""}
+    resolved = {VERSION_FLAG: stable, VERSION_SOURCE_SETTING: "", WRAPPED_VERSION_SETTING: ""}
     asserts.equals(env, resolved, pin_transition_settings("", "stable"))
     asserts.equals(env, resolved, pin_transition_settings("stable", "stable"))
     asserts.equals(env, resolved, pin_transition_settings(stable, "stable"))
-    asserts.equals(env, {VERSION_FLAG: stable, VERSION_SOURCE_SETTING: PINNED_SOURCE}, pin_transition_settings("", "stable", False, PINNED_SOURCE))
-    asserts.equals(env, {VERSION_FLAG: "1.99.0", VERSION_SOURCE_SETTING: PINNED_SOURCE}, pin_transition_settings("1.99.0", "stable"))
+    asserts.equals(env, {VERSION_FLAG: stable, VERSION_SOURCE_SETTING: PINNED_SOURCE, WRAPPED_VERSION_SETTING: ""}, pin_transition_settings("", "stable", False, "", PINNED_SOURCE))
+    asserts.equals(env, {VERSION_FLAG: "1.99.0", VERSION_SOURCE_SETTING: PINNED_SOURCE, WRAPPED_VERSION_SETTING: ""}, pin_transition_settings("1.99.0", "stable"))
     asserts.equals(env, {}, pin_transition_settings("", stable))
     asserts.equals(env, {}, pin_transition_settings("", "1.99.0"))
     return unittest.end(env)
@@ -1207,13 +1245,39 @@ def _pin_transition_settings_forced_alias_flag_test(ctx):
     """Forced, an alias in the flag is still resolved and nothing else changes."""
     env = unittest.begin(ctx)
     stable = resolve_version_alias("stable")
-    asserts.equals(env, {VERSION_FLAG: stable, VERSION_SOURCE_SETTING: ""}, pin_transition_settings("1.99.0", "stable", True))
-    asserts.equals(env, {VERSION_FLAG: stable, VERSION_SOURCE_SETTING: PINNED_SOURCE}, pin_transition_settings("", "stable", True, PINNED_SOURCE))
+    asserts.equals(env, {VERSION_FLAG: stable, VERSION_SOURCE_SETTING: "", WRAPPED_VERSION_SETTING: ""}, pin_transition_settings("1.99.0", "stable", True))
+    asserts.equals(env, {VERSION_FLAG: stable, VERSION_SOURCE_SETTING: PINNED_SOURCE, WRAPPED_VERSION_SETTING: ""}, pin_transition_settings("", "stable", True, "", PINNED_SOURCE))
     asserts.equals(env, {}, pin_transition_settings("1.99.0", stable, True))
+    return unittest.end(env)
+
+def _wrapper_transition_settings_alias_flag_test(ctx):
+    """A wrapper compares its version with the resolved flag; forced, it only resolves the flag."""
+    env = unittest.begin(ctx)
+    stable = resolve_version_alias("stable")
+    asserts.equals(env, {VERSION_FLAG: stable, VERSION_SOURCE_SETTING: "", WRAPPED_VERSION_SETTING: stable}, wrapper_transition_settings("stable", False, "stable", ""))
+    asserts.equals(env, {VERSION_FLAG: stable, VERSION_SOURCE_SETTING: "", WRAPPED_VERSION_SETTING: stable}, wrapper_transition_settings(stable, False, "stable", ""))
+    asserts.equals(env, {VERSION_FLAG: "1.99.0", VERSION_SOURCE_SETTING: PINNED_SOURCE, WRAPPED_VERSION_SETTING: "1.99.0"}, wrapper_transition_settings("1.99.0", False, "stable", ""))
+    asserts.equals(env, {VERSION_FLAG: stable, VERSION_SOURCE_SETTING: "", WRAPPED_VERSION_SETTING: ""}, wrapper_transition_settings("1.99.0", True, "stable", ""))
+    asserts.equals(env, {VERSION_FLAG: stable, VERSION_SOURCE_SETTING: PINNED_SOURCE, WRAPPED_VERSION_SETTING: ""}, wrapper_transition_settings("", False, "stable", PINNED_SOURCE))
+    asserts.equals(env, {}, wrapper_transition_settings("1.99.0", True, stable, ""))
+    return unittest.end(env)
+
+def _wrapper_on_package_message_test(ctx):
+    """The wrapper-on-package message names the wrapper, the package, the version and the fix."""
+    env = unittest.begin(ctx)
+    message = wrapper_on_package_message("//a:pkg_151", "//a:pkg", "coco_package", "1.5.1")
+    asserts.true(env, message.startswith("//a:pkg_151 wraps the coco_package //a:pkg in with_popili_version, which does not pin the targets that read the package"), message)
+    asserts.true(env, "Set popili_version = \"1.5.1\" on the coco_generate, coco_verify_test, coco_fmt_test or diagram targets that read the package instead" in message, message)
+    asserts.true(env, "wraps the coco_workspace //a:ws" in wrapper_on_package_message("//a:ws_151", "//a:ws", "coco_workspace", "stable"))
     return unittest.end(env)
 
 version_source_test = unittest.make(_version_source_test)
 version_source_forced_test = unittest.make(_version_source_forced_test)
+version_source_wrapped_test = unittest.make(_version_source_wrapped_test)
+pin_transition_settings_wrapped_test = unittest.make(_pin_transition_settings_wrapped_test)
+pin_transition_settings_wrapped_keeps_source_test = unittest.make(_pin_transition_settings_wrapped_keeps_source_test)
+wrapper_transition_settings_same_version_test = unittest.make(_wrapper_transition_settings_same_version_test)
+wrapper_on_package_message_test = unittest.make(_wrapper_on_package_message_test)
 pin_transition_settings_forced_test = unittest.make(_pin_transition_settings_forced_test)
 wrapper_transition_settings_test = unittest.make(_wrapper_transition_settings_test)
 pin_transition_settings_unpinned_test = unittest.make(_pin_transition_settings_unpinned_test)
@@ -1222,6 +1286,7 @@ pin_transition_settings_alias_test = unittest.make(_pin_transition_settings_alia
 pin_transition_settings_already_pinned_test = unittest.make(_pin_transition_settings_already_pinned_test)
 pin_transition_settings_alias_flag_test = unittest.make(_pin_transition_settings_alias_flag_test)
 pin_transition_settings_forced_alias_flag_test = unittest.make(_pin_transition_settings_forced_alias_flag_test)
+wrapper_transition_settings_alias_flag_test = unittest.make(_wrapper_transition_settings_alias_flag_test)
 
 # Tests for toolchain_hub_entries
 
@@ -1916,8 +1981,14 @@ def coco_test_suite(name):
         version_source_forced_test,
         pin_transition_settings_forced_test,
         wrapper_transition_settings_test,
+        version_source_wrapped_test,
+        pin_transition_settings_wrapped_test,
+        pin_transition_settings_wrapped_keeps_source_test,
+        wrapper_transition_settings_same_version_test,
         pin_transition_settings_alias_flag_test,
         pin_transition_settings_forced_alias_flag_test,
+        wrapper_transition_settings_alias_flag_test,
+        wrapper_on_package_message_test,
 
         # toolchain_hub_entries tests
         hub_entries_single_version_test,

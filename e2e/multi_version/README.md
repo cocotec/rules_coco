@@ -11,7 +11,10 @@ and `WORKSPACE` mode.
 - `popili_version` on a rule that runs popili selects another registered version for that target
   and the package beneath it, and wins over `--@rules_coco//:version`; an unpinned target follows
   the flag. In WORKSPACE mode as well as under bzlmod.
-- `with_popili_version` still gives a version to a rule that has no `popili_version` of its own.
+- `with_popili_version` gives a version to a rule that has no `popili_version` of its own,
+  including `@rules_coco//coco:current_popili_version`, whose `$(POPILI)` a `genrule` then gets
+  from the wrapper's version; on a pinned target it wins over the pin and lands the target in the
+  configuration a pin to the wrapper's version produces; on a `coco_package` it is an error.
 - `--@rules_coco//:force_version` ignores every pin and wrapper, so `--@rules_coco//:version` (or
   the default) applies to everything; the whole scenario builds and passes at 1.5.1 that way.
 - Code generation at a pinned version feeds a `coco_cc_library` and a `cc_test` in the default
@@ -77,6 +80,11 @@ checks the toolchain's `version` field:
 
 - `popili_is_150_by_default` — unwrapped, so it must resolve 1.5.0, the first registered version.
 - `popili_is_151` — wrapped in `with_popili_version(version = "1.5.1")`, so it must resolve 1.5.1.
+
+A wrapper has no actions of its own, so for `legacy_cpp_at_150` (a wrapper to 1.5.0 around the
+`coco_generate` pinned to 1.5.1) the tests compare its bin dir with that of `modern_cpp`, pinned
+to 1.5.0: equal bin dirs mean one configuration, and so one toolchain resolution.
+`legacy_at_150_test` links the code it generates.
 
 Because the check happens during analysis, these are plain targets rather than tests: being part
 of `//...` is enough for `bazel build` or `bazel test` to run them. There is deliberately no

@@ -28,11 +28,17 @@ VERSION_FLAG = "@rules_coco//:version"
 # and `with_popili_version` wrapper.
 FORCE_VERSION_FLAG = "@rules_coco//:force_version"
 
-# Internal build setting recording that VERSION_FLAG was set by a `popili_version` pin above the
-# target rather than on the command line, so that a target beneath the pin can say so when the
-# version has no toolchain. Set by the pin transition; nobody sets it by hand.
+# Internal build setting recording that VERSION_FLAG was set by a `popili_version` pin or a
+# `with_popili_version` wrapper above the target rather than on the command line, so that a target
+# beneath it can say so when the version has no toolchain. Set by the transitions; nobody sets it
+# by hand.
 VERSION_SOURCE_SETTING = "@rules_coco//:_version_source"
 PINNED_SOURCE = "pin"
+
+# Internal build setting carrying a `with_popili_version` wrapper's version to the target directly
+# beneath it, whose own transition applies it over the target's `popili_version` and resets it to
+# "", so that the subtree shares the configuration a pin to the same version produces.
+WRAPPED_VERSION_SETTING = "@rules_coco//:_wrapped_version"
 
 # The version a popili distribution on the local filesystem is registered as.
 LOCAL_VERSION = "local"

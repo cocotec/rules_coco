@@ -63,7 +63,8 @@ bool_flag(
     visibility = ["//visibility:public"],
 )
 
-# Internal: where :version came from when a popili_version pin set it; see version_resolution.bzl.
+# Internal: where :version came from when a popili_version pin or a with_popili_version wrapper
+# set it; see version_resolution.bzl.
 string_setting(
     name = "_version_source",
     build_setting_default = "",
@@ -71,6 +72,14 @@ string_setting(
         "",
         "pin",
     ],
+    visibility = ["//visibility:public"],
+)
+
+# Internal: the version a with_popili_version wrapper selected, for the target directly beneath
+# it; see version_resolution.bzl.
+string_setting(
+    name = "_wrapped_version",
+    build_setting_default = "",
     visibility = ["//visibility:public"],
 )
 

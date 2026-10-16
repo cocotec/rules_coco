@@ -228,9 +228,28 @@ Everything without a pin uses the default, or the version `--@rules_coco//:versi
 example `bazel build --@rules_coco//:version=1.5.1 //...`; the flag accepts aliases such as
 `stable` too. A pin always wins over the flag.
 
-`with_popili_version` remains for targets that have no `popili_version` of their own, such as a
-custom rule that resolves the Coco toolchain: it builds the wrapped target and everything beneath
-it with the given version.
+`with_popili_version` is for targets that have no `popili_version` of their own: a custom rule
+that resolves the Coco toolchain, a `coco_cc_library` whose runtime should follow a pinned
+generator, or `@rules_coco//coco:current_popili_version`, so that a `genrule` gets the `$(POPILI)`
+of that version. It builds the wrapped target and everything beneath it with the given version,
+and on a target that has a `popili_version` it wins over the pin. On a `coco_package` or
+`coco_workspace` it is an error: it would pin only the package's own typecheck, not the targets
+that read the package, so set `popili_version` on those instead.
+
+```starlark
+with_popili_version(
+    name = "popili_151",
+    target = "@rules_coco//coco:current_popili_version",
+    version = "1.5.1",
+)
+
+genrule(
+    name = "popili_151_path",
+    outs = ["popili_151_path.txt"],
+    cmd = "echo $(POPILI) > $@",
+    toolchains = [":popili_151"],
+)
+```
 
 To try a version on the whole repository without editing BUILD files, add
 `--@rules_coco//:force_version`: every pin and every `with_popili_version` wrapper is ignored, and

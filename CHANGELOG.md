@@ -37,6 +37,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Breaking:** `with_popili_version` on a `coco_package` or `coco_workspace` is now an error. It
+  only ever pinned the package's own typecheck, not the targets that read the package; set
+  `popili_version` on those (`coco_generate`, `coco_verify_test`, `coco_fmt_test`, the diagram
+  rules) instead, and the package beneath them follows. The wrapper remains for targets without a
+  pin of their own (`//coco:current_popili_version`, `coco_cc_library`, custom rules); on a target
+  that has a `popili_version`, the wrapper's version now wins over the pin, and the wrapped target
+  shares the configuration a pin to the wrapper's version produces.
 - **Breaking:** rules_coco's default toolchain (`stable` with the C and C++ runtimes) is now used
   only when no module declares `coco.toolchain`. If yours declares one, you get only what it lists,
   so add `c = True` / `cc = True` for the runtimes you use. Modules that don't declare
@@ -71,6 +78,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `HideImplementation` popili writes a `<Module>_impl` header and implementation file for every module, and
   rules_coco now declares them as outputs, so such packages build instead of failing with missing outputs.
 
+### Fixed
+
+- `coco_cc_library` and `coco_c_library` no longer fail to find generated headers when their
+  `coco_generate` is built with a different Popili version, for example through `with_popili_version`.
+- `with_popili_version` now forwards the make variables of `//coco:current_popili_version`, so a
+  wrapped one gives `$(POPILI)` and `$(POPILI_STARTUP_ARGS)` of the wrapper's version to a
+  `genrule` or any rule listing it in `toolchains`.
+
 ### Removed
 
 - The macOS Intel (`osx`/`x86_64`) toolchain is no longer supported, as Popili dropped Intel macOS with
@@ -78,8 +93,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- `coco_cc_library` and `coco_c_library` no longer fail to find generated headers when their
-  `coco_generate` is built with a different Popili version, for example through `with_popili_version`.
 - `local_user` now finds the license in the correct directory (`XDG_DATA_HOME` or
   `%LOCALAPPDATA%`), and respects the `POPILI_DATA` override.
 - The local toolchain (`coco.local_toolchain` in bzlmod, `coco_local_repositories` in WORKSPACE) is

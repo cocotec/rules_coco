@@ -1,5 +1,6 @@
 # E2E test for multi-version support in rules_coco: popili 1.5.0 and 1.5.1 are registered, and
-# each target that runs popili picks its version with popili_version.
+# each target that runs popili picks its version with popili_version, or is given one by a
+# with_popili_version wrapper.
 
 load("@bazel_features//:features.bzl", "bazel_features")
 load("@rules_cc//cc:defs.bzl", "cc_test", "cc_toolchain")
@@ -47,6 +48,20 @@ with_popili_version(
     name = "popili_is_151",
     target = ":popili_is_151_impl",
     version = "1.5.1",
+)
+
+# A wrapped current_popili_version gives a genrule the $(POPILI) of the wrapper's version.
+with_popili_version(
+    name = "popili_151",
+    target = "@rules_coco//coco:current_popili_version",
+    version = "1.5.1",
+)
+
+genrule(
+    name = "popili_151_path",
+    outs = ["popili_151_path.txt"],
+    cmd = "echo '$(POPILI)' > $@",
+    toolchains = [":popili_151"],
 )
 
 # Modern package: everything that runs popili on it is pinned to 1.5.0.
@@ -130,6 +145,34 @@ coco_state_diagram(
     popili_version = "1.5.1",
 )
 
+# The wrapper wins over the pin: the legacy package is also generated with 1.5.0, in the same
+# configuration as :modern_cpp, and linked into a second test.
+with_popili_version(
+    name = "legacy_cpp_at_150",
+    target = ":legacy_cpp",
+    version = "1.5.0",
+)
+
+coco_cc_library(
+    name = "legacy_cc_at_150",
+    generated_package = ":legacy_cpp_at_150",
+)
+
+cc_test(
+    name = "legacy_at_150_test",
+    size = "small",
+    srcs = ["legacy/test/legacy_test.cc"],
+    deps = [":legacy_cc_at_150"],
+)
+
+# Rejected at analysis: the wrapper on a coco_package. Reached only by pinned_popili_test.bzl.
+with_popili_version(
+    name = "flexible_at_151",
+    tags = ["manual"],
+    target = ":flexible",
+    version = "1.5.1",
+)
+
 # Flexible package: unpinned, so it follows --@rules_coco//:version and otherwise the default.
 coco_package(
     name = "flexible",
@@ -174,6 +217,7 @@ pinned_popili_tests(
             "legacy_generate": ":legacy_cpp",
             "legacy_states": ":legacy_states",
             "legacy_verify": ":legacy_verify",
+            "wrapped_popili_genrule": ":popili_151_path",
         },
     },
     unpinned = {
@@ -182,6 +226,9 @@ pinned_popili_tests(
         "flexible_verify": ":flexible_verify",
     },
     wrapped = ":popili_is_151",
+    wrapped_generate = ":legacy_cpp_at_150",
+    wrapped_generate_reference = ":modern_cpp",
+    wrapped_package = ":flexible_at_151",
 )
 
 # Foreign to every CI host; test_platform_test.bzl targets it, with the host as first execution platform.

@@ -1,16 +1,20 @@
-"""Analysis tests for `popili_version` and aliases in `--@rules_coco//:version`.
+"""Analysis tests for `popili_version`, `with_popili_version` and aliases in `--@rules_coco//:version`.
 
 The root registers `stable` only, so the pins under test are that alias, and a pin to any other
 version has no toolchain. Which popili a target resolved is read off the action it would run,
 whose popili lives in a version-mangled repository (`io_cocotec_coco_<os>_<arch>__<version>`),
 off its `$(POPILI)` make variable, or off the headers of the runtime it forwards.
 Under `--@rules_coco//:force_version` a pin must be ignored: the target stays in the command
-line's configuration and resolves what the version flag says. An alias in the flag itself
-(`--@rules_coco//:version=stable`) is resolved by the transition of every rule that resolves
-popili, so an unpinned target under it resolves the version the alias names, in the configuration
-`--@rules_coco//:version=<that version>` produces; an alias naming an unregistered version fails
-naming that version. Every test that compares bin dirs fixes the flags of both sides, so the suite
-holds whatever the command line sets.
+line's configuration and resolves what the version flag says. A `with_popili_version` above a
+pinned target wins over the pin, and puts the target in the configuration a pin to the wrapper's
+version produces. The wrapper has no actions of its own, so what it did is read off its target's
+bin dir; the configuration it leaves its target in is also set directly on a target under test, so
+that the target's own transition can be observed on its actions and on the typecheck marker of
+the package beneath it. An alias in the flag itself (`--@rules_coco//:version=stable`) is resolved
+by the transition of every rule that resolves popili, so an unpinned target under it resolves the
+version the alias names, in the configuration `--@rules_coco//:version=<that version>` produces;
+an alias naming an unregistered version fails naming that version. Every test that compares bin
+dirs fixes the flags of both sides, so the suite holds whatever the command line sets.
 """
 
 load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts")
@@ -19,6 +23,7 @@ load("@rules_coco//coco/private:version_resolution.bzl", "resolve_version_alias"
 
 _VERSION_FLAG = str(Label("@rules_coco//:version"))
 _FORCE_FLAG = str(Label("@rules_coco//:force_version"))
+_WRAPPED_SETTING = str(Label("@rules_coco//:_wrapped_version"))
 _SOURCE_SETTING = str(Label("@rules_coco//:_version_source"))
 
 _STABLE = resolve_version_alias("stable")
@@ -98,6 +103,13 @@ def _configuration_differs_impl(ctx):
     asserts.false(env, _output_root(_reference(ctx)) == _output_root(analysistest.target_under_test(env)), "a pinned target keeps the configuration of the untransitioned reference")
     return analysistest.end(env)
 
+# No config_settings, so both targets start from the test's configuration and only their own
+# transitions tell them apart.
+same_configuration_test = analysistest.make(
+    _same_configuration_impl,
+    attrs = {"reference": attr.label(mandatory = True)},
+)
+
 def _same_configuration_under(settings, reference_settings = None):
     """A test that its target, under `settings`, lands in the bin dir of `reference` under `reference_settings` (`settings` by default)."""
     return analysistest.make(
@@ -151,6 +163,51 @@ def _forced_pin_ignored_test(settings):
 forced_pin_ignored_test = _forced_pin_ignored_test(_FORCED)
 forced_alias_pin_ignored_test = _forced_pin_ignored_test(_FORCED_ALIASED)
 
+def _forced_wrapper_ignored_impl(ctx):
+    env = analysistest.begin(ctx)
+    asserts.equals(env, _output_root(ctx.attr.unpinned[0]), _output_root(analysistest.target_under_test(env)), "bin dir of a wrapped target under --force_version")
+    return analysistest.end(env)
+
+forced_wrapper_ignored_test = analysistest.make(
+    _forced_wrapper_ignored_impl,
+    attrs = {"unpinned": attr.label(mandatory = True, cfg = analysis_test_transition(settings = _FORCED))},
+    config_settings = _FORCED,
+)
+
+# The configuration a with_popili_version(version = "stable") leaves its target in.
+_BENEATH_WRAPPER = {
+    _VERSION_FLAG: _STABLE,
+    _WRAPPED_SETTING: _STABLE,
+    _SOURCE_SETTING: "pin",
+    _FORCE_FLAG: False,
+}
+
+beneath_wrapper_test = analysistest.make(
+    _resolves_impl,
+    attrs = _VERSION_ATTRS,
+    config_settings = _BENEATH_WRAPPER,
+)
+
+def _typecheck_marker(target):
+    for file in target[DefaultInfo].default_runfiles.files.to_list():
+        if file.extension == "typecheck":
+            return file.path
+    fail("%s has no typecheck marker in its runfiles" % target.label)
+
+def _same_package_configuration_impl(ctx):
+    env = analysistest.begin(ctx)
+    asserts.equals(env, _typecheck_marker(ctx.attr.reference[0]), _typecheck_marker(analysistest.target_under_test(env)), "typecheck marker of a package reached beneath a wrapper and through a pin")
+    return analysistest.end(env)
+
+# The reference starts under a flag its pin beats, the target under test beneath the wrapper; the
+# package beneath both must be one configured target. The reference's transition has to change
+# something: an analysis_test_transition marks the configuration only when it does.
+same_package_configuration_test = analysistest.make(
+    _same_package_configuration_impl,
+    attrs = {"reference": attr.label(mandatory = True, cfg = analysis_test_transition(settings = {_VERSION_FLAG: "1.99.0", _FORCE_FLAG: False}))},
+    config_settings = _BENEATH_WRAPPER,
+)
+
 def _expect_message_impl(ctx):
     env = analysistest.begin(ctx)
     for expected in ctx.attr.expected:
@@ -180,6 +237,69 @@ alias_unregistered_test = analysistest.make(
     config_settings = {_VERSION_FLAG: _UNREGISTERED_ALIAS},
     expect_failure = True,
 )
+
+def _wrapper_tests(name, unpinned_verify, wrapped):
+    """The with_popili_version tests; see popili_pinning_tests for `wrapped`."""
+    for kind in ["package", "workspace"]:
+        expect_message_test(
+            name = "%s_wrapper_on_%s_rejected" % (name, kind),
+            size = "small",
+            target_under_test = wrapped[kind],
+            expected = [
+                "wraps the coco_%s " % kind,
+                "in with_popili_version, which does not pin the targets that read the package",
+                "Set popili_version = \"stable\" on the coco_generate, coco_verify_test, coco_fmt_test or diagram targets that read the package instead",
+            ],
+        )
+    expect_message_test(
+        name = "%s_wrapper_beats_pin" % name,
+        size = "small",
+        target_under_test = wrapped["unregistered"],
+        expected = [
+            ":base needs popili 1.99.0 (selected by popili_version or with_popili_version on a target above it), but no registered Coco toolchain provides it.",
+            "Registered popili versions: %s (the default)." % _STABLE,
+        ],
+    )
+    same_configuration_test(
+        name = "%s_wrapper_rescues_pin" % name,
+        size = "small",
+        target_under_test = wrapped["rescued"],
+        reference = wrapped["pinned_states"],
+    )
+    alias_shares_resolved_configuration_test(
+        name = "%s_wrapper_under_alias_flag" % name,
+        size = "small",
+        target_under_test = wrapped["rescued"],
+        reference = wrapped["pinned_states"],
+    )
+    beneath_wrapper_test(
+        name = "%s_beneath_wrapper_resolves_wrapped" % name,
+        size = "small",
+        target_under_test = wrapped["unregistered_states"],
+        version = "stable",
+    )
+    same_package_configuration_test(
+        name = "%s_wrapped_and_pinned_share_package" % name,
+        size = "small",
+        target_under_test = wrapped["typechecked_verify"],
+        reference = wrapped["pinned_typechecked_verify"],
+    )
+    forced_wrapper_ignored_test(
+        name = "%s_forced_wrapper_ignored" % name,
+        size = "small",
+        target_under_test = wrapped["unregistered"],
+        unpinned = unpinned_verify,
+    )
+    return [
+        "%s_wrapper_on_package_rejected" % name,
+        "%s_wrapper_on_workspace_rejected" % name,
+        "%s_wrapper_beats_pin" % name,
+        "%s_wrapper_rescues_pin" % name,
+        "%s_wrapper_under_alias_flag" % name,
+        "%s_beneath_wrapper_resolves_wrapped" % name,
+        "%s_wrapped_and_pinned_share_package" % name,
+        "%s_forced_wrapper_ignored" % name,
+    ]
 
 def _alias_flag_tests(name, aliased, current_popili_version, untransitioned):
     """The tests for an alias in --@rules_coco//:version; see popili_pinning_tests for the arguments."""
@@ -230,7 +350,7 @@ def _alias_flag_tests(name, aliased, current_popili_version, untransitioned):
         tests.append("%s_alias_unregistered_%s" % (name, consumer))
     return tests
 
-def popili_pinning_tests(name, pinned, unpinned_verify, unregistered, aliased, current_popili_version, untransitioned):
+def popili_pinning_tests(name, pinned, unpinned_verify, unregistered, wrapped, aliased, current_popili_version, untransitioned):
     """Declares the pin tests and a test_suite over them.
 
     Args:
@@ -238,6 +358,12 @@ def popili_pinning_tests(name, pinned, unpinned_verify, unregistered, aliased, c
         pinned: A dict mapping a short name to a target pinned with `popili_version = "stable"`.
         unpinned_verify: A coco_verify_test without a pin, the reference configuration under force.
         unregistered: A coco_generate pinned to a version nobody registered (1.99.0).
+        wrapped: The with_popili_version fixtures: `package` and `workspace` (wrappers on a
+            coco_package and a coco_workspace), `unregistered` (a wrapper to 1.99.0 around
+            `pinned_states`, a coco_state_diagram pinned to stable), `rescued` (a wrapper to stable
+            around `unregistered_states`, a coco_state_diagram pinned to 1.99.0), and
+            `typechecked_verify` and `pinned_typechecked_verify` (an unpinned and a stable-pinned
+            coco_verify_test of a package with typecheck = True).
         aliased: A dict mapping a short name to an unpinned target with an action or a runtime to
             read the resolved popili off: `generate` (a coco_generate over a package of its own),
             `verify_test`, `package` (a coco_package with typecheck = True) and `cc_runtime`
@@ -295,12 +421,22 @@ def popili_pinning_tests(name, pinned, unpinned_verify, unregistered, aliased, c
         target_under_test = unregistered,
         expected = [
             # The package beneath the pin requires a toolchain too and fails first, in the pinned configuration.
-            ":base needs popili 1.99.0 (pinned by popili_version on a target above it), but no registered Coco toolchain provides it.",
+            ":base needs popili 1.99.0 (selected by popili_version or with_popili_version on a target above it), but no registered Coco toolchain provides it.",
             "Registered popili versions: %s (the default)." % _STABLE,
             "coco.toolchain(versions = [...])",
         ],
     )
-    tests.append("%s_pinned_unregistered" % name)
+
+    # A diagram, not `unregistered`: forced under the alias it would share a configuration with the
+    # stable-pinned generate and write the same files.
+    forced_alias_pin_ignored_test(
+        name = "%s_forced_alias_rescues_unregistered_pin" % name,
+        size = "small",
+        target_under_test = wrapped["unregistered_states"],
+        unpinned = unpinned_verify,
+    )
+    tests += ["%s_pinned_unregistered" % name, "%s_forced_alias_rescues_unregistered_pin" % name]
+    tests += _wrapper_tests(name, unpinned_verify, wrapped)
     tests += _alias_flag_tests(name, aliased, current_popili_version, untransitioned)
 
     native.test_suite(name = name, tests = tests)

@@ -15,7 +15,7 @@
 load("@bazel_skylib//rules:write_file.bzl", "write_file")
 load("@rules_cc//cc:defs.bzl", "cc_test")
 load("@rules_coco//coco:cc.bzl", "coco_cc_library", "coco_cc_test_library")
-load("@rules_coco//coco:defs.bzl", "coco_fmt_test", "coco_generate", "coco_package", "coco_state_diagram", "coco_verify_test")
+load("@rules_coco//coco:defs.bzl", "coco_fmt_test", "coco_generate", "coco_package", "coco_state_diagram", "coco_verify_test", "coco_workspace", "with_popili_version")
 load(":pinning_test.bzl", "popili_pinning_tests")
 
 # The root registers only `stable`, so every pin here is the alias: the transition has to resolve
@@ -108,12 +108,70 @@ coco_generate(
     tags = ["manual"],
 )
 
-# A typechecked package: its typecheck script shows the popili the package itself resolved.
+# Pinned to a version nobody registered; only the wrapper around it makes it resolve. Diagrams,
+# because a wrapper cannot forward a test's or binary's executable, and because their outputs are
+# named by the target, so two of them over one package in one configuration do not conflict.
+coco_state_diagram(
+    name = "unregistered_states",
+    package = ":base",
+    popili_version = "1.99.0",
+    tags = ["manual"],
+    targets = ["Runnable.M"],
+)
+
+with_popili_version(
+    name = "wrapped_rescued",
+    target = ":unregistered_states",
+    version = "stable",
+)
+
+# The wrapper beats the pin the other way round too: reached only by the analysis tests, which
+# expect it to fail, except under --@rules_coco//:force_version.
+with_popili_version(
+    name = "wrapped_unregistered",
+    tags = ["manual"],
+    target = ":pinned_states",
+    version = "1.99.0",
+)
+
+# Rejected: the wrapper on a coco_package or coco_workspace.
+with_popili_version(
+    name = "wrapped_package",
+    tags = ["manual"],
+    target = ":base",
+    version = "stable",
+)
+
+coco_workspace(
+    name = "workspace",
+    workspace = "workspace/Coco.toml",
+)
+
+with_popili_version(
+    name = "wrapped_workspace",
+    tags = ["manual"],
+    target = ":workspace",
+    version = "stable",
+)
+
+# A typechecked package verified pinned to stable, and unpinned; the analysis tests put the
+# unpinned verify beneath a wrapper to stable and assert both reach the same typecheck marker.
 coco_package(
     name = "typechecked",
     srcs = glob(["src/**/*.coco"]),
     package = "Coco.toml",
     typecheck = True,
+)
+
+coco_verify_test(
+    name = "pinned_typechecked_verify",
+    package = ":typechecked",
+    popili_version = "stable",
+)
+
+coco_verify_test(
+    name = "typechecked_verify",
+    package = ":typechecked",
 )
 
 popili_pinning_tests(
@@ -135,4 +193,14 @@ popili_pinning_tests(
     unpinned_verify = ":unpinned_verify",
     unregistered = ":unregistered_cpp",
     untransitioned = ":untransitioned",
+    wrapped = {
+        "package": ":wrapped_package",
+        "pinned_states": ":pinned_states",
+        "pinned_typechecked_verify": ":pinned_typechecked_verify",
+        "rescued": ":wrapped_rescued",
+        "typechecked_verify": ":typechecked_verify",
+        "unregistered": ":wrapped_unregistered",
+        "unregistered_states": ":unregistered_states",
+        "workspace": ":wrapped_workspace",
+    },
 )

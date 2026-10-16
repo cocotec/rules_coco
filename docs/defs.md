@@ -12,18 +12,30 @@ load("@rules_coco//coco:defs.bzl", "with_popili_version")
 with_popili_version(<a href="#with_popili_version-name">name</a>, <a href="#with_popili_version-target">target</a>, <a href="#with_popili_version-version">version</a>)
 </pre>
 
-Wrapper rule to build a target with a specific popili version.
+Builds a target and everything beneath it with a specific popili version.
 
-Use this when you need to build different targets with different popili versions
-in the same build. For most cases, just use --@rules_coco//:version=X.Y.Z.
+For targets that have no `popili_version` of their own: `//coco:current_popili_version`, so
+that a `genrule` gets `$(POPILI)` of that version, a `coco_cc_library` whose runtime should
+follow a pinned generator, or a custom rule that resolves the Coco toolchain. On a target that
+has a `popili_version`, the wrapper's version wins over the pin, and the wrapped target shares the
+configuration a pin to the wrapper's version produces. `--@rules_coco//:force_version` ignores the
+wrapper like every pin.
+
+On a `coco_package` or `coco_workspace` the wrapper is an error: it would pin only the package's
+own typecheck and not the targets that read the package. Set `popili_version` on those instead.
 
 Example:
-    coco_package(name = "pkg", ...)
-
     with_popili_version(
-        name = "pkg_v147",
-        target = ":pkg",
-        version = "1.4.7",
+        name = "popili_151",
+        target = "@rules_coco//coco:current_popili_version",
+        version = "1.5.1",
+    )
+
+    genrule(
+        name = "report",
+        outs = ["report.txt"],
+        cmd = "echo $(POPILI) > $@",
+        toolchains = [":popili_151"],
     )
 
 **ATTRIBUTES**
@@ -32,8 +44,8 @@ Example:
 | Name  | Description | Type | Mandatory | Default |
 | :------------- | :------------- | :------------- | :------------- | :------------- |
 | <a id="with_popili_version-name"></a>name |  A unique name for this target.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
-| <a id="with_popili_version-target"></a>target |  The target to build with a specific popili version   | <a href="https://bazel.build/concepts/labels">Label</a> | required |  |
-| <a id="with_popili_version-version"></a>version |  The popili version to use (e.g., '1.5.0', '1.4.7')   | String | required |  |
+| <a id="with_popili_version-target"></a>target |  The target to build with the given popili version. A `coco_package` or `coco_workspace` is rejected: pin the targets that read the package instead.   | <a href="https://bazel.build/concepts/labels">Label</a> | required |  |
+| <a id="with_popili_version-version"></a>version |  The registered popili version, such as `"1.5.1"`, or an alias such as `"stable"`.   | String | required |  |
 
 
 <a id="CocoWorkspaceInfo"></a>
@@ -171,7 +183,7 @@ Generates SVG diagrams showing component architecture using
 | <a id="coco_architecture_diagram-only_roots"></a>only_roots |  Only draw root components. Disabled by default.   | Boolean | optional |  `None`  |
 | <a id="coco_architecture_diagram-package"></a>package |  The coco_package target to generate architecture diagrams for.   | <a href="https://bazel.build/concepts/labels">Label</a> | required |  |
 | <a id="coco_architecture_diagram-package_metadata"></a>package_metadata |  <a href="https://bazel.build/reference/be/common-definitions#common.package_metadata">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a>; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
-| <a id="coco_architecture_diagram-popili_version"></a>popili_version |  The registered popili version this target and everything beneath it, including the coco_package it reads, run with: a version such as `"1.5.1"` or an alias such as `"stable"`. It wins over `--@rules_coco//:version`, unless `--@rules_coco//:force_version` is set, which ignores every pin. Empty (the default) uses the version that flag selects, or the first registered version when the flag is unset too.   | String | optional |  `None`  |
+| <a id="coco_architecture_diagram-popili_version"></a>popili_version |  The registered popili version this target and everything beneath it, including the coco_package it reads, run with: a version such as `"1.5.1"` or an alias such as `"stable"`. It wins over `--@rules_coco//:version`, unless `--@rules_coco//:force_version` is set, which ignores every pin, and a `with_popili_version` wrapper directly above the target wins over it. Empty (the default) uses the version that flag selects, or the first registered version when the flag is unset too.   | String | optional |  `None`  |
 | <a id="coco_architecture_diagram-port_names"></a>port_names |  Show the instance name of each port. Disabled by default.   | Boolean | optional |  `None`  |
 | <a id="coco_architecture_diagram-port_types"></a>port_types |  Show the type of each port. Enabled by default.   | Boolean | optional |  `None`  |
 | <a id="coco_architecture_diagram-restricted_to"></a>restricted_to |  <a href="https://bazel.build/reference/be/common-definitions#common.restricted_to">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a>; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
@@ -223,7 +235,7 @@ To skip the test for specific packages, use standard Bazel tags, e.g.
 | <a id="coco_fmt_test-local"></a>local |  <a href="https://bazel.build/reference/be/common-definitions#test.local">Inherited rule attribute</a>   | Boolean; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
 | <a id="coco_fmt_test-package"></a>package |  The coco_package target to check/format.   | <a href="https://bazel.build/concepts/labels">Label</a>; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | required |  |
 | <a id="coco_fmt_test-package_metadata"></a>package_metadata |  <a href="https://bazel.build/reference/be/common-definitions#common.package_metadata">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a>; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
-| <a id="coco_fmt_test-popili_version"></a>popili_version |  The registered popili version this target and everything beneath it, including the coco_package it reads, run with: a version such as `"1.5.1"` or an alias such as `"stable"`. It wins over `--@rules_coco//:version`, unless `--@rules_coco//:force_version` is set, which ignores every pin. Empty (the default) uses the version that flag selects, or the first registered version when the flag is unset too.   | String | optional |  `None`  |
+| <a id="coco_fmt_test-popili_version"></a>popili_version |  The registered popili version this target and everything beneath it, including the coco_package it reads, run with: a version such as `"1.5.1"` or an alias such as `"stable"`. It wins over `--@rules_coco//:version`, unless `--@rules_coco//:force_version` is set, which ignores every pin, and a `with_popili_version` wrapper directly above the target wins over it. Empty (the default) uses the version that flag selects, or the first registered version when the flag is unset too.   | String | optional |  `None`  |
 | <a id="coco_fmt_test-restricted_to"></a>restricted_to |  <a href="https://bazel.build/reference/be/common-definitions#common.restricted_to">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a>; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
 | <a id="coco_fmt_test-shard_count"></a>shard_count |  <a href="https://bazel.build/reference/be/common-definitions#test.shard_count">Inherited rule attribute</a>   | Integer | optional |  `None`  |
 | <a id="coco_fmt_test-size"></a>size |  <a href="https://bazel.build/reference/be/common-definitions#test.size">Inherited rule attribute</a>   | String; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
@@ -295,7 +307,7 @@ created that exposes the generated test sources and headers.
 | <a id="coco_generate-mocks"></a>mocks |  Generate mock implementations for testing. Disabled by default. Not supported for C.   | Boolean | optional |  `None`  |
 | <a id="coco_generate-package"></a>package |  The coco_package target containing the source files to generate from.   | <a href="https://bazel.build/concepts/labels">Label</a> | required |  |
 | <a id="coco_generate-package_metadata"></a>package_metadata |  <a href="https://bazel.build/reference/be/common-definitions#common.package_metadata">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a>; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
-| <a id="coco_generate-popili_version"></a>popili_version |  The registered popili version this target and everything beneath it, including the coco_package it reads, run with: a version such as `"1.5.1"` or an alias such as `"stable"`. It wins over `--@rules_coco//:version`, unless `--@rules_coco//:force_version` is set, which ignores every pin. Empty (the default) uses the version that flag selects, or the first registered version when the flag is unset too.   | String | optional |  `None`  |
+| <a id="coco_generate-popili_version"></a>popili_version |  The registered popili version this target and everything beneath it, including the coco_package it reads, run with: a version such as `"1.5.1"` or an alias such as `"stable"`. It wins over `--@rules_coco//:version`, unless `--@rules_coco//:force_version` is set, which ignores every pin, and a `with_popili_version` wrapper directly above the target wins over it. Empty (the default) uses the version that flag selects, or the first registered version when the flag is unset too.   | String | optional |  `None`  |
 | <a id="coco_generate-restricted_to"></a>restricted_to |  <a href="https://bazel.build/reference/be/common-definitions#common.restricted_to">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a>; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
 | <a id="coco_generate-tags"></a>tags |  <a href="https://bazel.build/reference/be/common-definitions#common.tags">Inherited rule attribute</a>   | List of strings; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
 | <a id="coco_generate-target_compatible_with"></a>target_compatible_with |  <a href="https://bazel.build/reference/be/common-definitions#common.target_compatible_with">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a> | optional |  `None`  |
@@ -380,7 +392,7 @@ Generates SVG diagrams showing state machine structure using
 | <a id="coco_state_diagram-features"></a>features |  <a href="https://bazel.build/reference/be/common-definitions#common.features">Inherited rule attribute</a>   | List of strings | optional |  `None`  |
 | <a id="coco_state_diagram-package"></a>package |  The coco_package target to generate state diagrams for.   | <a href="https://bazel.build/concepts/labels">Label</a> | required |  |
 | <a id="coco_state_diagram-package_metadata"></a>package_metadata |  <a href="https://bazel.build/reference/be/common-definitions#common.package_metadata">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a>; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
-| <a id="coco_state_diagram-popili_version"></a>popili_version |  The registered popili version this target and everything beneath it, including the coco_package it reads, run with: a version such as `"1.5.1"` or an alias such as `"stable"`. It wins over `--@rules_coco//:version`, unless `--@rules_coco//:force_version` is set, which ignores every pin. Empty (the default) uses the version that flag selects, or the first registered version when the flag is unset too.   | String | optional |  `None`  |
+| <a id="coco_state_diagram-popili_version"></a>popili_version |  The registered popili version this target and everything beneath it, including the coco_package it reads, run with: a version such as `"1.5.1"` or an alias such as `"stable"`. It wins over `--@rules_coco//:version`, unless `--@rules_coco//:force_version` is set, which ignores every pin, and a `with_popili_version` wrapper directly above the target wins over it. Empty (the default) uses the version that flag selects, or the first registered version when the flag is unset too.   | String | optional |  `None`  |
 | <a id="coco_state_diagram-restricted_to"></a>restricted_to |  <a href="https://bazel.build/reference/be/common-definitions#common.restricted_to">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a>; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
 | <a id="coco_state_diagram-separate_edges"></a>separate_edges |  Lay out each state transition as a separate edge. Disabled by default.   | Boolean | optional |  `None`  |
 | <a id="coco_state_diagram-tags"></a>tags |  <a href="https://bazel.build/reference/be/common-definitions#common.tags">Inherited rule attribute</a>   | List of strings; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
@@ -425,7 +437,7 @@ verification does not pass.
 | <a id="coco_verify_test-local"></a>local |  <a href="https://bazel.build/reference/be/common-definitions#test.local">Inherited rule attribute</a>   | Boolean; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
 | <a id="coco_verify_test-package"></a>package |  The coco_package target to verify.   | <a href="https://bazel.build/concepts/labels">Label</a> | required |  |
 | <a id="coco_verify_test-package_metadata"></a>package_metadata |  <a href="https://bazel.build/reference/be/common-definitions#common.package_metadata">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a>; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
-| <a id="coco_verify_test-popili_version"></a>popili_version |  The registered popili version this target and everything beneath it, including the coco_package it reads, run with: a version such as `"1.5.1"` or an alias such as `"stable"`. It wins over `--@rules_coco//:version`, unless `--@rules_coco//:force_version` is set, which ignores every pin. Empty (the default) uses the version that flag selects, or the first registered version when the flag is unset too.   | String | optional |  `None`  |
+| <a id="coco_verify_test-popili_version"></a>popili_version |  The registered popili version this target and everything beneath it, including the coco_package it reads, run with: a version such as `"1.5.1"` or an alias such as `"stable"`. It wins over `--@rules_coco//:version`, unless `--@rules_coco//:force_version` is set, which ignores every pin, and a `with_popili_version` wrapper directly above the target wins over it. Empty (the default) uses the version that flag selects, or the first registered version when the flag is unset too.   | String | optional |  `None`  |
 | <a id="coco_verify_test-restricted_to"></a>restricted_to |  <a href="https://bazel.build/reference/be/common-definitions#common.restricted_to">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a>; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
 | <a id="coco_verify_test-shard_count"></a>shard_count |  <a href="https://bazel.build/reference/be/common-definitions#test.shard_count">Inherited rule attribute</a>   | Integer | optional |  `None`  |
 | <a id="coco_verify_test-size"></a>size |  <a href="https://bazel.build/reference/be/common-definitions#test.size">Inherited rule attribute</a>   | String; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |

@@ -22,7 +22,7 @@ load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load(":common_attrs.bzl", "companion_attrs")
 load(":platforms.bzl", "COCO_TOOLCHAIN_PLATFORMS")
 load(":version_registry.bzl", "CocoVersionRegistryInfo")
-load(":version_resolution.bzl", "FORCE_VERSION_FLAG", "LOCAL_VERSION", "PINNED_SOURCE", "VERSION_FLAG", "VERSION_SOURCE_SETTING", "resolve_version_alias")
+load(":version_resolution.bzl", "FORCE_VERSION_FLAG", "LOCAL_VERSION", "PINNED_SOURCE", "VERSION_FLAG", "VERSION_SOURCE_SETTING", "WRAPPED_VERSION_SETTING", "resolve_version_alias")
 
 CocoPackageInfo = provider(
     doc = "Information about a Coco package",
@@ -111,146 +111,181 @@ POPILI_VERSION_ATTRIBUTES = {
         doc = "The registered popili version this target and everything beneath it, including the " +
               "coco_package it reads, run with: a version such as `\"1.5.1\"` or an alias such as " +
               "`\"stable\"`. It wins over `--@rules_coco//:version`, unless `--@rules_coco//:force_version` " +
-              "is set, which ignores every pin. Empty (the default) uses the version that flag selects, or " +
-              "the first registered version when the flag is unset too.",
+              "is set, which ignores every pin, and a `with_popili_version` wrapper directly above the " +
+              "target wins over it. Empty (the default) uses the version that flag selects, or the first " +
+              "registered version when the flag is unset too.",
     ),
 }
 
-def _resolved_flag_settings(version, source):
+def _resolved_flag_settings(version, source, wrapped):
     """The dict that only resolves an alias in the version flag; `{}` when the flag has none."""
     resolved = resolve_version_alias(version)
     if resolved == version:
         return {}
-    return {VERSION_FLAG: resolved, VERSION_SOURCE_SETTING: source}
+    return {VERSION_FLAG: resolved, VERSION_SOURCE_SETTING: source, WRAPPED_VERSION_SETTING: wrapped}
 
-def _pin_transition_settings(pin, version, forced = False, source = ""):
+def _pin_transition_settings(pin, version, forced = False, wrapped = "", source = ""):
     """Decides what a popili-resolving rule's transition changes.
 
     Args:
         pin: The target's `popili_version`, "" when unpinned or the rule has none.
         version: The value of `--@rules_coco//:version` in the incoming configuration.
         forced: The value of `--@rules_coco//:force_version` in the incoming configuration.
+        wrapped: The value of the `_wrapped_version` setting: the version of a `with_popili_version`
+            directly above the target, "" otherwise.
         source: The value of the `_version_source` setting in the incoming configuration.
 
     Returns:
         The dict the transition returns. An alias in the incoming version flag is resolved in every
         case, so a build under `--@rules_coco//:version=stable` is analysed in the configuration of
         the version `stable` names, shared with `--@rules_coco//:version=<that version>`. Forced,
-        that is all: the pin is ignored. Otherwise a pin that differs from the (resolved) incoming
+        that is all: the pin and the wrapper are ignored. Wrapped, the wrapper's version applies
+        over the pin and `_wrapped_version` is reset, so the target lands in the configuration a
+        pin to that version produces. Otherwise a pin that differs from the (resolved) incoming
         version sets the version flag to the pin with aliases resolved and the source setting
         records it. `{}` leaves the configuration (and so the output paths) untouched whenever
         nothing changes.
     """
-    if forced or not pin or resolve_version_alias(pin) == resolve_version_alias(version):
-        return _resolved_flag_settings(version, source)
-    return {VERSION_FLAG: resolve_version_alias(pin), VERSION_SOURCE_SETTING: PINNED_SOURCE}
+    if forced:
+        return _resolved_flag_settings(version, source, wrapped)
+    if wrapped:
+        return {VERSION_FLAG: wrapped, VERSION_SOURCE_SETTING: source, WRAPPED_VERSION_SETTING: ""}
+    if not pin or resolve_version_alias(pin) == resolve_version_alias(version):
+        return _resolved_flag_settings(version, source, wrapped)
+    return {VERSION_FLAG: resolve_version_alias(pin), VERSION_SOURCE_SETTING: PINNED_SOURCE, WRAPPED_VERSION_SETTING: ""}
 
 def _popili_version_pin_impl(settings, attr):
     return _pin_transition_settings(
         getattr(attr, "popili_version", ""),
         settings[VERSION_FLAG],
         settings[FORCE_VERSION_FLAG],
+        settings[WRAPPED_VERSION_SETTING],
         settings[VERSION_SOURCE_SETTING],
     )
 
 popili_version_pin = transition(
     implementation = _popili_version_pin_impl,
-    inputs = [VERSION_FLAG, FORCE_VERSION_FLAG, VERSION_SOURCE_SETTING],
-    outputs = [VERSION_FLAG, VERSION_SOURCE_SETTING],
+    inputs = [VERSION_FLAG, FORCE_VERSION_FLAG, WRAPPED_VERSION_SETTING, VERSION_SOURCE_SETTING],
+    outputs = [VERSION_FLAG, VERSION_SOURCE_SETTING, WRAPPED_VERSION_SETTING],
 )
 
-def _wrapper_transition_settings(version, forced):
+def _wrapper_transition_settings(version, forced, incoming = "", source = ""):
     """Decides what `with_popili_version`'s transition changes.
 
     Args:
         version: The wrapper's `version` attribute.
         forced: The value of `--@rules_coco//:force_version` in the incoming configuration.
+        incoming: The value of `--@rules_coco//:version` in the incoming configuration.
+        source: The value of the `_version_source` setting in the incoming configuration.
 
     Returns:
-        `{}` when forced (the wrapper is ignored) or without a version, otherwise the version
-        flag set to the version with aliases resolved.
+        Forced (the wrapper is ignored) or without a version, only an alias in the incoming flag is
+        resolved, as `_pin_transition_settings` does. Otherwise the version flag is set to the
+        version with aliases resolved, for wrapped targets without a transition of their own, and
+        `_wrapped_version` carries it to a wrapped target that has one. The source setting records
+        the wrapper when it changes the (resolved) version, so that a target beneath it does not
+        blame the flag.
     """
     if forced or not version:
-        return {}
-    return {VERSION_FLAG: resolve_version_alias(version)}
+        return _resolved_flag_settings(incoming, source, "")
+    resolved = resolve_version_alias(version)
+    return {
+        VERSION_FLAG: resolved,
+        VERSION_SOURCE_SETTING: source if resolved == resolve_version_alias(incoming) else PINNED_SOURCE,
+        WRAPPED_VERSION_SETTING: resolved,
+    }
 
 def _popili_version_transition_impl(settings, attr):
-    return _wrapper_transition_settings(getattr(attr, "version", ""), settings[FORCE_VERSION_FLAG])
+    return _wrapper_transition_settings(
+        getattr(attr, "version", ""),
+        settings[FORCE_VERSION_FLAG],
+        settings[VERSION_FLAG],
+        settings[VERSION_SOURCE_SETTING],
+    )
 
 _popili_version_transition = transition(
     implementation = _popili_version_transition_impl,
-    inputs = [FORCE_VERSION_FLAG],
-    outputs = [VERSION_FLAG],
+    inputs = [FORCE_VERSION_FLAG, VERSION_FLAG, VERSION_SOURCE_SETTING],
+    outputs = [VERSION_FLAG, VERSION_SOURCE_SETTING, WRAPPED_VERSION_SETTING],
 )
 
 # Export for use in cc.bzl
 popili_version_transition = _popili_version_transition
 
-def _with_popili_version_impl(ctx):
-    """Wrapper rule that applies popili version transition to a target.
+def _wrapper_on_package_message(label, target, kind, version):
+    """Words the failure of a `with_popili_version` whose target is a coco_package or coco_workspace.
 
-    This allows users to build a specific target with a different popili version
-    than the default specified by --@rules_coco//:version.
+    Args:
+        label: The wrapper's label.
+        target: The wrapped target's label.
+        kind: "coco_package" or "coco_workspace".
+        version: The wrapper's `version` as written.
+
+    Returns:
+        The message to fail with.
     """
+    return (
+        "%s wraps the %s %s in with_popili_version, which does not pin the targets that read " % (label, kind, target) +
+        "the package: it would only pin the package's own typecheck. Set popili_version = %r on the " % version +
+        "coco_generate, coco_verify_test, coco_fmt_test or diagram targets that read the package instead; " +
+        "the package beneath them is analysed with their version."
+    )
 
-    # When using configuration transitions, ctx.attr.target becomes a list
-    target = ctx.attr.target[0] if type(ctx.attr.target) == type([]) else ctx.attr.target
+_FORWARDED_PROVIDERS = [
+    CocoCcGeneratedInfo,
+    CocoCSharpGeneratedInfo,
+    CcInfo,
+    OutputGroupInfo,
+    platform_common.TemplateVariableInfo,
+]
 
-    # Forward all providers from the target
-    # We need to explicitly check for each provider type and forward them
-    providers = []
-
-    # Forward DefaultInfo if present
-    if hasattr(target, "files"):
-        providers.append(target[DefaultInfo])
-
-    # Forward CocoPackageInfo if present
-    if CocoPackageInfo in target:
-        providers.append(target[CocoPackageInfo])
-
-    # Forward language-specific generated code providers if present
-    if CocoCcGeneratedInfo in target:
-        providers.append(target[CocoCcGeneratedInfo])
-    if CocoCSharpGeneratedInfo in target:
-        providers.append(target[CocoCSharpGeneratedInfo])
-
-    # Forward CcInfo if present
-    if CcInfo in target:
-        providers.append(target[CcInfo])
-
-    # Forward OutputGroupInfo if present
-    if OutputGroupInfo in target:
-        providers.append(target[OutputGroupInfo])
-
-    return providers
+def _with_popili_version_impl(ctx):
+    target = ctx.attr.target
+    for kind, info in [("coco_package", CocoPackageInfo), ("coco_workspace", CocoWorkspaceInfo)]:
+        if info in target:
+            fail(_wrapper_on_package_message(ctx.label, target.label, kind, ctx.attr.version), attr = "target")
+    return [target[DefaultInfo]] + [target[provider] for provider in _FORWARDED_PROVIDERS if provider in target]
 
 with_popili_version = rule(
     implementation = _with_popili_version_impl,
     attrs = {
         "target": attr.label(
             mandatory = True,
-            doc = "The target to build with a specific popili version",
+            doc = "The target to build with the given popili version. A `coco_package` or " +
+                  "`coco_workspace` is rejected: pin the targets that read the package instead.",
         ),
         "version": attr.string(
             mandatory = True,
-            doc = "The popili version to use (e.g., '1.5.0', '1.4.7')",
+            doc = "The registered popili version, such as `\"1.5.1\"`, or an alias such as `\"stable\"`.",
         ),
     },
     cfg = _popili_version_transition,
-    doc = """Wrapper rule to build a target with a specific popili version.
+    doc = """Builds a target and everything beneath it with a specific popili version.
 
-    Use this when you need to build different targets with different popili versions
-    in the same build. For most cases, just use --@rules_coco//:version=X.Y.Z.
+For targets that have no `popili_version` of their own: `//coco:current_popili_version`, so
+that a `genrule` gets `$(POPILI)` of that version, a `coco_cc_library` whose runtime should
+follow a pinned generator, or a custom rule that resolves the Coco toolchain. On a target that
+has a `popili_version`, the wrapper's version wins over the pin, and the wrapped target shares the
+configuration a pin to the wrapper's version produces. `--@rules_coco//:force_version` ignores the
+wrapper like every pin.
 
-    Example:
-        coco_package(name = "pkg", ...)
+On a `coco_package` or `coco_workspace` the wrapper is an error: it would pin only the package's
+own typecheck and not the targets that read the package. Set `popili_version` on those instead.
 
-        with_popili_version(
-            name = "pkg_v147",
-            target = ":pkg",
-            version = "1.4.7",
-        )
-    """,
+Example:
+    with_popili_version(
+        name = "popili_151",
+        target = "@rules_coco//coco:current_popili_version",
+        version = "1.5.1",
+    )
+
+    genrule(
+        name = "report",
+        outs = ["report.txt"],
+        cmd = "echo $(POPILI) > $@",
+        toolchains = [":popili_151"],
+    )
+""",
 )
 
 # License files are now obtained from the toolchain, not passed as attributes
@@ -271,25 +306,30 @@ def _version_source(version, pin, source, forced = False):
     Args:
         version: The value of `--@rules_coco//:version` in the target's configuration.
         pin: The target's `popili_version`, "" when it has none.
-        source: The value of the `_version_source` setting: PINNED_SOURCE beneath a pin, else "".
+        source: The value of the `_version_source` setting: PINNED_SOURCE beneath a pin or a
+            wrapper, else "".
         forced: The value of `--@rules_coco//:force_version` in the target's configuration.
 
     Returns:
         A phrase interpolated as "(%s)" in messages: "forced by --@rules_coco//:force_version"
-        (with "the default, " in front when the version flag is empty), "pinned by popili_version"
-        (naming the pin as written when it is an alias, or the fact that the pin sits on a target
-        above this one), "set by --@rules_coco//:version", or "the default".
+        (with "the default, " in front when the version flag is empty), "set by
+        with_popili_version above it, overriding popili_version = ..." when a wrapper overrode the
+        target's pin, "pinned by popili_version" (naming the pin as written when it is an alias),
+        "selected by popili_version or with_popili_version on a target above it", "set by
+        --@rules_coco//:version", or "the default".
     """
     if forced:
         if version:
             return "forced by --%s" % FORCE_VERSION_FLAG
         return "the default, forced by --%s" % FORCE_VERSION_FLAG
     if pin:
+        if resolve_version_alias(pin) != version:
+            return "set by with_popili_version above it, overriding popili_version = %r" % pin
         if pin == version:
             return "pinned by popili_version"
         return "pinned by popili_version = %r" % pin
     if source == PINNED_SOURCE:
-        return "pinned by popili_version on a target above it"
+        return "selected by popili_version or with_popili_version on a target above it"
     if version:
         return "set by --%s" % VERSION_FLAG
     return "the default"
@@ -1755,6 +1795,7 @@ mangle_name = _mangle_name
 missing_popili_message = _missing_popili_message
 pin_transition_settings = _pin_transition_settings
 version_source = _version_source
+wrapper_on_package_message = _wrapper_on_package_message
 wrapper_transition_settings = _wrapper_transition_settings
 component_styles = COMPONENT_STYLES
 compute_output_paths = _compute_output_paths
