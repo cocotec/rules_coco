@@ -68,6 +68,11 @@ toolchain(
 )
 """
 
+# The host's constraints, as `@platforms` detects them. Evaluated when the hub's BUILD file is
+# loaded rather than baked into it, so the hub's content does not depend on the host.
+_HOST_CONSTRAINTS_LOAD = """load("@platforms//host:constraints.bzl", "HOST_CONSTRAINTS")
+"""
+
 # Template for generating version config_setting in the hub repository
 _VERSION_CONFIG_SETTING_TEMPLATE = """
 config_setting(
@@ -241,8 +246,9 @@ def toolchain_hub_entries(versions, has_local = False, hub_name = DEFAULT_HUB_NA
     runtime it hands out is source, so any target platform can use it (cross-compiling
     included). The first version additionally gets a `__default` toolchain per
     platform, gated on the version flag being unset. A local toolchain, when present, is
-    host-only (no platform constraints) and gated on `--@rules_coco//:version=local`; it
-    never becomes the default, matching bzlmod.
+    constrained to the host (its binaries only exist on the machine that staged them) and
+    gated on `--@rules_coco//:version=local`; it never becomes the default, matching
+    bzlmod.
 
     Args:
       versions: Resolved, validated, deduplicated versions in priority order.
@@ -251,7 +257,9 @@ def toolchain_hub_entries(versions, has_local = False, hub_name = DEFAULT_HUB_NA
 
     Returns:
       A struct with `toolchain_names`, `toolchain_labels`, `exec_compatible_with`,
-      `target_settings` and `version_suffixes` fields.
+      `target_settings`, `version_suffixes` and `has_local` fields. An
+      `exec_compatible_with` value is a list of constraint labels, or for the local toolchain
+      the `HOST_CONSTRAINTS` expression the hub's BUILD file loads.
     """
     toolchain_names = []
     toolchain_labels = {}
@@ -284,13 +292,12 @@ def toolchain_hub_entries(versions, has_local = False, hub_name = DEFAULT_HUB_NA
                 exec_compatible_with[default_name] = constraints
                 target_settings[default_name] = ["@%s//:version_default" % hub_name]
 
-    # Host-only (no constraints), gated on the "local" version so it needs --version=local.
     if has_local:
         version_suffixes[LOCAL_VERSION] = LOCAL_VERSION
 
         toolchain_names.append(LOCAL_VERSION)
         toolchain_labels[LOCAL_VERSION] = "@%s//:toolchain_impl" % LOCAL_TOOLCHAIN_REPO_NAME
-        exec_compatible_with[LOCAL_VERSION] = []
+        exec_compatible_with[LOCAL_VERSION] = "HOST_CONSTRAINTS"
         target_settings[LOCAL_VERSION] = ["@%s//:version_%s" % (hub_name, LOCAL_VERSION)]
 
     return struct(
@@ -299,13 +306,14 @@ def toolchain_hub_entries(versions, has_local = False, hub_name = DEFAULT_HUB_NA
         exec_compatible_with = exec_compatible_with,
         target_settings = target_settings,
         version_suffixes = version_suffixes,
+        has_local = has_local,
     )
 
 def render_toolchain_hub_build(entries):
     """Renders the hub repository's BUILD file.
 
-    The result deliberately uses only native rules, so the hub stays loadable before
-    bazel_skylib has been fetched in WORKSPACE mode.
+    The result deliberately uses only native rules and `@platforms`, so the hub stays
+    loadable before bazel_skylib has been fetched in WORKSPACE mode.
 
     Args:
       entries: A struct as returned by `toolchain_hub_entries`.
@@ -335,7 +343,8 @@ def render_toolchain_hub_build(entries):
         for name in entries.toolchain_names
     ])
 
-    return config_settings + "\n" + toolchains
+    prelude = _HOST_CONSTRAINTS_LOAD if entries.has_local else ""
+    return prelude + config_settings + "\n" + toolchains
 
 def _coco_toolchain_hub_impl(repository_ctx):
     """Implementation of the coco toolchain hub repository rule."""
@@ -343,13 +352,12 @@ def _coco_toolchain_hub_impl(repository_ctx):
         repository_ctx.name,
     ))
 
-    repository_ctx.file("BUILD.bazel", render_toolchain_hub_build(struct(
-        toolchain_names = repository_ctx.attr.toolchain_names,
-        toolchain_labels = repository_ctx.attr.toolchain_labels,
-        exec_compatible_with = repository_ctx.attr.exec_compatible_with,
-        target_settings = repository_ctx.attr.target_settings,
-        version_suffixes = repository_ctx.attr.version_suffixes,
-    )))
+    entries = toolchain_hub_entries(
+        repository_ctx.attr.versions,
+        has_local = repository_ctx.attr.has_local,
+        hub_name = repository_ctx.attr.hub_name,
+    )
+    repository_ctx.file("BUILD.bazel", render_toolchain_hub_build(entries))
 
 coco_toolchain_hub = repository_rule(
     doc = (
@@ -357,24 +365,16 @@ coco_toolchain_hub = repository_rule(
         "This allows registering all toolchains with a single `:all` target."
     ),
     attrs = {
-        "exec_compatible_with": attr.string_list_dict(
-            doc = "Map of toolchain name to exec platform constraints.",
+        "has_local": attr.bool(
+            doc = "Whether a local popili distribution is registered, as a host-only toolchain.",
+            default = False,
+        ),
+        "hub_name": attr.string(
+            doc = "The apparent name of this repository, which its config_settings are read from.",
             mandatory = True,
         ),
-        "target_settings": attr.string_list_dict(
-            doc = "Map of toolchain name to target settings (e.g., version constraints).",
-            mandatory = True,
-        ),
-        "toolchain_labels": attr.string_dict(
-            doc = "Map of toolchain name to toolchain implementation label.",
-            mandatory = True,
-        ),
-        "toolchain_names": attr.string_list(
-            doc = "List of toolchain names to include in the hub.",
-            mandatory = True,
-        ),
-        "version_suffixes": attr.string_dict(
-            doc = "Map of version string to normalized suffix for config_setting names.",
+        "versions": attr.string_list(
+            doc = "Resolved, deduplicated versions in priority order; the first is the default.",
             mandatory = True,
         ),
     },
@@ -482,17 +482,9 @@ def declare_coco_toolchains(
             auth_token_path = auth_token_path,
         )
 
-    entries = toolchain_hub_entries(
-        versions,
-        has_local = local != None,
-        hub_name = hub_name,
-    )
-
     coco_toolchain_hub(
         name = hub_name,
-        toolchain_names = entries.toolchain_names,
-        toolchain_labels = entries.toolchain_labels,
-        exec_compatible_with = entries.exec_compatible_with,
-        target_settings = entries.target_settings,
-        version_suffixes = entries.version_suffixes,
+        versions = versions,
+        has_local = local != None,
+        hub_name = hub_name,
     )

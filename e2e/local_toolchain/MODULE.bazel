@@ -25,3 +25,9 @@ coco.local_toolchain(
     cc_runtime = "staged/cpp-runtime",
     popili = "staged/popili",
 )
+
+# Probe toolchains for :popili_runs_on_host; the foreign one first, like the platforms.
+register_toolchains(
+    "//:probe_foreign",
+    "//:probe_host",
+)
