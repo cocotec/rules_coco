@@ -74,15 +74,12 @@ def popili_diagnostics_tests(name, targets):
             ],
         )
 
-        # The source of the version is not checked: a package under a with_popili_version wrapper
-        # fails first and sees the version the wrapper set, not the default.
         no_execution_platform_test(
             name = "%s_no_execution_platform_%s" % (name, consumer),
             size = "small",
             target_under_test = target,
             expected = [
-                "needs popili 1.5.0 (",
-                "), which is registered, but none of the registered execution platforms can run it",
+                "needs popili 1.5.0 (the default), which is registered, but none of the registered execution platforms can run it",
                 "osx/aarch64, linux/aarch64, linux/x86_64, windows/x86_64",
                 registered,
             ],

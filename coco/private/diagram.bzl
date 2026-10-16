@@ -20,7 +20,9 @@ load(
     "COCO_TOOLCHAIN",
     "CocoPackageInfo",
     "LICENSE_ATTRIBUTES",
+    "POPILI_VERSION_ATTRIBUTES",
     "TOOLCHAIN_ATTRIBUTES",
+    "popili_version_pin",
     "require_popili",
     "run_coco",
 )
@@ -102,7 +104,7 @@ def _coco_architecture_diagram_impl(ctx):
 
 _coco_architecture_diagram = rule(
     implementation = _coco_architecture_diagram_impl,
-    attrs = dict(LICENSE_ATTRIBUTES.items() + TOOLCHAIN_ATTRIBUTES.items() + {
+    attrs = dict(LICENSE_ATTRIBUTES.items() + TOOLCHAIN_ATTRIBUTES.items() + POPILI_VERSION_ATTRIBUTES.items() + {
         "component_filenames": attr.string_list(
             mandatory = True,
         ),
@@ -147,6 +149,7 @@ _coco_architecture_diagram = rule(
             doc = "Show the type of each port. Enabled by default.",
         ),
     }.items()),
+    cfg = popili_version_pin,
     toolchains = [COCO_TOOLCHAIN],
 )
 
@@ -205,7 +208,7 @@ def _coco_state_diagram_impl(ctx):
 
 _coco_state_diagram = rule(
     implementation = _coco_state_diagram_impl,
-    attrs = dict(LICENSE_ATTRIBUTES.items() + TOOLCHAIN_ATTRIBUTES.items() + {
+    attrs = dict(LICENSE_ATTRIBUTES.items() + TOOLCHAIN_ATTRIBUTES.items() + POPILI_VERSION_ATTRIBUTES.items() + {
         "package": attr.label(
             providers = [CocoPackageInfo],
             mandatory = True,
@@ -221,6 +224,7 @@ _coco_state_diagram = rule(
                   "(e.g. \"MyComponent.myPort.stateMachine\"). If empty, all state machines are drawn.",
         ),
     }.items()),
+    cfg = popili_version_pin,
     toolchains = [COCO_TOOLCHAIN],
 )
 
@@ -288,7 +292,7 @@ def _coco_counterexample_diagram_impl(ctx):
 
 _coco_counterexample_diagram = rule(
     implementation = _coco_counterexample_diagram_impl,
-    attrs = dict(LICENSE_ATTRIBUTES.items() + TOOLCHAIN_ATTRIBUTES.items() + {
+    attrs = dict(LICENSE_ATTRIBUTES.items() + TOOLCHAIN_ATTRIBUTES.items() + POPILI_VERSION_ATTRIBUTES.items() + {
         "counterexample_assertions": attr.string_list(
             default = [],
         ),
@@ -310,6 +314,7 @@ _coco_counterexample_diagram = rule(
         ),
         "_verification_backend": attr.label(default = Label("//:verification_backend")),
     }.items()),
+    cfg = popili_version_pin,
     toolchains = [COCO_TOOLCHAIN],
 )
 
@@ -370,6 +375,7 @@ def coco_counterexample_diagram(
         counterexamples,
         draw_title = True,
         deterministic = True,
+        popili_version = "",
         **kwargs):
     """Creates counterexample diagrams.
 
@@ -385,6 +391,9 @@ def coco_counterexample_diagram(
           (e.g., {"alarm.svg": "Alarm"} or {"safety.svg": counterexample_options(decl="Checker", assertion="prop")})
         draw_title: Draw border and title on diagrams (default: True)
         deterministic: Ensure reproducible output (default: True)
+        popili_version: The registered popili version to run, for this target and the package
+          beneath it (e.g. "1.5.1" or "stable"); wins over --@rules_coco//:version. Empty for the
+          version that flag selects.
         **kwargs: Additional Bazel arguments (e.g., visibility, tags)
     """
     if not counterexamples:
@@ -418,5 +427,6 @@ def coco_counterexample_diagram(
         counterexample_assertions = assertions,
         draw_title = draw_title,
         deterministic = deterministic,
+        popili_version = popili_version,
         **kwargs
     )

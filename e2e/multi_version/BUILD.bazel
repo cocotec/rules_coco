@@ -1,11 +1,19 @@
-# E2E test for multi-version support in rules_coco
-# This BUILD file demonstrates using different popili versions for different packages
-# using the with_popili_version() wrapper
+# E2E test for multi-version support in rules_coco: popili 1.5.0 and 1.5.1 are registered, and
+# each target that runs popili picks its version with popili_version.
 
 load("@bazel_features//:features.bzl", "bazel_features")
-load("@rules_cc//cc:defs.bzl", "cc_toolchain")
+load("@rules_cc//cc:defs.bzl", "cc_test", "cc_toolchain")
 load("@rules_coco//coco:cc.bzl", "coco_cc_library")
-load("@rules_coco//coco:defs.bzl", "coco_fmt_test", "coco_generate", "coco_package", "coco_verify_test", "with_popili_version")
+load(
+    "@rules_coco//coco:defs.bzl",
+    "coco_fmt_test",
+    "coco_generate",
+    "coco_package",
+    "coco_state_diagram",
+    "coco_verify_test",
+    "with_popili_version",
+)
+load(":pinned_popili_test.bzl", "pinned_popili_tests")
 load(":popili_diagnostics_test.bzl", "popili_diagnostics_tests")
 load(":popili_version_report.bzl", "popili_version_report")
 load(":stub_cc_toolchain.bzl", "stub_cc_toolchain_config")
@@ -25,9 +33,9 @@ popili_version_report(
     expected_version = "1.5.0",
 )
 
-# Wrapped: the version flag, set here by a transition, selects the other registered version.
-# Manual, because built directly it would resolve the default version and fail by design; it is
-# reached only through the wrapper below.
+# A rule without a popili_version of its own still takes its version from a with_popili_version
+# wrapper. Manual, because built directly it would resolve the default version and fail by
+# design; it is reached only through the wrapper below.
 popili_version_report(
     name = "popili_is_151_impl",
     expected_repo_suffix = "__1_5_1",
@@ -41,139 +49,138 @@ with_popili_version(
     version = "1.5.1",
 )
 
-# Modern package - uses 1.5.0
+# Modern package: everything that runs popili on it is pinned to 1.5.0.
 coco_package(
     name = "modern",
     srcs = ["modern/src/Example.coco"],
     package = "modern/Coco.toml",
 )
 
-with_popili_version(
-    name = "modern_v150",
-    target = ":modern",
-    version = "1.5.0",
-)
-
-# NOTE: these verify tests take a wrapped package but are not wrapped themselves. The
-# with_popili_version transition is incoming, so it reaches the package and its deps but not
-# the test consuming it -- these run the *default* popili, not the version the package asks
-# for. The popili_version_report targets above are what actually pin version selection.
 coco_verify_test(
     name = "modern_verify",
-    package = ":modern_v150",
+    package = ":modern",
+    popili_version = "1.5.0",
 )
 
 coco_fmt_test(
     name = "modern_fmt",
-    package = ":modern_v150",
+    package = ":modern",
+    popili_version = "1.5.0",
 )
 
 coco_generate(
     name = "modern_cpp",
     language = "cpp",
-    package = ":modern_v150",
-)
-
-with_popili_version(
-    name = "modern_cpp_v150",
-    target = ":modern_cpp",
-    version = "1.5.0",
+    package = ":modern",
+    popili_version = "1.5.0",
 )
 
 coco_cc_library(
-    name = "modern_cc_impl",
-    generated_package = ":modern_cpp_v150",
-    tags = ["manual"],
-)
-
-with_popili_version(
     name = "modern_cc",
-    target = ":modern_cc_impl",
-    version = "1.5.0",
+    generated_package = ":modern_cpp",
 )
 
-# Legacy package - uses 1.5.1
+coco_state_diagram(
+    name = "modern_states",
+    package = ":modern",
+    popili_version = "1.5.0",
+)
+
+# Legacy package: pinned to 1.5.1, the version that is not the default.
 coco_package(
     name = "legacy",
     srcs = ["legacy/src/Example.coco"],
     package = "legacy/Coco.toml",
 )
 
-with_popili_version(
-    name = "legacy_v151",
-    target = ":legacy",
-    version = "1.5.1",
-)
-
 coco_verify_test(
     name = "legacy_verify",
-    package = ":legacy_v151",
+    package = ":legacy",
+    popili_version = "1.5.1",
+)
+
+coco_fmt_test(
+    name = "legacy_fmt",
+    package = ":legacy",
+    popili_version = "1.5.1",
 )
 
 coco_generate(
     name = "legacy_cpp",
     language = "cpp",
-    package = ":legacy_v151",
-)
-
-with_popili_version(
-    name = "legacy_cpp_v151",
-    target = ":legacy_cpp",
-    version = "1.5.1",
+    package = ":legacy",
+    popili_version = "1.5.1",
 )
 
 coco_cc_library(
-    name = "legacy_cc_impl",
-    generated_package = ":legacy_cpp_v151",
-    tags = ["manual"],
-)
-
-with_popili_version(
     name = "legacy_cc",
-    target = ":legacy_cc_impl",
-    version = "1.5.1",
+    generated_package = ":legacy_cpp",
 )
 
-# Flexible package - also uses 1.5.0
+cc_test(
+    name = "legacy_test",
+    size = "small",
+    srcs = ["legacy/test/legacy_test.cc"],
+    deps = [":legacy_cc"],
+)
+
+coco_state_diagram(
+    name = "legacy_states",
+    package = ":legacy",
+    popili_version = "1.5.1",
+)
+
+# Flexible package: unpinned, so it follows --@rules_coco//:version and otherwise the default.
 coco_package(
     name = "flexible",
     srcs = ["flexible/src/Example.coco"],
     package = "flexible/Coco.toml",
 )
 
-with_popili_version(
-    name = "flexible_v150",
-    target = ":flexible",
-    version = "1.5.0",
-)
-
 coco_verify_test(
     name = "flexible_verify",
-    package = ":flexible_v150",
+    package = ":flexible",
+)
+
+coco_fmt_test(
+    name = "flexible_fmt",
+    package = ":flexible",
 )
 
 coco_generate(
     name = "flexible_cpp",
     language = "cpp",
-    package = ":flexible_v150",
-)
-
-with_popili_version(
-    name = "flexible_cpp_v150",
-    target = ":flexible_cpp",
-    version = "1.5.0",
+    package = ":flexible",
 )
 
 coco_cc_library(
-    name = "flexible_cc_impl",
-    generated_package = ":flexible_cpp_v150",
-    tags = ["manual"],
+    name = "flexible_cc",
+    generated_package = ":flexible_cpp",
 )
 
-with_popili_version(
-    name = "flexible_cc",
-    target = ":flexible_cc_impl",
-    version = "1.5.0",
+pinned_popili_tests(
+    name = "pinned_popili",
+    pinned = {
+        "1.5.0": {
+            "modern_fmt": ":modern_fmt",
+            "modern_fmt_binary": ":modern_fmt.format",
+            "modern_generate": ":modern_cpp",
+            "modern_states": ":modern_states",
+            "modern_verify": ":modern_verify",
+        },
+        "1.5.1": {
+            "legacy_fmt": ":legacy_fmt",
+            "legacy_fmt_binary": ":legacy_fmt.format",
+            "legacy_generate": ":legacy_cpp",
+            "legacy_states": ":legacy_states",
+            "legacy_verify": ":legacy_verify",
+        },
+    },
+    unpinned = {
+        "flexible_fmt": ":flexible_fmt",
+        "flexible_generate": ":flexible_cpp",
+        "flexible_verify": ":flexible_verify",
+    },
 )
 
 # Foreign to every CI host; test_platform_test.bzl targets it, with the host as first execution platform.
@@ -241,13 +248,14 @@ platform(
     ],
 )
 
+# Unpinned consumers: a pin would win over the flag these tests set.
 popili_diagnostics_tests(
     name = "popili_diagnostics",
     targets = {
         "cc_runtime": "@rules_coco//coco:cc_runtime",
-        "fmt_test": ":modern_fmt",
-        "generate": ":modern_cpp",
-        "package": ":modern",
-        "verify_test": ":modern_verify",
+        "fmt_test": ":flexible_fmt",
+        "generate": ":flexible_cpp",
+        "package": ":flexible",
+        "verify_test": ":flexible_verify",
     },
 )

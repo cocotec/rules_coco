@@ -15,7 +15,7 @@
 """Internal C runtime rule implementation."""
 
 load("@rules_cc//cc:defs.bzl", "CcInfo")
-load("//coco/private:coco.bzl", "COCO_TOOLCHAIN", "TOOLCHAIN_ATTRIBUTES", "require_popili")
+load("//coco/private:coco.bzl", "COCO_TOOLCHAIN", "TOOLCHAIN_ATTRIBUTES", "popili_version_pin", "require_popili")
 
 def _coco_c_runtime_impl(ctx):
     """Helper rule that provides the C runtime from the toolchain."""
@@ -29,6 +29,7 @@ def _coco_c_runtime_impl(ctx):
 coco_c_runtime = rule(
     implementation = _coco_c_runtime_impl,
     attrs = TOOLCHAIN_ATTRIBUTES,
+    cfg = popili_version_pin,
     toolchains = [COCO_TOOLCHAIN],
     doc = """Internal helper rule that provides the C runtime from the Coco toolchain.
 

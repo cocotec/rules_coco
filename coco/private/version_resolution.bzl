@@ -24,6 +24,12 @@ load(":version_aliases.bzl", "VERSION_ALIASES")
 # The build setting that selects which registered Coco version a build uses.
 VERSION_FLAG = "@rules_coco//:version"
 
+# Internal build setting recording that VERSION_FLAG was set by a `popili_version` pin above the
+# target rather than on the command line, so that a target beneath the pin can say so when the
+# version has no toolchain. Set by the pin transition; nobody sets it by hand.
+VERSION_SOURCE_SETTING = "@rules_coco//:_version_source"
+PINNED_SOURCE = "pin"
+
 # The version a popili distribution on the local filesystem is registered as.
 LOCAL_VERSION = "local"
 

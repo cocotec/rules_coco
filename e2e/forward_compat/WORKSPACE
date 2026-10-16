@@ -11,7 +11,7 @@ local_repository(
 
 load("@rules_coco//coco:repositories.bzl", "coco_repositories")
 
-# Keep in sync with MODULE.bazel and .bazelrc.
+# Keep in sync with MODULE.bazel and BUILD.bazel.
 coco_repositories(
     cc = True,
     versions = [

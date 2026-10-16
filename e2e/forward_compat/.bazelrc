@@ -10,9 +10,6 @@ common:bzlmod --enable_bzlmod=true
 common:workspace --enable_bzlmod=false
 common:workspace --enable_workspace=true
 
-# Select the release the staged rules_coco copy does not know; stage.py checks this line.
-common --@rules_coco//:version=1.5.8
-
 # Windows-specific: Enable conforming preprocessor for proper macro handling
 build:windows --copt=/Zc:preprocessor
 build:windows --host_copt=/Zc:preprocessor

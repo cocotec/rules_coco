@@ -52,6 +52,7 @@ no_execution_platform_test = analysistest.make(
     _expect_message_impl,
     attrs = _ATTRS,
     config_settings = {
+        _VERSION_FLAG: "",
         "//command_line_option:extra_execution_platforms": [_RISCV64],
         "//command_line_option:host_platform": _RISCV64,
     },
