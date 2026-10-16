@@ -5,6 +5,7 @@ load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_test")
 load("@rules_coco//coco:cc.bzl", "coco_cc_library", "coco_cc_test_library")
 load("@rules_coco//coco:defs.bzl", "coco_generate", "coco_package", "coco_verify_test")
 load(":exec_platform_report.bzl", "exec_platform_probe", "popili_exec_platform_report")
+load(":local_off_host_test.bzl", "local_off_host_test")
 
 # Define Coco package
 coco_package(
@@ -96,4 +97,11 @@ popili_exec_platform_report(
     name = "popili_runs_on_host",
     expected = "host",
     expected_version = "local",
+)
+
+# With :foreign as the only execution platform, the host-only local toolchain cannot resolve.
+local_off_host_test(
+    name = "local_off_host_test",
+    size = "small",
+    target_under_test = ":local_toolchain",
 )

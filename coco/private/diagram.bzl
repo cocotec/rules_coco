@@ -17,9 +17,11 @@
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load(
     "//coco/private:coco.bzl",
-    "COCO_TOOLCHAIN_TYPE",
+    "COCO_TOOLCHAIN",
     "CocoPackageInfo",
     "LICENSE_ATTRIBUTES",
+    "TOOLCHAIN_ATTRIBUTES",
+    "require_popili",
     "run_coco",
 )
 
@@ -43,6 +45,7 @@ def _coco_architecture_diagram_impl(ctx):
 
     Generates architecture diagrams using `popili graph-component`.
     """
+    require_popili(ctx)
     package = ctx.attr.package
 
     filenames = ctx.attr.component_filenames
@@ -99,7 +102,7 @@ def _coco_architecture_diagram_impl(ctx):
 
 _coco_architecture_diagram = rule(
     implementation = _coco_architecture_diagram_impl,
-    attrs = dict(LICENSE_ATTRIBUTES.items() + {
+    attrs = dict(LICENSE_ATTRIBUTES.items() + TOOLCHAIN_ATTRIBUTES.items() + {
         "component_filenames": attr.string_list(
             mandatory = True,
         ),
@@ -144,7 +147,7 @@ _coco_architecture_diagram = rule(
             doc = "Show the type of each port. Enabled by default.",
         ),
     }.items()),
-    toolchains = [COCO_TOOLCHAIN_TYPE],
+    toolchains = [COCO_TOOLCHAIN],
 )
 
 def _coco_state_diagram_impl(ctx):
@@ -152,6 +155,7 @@ def _coco_state_diagram_impl(ctx):
 
     Generates state machine diagrams using `popili graph-states`.
     """
+    require_popili(ctx)
     package = ctx.attr.package
 
     # Determine targets to generate
@@ -201,7 +205,7 @@ def _coco_state_diagram_impl(ctx):
 
 _coco_state_diagram = rule(
     implementation = _coco_state_diagram_impl,
-    attrs = dict(LICENSE_ATTRIBUTES.items() + {
+    attrs = dict(LICENSE_ATTRIBUTES.items() + TOOLCHAIN_ATTRIBUTES.items() + {
         "package": attr.label(
             providers = [CocoPackageInfo],
             mandatory = True,
@@ -217,7 +221,7 @@ _coco_state_diagram = rule(
                   "(e.g. \"MyComponent.myPort.stateMachine\"). If empty, all state machines are drawn.",
         ),
     }.items()),
-    toolchains = [COCO_TOOLCHAIN_TYPE],
+    toolchains = [COCO_TOOLCHAIN],
 )
 
 def _coco_counterexample_diagram_impl(ctx):
@@ -225,6 +229,7 @@ def _coco_counterexample_diagram_impl(ctx):
 
     Generates counterexample diagrams using `popili verify --counterexample-svg`.
     """
+    require_popili(ctx)
     package = ctx.attr.package
 
     filenames = ctx.attr.counterexample_filenames
@@ -283,7 +288,7 @@ def _coco_counterexample_diagram_impl(ctx):
 
 _coco_counterexample_diagram = rule(
     implementation = _coco_counterexample_diagram_impl,
-    attrs = dict(LICENSE_ATTRIBUTES.items() + {
+    attrs = dict(LICENSE_ATTRIBUTES.items() + TOOLCHAIN_ATTRIBUTES.items() + {
         "counterexample_assertions": attr.string_list(
             default = [],
         ),
@@ -305,7 +310,7 @@ _coco_counterexample_diagram = rule(
         ),
         "_verification_backend": attr.label(default = Label("//:verification_backend")),
     }.items()),
-    toolchains = [COCO_TOOLCHAIN_TYPE],
+    toolchains = [COCO_TOOLCHAIN],
 )
 
 # Public macros

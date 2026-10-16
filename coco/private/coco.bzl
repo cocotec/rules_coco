@@ -20,7 +20,9 @@ load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
 load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load(":common_attrs.bzl", "companion_attrs")
-load(":version_resolution.bzl", "VERSION_FLAG", "resolve_version_alias")
+load(":platforms.bzl", "COCO_TOOLCHAIN_PLATFORMS")
+load(":version_registry.bzl", "CocoVersionRegistryInfo")
+load(":version_resolution.bzl", "LOCAL_VERSION", "VERSION_FLAG", "resolve_version_alias")
 
 CocoPackageInfo = provider(
     doc = "Information about a Coco package",
@@ -72,6 +74,11 @@ LICENSE_ATTRIBUTES = {
 
 COCO_TOOLCHAIN_TYPE = "@rules_coco//coco:toolchain_type"
 
+# Optional only so that `require_popili` can replace Bazel's generic "No matching toolchains
+# found" with a message naming the version and the registered ones; every rule declaring it still
+# needs a Coco toolchain.
+COCO_TOOLCHAIN = config_common.toolchain_type(COCO_TOOLCHAIN_TYPE, mandatory = False)
+
 # Test rules resolve popili on the `test` exec group, where Bazel runs the test action. Declaring
 # the group replaces Bazel's default one, so where it exists (Bazel 9+) it also carries the default
 # test toolchain type, which keeps tests on an execution platform matching the target platform, as
@@ -81,7 +88,16 @@ _DEFAULT_TEST_TOOLCHAINS = [
     config_common.toolchain_type("@bazel_tools//tools/test:default_test_toolchain_type", mandatory = False),
 ] if getattr(bazel_features.toolchains, "has_default_test_toolchain_type", False) else []
 
-COCO_TEST_EXEC_GROUPS = {"test": exec_group(toolchains = [COCO_TOOLCHAIN_TYPE] + _DEFAULT_TEST_TOOLCHAINS)}
+COCO_TEST_EXEC_GROUPS = {"test": exec_group(toolchains = [COCO_TOOLCHAIN] + _DEFAULT_TEST_TOOLCHAINS)}
+
+# What a rule needs to word `require_popili`'s message: the configured version and the registry.
+TOOLCHAIN_ATTRIBUTES = {
+    "_version": attr.label(default = Label("//:version")),
+    "_version_registry": attr.label(
+        default = Label("@coco_toolchains//:registry"),
+        providers = [CocoVersionRegistryInfo],
+    ),
+}
 
 def _popili_version_transition_impl(_settings, attr):
     """Transition implementation for per-target popili version selection.
@@ -177,6 +193,106 @@ def _coco_toolchain(ctx):
     if "test" in ctx.exec_groups:
         return ctx.exec_groups["test"].toolchains[COCO_TOOLCHAIN_TYPE]
     return ctx.toolchains[COCO_TOOLCHAIN_TYPE]
+
+def _configured_version(ctx):
+    """Returns the popili version this target's configuration asks for and where it came from.
+
+    Returns:
+        A (version, source) pair: the value of `--@rules_coco//:version`, or "" for the default,
+        and a phrase for messages such as "set by --@rules_coco//:version" or "the default".
+    """
+    version = ctx.attr._version[BuildSettingInfo].value
+    if version:
+        return version, "set by --%s" % VERSION_FLAG
+    return "", "the default"
+
+def _describe_registered_versions(registry):
+    if not registry.versions:
+        return "none"
+    described = []
+    for version in registry.versions:
+        if version == registry.versions[0] and version != LOCAL_VERSION:
+            described.append("%s (the default)" % version)
+        else:
+            described.append(version)
+    return ", ".join(described)
+
+def _register_versions_hint(what):
+    return (
+        "Register %s with coco.toolchain(versions = [...]) in MODULE.bazel or " % what +
+        "coco_repositories(versions = [...]) in WORKSPACE."
+    )
+
+_REGISTER_LOCAL_HINT = (
+    "Register a popili distribution from the local filesystem with coco.local_toolchain(popili = ...) " +
+    "in MODULE.bazel or coco_local_repositories(path = ...) / coco_repositories(local_popili = ...) in WORKSPACE."
+)
+
+def _missing_popili_message(label, version, source, registry):
+    """Words the failure of a rule whose Coco toolchain did not resolve.
+
+    Decided after toolchain resolution, so it never second-guesses resolution: the registry is
+    consulted only to say what is registered and what to do about it.
+
+    Args:
+        label: The failing target's label.
+        version: The configured version ("" for the default), as `_configured_version` returns it.
+        source: Where the version came from, as `_configured_version` phrases it.
+        registry: The hub's `CocoVersionRegistryInfo` (or any struct with its fields).
+
+    Returns:
+        The message to fail with.
+    """
+    registered = "Registered popili versions: %s." % _describe_registered_versions(registry)
+    published = ", ".join(["%s/%s" % platform for platform in COCO_TOOLCHAIN_PLATFORMS])
+
+    if version == LOCAL_VERSION:
+        if not registry.has_local:
+            return (
+                "%s needs the local popili (%s), but no local Coco toolchain is registered. %s %s" %
+                (label, source, registered, _REGISTER_LOCAL_HINT)
+            )
+        return (
+            "%s needs the local popili (%s), but it only runs on the host platform (%s/%s) and no " %
+            (label, source, registry.host[0], registry.host[1]) +
+            "registered execution platform is the host. Register the host as an execution platform " +
+            "(--extra_execution_platforms=@platforms//host), or select a published release, which runs " +
+            "on %s. %s" % (published, registered)
+        )
+
+    if not version:
+        if not registry.versions or registry.versions[0] == LOCAL_VERSION:
+            return (
+                "%s needs the default popili version, but none is registered: the local popili never " % label +
+                "becomes the default and is selected only with --%s=%s. %s %s" %
+                (VERSION_FLAG, LOCAL_VERSION, registered, _register_versions_hint("a version"))
+            )
+        version = registry.versions[0]
+
+    if version not in registry.versions:
+        return (
+            "%s needs popili %s (%s), but no registered Coco toolchain provides it. %s %s " %
+            (label, version, source, registered, _register_versions_hint("it")) +
+            "A bring-your-own coco_toolchain is selected by a version only when its toolchain() has " +
+            "target_settings for that version."
+        )
+
+    return (
+        "%s needs popili %s (%s), which is registered, but none of the registered execution platforms " %
+        (label, version, source) +
+        "can run it: popili is published for %s. Register an execution platform of one of these " % published +
+        "(--extra_execution_platforms), or bring your own coco_toolchain for the execution platform you " +
+        "have. %s" % registered
+    )
+
+def _require_popili(ctx):
+    """Returns the resolved Coco toolchain, failing with a specific message when there is none."""
+    toolchain = _coco_toolchain(ctx)
+    if toolchain == None:
+        version, source = _configured_version(ctx)
+        registry = ctx.attr._version_registry[CocoVersionRegistryInfo]
+        fail(_missing_popili_message(ctx.label, version, source, registry))
+    return toolchain
 
 def _runtime_path(file, is_test):
     return file.short_path if is_test else file.path
@@ -388,6 +504,7 @@ def _create_coco_wrapper_script(ctx, package, arguments):
 # These are implementation details and should not be used by end users
 create_coco_wrapper_script = _create_coco_wrapper_script
 coco_runfiles = _coco_runfiles
+require_popili = _require_popili
 run_coco = _run_coco
 coco_startup_args = _coco_startup_args
 coco_env = _coco_env
@@ -468,6 +585,7 @@ def _require_coco_toml(file, attr):
 
 def _coco_package_impl(ctx):
     _require_coco_toml(ctx.file.package, "package")
+    _require_popili(ctx)
     package_file = ctx.file.package
     dep_package_files = depset(
         direct = [dep[CocoPackageInfo].package_file for dep in ctx.attr.deps],
@@ -520,7 +638,7 @@ def _coco_package_impl(ctx):
 
 _coco_package = rule(
     implementation = _coco_package_impl,
-    attrs = dict(LICENSE_ATTRIBUTES.items() + {
+    attrs = dict(LICENSE_ATTRIBUTES.items() + TOOLCHAIN_ATTRIBUTES.items() + {
         "deps": attr.label_list(
             providers = [CocoPackageInfo],
             doc = "Other coco_package targets this package depends on.",
@@ -550,9 +668,7 @@ _coco_package = rule(
             doc = "Optional coco_workspace whose Coco.toml settings this package inherits.",
         ),
     }.items()),
-    toolchains = [
-        COCO_TOOLCHAIN_TYPE,
-    ],
+    toolchains = [COCO_TOOLCHAIN],
 )
 
 def _coco_package_macro_impl(name, visibility, **kwargs):
@@ -621,6 +737,8 @@ packages. Reference this target from a coco_package's `workspace` attribute.""",
 )
 
 def _coco_package_verify(ctx):
+    _require_popili(ctx)
+
     # Build the verify command arguments
     arguments = [
         "verify",
@@ -642,7 +760,7 @@ def _coco_package_verify(ctx):
 
 _coco_verify_test = rule(
     implementation = _coco_package_verify,
-    attrs = dict(LICENSE_ATTRIBUTES.items() + {
+    attrs = dict(LICENSE_ATTRIBUTES.items() + TOOLCHAIN_ATTRIBUTES.items() + {
         "package": attr.label(
             providers = [CocoPackageInfo],
             mandatory = True,
@@ -1088,6 +1206,7 @@ def _output_directory(package_dir, srcs):
     return root_output_dir
 
 def _coco_package_generate_impl(ctx):
+    _require_popili(ctx)
     if ctx.attr.language == "c" and ctx.attr.mocks:
         fail("mocks = True is not supported for language = \"c\": popili does not generate C mocks", attr = "mocks")
 
@@ -1191,7 +1310,7 @@ def _coco_package_generate_impl(ctx):
 
 _coco_generate = rule(
     implementation = _coco_package_generate_impl,
-    attrs = dict(LICENSE_ATTRIBUTES.items() + {
+    attrs = dict(LICENSE_ATTRIBUTES.items() + TOOLCHAIN_ATTRIBUTES.items() + {
         # C output path options
         "c_file_name_mangler": attr.string(
             default = "Unaltered",
@@ -1287,9 +1406,7 @@ _coco_generate = rule(
             doc = "The coco_package target containing the source files to generate from.",
         ),
     }.items()),
-    toolchains = [
-        COCO_TOOLCHAIN_TYPE,
-    ],
+    toolchains = [COCO_TOOLCHAIN],
 )
 
 def _coco_test_outputs_impl(ctx):
@@ -1427,7 +1544,7 @@ created that exposes the generated test sources and headers.""",
 )
 
 def _popili_version_alias_impl(ctx):
-    toolchain = ctx.toolchains["@rules_coco//coco:toolchain_type"]
+    toolchain = _require_popili(ctx)
     return [
         toolchain,
         platform_common.TemplateVariableInfo({
@@ -1440,9 +1557,9 @@ def _popili_version_alias_impl(ctx):
     ]
 
 _popili_version_alias = rule(
-    attrs = LICENSE_ATTRIBUTES,
+    attrs = dict(LICENSE_ATTRIBUTES.items() + TOOLCHAIN_ATTRIBUTES.items()),
     implementation = _popili_version_alias_impl,
-    toolchains = ["@rules_coco//coco:toolchain_type"],
+    toolchains = [COCO_TOOLCHAIN],
 )
 
 def popili_version_alias(name, **kwargs):
@@ -1470,6 +1587,7 @@ coco_cc_gen = _coco_cc_gen
 
 # Exported for testing
 mangle_name = _mangle_name
+missing_popili_message = _missing_popili_message
 component_styles = COMPONENT_STYLES
 compute_output_paths = _compute_output_paths
 module_path_for = _module_path_for
