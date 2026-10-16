@@ -21,6 +21,7 @@ load(":test_platform_test.bzl", "test_platform_popili_test")
 popili_version_report(
     name = "popili_is_150_by_default",
     expected_repo_suffix = "__1_5_0",
+    expected_version = "1.5.0",
 )
 
 # Wrapped: the version flag, set here by a transition, selects the other registered version.
@@ -29,6 +30,7 @@ popili_version_report(
 popili_version_report(
     name = "popili_is_151_impl",
     expected_repo_suffix = "__1_5_1",
+    expected_version = "1.5.1",
     tags = ["manual"],
 )
 

@@ -80,6 +80,11 @@ bzl_library(
 )
 
 bzl_library(
+    name = "toolchain",
+    srcs = ["toolchain.bzl"],
+)
+
+bzl_library(
     name = "extensions",
     srcs = ["extensions.bzl"],
     deps = [
@@ -99,6 +104,7 @@ bzl_library(
         ":defs",
         ":extensions",
         ":repositories",
+        ":toolchain",
         "//coco/private:bzl_lib",
     ],
 )
