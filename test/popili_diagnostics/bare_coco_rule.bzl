@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""A custom rule that resolves the Coco toolchain without TOOLCHAIN_ATTRIBUTES."""
+"""Custom rules that resolve the Coco toolchain without all of TOOLCHAIN_ATTRIBUTES."""
 
-load("@rules_coco//coco/private:coco.bzl", "COCO_TOOLCHAIN_TYPE", "coco_toolchain_or_fail")  # buildifier: disable=bzl-visibility
+load("@rules_coco//coco/private:coco.bzl", "COCO_TOOLCHAIN_TYPE", "TOOLCHAIN_ATTRIBUTES", "coco_toolchain_or_fail")  # buildifier: disable=bzl-visibility
 
 def _bare_coco_rule_impl(ctx):
     coco_toolchain_or_fail(ctx)
@@ -22,5 +22,12 @@ def _bare_coco_rule_impl(ctx):
 
 bare_coco_rule = rule(
     implementation = _bare_coco_rule_impl,
+    toolchains = [COCO_TOOLCHAIN_TYPE],
+)
+
+# The version and the registry, but not where the version came from.
+partial_coco_rule = rule(
+    implementation = _bare_coco_rule_impl,
+    attrs = {name: TOOLCHAIN_ATTRIBUTES[name] for name in ["_version", "_version_registry"]},
     toolchains = [COCO_TOOLCHAIN_TYPE],
 )

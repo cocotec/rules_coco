@@ -23,7 +23,7 @@ load(
     "PATH_CASE_DEFAULTS",
 )
 load(":cc_runtime_deps.bzl", "collect_cc_runtime_extra_deps", "normalize_cc_runtime_extra_deps")
-load(":coco.bzl", "FILE_NAME_MANGLER_STYLES", "compute_output_paths", "generated_include_dir", "mangle_name", "missing_popili_message", "module_path_for", "workspace_dirname")
+load(":coco.bzl", "FILE_NAME_MANGLER_STYLES", "compute_output_paths", "effective_version", "generated_include_dir", "mangle_name", "missing_popili_message", "module_path_for", "pin_transition_settings", "version_source", "workspace_dirname")
 load(":common_repositories.bzl", "coco_download", "download_prefix", "find_local_license_paths", "is_license_file_name")
 load(":known_shas.bzl", "FILE_KEY_TO_SHA")
 load(":license_versions.bzl", "LICENSE_PROTOCOL_VERSIONS")
@@ -40,6 +40,9 @@ load(":toolchain_repositories.bzl", "BUILD_for_coco_toolchain", "coco_toolchain_
 load(":version_aliases.bzl", "VERSION_ALIASES")
 load(
     ":version_resolution.bzl",
+    "PINNED_SOURCE",
+    "VERSION_FLAG",
+    "VERSION_SOURCE_SETTING",
     "license_protocol_version",
     "resolve_version_alias",
     "version_key",
@@ -1462,6 +1465,22 @@ def _missing_popili_alias_test(ctx):
     _assert_mentions(env, message, ["set it to %s" % stable, "Register %s with coco.toolchain(versions = [...])" % stable])
     return unittest.end(env)
 
+def _missing_popili_pinned_version_test(ctx):
+    """A pin names the attribute as the source."""
+    env = unittest.begin(ctx)
+    message = missing_popili_message("//a:gen", "1.99.0", version_source("1.99.0", "1.99.0", PINNED_SOURCE), _REGISTRY)
+    _assert_mentions(
+        env,
+        message,
+        ["//a:gen needs popili 1.99.0 (pinned by popili_version), but no registered Coco toolchain provides it"],
+        absent = ["--@rules_coco//:version)"],
+    )
+
+    # The package beneath the pinned consumer fails first and points above itself.
+    message = missing_popili_message("//a:pkg", "1.99.0", version_source("1.99.0", "", PINNED_SOURCE), _REGISTRY)
+    _assert_mentions(env, message, ["//a:pkg needs popili 1.99.0 (pinned by popili_version on a target above it), but no registered"])
+    return unittest.end(env)
+
 def _missing_popili_test_platform_test(ctx):
     """A test whose target platform no popili-capable execution platform matches says so."""
     env = unittest.begin(ctx)
@@ -1501,6 +1520,7 @@ def _missing_popili_test_platform_test(ctx):
     return unittest.end(env)
 
 missing_popili_unregistered_version_test = unittest.make(_missing_popili_unregistered_version_test)
+missing_popili_pinned_version_test = unittest.make(_missing_popili_pinned_version_test)
 missing_popili_local_unregistered_test = unittest.make(_missing_popili_local_unregistered_test)
 missing_popili_no_execution_platform_test = unittest.make(_missing_popili_no_execution_platform_test)
 missing_popili_local_off_host_test = unittest.make(_missing_popili_local_off_host_test)
@@ -1508,6 +1528,85 @@ missing_popili_local_only_test = unittest.make(_missing_popili_local_only_test)
 missing_popili_empty_registry_test = unittest.make(_missing_popili_empty_registry_test)
 missing_popili_alias_test = unittest.make(_missing_popili_alias_test)
 missing_popili_test_platform_test = unittest.make(_missing_popili_test_platform_test)
+
+# Tests for version_source, effective_version and pin_transition_settings
+
+def _version_source_test(ctx):
+    """Own pin, then a pin above, then the flag, then the default; an alias pin is named as written."""
+    env = unittest.begin(ctx)
+    asserts.equals(env, "the default", version_source("", "", ""))
+    asserts.equals(env, "set by --@rules_coco//:version", version_source("1.5.1", "", ""))
+    asserts.equals(env, "pinned by popili_version", version_source("1.5.1", "1.5.1", PINNED_SOURCE))
+    asserts.equals(env, "pinned by popili_version = \"stable\"", version_source(resolve_version_alias("stable"), "stable", PINNED_SOURCE))
+    asserts.equals(env, "pinned by popili_version on a target above it", version_source("1.5.1", "", PINNED_SOURCE))
+    return unittest.end(env)
+
+def _effective_version_test(ctx):
+    """The flag when set, else the first registered version unless it is local, else nothing."""
+    env = unittest.begin(ctx)
+    asserts.equals(env, "1.5.1", effective_version("1.5.1", ["1.5.0", "1.5.1"]))
+    asserts.equals(env, "local", effective_version("local", ["1.5.0", "local"]))
+    asserts.equals(env, "1.5.0", effective_version("", ["1.5.0", "1.5.1"]))
+    asserts.equals(env, "1.5.0", effective_version("", ["1.5.0", "local"]))
+    asserts.equals(env, "", effective_version("", ["local"]))
+    asserts.equals(env, "", effective_version("", []))
+    return unittest.end(env)
+
+_REGISTERED = ["1.5.0", "1.5.1"]
+
+def _pin_transition_settings_unpinned_test(ctx):
+    """Without a pin the transition is a no-op, whatever the flag says, even an alias."""
+    env = unittest.begin(ctx)
+    asserts.equals(env, {}, pin_transition_settings("", "", _REGISTERED))
+    asserts.equals(env, {}, pin_transition_settings("", "1.5.1", _REGISTERED))
+    asserts.equals(env, {}, pin_transition_settings("", "stable", _REGISTERED))
+    return unittest.end(env)
+
+def _pin_transition_settings_pinned_test(ctx):
+    """A pin sets the version flag, over the default and over a flag naming another version."""
+    env = unittest.begin(ctx)
+    pinned = {VERSION_FLAG: "1.5.1", VERSION_SOURCE_SETTING: PINNED_SOURCE}
+    asserts.equals(env, pinned, pin_transition_settings("1.5.1", "", _REGISTERED))
+    asserts.equals(env, pinned, pin_transition_settings("1.5.1", "1.5.0", _REGISTERED))
+    asserts.equals(env, pinned, pin_transition_settings("1.5.1", "local", _REGISTERED + ["local"]))
+    return unittest.end(env)
+
+def _pin_transition_settings_alias_test(ctx):
+    """Aliases in a pin are resolved, so the flag never carries one; an alias on the flag is not."""
+    env = unittest.begin(ctx)
+    stable = resolve_version_alias("stable")
+    asserts.equals(env, {VERSION_FLAG: stable, VERSION_SOURCE_SETTING: PINNED_SOURCE}, pin_transition_settings("stable", "", _REGISTERED))
+    asserts.equals(env, {VERSION_FLAG: stable, VERSION_SOURCE_SETTING: PINNED_SOURCE}, pin_transition_settings("stable", "stable", [stable]))
+    asserts.equals(env, {}, pin_transition_settings("stable", "", [stable]))
+    return unittest.end(env)
+
+def _pin_transition_settings_already_pinned_test(ctx):
+    """A pin equal to the incoming flag changes nothing, so the configuration is shared."""
+    env = unittest.begin(ctx)
+    asserts.equals(env, {}, pin_transition_settings("1.5.1", "1.5.1", _REGISTERED))
+    asserts.equals(env, {}, pin_transition_settings("stable", resolve_version_alias("stable"), _REGISTERED))
+    return unittest.end(env)
+
+def _pin_transition_settings_default_test(ctx):
+    """A pin to the default without a flag shares the configuration; with no default it sets the flag."""
+    env = unittest.begin(ctx)
+    asserts.equals(env, {}, pin_transition_settings("1.5.0", "", _REGISTERED))
+    pinned = {VERSION_FLAG: "1.5.0", VERSION_SOURCE_SETTING: PINNED_SOURCE}
+    asserts.equals(env, pinned, pin_transition_settings("1.5.0", "", []))
+    asserts.equals(env, pinned, pin_transition_settings("1.5.0", "", ["local", "1.5.0"]))
+
+    # local is never the default, so a pin to it always sets the flag unless the flag says local.
+    asserts.equals(env, {VERSION_FLAG: "local", VERSION_SOURCE_SETTING: PINNED_SOURCE}, pin_transition_settings("local", "", ["local"]))
+    asserts.equals(env, {}, pin_transition_settings("local", "local", ["local"]))
+    return unittest.end(env)
+
+version_source_test = unittest.make(_version_source_test)
+effective_version_test = unittest.make(_effective_version_test)
+pin_transition_settings_unpinned_test = unittest.make(_pin_transition_settings_unpinned_test)
+pin_transition_settings_pinned_test = unittest.make(_pin_transition_settings_pinned_test)
+pin_transition_settings_alias_test = unittest.make(_pin_transition_settings_alias_test)
+pin_transition_settings_already_pinned_test = unittest.make(_pin_transition_settings_already_pinned_test)
+pin_transition_settings_default_test = unittest.make(_pin_transition_settings_default_test)
 
 # Tests for toolchain_hub_entries
 
@@ -2227,6 +2326,7 @@ def coco_test_suite(name):
 
         # missing_popili_message tests
         missing_popili_unregistered_version_test,
+        missing_popili_pinned_version_test,
         missing_popili_local_unregistered_test,
         missing_popili_no_execution_platform_test,
         missing_popili_local_off_host_test,
@@ -2234,6 +2334,15 @@ def coco_test_suite(name):
         missing_popili_empty_registry_test,
         missing_popili_alias_test,
         missing_popili_test_platform_test,
+
+        # version_source, effective_version and pin_transition_settings tests
+        version_source_test,
+        effective_version_test,
+        pin_transition_settings_unpinned_test,
+        pin_transition_settings_pinned_test,
+        pin_transition_settings_alias_test,
+        pin_transition_settings_already_pinned_test,
+        pin_transition_settings_default_test,
 
         # toolchain_hub_entries tests
         hub_entries_single_version_test,
