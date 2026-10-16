@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Stage ./rules_coco_unaware for the forward_compat e2e (see MODULE.bazel).
 
-Fails if MODULE.bazel, WORKSPACE and .bazelrc disagree on the versions, or if the source
-tree does not know the newest one, since the strip would then be a no-op.
+Fails if MODULE.bazel, WORKSPACE and the pins in BUILD.bazel disagree on the versions, or if
+the source tree does not know the newest one, since the strip would then be a no-op.
 """
 
 import os
@@ -28,11 +28,11 @@ def _registered_versions(name):
     return re.findall(r'"([^"]+)"', match.group(1))
 
 
-def _selected_version():
-    match = re.search(r"^common --@rules_coco//:version=(\S+)$", _read(".bazelrc"), re.M)
-    if not match:
-        sys.exit(".bazelrc: no `common --@rules_coco//:version=...` line found.")
-    return match.group(1)
+def _pinned_versions():
+    pins = set(re.findall(r'^\s+(?:popili_)?version = "([^"]+)",$', _read("BUILD.bazel"), re.M))
+    if not pins:
+        sys.exit("BUILD.bazel: no `popili_version = ...` pins found.")
+    return pins
 
 
 def _strip_version(known_shas, version):
@@ -48,8 +48,8 @@ def main():
     if versions != _registered_versions("WORKSPACE"):
         sys.exit("MODULE.bazel and WORKSPACE register different versions.")
     newest = versions[-1]
-    if _selected_version() != newest:
-        sys.exit(f".bazelrc must select {newest}, the last version registered in MODULE.bazel.")
+    if _pinned_versions() != {newest}:
+        sys.exit(f"BUILD.bazel must pin only {newest}, the last version registered in MODULE.bazel.")
 
     with open(os.path.join(_ROOT, _KNOWN_SHAS)) as f:
         stripped = _strip_version(f.read(), newest)

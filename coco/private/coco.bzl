@@ -22,7 +22,7 @@ load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load(":common_attrs.bzl", "companion_attrs")
 load(":platforms.bzl", "COCO_TOOLCHAIN_PLATFORMS")
 load(":version_registry.bzl", "CocoVersionRegistryInfo")
-load(":version_resolution.bzl", "LOCAL_VERSION", "VERSION_FLAG", "resolve_version_alias")
+load(":version_resolution.bzl", "LOCAL_VERSION", "PINNED_SOURCE", "VERSION_FLAG", "VERSION_SOURCE_SETTING", "resolve_version_alias")
 
 CocoPackageInfo = provider(
     doc = "Information about a Coco package",
@@ -97,7 +97,57 @@ TOOLCHAIN_ATTRIBUTES = {
         default = Label("@coco_toolchains//:registry"),
         providers = [CocoVersionRegistryInfo],
     ),
+    "_version_source": attr.label(default = Label("//:_version_source")),
 }
+
+POPILI_VERSION_ATTRIBUTES = {
+    "popili_version": attr.string(
+        doc = "The registered popili version this target and everything beneath it, including the " +
+              "coco_package it reads, run with: a version such as `\"1.5.1\"` or an alias such as " +
+              "`\"stable\"`. It wins over `--@rules_coco//:version`. Empty (the default) uses the version " +
+              "that flag selects, or the first registered version when the flag is unset too.",
+    ),
+}
+
+def _resolved_flag_settings(version, source):
+    """The dict that only resolves an alias in the version flag; `{}` when the flag has none."""
+    resolved = resolve_version_alias(version)
+    if resolved == version:
+        return {}
+    return {VERSION_FLAG: resolved, VERSION_SOURCE_SETTING: source}
+
+def _pin_transition_settings(pin, version, source = ""):
+    """Decides what a popili-resolving rule's transition changes.
+
+    Args:
+        pin: The target's `popili_version`, "" when unpinned or the rule has none.
+        version: The value of `--@rules_coco//:version` in the incoming configuration.
+        source: The value of the `_version_source` setting in the incoming configuration.
+
+    Returns:
+        The dict the transition returns. An alias in the incoming version flag is resolved in every
+        case, so a build under `--@rules_coco//:version=stable` is analysed in the configuration of
+        the version `stable` names, shared with `--@rules_coco//:version=<that version>`. A pin that
+        differs from the (resolved) incoming version sets the version flag to the pin with aliases
+        resolved and the source setting records it. `{}` leaves the configuration (and so the
+        output paths) untouched whenever nothing changes.
+    """
+    if not pin or resolve_version_alias(pin) == resolve_version_alias(version):
+        return _resolved_flag_settings(version, source)
+    return {VERSION_FLAG: resolve_version_alias(pin), VERSION_SOURCE_SETTING: PINNED_SOURCE}
+
+def _popili_version_pin_impl(settings, attr):
+    return _pin_transition_settings(
+        getattr(attr, "popili_version", ""),
+        settings[VERSION_FLAG],
+        settings[VERSION_SOURCE_SETTING],
+    )
+
+popili_version_pin = transition(
+    implementation = _popili_version_pin_impl,
+    inputs = [VERSION_FLAG, VERSION_SOURCE_SETTING],
+    outputs = [VERSION_FLAG, VERSION_SOURCE_SETTING],
+)
 
 def _popili_version_transition_impl(_settings, attr):
     """Transition implementation for per-target popili version selection.
@@ -194,17 +244,42 @@ def _coco_toolchain(ctx):
         return ctx.exec_groups["test"].toolchains[COCO_TOOLCHAIN_TYPE]
     return ctx.toolchains[COCO_TOOLCHAIN_TYPE]
 
+def _version_source(version, pin, source):
+    """Words where a target's configured popili version came from.
+
+    Args:
+        version: The value of `--@rules_coco//:version` in the target's configuration.
+        pin: The target's `popili_version`, "" when it has none.
+        source: The value of the `_version_source` setting: PINNED_SOURCE beneath a pin, else "".
+
+    Returns:
+        A phrase interpolated as "(%s)" in messages: "pinned by popili_version" (naming the pin as
+        written when it is an alias, or the fact that the pin sits on a target above this one),
+        "set by --@rules_coco//:version", or "the default".
+    """
+    if pin:
+        if pin == version:
+            return "pinned by popili_version"
+        return "pinned by popili_version = %r" % pin
+    if source == PINNED_SOURCE:
+        return "pinned by popili_version on a target above it"
+    if version:
+        return "set by --%s" % VERSION_FLAG
+    return "the default"
+
 def _configured_version(ctx):
     """Returns the popili version this target's configuration asks for and where it came from.
 
     Returns:
         A (version, source) pair: the value of `--@rules_coco//:version`, or "" for the default,
-        and a phrase for messages such as "set by --@rules_coco//:version" or "the default".
+        and the phrase `_version_source` words for it.
     """
     version = ctx.attr._version[BuildSettingInfo].value
-    if version:
-        return version, "set by --%s" % VERSION_FLAG
-    return "", "the default"
+    return version, _version_source(
+        version,
+        getattr(ctx.attr, "popili_version", ""),
+        ctx.attr._version_source[BuildSettingInfo].value,
+    )
 
 def _describe_registered_versions(registry):
     if not registry.versions:
@@ -668,6 +743,7 @@ _coco_package = rule(
             doc = "Optional coco_workspace whose Coco.toml settings this package inherits.",
         ),
     }.items()),
+    cfg = popili_version_pin,
     toolchains = [COCO_TOOLCHAIN],
 )
 
@@ -760,7 +836,7 @@ def _coco_package_verify(ctx):
 
 _coco_verify_test = rule(
     implementation = _coco_package_verify,
-    attrs = dict(LICENSE_ATTRIBUTES.items() + TOOLCHAIN_ATTRIBUTES.items() + {
+    attrs = dict(LICENSE_ATTRIBUTES.items() + TOOLCHAIN_ATTRIBUTES.items() + POPILI_VERSION_ATTRIBUTES.items() + {
         "package": attr.label(
             providers = [CocoPackageInfo],
             mandatory = True,
@@ -768,6 +844,7 @@ _coco_verify_test = rule(
         ),
         "_verification_backend": attr.label(default = Label("//:verification_backend")),
     }.items()),
+    cfg = popili_version_pin,
     test = True,
     exec_groups = COCO_TEST_EXEC_GROUPS,
 )
@@ -1310,7 +1387,7 @@ def _coco_package_generate_impl(ctx):
 
 _coco_generate = rule(
     implementation = _coco_package_generate_impl,
-    attrs = dict(LICENSE_ATTRIBUTES.items() + TOOLCHAIN_ATTRIBUTES.items() + {
+    attrs = dict(LICENSE_ATTRIBUTES.items() + TOOLCHAIN_ATTRIBUTES.items() + POPILI_VERSION_ATTRIBUTES.items() + {
         # C output path options
         "c_file_name_mangler": attr.string(
             default = "Unaltered",
@@ -1406,6 +1483,7 @@ _coco_generate = rule(
             doc = "The coco_package target containing the source files to generate from.",
         ),
     }.items()),
+    cfg = popili_version_pin,
     toolchains = [COCO_TOOLCHAIN],
 )
 
@@ -1559,6 +1637,7 @@ def _popili_version_alias_impl(ctx):
 _popili_version_alias = rule(
     attrs = dict(LICENSE_ATTRIBUTES.items() + TOOLCHAIN_ATTRIBUTES.items()),
     implementation = _popili_version_alias_impl,
+    cfg = popili_version_pin,
     toolchains = [COCO_TOOLCHAIN],
 )
 
@@ -1588,6 +1667,8 @@ coco_cc_gen = _coco_cc_gen
 # Exported for testing
 mangle_name = _mangle_name
 missing_popili_message = _missing_popili_message
+pin_transition_settings = _pin_transition_settings
+version_source = _version_source
 component_styles = COMPONENT_STYLES
 compute_output_paths = _compute_output_paths
 module_path_for = _module_path_for

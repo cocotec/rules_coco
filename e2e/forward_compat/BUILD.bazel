@@ -2,7 +2,7 @@
 
 load("@rules_cc//cc:defs.bzl", "cc_binary")
 load("@rules_coco//coco:cc.bzl", "coco_cc_library")
-load("@rules_coco//coco:defs.bzl", "coco_generate", "coco_package", "coco_verify_test")
+load("@rules_coco//coco:defs.bzl", "coco_generate", "coco_package", "coco_verify_test", "with_popili_version")
 
 coco_package(
     name = "forward_compat",
@@ -10,20 +10,32 @@ coco_package(
     package = "Coco.toml",
 )
 
+# Pinned to the release the staged rules_coco copy does not know; stage.py checks these pins.
 coco_verify_test(
     name = "forward_compat_verify",
     package = ":forward_compat",
+    popili_version = "1.5.8",
 )
 
 coco_generate(
     name = "forward_compat_cpp",
     language = "cpp",
     package = ":forward_compat",
+    popili_version = "1.5.8",
 )
 
 coco_cc_library(
-    name = "forward_compat_cc",
+    name = "forward_compat_cc_impl",
     generated_package = ":forward_compat_cpp",
+    tags = ["manual"],
+)
+
+# The C++ runtime follows the library's configuration, not the generator's pin, so the library is
+# wrapped to link the 1.5.8 runtime: fetched without a checksum, like the popili above.
+with_popili_version(
+    name = "forward_compat_cc",
+    target = ":forward_compat_cc_impl",
+    version = "1.5.8",
 )
 
 cc_binary(
