@@ -35,7 +35,7 @@ load(
     "resolve_versions",
     "toolchain_hub_entries",
 )
-load(":toolchain_repositories.bzl", "coco_toolchain_download")
+load(":toolchain_repositories.bzl", "BUILD_for_coco_toolchain", "coco_toolchain_download")
 load(":version_aliases.bzl", "VERSION_ALIASES")
 load(":version_resolution.bzl", "resolve_version_alias", "version_tuple")
 
@@ -1077,6 +1077,8 @@ def _hub_unknown_version_test(ctx):
         entries.target_settings["linux_x86_64__1_99_0"],
     )
 
+    asserts.equals(env, [version], entries.registered_versions)
+
     build = render_toolchain_hub_build(entries)
     asserts.true(
         env,
@@ -1088,6 +1090,26 @@ def _hub_unknown_version_test(ctx):
         'toolchain = "%s"' % label in build,
         "toolchain for the unknown version missing: %s" % build,
     )
+    asserts.true(
+        env,
+        'build_setting_default = ["1.99.0"]' in build,
+        "registered_versions must list the unknown version: %s" % build,
+    )
+
+    return unittest.end(env)
+
+def _hub_entries_registered_versions_test(ctx):
+    """The registry lists the versions in registration order, then `local` when registered."""
+    env = unittest.begin(ctx)
+
+    entries = toolchain_hub_entries(["1.5.1", "1.5.0", "1.5.7"])
+    asserts.equals(env, ["1.5.1", "1.5.0", "1.5.7"], entries.registered_versions)
+
+    entries = toolchain_hub_entries(["1.5.1", "1.5.0"], has_local = True)
+    asserts.equals(env, ["1.5.1", "1.5.0", "local"], entries.registered_versions)
+
+    entries = toolchain_hub_entries([], has_local = True)
+    asserts.equals(env, ["local"], entries.registered_versions)
 
     return unittest.end(env)
 
@@ -1096,6 +1118,7 @@ hub_entries_default_is_first_version_only_test = unittest.make(_hub_entries_defa
 hub_entries_local_only_test = unittest.make(_hub_entries_local_only_test)
 hub_entries_local_alongside_versions_test = unittest.make(_hub_entries_local_alongside_versions_test)
 hub_unknown_version_test = unittest.make(_hub_unknown_version_test)
+hub_entries_registered_versions_test = unittest.make(_hub_entries_registered_versions_test)
 
 # Tests for render_toolchain_hub_build
 
@@ -1133,16 +1156,74 @@ def _hub_build_labels_test(ctx):
 
     return unittest.end(env)
 
-def _hub_build_loads_only_platforms_test(ctx):
-    """The hub loads nothing but @platforms, so it stays loadable before skylib is fetched."""
+def _hub_build_loads_only_rules_coco_and_platforms_test(ctx):
+    """The hub loads only rules_coco, and @platforms//host only for a local toolchain, so it stays loadable before skylib is fetched."""
     env = unittest.begin(ctx)
 
-    build = render_toolchain_hub_build(toolchain_hub_entries(["1.5.7"]))
-    asserts.true(env, "load(" not in build, "hub BUILD without local must not load anything: %s" % build)
+    for has_local in [False, True]:
+        build = render_toolchain_hub_build(toolchain_hub_entries(["1.5.7"], has_local = has_local))
 
-    build = render_toolchain_hub_build(toolchain_hub_entries(["1.5.7"], has_local = True))
-    loads = [line for line in build.splitlines() if line.startswith("load(")]
-    asserts.equals(env, ['load("@platforms//host:constraints.bzl", "HOST_CONSTRAINTS")'], loads)
+        loads = [line for line in build.splitlines() if line.startswith("load(")]
+        asserts.true(env, len(loads) > 0, "hub BUILD must load the registry rules: %s" % build)
+        for line in loads:
+            asserts.true(
+                env,
+                line.startswith('load("@rules_coco//') or
+                line == 'load("@platforms//host:constraints.bzl", "HOST_CONSTRAINTS")',
+                "hub BUILD may only load from rules_coco and @platforms//host: %s" % line,
+            )
+        asserts.true(env, "skylib" not in build, "hub BUILD must not depend on skylib: %s" % build)
+        asserts.equals(
+            env,
+            has_local,
+            "@platforms//host" in build,
+            "hub BUILD must load @platforms//host only for a local toolchain: %s" % build,
+        )
+
+    return unittest.end(env)
+
+def _hub_build_registry_test(ctx):
+    """The rendered BUILD declares the registry and the registered_versions setting."""
+    env = unittest.begin(ctx)
+
+    build = render_toolchain_hub_build(toolchain_hub_entries(["1.5.1", "1.5.0"], has_local = True))
+
+    asserts.true(
+        env,
+        'load("@rules_coco//coco/private:version_registry.bzl", "coco_registered_versions", "coco_version_registry")' in build,
+        "registry load missing: %s" % build,
+    )
+    asserts.true(
+        env,
+        """coco_registered_versions(
+    name = "registered_versions",
+    build_setting_default = ["1.5.1", "1.5.0", "local"],
+    visibility = ["//visibility:public"],
+)""" in build,
+        "registered_versions setting missing: %s" % build,
+    )
+    asserts.true(
+        env,
+        """coco_version_registry(
+    name = "registry",
+    host_constraints = HOST_CONSTRAINTS,
+    registered_versions = ":registered_versions",
+    visibility = ["//visibility:public"],
+)""" in build,
+        "registry target missing: %s" % build,
+    )
+
+    build = render_toolchain_hub_build(toolchain_hub_entries(["1.5.7"]))
+    asserts.true(
+        env,
+        'build_setting_default = ["1.5.7"],' in build,
+        "registered_versions must not list local when none is registered: %s" % build,
+    )
+    asserts.true(
+        env,
+        "host_constraints = []," in build,
+        "registry must not read the host's constraints without a local toolchain: %s" % build,
+    )
 
     return unittest.end(env)
 
@@ -1176,9 +1257,29 @@ def _hub_build_local_is_host_only_test(ctx):
     return unittest.end(env)
 
 hub_build_labels_test = unittest.make(_hub_build_labels_test)
-hub_build_loads_only_platforms_test = unittest.make(_hub_build_loads_only_platforms_test)
+hub_build_loads_only_rules_coco_and_platforms_test = unittest.make(_hub_build_loads_only_rules_coco_and_platforms_test)
+hub_build_registry_test = unittest.make(_hub_build_registry_test)
 hub_build_constrains_exec_only_test = unittest.make(_hub_build_constrains_exec_only_test)
 hub_build_local_is_host_only_test = unittest.make(_hub_build_local_is_host_only_test)
+
+# Tests for BUILD_for_coco_toolchain
+
+def _toolchain_build_version_test(ctx):
+    """A generated coco_toolchain records its version; without one the attribute is absent."""
+    env = unittest.begin(ctx)
+
+    build = BUILD_for_coco_toolchain("toolchain", popili_version = "1.5.7")
+    asserts.true(env, '\n    popili_version = "1.5.7",\n' in build, "version attribute missing: %s" % build)
+
+    build = BUILD_for_coco_toolchain("toolchain", popili_version = "local")
+    asserts.true(env, '\n    popili_version = "local",\n' in build, "local version missing: %s" % build)
+
+    build = BUILD_for_coco_toolchain("toolchain")
+    asserts.true(env, "version" not in build, "no version expected: %s" % build)
+
+    return unittest.end(env)
+
+toolchain_build_version_test = unittest.make(_toolchain_build_version_test)
 
 # Tests for normalize_cc_runtime_extra_deps
 
@@ -1512,12 +1613,17 @@ def coco_test_suite(name):
         hub_entries_local_only_test,
         hub_entries_local_alongside_versions_test,
         hub_unknown_version_test,
+        hub_entries_registered_versions_test,
 
         # render_toolchain_hub_build tests
         hub_build_labels_test,
-        hub_build_loads_only_platforms_test,
+        hub_build_loads_only_rules_coco_and_platforms_test,
+        hub_build_registry_test,
         hub_build_constrains_exec_only_test,
         hub_build_local_is_host_only_test,
+
+        # BUILD_for_coco_toolchain tests
+        toolchain_build_version_test,
 
         # normalize_cc_runtime_extra_deps tests
         normalize_extra_deps_list_applies_to_all_test,

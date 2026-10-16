@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `coco.toolchain` with `coco.local_toolchain`.
 - `cc_runtime_extra_deps` now accepts a dict mapping a version to its labels, in addition to a flat
   list applied to every registered version.
+- `coco_toolchain` gained an optional `popili_version` attribute, exposed as the `popili_version` field of the
+  toolchain. The toolchains rules_coco generates set it to their Popili version (`local` for a
+  local distribution); a bring-your-own toolchain may leave it empty when the version is unknown.
 
 ### Changed
 

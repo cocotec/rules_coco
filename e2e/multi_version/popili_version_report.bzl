@@ -2,18 +2,25 @@
 
 The resolved toolchain's binary lives in a version-mangled repository
 (`io_cocotec_coco_<os>_<arch>__<suffix>`), so its path is enough to tell which popili a
-target would use. The rule resolves `@rules_coco//coco:toolchain_type` itself, in its own
-configuration, so it sees exactly what a real popili-running rule in that configuration
-would see -- including the effect of a `with_popili_version` transition above it.
+target would use, and the toolchain's `popili_version` field must agree with it. The rule resolves
+`@rules_coco//coco:toolchain_type` itself, in its own configuration, so it sees exactly what
+a real popili-running rule in that configuration would see -- including the effect of a
+`with_popili_version` transition above it.
 """
 
 def _popili_version_report_impl(ctx):
-    popili = ctx.toolchains["@rules_coco//coco:toolchain_type"].coco.path
+    toolchain = ctx.toolchains["@rules_coco//coco:toolchain_type"]
+    popili = toolchain.coco.path
 
     if not ctx.attr.expected_repo_suffix in popili:
         fail(
             "%s: expected the Coco toolchain to resolve to a popili in a repository " % ctx.label +
             "ending %r, but it resolved to %r." % (ctx.attr.expected_repo_suffix, popili),
+        )
+    if toolchain.popili_version != ctx.attr.expected_version:
+        fail(
+            "%s: expected the Coco toolchain to be popili %r, " % (ctx.label, ctx.attr.expected_version) +
+            "but its version is %r." % toolchain.popili_version,
         )
 
     out = ctx.actions.declare_file(ctx.label.name + ".txt")
@@ -26,6 +33,10 @@ popili_version_report = rule(
     attrs = {
         "expected_repo_suffix": attr.string(
             doc = "The mangled version the toolchain repository name must end with, e.g. '__1_5_1'.",
+            mandatory = True,
+        ),
+        "expected_version": attr.string(
+            doc = "The `popili_version` the resolved toolchain must carry, e.g. '1.5.1'.",
             mandatory = True,
         ),
     },

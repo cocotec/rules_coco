@@ -90,9 +90,10 @@ toolchain(
     toolchain_type = ":exec_platform_probe_type",
 )
 
-# Fails during analysis if the local toolchain resolves for :foreign, so it needs only be
-# part of //... (like popili_version_report in ../multi_version).
+# Fails during analysis if the local toolchain resolves for :foreign or is not registered as
+# popili "local", so it needs only be part of //... (like popili_version_report in ../multi_version).
 popili_exec_platform_report(
     name = "popili_runs_on_host",
     expected = "host",
+    expected_version = "local",
 )
