@@ -282,6 +282,7 @@ coco_toolchain(
     coco = "//path/to:popili",
     cocotec_licensing_server = "//path/to:cocotec-licensing-server",
     # cc_runtime = "//path/to:cpp_runtime",  # optional cc_library, for coco_cc_library
+    # popili_version = "1.5.7",  # optional: the version of this popili, empty when unknown
 )
 
 toolchain(

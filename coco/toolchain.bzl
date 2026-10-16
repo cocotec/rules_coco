@@ -24,6 +24,7 @@ def _coco_toolchain_impl(ctx):
         license_source = ctx.attr.license_source,
         license_token = ctx.attr.license_token,
         auth_token_path = ctx.attr.auth_token_path,
+        popili_version = ctx.attr.popili_version,
     )
     return toolchain
 
@@ -62,6 +63,14 @@ coco_toolchain = rule(
         ),
         "license_token": attr.string(
             doc = "The license token to use when license_source is 'token'. Optional.",
+            default = "",
+        ),
+        "popili_version": attr.string(
+            doc = (
+                "The version of the `popili` binary, e.g. '1.5.7'. The toolchains rules_coco " +
+                "generates set it; a local distribution is 'local'. Optional: leave it empty when the " +
+                "version is unknown."
+            ),
             default = "",
         ),
         "preferences_file": attr.label(
