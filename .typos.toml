@@ -23,4 +23,7 @@ extend-exclude = [
   "MODULE.bazel.lock",
   "bazel-*",
   "*.sha256",
+  # The name mangling corpus is full of deliberate junk strings
+  # (iohandler, abcdef, ething4, ...).
+  "testdata/name_mangling_corpus.bzl",
 ]

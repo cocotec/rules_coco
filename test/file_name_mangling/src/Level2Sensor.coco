@@ -1,0 +1,3 @@
+// Digit in the module name: a digit is not alphabetic, so it suppresses the
+// word boundary that follows it and popili writes "level2sensor".
+function read() : String = "Hello from a digit filename"
