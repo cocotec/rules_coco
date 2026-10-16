@@ -1,10 +1,12 @@
 # E2E local-toolchain test BUILD file.
 # Exercises code generation + verification against a local popili toolchain.
 
+load("@bazel_features//:features.bzl", "bazel_features")
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_test")
 load("@rules_coco//coco:cc.bzl", "coco_cc_library", "coco_cc_test_library")
 load("@rules_coco//coco:defs.bzl", "coco_generate", "coco_package", "coco_verify_test")
 load(":exec_platform_report.bzl", "exec_platform_probe", "popili_exec_platform_report")
+load(":local_off_host_test.bzl", "local_off_host_test", "local_test_off_target_platform_test")
 
 # Define Coco package
 coco_package(
@@ -97,3 +99,28 @@ popili_exec_platform_report(
     expected = "host",
     expected_version = "local",
 )
+
+# With :foreign as the only execution platform, the host-only local toolchain cannot resolve.
+local_off_host_test(
+    name = "local_off_host_test",
+    size = "small",
+    target_under_test = ":local_toolchain",
+)
+
+# Bazel 8 has no default test toolchain type, so its tests are not tied to the target platform.
+TESTS_FOLLOW_TARGET_PLATFORM = getattr(
+    bazel_features.toolchains,
+    "has_default_test_toolchain_type",
+    False,
+)
+
+# Built for :foreign, the verify test runs on :foreign, where the local popili cannot run.
+[
+    local_test_off_target_platform_test(
+        name = "local_test_off_target_platform_test",
+        size = "small",
+        target_under_test = ":local_toolchain_verify",
+    )
+    for _ in [None]
+    if TESTS_FOLLOW_TARGET_PLATFORM
+]
