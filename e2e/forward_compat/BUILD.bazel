@@ -1,0 +1,33 @@
+# E2E forward-compatibility test BUILD file; see MODULE.bazel.
+
+load("@rules_cc//cc:defs.bzl", "cc_binary")
+load("@rules_coco//coco:cc.bzl", "coco_cc_library")
+load("@rules_coco//coco:defs.bzl", "coco_generate", "coco_package", "coco_verify_test")
+
+coco_package(
+    name = "forward_compat",
+    srcs = glob(["src/**/*.coco"]),
+    package = "Coco.toml",
+)
+
+coco_verify_test(
+    name = "forward_compat_verify",
+    package = ":forward_compat",
+)
+
+coco_generate(
+    name = "forward_compat_cpp",
+    language = "cpp",
+    package = ":forward_compat",
+)
+
+coco_cc_library(
+    name = "forward_compat_cc",
+    generated_package = ":forward_compat_cpp",
+)
+
+cc_binary(
+    name = "forward_compat_bin",
+    srcs = ["test/main.cc"],
+    deps = [":forward_compat_cc"],
+)

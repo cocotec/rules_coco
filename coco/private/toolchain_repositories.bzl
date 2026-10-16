@@ -21,10 +21,9 @@ native module is inaccessible inside an extension.
 
 load(
     ":common_repositories.bzl",
-    "download_prefix",
+    "coco_download",
     "resolve_local_path",
 )
-load(":known_shas.bzl", "FILE_KEY_TO_SHA")
 load(":platforms.bzl", "archive_platform", "platform_binary_ext")
 load(":version_resolution.bzl", "version_tuple")
 
@@ -122,22 +121,11 @@ def coco_toolchain_download(version, os, arch):
       for the archive, which makes the download unverified.
     """
     archive_os, archive_arch = archive_platform(os, arch)
-    archive = "{product}_{os}_{arch}.zip".format(
+    return coco_download(version, "{product}_{os}_{arch}.zip".format(
         arch = archive_arch,
         os = archive_os,
         product = _product_for(version),
-    )
-
-    # known_shas.bzl is keyed by version, not by download path, so the "archive/"
-    # prefix that download_prefix() adds must not be part of the lookup key.
-    key = "{version}/{archive}".format(version = version, archive = archive)
-    return struct(
-        url = "https://dl.cocotec.io/popili/{download_prefix}/{archive}".format(
-            download_prefix = download_prefix(version),
-            archive = archive,
-        ),
-        sha256 = FILE_KEY_TO_SHA.get(key) or "",
-    )
+    ))
 
 def _coco_toolchain_repository_impl(ctx):
     """The implementation of the coco toolchain repository rule."""

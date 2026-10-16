@@ -97,6 +97,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   fails with `could not open the directory ...` under Bazel's sandbox.
 - On Bazel 9, `coco_verify_test` and `coco_fmt_test` could run a popili built for a different execution platform
   than the test's.
+- Popili releases newer than your rules_coco can now be used with the C and C++ rules. Their
+  downloads are not checksum-verified.
 
 ## [0.3.0] - 2026/05/31
 
