@@ -232,6 +232,11 @@ example `bazel build --@rules_coco//:version=1.5.1 //...`; the flag accepts alia
 custom rule that resolves the Coco toolchain: it builds the wrapped target and everything beneath
 it with the given version.
 
+To try a version on the whole repository without editing BUILD files, add
+`--@rules_coco//:force_version`: every pin and every `with_popili_version` wrapper is ignored, and
+`--@rules_coco//:version` (or the default when it is unset) applies everywhere, for example
+`bazel test --@rules_coco//:force_version --@rules_coco//:version=1.5.1 //...`.
+
 See `e2e/multi_version` for a full example, in both `MODULE.bazel` and `WORKSPACE` form.
 
 ### Using a local toolchain

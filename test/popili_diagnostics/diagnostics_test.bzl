@@ -19,13 +19,15 @@ local distribution, so the message can be checked for a version nobody registere
 `local` without a local toolchain, and the registered default when only an execution
 platform popili is not published for exists (the host platform is replaced too, because Bazel
 always offers the host as an execution platform otherwise). Test rules are also built for that
-platform with it listed before the host, so Bazel runs them on it, where popili cannot run.
+platform with it listed before the host, so Bazel runs them on it, where popili cannot run. Each
+test fixes `--@rules_coco//:force_version` to False, which the wording depends on.
 """
 
 load("@bazel_features//:features.bzl", "bazel_features")
 load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts")
 
 _VERSION_FLAG = str(Label("//:version"))
+_FORCE_FLAG = str(Label("//:force_version"))
 _RISCV64 = str(Label(":riscv64"))
 _RISCV64_CC_TOOLCHAIN = str(Label(":riscv64_stub_cc_toolchain"))
 
@@ -40,14 +42,14 @@ _ATTRS = {"expected": attr.string_list(mandatory = True)}
 unknown_version_test = analysistest.make(
     _expect_message_impl,
     attrs = _ATTRS,
-    config_settings = {_VERSION_FLAG: "1.99.0"},
+    config_settings = {_VERSION_FLAG: "1.99.0", _FORCE_FLAG: False},
     expect_failure = True,
 )
 
 local_without_local_test = analysistest.make(
     _expect_message_impl,
     attrs = _ATTRS,
-    config_settings = {_VERSION_FLAG: "local"},
+    config_settings = {_VERSION_FLAG: "local", _FORCE_FLAG: False},
     expect_failure = True,
 )
 
@@ -56,6 +58,7 @@ no_execution_platform_test = analysistest.make(
     attrs = _ATTRS,
     config_settings = {
         _VERSION_FLAG: "",
+        _FORCE_FLAG: False,
         "//command_line_option:extra_execution_platforms": [_RISCV64],
         "//command_line_option:host_platform": _RISCV64,
     },
@@ -66,6 +69,8 @@ test_platform_mismatch_test = analysistest.make(
     _expect_message_impl,
     attrs = _ATTRS,
     config_settings = {
+        _VERSION_FLAG: "",
+        _FORCE_FLAG: False,
         "//command_line_option:extra_execution_platforms": [_RISCV64],
         "//command_line_option:extra_toolchains": [_RISCV64_CC_TOOLCHAIN],
         "//command_line_option:platforms": [_RISCV64],

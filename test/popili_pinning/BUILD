@@ -71,9 +71,9 @@ coco_state_diagram(
 )
 
 # Unpinned, for the assertions that its configuration is untouched and that it follows an alias in
-# --@rules_coco//:version. Over its own package: under --@rules_coco//:version=stable it shares a
-# configuration with :pinned_cpp, and two coco_generates of one package in one configuration would
-# write the same files.
+# --@rules_coco//:version. Over its own package: under --@rules_coco//:version=stable (or
+# force_version) it shares a configuration with :pinned_cpp, and two coco_generates of one package
+# in one configuration would write the same files.
 coco_package(
     name = "unpinned_base",
     srcs = glob(["unpinned/src/*.coco"]),
@@ -86,7 +86,7 @@ coco_generate(
     package = ":unpinned_base",
 )
 
-# Unpinned, for the same assertions on a test.
+# Unpinned, as the reference configuration under --@rules_coco//:force_version.
 coco_verify_test(
     name = "unpinned_verify",
     package = ":base",
@@ -132,6 +132,7 @@ popili_pinning_tests(
         "state_diagram": ":pinned_states",
         "verify_test": ":pinned_verify",
     },
+    unpinned_verify = ":unpinned_verify",
     unregistered = ":unregistered_cpp",
     untransitioned = ":untransitioned",
 )

@@ -28,6 +28,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   allowed) for the target and everything beneath it, including the `coco_package` it reads. A pin
   wins over `--@rules_coco//:version`, which sets the version for everything unpinned. A
   `coco_cc_library` built from a pinned `coco_generate` needs no pin of its own.
+- `--@rules_coco//:force_version` makes `--@rules_coco//:version` (or the default when it is unset)
+  apply to every target, ignoring every `popili_version` pin and `with_popili_version` wrapper, to
+  try a Popili version on a whole repository without editing BUILD files.
 - `--@rules_coco//:version` accepts aliases such as `stable`, so
   `bazel build --@rules_coco//:version=stable //...` selects the toolchain of the version the alias
   names, in the same configuration as naming that version directly. It used to match no toolchain.

@@ -181,6 +181,7 @@ pinned_popili_tests(
         "flexible_generate": ":flexible_cpp",
         "flexible_verify": ":flexible_verify",
     },
+    wrapped = ":popili_is_151",
 )
 
 # Foreign to every CI host; test_platform_test.bzl targets it, with the host as first execution platform.

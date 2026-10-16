@@ -24,7 +24,7 @@ load(
     "PATH_CASE_DEFAULTS",
 )
 load(":cc_runtime_deps.bzl", "collect_cc_runtime_extra_deps", "normalize_cc_runtime_extra_deps")
-load(":coco.bzl", "FILE_NAME_MANGLER_STYLES", "component_styles", "compute_output_paths", "mangle_name", "missing_popili_message", "module_path_for", "package_relative_dir", "pin_transition_settings", "version_source")
+load(":coco.bzl", "FILE_NAME_MANGLER_STYLES", "component_styles", "compute_output_paths", "mangle_name", "missing_popili_message", "module_path_for", "package_relative_dir", "pin_transition_settings", "version_source", "wrapper_transition_settings")
 load(":common_repositories.bzl", "coco_download", "download_prefix", "find_local_license_path")
 load(":known_shas.bzl", "FILE_KEY_TO_SHA")
 load(":platforms.bzl", "COCO_TOOLCHAIN_PLATFORMS", "archive_platform", "platform_binary_ext")
@@ -1135,6 +1135,14 @@ def _version_source_test(ctx):
     asserts.equals(env, "pinned by popili_version on a target above it", version_source("1.5.1", "", PINNED_SOURCE))
     return unittest.end(env)
 
+def _version_source_forced_test(ctx):
+    """Forced, the flag is named whatever pin there is, and an empty flag is the forced default."""
+    env = unittest.begin(ctx)
+    asserts.equals(env, "forced by --@rules_coco//:force_version", version_source("1.5.1", "1.5.0", PINNED_SOURCE, True))
+    asserts.equals(env, "forced by --@rules_coco//:force_version", version_source("1.5.1", "", "", True))
+    asserts.equals(env, "the default, forced by --@rules_coco//:force_version", version_source("", "stable", "", True))
+    return unittest.end(env)
+
 def _pin_transition_settings_unpinned_test(ctx):
     """Without a pin the transition is a no-op, whatever the flag says."""
     env = unittest.begin(ctx)
@@ -1163,6 +1171,24 @@ def _pin_transition_settings_already_pinned_test(ctx):
     asserts.equals(env, {}, pin_transition_settings("stable", resolve_version_alias("stable")))
     return unittest.end(env)
 
+def _pin_transition_settings_forced_test(ctx):
+    """Forced, a pin changes nothing, whether the flag is set, empty or equal to the pin."""
+    env = unittest.begin(ctx)
+    asserts.equals(env, {}, pin_transition_settings("1.5.1", "", True))
+    asserts.equals(env, {}, pin_transition_settings("1.5.1", "1.5.0", True))
+    asserts.equals(env, {}, pin_transition_settings("stable", "1.5.0", True))
+    asserts.equals(env, {}, pin_transition_settings("", "1.5.0", True))
+    return unittest.end(env)
+
+def _wrapper_transition_settings_test(ctx):
+    """The wrapper sets the flag to its version with aliases resolved, except when forced."""
+    env = unittest.begin(ctx)
+    asserts.equals(env, {VERSION_FLAG: "1.5.1"}, wrapper_transition_settings("1.5.1", False))
+    asserts.equals(env, {VERSION_FLAG: resolve_version_alias("stable")}, wrapper_transition_settings("stable", False))
+    asserts.equals(env, {}, wrapper_transition_settings("", False))
+    asserts.equals(env, {}, wrapper_transition_settings("1.5.1", True))
+    return unittest.end(env)
+
 def _pin_transition_settings_alias_flag_test(ctx):
     """An alias in the flag is resolved, keeping the source; a pin equal to it lands in the same configuration."""
     env = unittest.begin(ctx)
@@ -1171,18 +1197,31 @@ def _pin_transition_settings_alias_flag_test(ctx):
     asserts.equals(env, resolved, pin_transition_settings("", "stable"))
     asserts.equals(env, resolved, pin_transition_settings("stable", "stable"))
     asserts.equals(env, resolved, pin_transition_settings(stable, "stable"))
-    asserts.equals(env, {VERSION_FLAG: stable, VERSION_SOURCE_SETTING: PINNED_SOURCE}, pin_transition_settings("", "stable", PINNED_SOURCE))
+    asserts.equals(env, {VERSION_FLAG: stable, VERSION_SOURCE_SETTING: PINNED_SOURCE}, pin_transition_settings("", "stable", False, PINNED_SOURCE))
     asserts.equals(env, {VERSION_FLAG: "1.99.0", VERSION_SOURCE_SETTING: PINNED_SOURCE}, pin_transition_settings("1.99.0", "stable"))
     asserts.equals(env, {}, pin_transition_settings("", stable))
     asserts.equals(env, {}, pin_transition_settings("", "1.99.0"))
     return unittest.end(env)
 
+def _pin_transition_settings_forced_alias_flag_test(ctx):
+    """Forced, an alias in the flag is still resolved and nothing else changes."""
+    env = unittest.begin(ctx)
+    stable = resolve_version_alias("stable")
+    asserts.equals(env, {VERSION_FLAG: stable, VERSION_SOURCE_SETTING: ""}, pin_transition_settings("1.99.0", "stable", True))
+    asserts.equals(env, {VERSION_FLAG: stable, VERSION_SOURCE_SETTING: PINNED_SOURCE}, pin_transition_settings("", "stable", True, PINNED_SOURCE))
+    asserts.equals(env, {}, pin_transition_settings("1.99.0", stable, True))
+    return unittest.end(env)
+
 version_source_test = unittest.make(_version_source_test)
+version_source_forced_test = unittest.make(_version_source_forced_test)
+pin_transition_settings_forced_test = unittest.make(_pin_transition_settings_forced_test)
+wrapper_transition_settings_test = unittest.make(_wrapper_transition_settings_test)
 pin_transition_settings_unpinned_test = unittest.make(_pin_transition_settings_unpinned_test)
 pin_transition_settings_pinned_test = unittest.make(_pin_transition_settings_pinned_test)
 pin_transition_settings_alias_test = unittest.make(_pin_transition_settings_alias_test)
 pin_transition_settings_already_pinned_test = unittest.make(_pin_transition_settings_already_pinned_test)
 pin_transition_settings_alias_flag_test = unittest.make(_pin_transition_settings_alias_flag_test)
+pin_transition_settings_forced_alias_flag_test = unittest.make(_pin_transition_settings_forced_alias_flag_test)
 
 # Tests for toolchain_hub_entries
 
@@ -1874,7 +1913,11 @@ def coco_test_suite(name):
         pin_transition_settings_pinned_test,
         pin_transition_settings_alias_test,
         pin_transition_settings_already_pinned_test,
+        version_source_forced_test,
+        pin_transition_settings_forced_test,
+        wrapper_transition_settings_test,
         pin_transition_settings_alias_flag_test,
+        pin_transition_settings_forced_alias_flag_test,
 
         # toolchain_hub_entries tests
         hub_entries_single_version_test,

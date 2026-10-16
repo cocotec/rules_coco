@@ -22,7 +22,7 @@ load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load(":common_attrs.bzl", "companion_attrs")
 load(":platforms.bzl", "COCO_TOOLCHAIN_PLATFORMS")
 load(":version_registry.bzl", "CocoVersionRegistryInfo")
-load(":version_resolution.bzl", "LOCAL_VERSION", "PINNED_SOURCE", "VERSION_FLAG", "VERSION_SOURCE_SETTING", "resolve_version_alias")
+load(":version_resolution.bzl", "FORCE_VERSION_FLAG", "LOCAL_VERSION", "PINNED_SOURCE", "VERSION_FLAG", "VERSION_SOURCE_SETTING", "resolve_version_alias")
 
 CocoPackageInfo = provider(
     doc = "Information about a Coco package",
@@ -97,6 +97,7 @@ COCO_TEST_FRAGMENTS = ["platform"]
 
 # What a rule needs for `_coco_toolchain`'s full message: the configured version and the registry.
 TOOLCHAIN_ATTRIBUTES = {
+    "_force_version": attr.label(default = Label("//:force_version")),
     "_version": attr.label(default = Label("//:version")),
     "_version_registry": attr.label(
         default = Label("@coco_toolchains//:registry"),
@@ -109,8 +110,9 @@ POPILI_VERSION_ATTRIBUTES = {
     "popili_version": attr.string(
         doc = "The registered popili version this target and everything beneath it, including the " +
               "coco_package it reads, run with: a version such as `\"1.5.1\"` or an alias such as " +
-              "`\"stable\"`. It wins over `--@rules_coco//:version`. Empty (the default) uses the version " +
-              "that flag selects, or the first registered version when the flag is unset too.",
+              "`\"stable\"`. It wins over `--@rules_coco//:version`, unless `--@rules_coco//:force_version` " +
+              "is set, which ignores every pin. Empty (the default) uses the version that flag selects, or " +
+              "the first registered version when the flag is unset too.",
     ),
 }
 
@@ -121,23 +123,25 @@ def _resolved_flag_settings(version, source):
         return {}
     return {VERSION_FLAG: resolved, VERSION_SOURCE_SETTING: source}
 
-def _pin_transition_settings(pin, version, source = ""):
+def _pin_transition_settings(pin, version, forced = False, source = ""):
     """Decides what a popili-resolving rule's transition changes.
 
     Args:
         pin: The target's `popili_version`, "" when unpinned or the rule has none.
         version: The value of `--@rules_coco//:version` in the incoming configuration.
+        forced: The value of `--@rules_coco//:force_version` in the incoming configuration.
         source: The value of the `_version_source` setting in the incoming configuration.
 
     Returns:
         The dict the transition returns. An alias in the incoming version flag is resolved in every
         case, so a build under `--@rules_coco//:version=stable` is analysed in the configuration of
-        the version `stable` names, shared with `--@rules_coco//:version=<that version>`. A pin that
-        differs from the (resolved) incoming version sets the version flag to the pin with aliases
-        resolved and the source setting records it. `{}` leaves the configuration (and so the
-        output paths) untouched whenever nothing changes.
+        the version `stable` names, shared with `--@rules_coco//:version=<that version>`. Forced,
+        that is all: the pin is ignored. Otherwise a pin that differs from the (resolved) incoming
+        version sets the version flag to the pin with aliases resolved and the source setting
+        records it. `{}` leaves the configuration (and so the output paths) untouched whenever
+        nothing changes.
     """
-    if not pin or resolve_version_alias(pin) == resolve_version_alias(version):
+    if forced or not pin or resolve_version_alias(pin) == resolve_version_alias(version):
         return _resolved_flag_settings(version, source)
     return {VERSION_FLAG: resolve_version_alias(pin), VERSION_SOURCE_SETTING: PINNED_SOURCE}
 
@@ -145,30 +149,37 @@ def _popili_version_pin_impl(settings, attr):
     return _pin_transition_settings(
         getattr(attr, "popili_version", ""),
         settings[VERSION_FLAG],
+        settings[FORCE_VERSION_FLAG],
         settings[VERSION_SOURCE_SETTING],
     )
 
 popili_version_pin = transition(
     implementation = _popili_version_pin_impl,
-    inputs = [VERSION_FLAG, VERSION_SOURCE_SETTING],
+    inputs = [VERSION_FLAG, FORCE_VERSION_FLAG, VERSION_SOURCE_SETTING],
     outputs = [VERSION_FLAG, VERSION_SOURCE_SETTING],
 )
 
-def _popili_version_transition_impl(_settings, attr):
-    """Transition implementation for per-target popili version selection.
+def _wrapper_transition_settings(version, forced):
+    """Decides what `with_popili_version`'s transition changes.
 
-    If the target specifies a version attribute, transition to that version.
-    Version aliases (like "stable") are resolved to actual version numbers.
-    Otherwise, keep the current configuration's version setting.
+    Args:
+        version: The wrapper's `version` attribute.
+        forced: The value of `--@rules_coco//:force_version` in the incoming configuration.
+
+    Returns:
+        `{}` when forced (the wrapper is ignored) or without a version, otherwise the version
+        flag set to the version with aliases resolved.
     """
-    if hasattr(attr, "version") and attr.version:
-        resolved_version = resolve_version_alias(attr.version)
-        return {VERSION_FLAG: resolved_version}
-    return {}
+    if forced or not version:
+        return {}
+    return {VERSION_FLAG: resolve_version_alias(version)}
+
+def _popili_version_transition_impl(settings, attr):
+    return _wrapper_transition_settings(getattr(attr, "version", ""), settings[FORCE_VERSION_FLAG])
 
 _popili_version_transition = transition(
     implementation = _popili_version_transition_impl,
-    inputs = [],
+    inputs = [FORCE_VERSION_FLAG],
     outputs = [VERSION_FLAG],
 )
 
@@ -254,19 +265,25 @@ def _coco_toolchain(ctx):
         fail(_missing_toolchain_message(ctx))
     return toolchain
 
-def _version_source(version, pin, source):
+def _version_source(version, pin, source, forced = False):
     """Words where a target's configured popili version came from.
 
     Args:
         version: The value of `--@rules_coco//:version` in the target's configuration.
         pin: The target's `popili_version`, "" when it has none.
         source: The value of the `_version_source` setting: PINNED_SOURCE beneath a pin, else "".
+        forced: The value of `--@rules_coco//:force_version` in the target's configuration.
 
     Returns:
-        A phrase interpolated as "(%s)" in messages: "pinned by popili_version" (naming the pin as
-        written when it is an alias, or the fact that the pin sits on a target above this one),
-        "set by --@rules_coco//:version", or "the default".
+        A phrase interpolated as "(%s)" in messages: "forced by --@rules_coco//:force_version"
+        (with "the default, " in front when the version flag is empty), "pinned by popili_version"
+        (naming the pin as written when it is an alias, or the fact that the pin sits on a target
+        above this one), "set by --@rules_coco//:version", or "the default".
     """
+    if forced:
+        if version:
+            return "forced by --%s" % FORCE_VERSION_FLAG
+        return "the default, forced by --%s" % FORCE_VERSION_FLAG
     if pin:
         if pin == version:
             return "pinned by popili_version"
@@ -276,6 +293,10 @@ def _version_source(version, pin, source):
     if version:
         return "set by --%s" % VERSION_FLAG
     return "the default"
+
+def _force_version(ctx):
+    """Whether `--@rules_coco//:force_version` is set in this target's configuration."""
+    return ctx.attr._force_version[BuildSettingInfo].value
 
 def _configured_version(ctx):
     """Returns the popili version this target's configuration asks for and where it came from.
@@ -289,6 +310,7 @@ def _configured_version(ctx):
         version,
         getattr(ctx.attr, "popili_version", ""),
         ctx.attr._version_source[BuildSettingInfo].value,
+        _force_version(ctx),
     )
 
 def _describe_registered_versions(registry):
@@ -1733,6 +1755,7 @@ mangle_name = _mangle_name
 missing_popili_message = _missing_popili_message
 pin_transition_settings = _pin_transition_settings
 version_source = _version_source
+wrapper_transition_settings = _wrapper_transition_settings
 component_styles = COMPONENT_STYLES
 compute_output_paths = _compute_output_paths
 module_path_for = _module_path_for
