@@ -10,7 +10,6 @@ load(
     "coco_package",
     "coco_state_diagram",
     "coco_verify_test",
-    "with_popili_version",
 )
 load("@rules_coco//coco/private:coco.bzl", "TESTS_FOLLOW_TARGET_PLATFORM")  # buildifier: disable=bzl-visibility
 load("@rules_coco//test/popili_diagnostics:diagnostics_test.bzl", "popili_diagnostics_tests")
@@ -21,37 +20,12 @@ load(
     "popili_version_forced_default_test",
     "popili_version_forced_test",
 )
-load(":popili_version_report.bzl", "popili_version_report")
 load(":stub_cc_toolchain.bzl", "stub_cc_toolchain_config")
 load(":test_platform_test.bzl", "test_platform_popili_test")
 
 # Which popili a target actually resolves is asserted directly, rather than inferred from a
 # successful verify: every registered version can verify every package here, so the verify
 # tests below pass whichever toolchain they get. Works identically in WORKSPACE and bzlmod.
-#
-# popili_version_report fails during analysis, so these need only be part of //... -- no test
-# rule, and deliberately no build_test, whose generated genrules need a working bash.
-
-# Unwrapped: the first entry of versions/coco.toolchain is the default.
-popili_version_report(
-    name = "popili_is_150_by_default",
-    expected_version = "1.5.0",
-)
-
-# A rule without a popili_version of its own still takes its version from a with_popili_version
-# wrapper. Manual, because built directly it would resolve the default version and fail by
-# design; it is reached only through the wrapper below.
-popili_version_report(
-    name = "popili_is_151_impl",
-    expected_version = "1.5.1",
-    tags = ["manual"],
-)
-
-with_popili_version(
-    name = "popili_is_151",
-    target = ":popili_is_151_impl",
-    version = "1.5.1",
-)
 
 # Modern package: everything that runs popili on it is pinned to 1.5.0.
 coco_package(
@@ -134,8 +108,7 @@ cc_test(
 )
 
 # The default gmock stays in the test's configuration while the runtime follows the pin, so a test
-# that also links gtest_main directly gets one googletest. Wrapping the library in
-# with_popili_version built googletest twice, which Linux rejects.
+# that also links gtest_main directly gets one googletest; Linux rejects googletest built twice.
 coco_cc_test_library(
     name = "legacy_cc_tst",
     generated_package = ":legacy_cpp",
@@ -303,7 +276,6 @@ pinned_popili_tests(
         "flexible_generate": ":flexible_cpp",
         "flexible_verify": ":flexible_verify",
     },
-    wrapped = ":popili_is_151",
 )
 
 # Foreign to every CI host; test_platform_test.bzl targets it, with the host as first execution platform.

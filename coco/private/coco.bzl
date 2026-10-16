@@ -189,100 +189,6 @@ popili_version_pin = transition(
     outputs = [VERSION_FLAG, VERSION_SOURCE_SETTING],
 )
 
-def _wrapper_transition_settings(version, forced):
-    """Decides what `with_popili_version`'s transition changes.
-
-    Args:
-        version: The wrapper's `version` attribute.
-        forced: The value of `--@rules_coco//:force_version` in the incoming configuration.
-
-    Returns:
-        `{}` when forced (the wrapper is ignored) or without a version, otherwise the version
-        flag set to the version with aliases resolved.
-    """
-    if forced or not version:
-        return {}
-    return {VERSION_FLAG: resolve_version_alias(version)}
-
-def _popili_version_transition_impl(settings, attr):
-    return _wrapper_transition_settings(getattr(attr, "version", ""), settings[FORCE_VERSION_FLAG])
-
-_popili_version_transition = transition(
-    implementation = _popili_version_transition_impl,
-    inputs = [FORCE_VERSION_FLAG],
-    outputs = [VERSION_FLAG],
-)
-
-# Export for use in cc.bzl
-popili_version_transition = _popili_version_transition
-
-def _with_popili_version_impl(ctx):
-    """Wrapper rule that applies popili version transition to a target.
-
-    This allows users to build a specific target with a different popili version
-    than the default specified by --@rules_coco//:version.
-    """
-
-    # When using configuration transitions, ctx.attr.target becomes a list
-    target = ctx.attr.target[0] if type(ctx.attr.target) == type([]) else ctx.attr.target
-
-    # Forward all providers from the target
-    # We need to explicitly check for each provider type and forward them
-    providers = []
-
-    # Forward DefaultInfo if present
-    if hasattr(target, "files"):
-        providers.append(target[DefaultInfo])
-
-    # Forward CocoPackageInfo if present
-    if CocoPackageInfo in target:
-        providers.append(target[CocoPackageInfo])
-
-    # Forward language-specific generated code providers if present
-    if CocoCcGeneratedInfo in target:
-        providers.append(target[CocoCcGeneratedInfo])
-    if CocoCSharpGeneratedInfo in target:
-        providers.append(target[CocoCSharpGeneratedInfo])
-
-    # Forward CcInfo if present
-    if CcInfo in target:
-        providers.append(target[CcInfo])
-
-    # Forward OutputGroupInfo if present
-    if OutputGroupInfo in target:
-        providers.append(target[OutputGroupInfo])
-
-    return providers
-
-with_popili_version = rule(
-    implementation = _with_popili_version_impl,
-    attrs = {
-        "target": attr.label(
-            mandatory = True,
-            doc = "The target to build with a specific popili version",
-        ),
-        "version": attr.string(
-            mandatory = True,
-            doc = "The popili version to use (e.g., '1.5.0', '1.4.7')",
-        ),
-    },
-    cfg = _popili_version_transition,
-    doc = """Wrapper rule to build a target with a specific popili version.
-
-    Use this when you need to build different targets with different popili versions
-    in the same build. For most cases, just use --@rules_coco//:version=X.Y.Z.
-
-    Example:
-        coco_package(name = "pkg", ...)
-
-        with_popili_version(
-            name = "pkg_v147",
-            target = ":pkg",
-            version = "1.4.7",
-        )
-    """,
-)
-
 # License files are now obtained from the toolchain, not passed as attributes
 
 def _resolves_on_test_exec_group(ctx):
@@ -1957,7 +1863,6 @@ effective_version = _effective_version
 library_version_mismatch_message = _library_version_mismatch_message
 library_version_conflict = _library_version_conflict
 version_source = _version_source
-wrapper_transition_settings = _wrapper_transition_settings
 compute_output_paths = _compute_output_paths
 module_path_for = _module_path_for
 workspace_dirname = _workspace_dirname

@@ -25,8 +25,7 @@ load(":version_aliases.bzl", "VERSION_ALIASES")
 # The build setting that selects which registered Coco version a build uses.
 VERSION_FLAG = "@rules_coco//:version"
 
-# The boolean flag that makes VERSION_FLAG apply everywhere, ignoring every `popili_version` pin
-# and `with_popili_version` wrapper.
+# The boolean flag that makes VERSION_FLAG apply everywhere, ignoring every `popili_version` pin.
 FORCE_VERSION_FLAG = "@rules_coco//:force_version"
 
 # Internal build setting recording that VERSION_FLAG was set by a `popili_version` pin above the

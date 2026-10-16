@@ -55,8 +55,7 @@ string_flag(
     visibility = ["//visibility:public"],
 )
 
-# Makes :version (or the default) apply to every target, ignoring popili_version pins and
-# with_popili_version wrappers.
+# Makes :version (or the default) apply to every target, ignoring popili_version pins.
 bool_flag(
     name = "force_version",
     build_setting_default = False,

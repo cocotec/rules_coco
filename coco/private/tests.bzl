@@ -23,7 +23,7 @@ load(
     "PATH_CASE_DEFAULTS",
 )
 load(":cc_runtime_deps.bzl", "collect_cc_runtime_extra_deps", "normalize_cc_runtime_extra_deps")
-load(":coco.bzl", "FILE_NAME_MANGLER_STYLES", "compute_output_paths", "effective_version", "generated_include_dir", "library_version_conflict", "library_version_mismatch_message", "mangle_name", "missing_popili_message", "module_path_for", "pin_transition_settings", "version_source", "workspace_dirname", "wrapper_transition_settings")
+load(":coco.bzl", "FILE_NAME_MANGLER_STYLES", "compute_output_paths", "effective_version", "generated_include_dir", "library_version_conflict", "library_version_mismatch_message", "mangle_name", "missing_popili_message", "module_path_for", "pin_transition_settings", "version_source", "workspace_dirname")
 load(":common_repositories.bzl", "coco_download", "download_prefix", "find_local_license_paths", "is_license_file_name")
 load(":known_shas.bzl", "FILE_KEY_TO_SHA")
 load(":license_versions.bzl", "LICENSE_PROTOCOL_VERSIONS")
@@ -1619,15 +1619,6 @@ def _pin_transition_settings_forced_test(ctx):
     asserts.equals(env, {}, pin_transition_settings("", "1.5.0", _REGISTERED, True))
     return unittest.end(env)
 
-def _wrapper_transition_settings_test(ctx):
-    """The wrapper sets the flag to its version with aliases resolved, except when forced."""
-    env = unittest.begin(ctx)
-    asserts.equals(env, {VERSION_FLAG: "1.5.1"}, wrapper_transition_settings("1.5.1", False))
-    asserts.equals(env, {VERSION_FLAG: resolve_version_alias("stable")}, wrapper_transition_settings("stable", False))
-    asserts.equals(env, {}, wrapper_transition_settings("", False))
-    asserts.equals(env, {}, wrapper_transition_settings("1.5.1", True))
-    return unittest.end(env)
-
 # Tests for library_version_mismatch_message
 
 def _library_version_mismatch_pinned_test(ctx):
@@ -1692,7 +1683,6 @@ version_source_test = unittest.make(_version_source_test)
 effective_version_test = unittest.make(_effective_version_test)
 version_source_forced_test = unittest.make(_version_source_forced_test)
 pin_transition_settings_forced_test = unittest.make(_pin_transition_settings_forced_test)
-wrapper_transition_settings_test = unittest.make(_wrapper_transition_settings_test)
 pin_transition_settings_unpinned_test = unittest.make(_pin_transition_settings_unpinned_test)
 pin_transition_settings_pinned_test = unittest.make(_pin_transition_settings_pinned_test)
 pin_transition_settings_alias_test = unittest.make(_pin_transition_settings_alias_test)
@@ -2443,7 +2433,6 @@ def coco_test_suite(name):
         pin_transition_settings_default_test,
         version_source_forced_test,
         pin_transition_settings_forced_test,
-        wrapper_transition_settings_test,
 
         # toolchain_hub_entries tests
         hub_entries_single_version_test,

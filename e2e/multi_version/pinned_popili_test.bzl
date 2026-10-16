@@ -69,20 +69,6 @@ popili_version_forced_default_test = analysistest.make(
     config_settings = {_VERSION_FLAG: "", _FORCE_FLAG: True},
 )
 
-def _wrapper_ignored_impl(ctx):
-    env = analysistest.begin(ctx)
-    asserts.expect_failure(env, "expected the Coco toolchain to resolve to a popili in a repository ending \"__1_5_1\", but it resolved to")
-    asserts.expect_failure(env, "__1_5_0/")
-    return analysistest.end(env)
-
-# Forced without a version, a with_popili_version(version = "1.5.1") wrapper leaves its target on
-# the default; the popili_version_report beneath it, which expects 1.5.1, then fails by design.
-wrapper_ignored_when_forced_test = analysistest.make(
-    _wrapper_ignored_impl,
-    config_settings = {_VERSION_FLAG: "", _FORCE_FLAG: True},
-    expect_failure = True,
-)
-
 def _expect_message_impl(ctx):
     env = analysistest.begin(ctx)
     for expected in ctx.attr.expected:
@@ -97,7 +83,7 @@ library_version_mismatch_test = analysistest.make(
     expect_failure = True,
 )
 
-def pinned_popili_tests(name, pinned, unpinned, reference, wrapped):
+def pinned_popili_tests(name, pinned, unpinned, reference):
     """Declares the version-selection tests and a test_suite over them.
 
     Args:
@@ -106,7 +92,6 @@ def pinned_popili_tests(name, pinned, unpinned, reference, wrapped):
         unpinned: A dict of short name -> target without a pin (so on the default, 1.5.0).
         reference: An unpinned target with a generated output, whose bin dir a target pinned to
             the default must share.
-        wrapped: A with_popili_version(version = "1.5.1") around a popili_version_report expecting 1.5.1.
     """
     tests = []
     for version, targets in pinned.items():
@@ -159,10 +144,4 @@ def pinned_popili_tests(name, pinned, unpinned, reference, wrapped):
             expected_version = "1.5.1",
         )
         tests += ["%s_unpinned_%s" % (name, consumer), "%s_unpinned_follows_flag_%s" % (name, consumer)]
-    wrapper_ignored_when_forced_test(
-        name = "%s_wrapper_ignored_when_forced" % name,
-        size = "small",
-        target_under_test = wrapped,
-    )
-    tests.append("%s_wrapper_ignored_when_forced" % name)
     native.test_suite(name = name, tests = tests)
