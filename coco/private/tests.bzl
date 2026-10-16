@@ -24,7 +24,7 @@ load(
     "PATH_CASE_DEFAULTS",
 )
 load(":cc_runtime_deps.bzl", "collect_cc_runtime_extra_deps", "normalize_cc_runtime_extra_deps")
-load(":coco.bzl", "FILE_NAME_MANGLER_STYLES", "component_styles", "compute_output_paths", "mangle_name", "module_path_for", "package_relative_dir")
+load(":coco.bzl", "FILE_NAME_MANGLER_STYLES", "component_styles", "compute_output_paths", "mangle_name", "missing_popili_message", "module_path_for", "package_relative_dir")
 load(":common_repositories.bzl", "download_prefix", "find_local_license_path")
 load(":known_shas.bzl", "FILE_KEY_TO_SHA")
 load(":platforms.bzl", "COCO_TOOLCHAIN_PLATFORMS", "archive_platform", "host_platform", "platform_binary_ext")
@@ -939,6 +939,140 @@ def _host_platform_test(ctx):
 
 host_platform_test = unittest.make(_host_platform_test)
 
+# Tests for missing_popili_message
+
+_FLAG_SOURCE = "set by --@rules_coco//:version"
+_DEFAULT_SOURCE = "the default"
+_REGISTRY = struct(versions = ["1.5.0", "1.5.1"], has_local = False, host = ("osx", "aarch64"))
+_REGISTRY_WITH_LOCAL = struct(versions = ["1.5.0", "1.5.1", "local"], has_local = True, host = ("osx", "aarch64"))
+_REGISTRY_LOCAL_ONLY = struct(versions = ["local"], has_local = True, host = ("linux", "x86_64"))
+
+def _assert_mentions(env, message, fragments, absent = []):
+    for fragment in fragments:
+        asserts.true(env, fragment in message, "expected %r in message: %s" % (fragment, message))
+    for fragment in absent:
+        asserts.false(env, fragment in message, "did not expect %r in message: %s" % (fragment, message))
+
+def _missing_popili_unregistered_version_test(ctx):
+    """A version nobody registered: lists the registered versions, the default and how to register more."""
+    env = unittest.begin(ctx)
+    message = missing_popili_message("//a:gen", "1.99.0", _FLAG_SOURCE, _REGISTRY)
+    _assert_mentions(
+        env,
+        message,
+        [
+            "//a:gen needs popili 1.99.0 (set by --@rules_coco//:version)",
+            "no registered Coco toolchain provides it",
+            "Registered popili versions: 1.5.0 (the default), 1.5.1.",
+            "coco.toolchain(versions = [...])",
+            "coco_repositories(versions = [...])",
+            "bring-your-own coco_toolchain",
+            "target_settings",
+        ],
+        absent = ["execution platform"],
+    )
+    return unittest.end(env)
+
+def _missing_popili_local_unregistered_test(ctx):
+    """`local` without a local toolchain: says how to register one."""
+    env = unittest.begin(ctx)
+    message = missing_popili_message("//a:gen", "local", _FLAG_SOURCE, _REGISTRY)
+    _assert_mentions(
+        env,
+        message,
+        [
+            "//a:gen needs the local popili (set by --@rules_coco//:version)",
+            "no local Coco toolchain is registered",
+            "Registered popili versions: 1.5.0 (the default), 1.5.1.",
+            "coco.local_toolchain(popili = ...)",
+            "coco_local_repositories(path = ...)",
+            "coco_repositories(local_popili = ...)",
+        ],
+        absent = ["target_settings", "execution platform"],
+    )
+    return unittest.end(env)
+
+def _missing_popili_no_execution_platform_test(ctx):
+    """A registered version with no popili for any execution platform: names the published platforms."""
+    env = unittest.begin(ctx)
+    message = missing_popili_message("//a:gen", "1.5.1", _FLAG_SOURCE, _REGISTRY)
+    _assert_mentions(
+        env,
+        message,
+        [
+            "//a:gen needs popili 1.5.1 (set by --@rules_coco//:version), which is registered",
+            "none of the registered execution platforms can run it",
+            "--extra_execution_platforms",
+            "Registered popili versions: 1.5.0 (the default), 1.5.1.",
+        ] + ["%s/%s" % platform for platform in COCO_TOOLCHAIN_PLATFORMS],
+        absent = ["target_settings", "coco.toolchain(versions"],
+    )
+
+    # The default is worded as the version it stands for.
+    message = missing_popili_message("//a:gen", "", _DEFAULT_SOURCE, _REGISTRY)
+    _assert_mentions(env, message, ["//a:gen needs popili 1.5.0 (the default), which is registered"])
+    return unittest.end(env)
+
+def _missing_popili_local_off_host_test(ctx):
+    """`local` is registered but only for the host, which is not an execution platform."""
+    env = unittest.begin(ctx)
+    message = missing_popili_message("//a:gen", "local", _FLAG_SOURCE, _REGISTRY_WITH_LOCAL)
+    _assert_mentions(
+        env,
+        message,
+        [
+            "//a:gen needs the local popili (set by --@rules_coco//:version)",
+            "only runs on the host platform (osx/aarch64)",
+            "no registered execution platform is the host",
+            "--extra_execution_platforms=@platforms//host",
+            "Registered popili versions: 1.5.0 (the default), 1.5.1, local.",
+        ],
+        absent = ["no local Coco toolchain is registered", "coco.local_toolchain"],
+    )
+    return unittest.end(env)
+
+def _missing_popili_local_only_test(ctx):
+    """A local-only registration has no default, and `local` is never called the default."""
+    env = unittest.begin(ctx)
+    message = missing_popili_message("//a:gen", "", _DEFAULT_SOURCE, _REGISTRY_LOCAL_ONLY)
+    _assert_mentions(
+        env,
+        message,
+        [
+            "//a:gen needs the default popili version, but none is registered",
+            "--@rules_coco//:version=local",
+            "Registered popili versions: local.",
+            "coco.toolchain(versions = [...])",
+        ],
+        absent = ["(the default)"],
+    )
+
+    message = missing_popili_message("//a:gen", "1.5.0", _FLAG_SOURCE, _REGISTRY_LOCAL_ONLY)
+    _assert_mentions(
+        env,
+        message,
+        ["//a:gen needs popili 1.5.0 (set by --@rules_coco//:version), but no registered Coco toolchain provides it", "Registered popili versions: local."],
+        absent = ["(the default)"],
+    )
+    return unittest.end(env)
+
+def _missing_popili_empty_registry_test(ctx):
+    """Nothing registered at all still words a message rather than failing on an empty list."""
+    env = unittest.begin(ctx)
+    registry = struct(versions = [], has_local = False, host = ("linux", "x86_64"))
+    message = missing_popili_message("//a:gen", "", _DEFAULT_SOURCE, registry)
+    _assert_mentions(env, message, ["none is registered", "Registered popili versions: none."])
+    message = missing_popili_message("//a:gen", "1.5.0", _FLAG_SOURCE, registry)
+    _assert_mentions(env, message, ["no registered Coco toolchain provides it", "Registered popili versions: none."])
+    return unittest.end(env)
+
+missing_popili_unregistered_version_test = unittest.make(_missing_popili_unregistered_version_test)
+missing_popili_local_unregistered_test = unittest.make(_missing_popili_local_unregistered_test)
+missing_popili_no_execution_platform_test = unittest.make(_missing_popili_no_execution_platform_test)
+missing_popili_local_off_host_test = unittest.make(_missing_popili_local_off_host_test)
+missing_popili_local_only_test = unittest.make(_missing_popili_local_only_test)
+missing_popili_empty_registry_test = unittest.make(_missing_popili_empty_registry_test)
+
 # Tests for toolchain_hub_entries
 
 # A host popili is not published for, so that the local entry cannot be confused with a
@@ -1612,6 +1746,14 @@ def coco_test_suite(name):
 
         # host_platform tests
         host_platform_test,
+
+        # missing_popili_message tests
+        missing_popili_unregistered_version_test,
+        missing_popili_local_unregistered_test,
+        missing_popili_no_execution_platform_test,
+        missing_popili_local_off_host_test,
+        missing_popili_local_only_test,
+        missing_popili_empty_registry_test,
 
         # toolchain_hub_entries tests
         hub_entries_single_version_test,

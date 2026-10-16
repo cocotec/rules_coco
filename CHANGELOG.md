@@ -31,8 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `coco.toolchain` are unaffected and still get `stable` with both runtimes.
 - **Breaking:** the local toolchain registered by `coco_local_repositories()` in WORKSPACE mode is
   now selected by `--@rules_coco//:version=local` and is no longer active by default, matching the
-  bzlmod `coco.local_toolchain` tag. Builds that do not set the flag will report
-  `No matching toolchains found for @rules_coco//coco:toolchain_type`. Add
+  bzlmod `coco.local_toolchain` tag. Builds that do not set the flag fail with a message saying that
+  only the local Popili is registered and how to select it. Add
   `common --@rules_coco//:version=local` to your `.bazelrc`.
 - **Breaking:** the generated per-platform repositories are now version-mangled, matching bzlmod:
   `io_cocotec_coco_<os>_<arch>` became `io_cocotec_coco_<os>_<arch>__<version>`, and the local one
@@ -53,6 +53,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the exec platform and the runtime it provides is source, so the toolchain now resolves for any
   target platform, including when cross-compiling with `--platforms`. Before, bzlmod required the
   target platform to match the host; WORKSPACE mode never had the constraint.
+- A build whose configured Popili version has no matching toolchain now fails with a message that
+  names the target, the configured version and where it came from, the registered versions and the
+  default, and how to register more (`coco.toolchain(versions = [...])` /
+  `coco_repositories(versions = [...])`, or `coco.local_toolchain` / `coco_local_repositories` for
+  `local`), instead of Bazel's generic `No matching toolchains found for
+@rules_coco//coco:toolchain_type`. A registered version with no Popili for any execution platform
+  names the platforms Popili is published for.
 - `coco_generate` has a `cpp_component_style` attribute mirroring `generator.cpp.componentStyle`. Under
   `HideImplementation` popili writes a `<Module>_impl` header and implementation file for every module, and
   rules_coco now declares them as outputs, so such packages build instead of failing with missing outputs.

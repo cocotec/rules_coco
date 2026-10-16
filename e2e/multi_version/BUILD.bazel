@@ -6,6 +6,7 @@ load("@bazel_features//:features.bzl", "bazel_features")
 load("@rules_cc//cc:defs.bzl", "cc_toolchain")
 load("@rules_coco//coco:cc.bzl", "coco_cc_library")
 load("@rules_coco//coco:defs.bzl", "coco_fmt_test", "coco_generate", "coco_package", "coco_verify_test", "with_popili_version")
+load(":popili_diagnostics_test.bzl", "popili_diagnostics_tests")
 load(":popili_version_report.bzl", "popili_version_report")
 load(":stub_cc_toolchain.bzl", "stub_cc_toolchain_config")
 load(":test_platform_test.bzl", "test_platform_popili_test")
@@ -230,3 +231,23 @@ TESTS_FOLLOW_TARGET_PLATFORM = getattr(
     ]
     if TESTS_FOLLOW_TARGET_PLATFORM
 ]
+
+# An execution platform no popili is published for; see popili_diagnostics_test.bzl.
+platform(
+    name = "riscv64",
+    constraint_values = [
+        "@platforms//cpu:riscv64",
+        "@platforms//os:linux",
+    ],
+)
+
+popili_diagnostics_tests(
+    name = "popili_diagnostics",
+    targets = {
+        "cc_runtime": "@rules_coco//coco:cc_runtime",
+        "fmt_test": ":modern_fmt",
+        "generate": ":modern_cpp",
+        "package": ":modern",
+        "verify_test": ":modern_verify",
+    },
+)

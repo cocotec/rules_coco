@@ -14,9 +14,15 @@
 
 """Licensing rules and helpers for Coco."""
 
-load(":coco.bzl", "COCO_TOOLCHAIN_TYPE")
+load(":coco.bzl", "COCO_TOOLCHAIN", "COCO_TOOLCHAIN_TYPE")
 
 def _fetch_license_impl(ctx):
+    # Without a toolchain the consumer fails with require_popili's message, which failing here
+    # would pre-empt: Bazel reports a dependency's analysis error instead of the consumer's.
+    toolchain = ctx.toolchains[COCO_TOOLCHAIN_TYPE]
+    if toolchain == None:
+        return DefaultInfo(files = depset())
+
     # Create the wrapper script to invoke Coco. We try and avoid using bash on Windows.
     output = ctx.actions.declare_file("licenses.lic")
     arguments = [
@@ -30,9 +36,9 @@ def _fetch_license_impl(ctx):
     ]
 
     ctx.actions.run(
-        executable = ctx.toolchains[COCO_TOOLCHAIN_TYPE].cocotec_licensing_server,
+        executable = toolchain.cocotec_licensing_server,
         arguments = arguments,
-        tools = [ctx.toolchains[COCO_TOOLCHAIN_TYPE].cocotec_licensing_server],
+        tools = [toolchain.cocotec_licensing_server],
         mnemonic = "CocoFetchLicense",
         progress_message = "Acquiring Coco license",
         inputs = [ctx.file.auth_token],
@@ -49,9 +55,7 @@ _fetch_license = rule(
         "product": attr.string(),
     },
     implementation = _fetch_license_impl,
-    toolchains = [
-        COCO_TOOLCHAIN_TYPE,
-    ],
+    toolchains = [COCO_TOOLCHAIN],
 )
 
 def fetch_license(tags = [], **kwargs):
