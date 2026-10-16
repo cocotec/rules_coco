@@ -26,6 +26,7 @@ def coco_c_library(
         hdrs = [],
         deps = [],
         public_hdrs = None,
+        library_rule = None,
         **kwargs):
     """Creates a C library from Coco-generated C code.
 
@@ -49,7 +50,10 @@ def coco_c_library(
         hdrs: Additional C header files
         deps: Additional dependencies
         public_hdrs: List of generated header names to make public, or None for all
-        **kwargs: Additional arguments passed to cc_library
+        library_rule: The rule or macro that compiles the library, such as a wrapper of
+            cc_library adding your project's defaults. It is called with cc_library's
+            attributes. None means rules_cc's cc_library.
+        **kwargs: Additional arguments passed to library_rule
     """
     coco_library(
         name = name,
@@ -60,6 +64,7 @@ def coco_c_library(
         hdrs = hdrs,
         deps = deps,
         public_hdrs = public_hdrs,
+        library_rule = library_rule,
         **kwargs
     )
 
@@ -72,6 +77,7 @@ def coco_c_test_library(
         deps = [],
         public_hdrs = None,
         gmock = "@googletest//:gtest",
+        library_rule = None,
         **kwargs):
     """Creates a C test library from Coco-generated C test code.
 
@@ -94,7 +100,10 @@ def coco_c_test_library(
         public_hdrs: List of generated test header names to make public, or None for all
         gmock: The GoogleTest/GoogleMock library (default: @googletest//:gtest).
                Set to None to omit.
-        **kwargs: Additional arguments passed to cc_library
+        library_rule: The rule or macro that compiles the library, such as a wrapper of
+            cc_library adding your project's defaults. It is called with cc_library's
+            attributes. None means rules_cc's cc_library.
+        **kwargs: Additional arguments passed to library_rule
     """
     coco_test_library(
         name = name,
@@ -106,5 +115,6 @@ def coco_c_test_library(
         deps = deps,
         public_hdrs = public_hdrs,
         gmock = gmock,
+        library_rule = library_rule,
         **kwargs
     )

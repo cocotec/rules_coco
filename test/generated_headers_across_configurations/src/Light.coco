@@ -1,0 +1,13 @@
+enum Brightness {
+  case OFF
+  case DIM
+  case FULL
+}
+
+port Light {
+  function set(brightness : Brightness) : Nil
+
+  machine {
+    set(_) = nil
+  }
+}

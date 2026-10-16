@@ -23,7 +23,7 @@ load(
     "PATH_CASE_DEFAULTS",
 )
 load(":cc_runtime_deps.bzl", "collect_cc_runtime_extra_deps", "normalize_cc_runtime_extra_deps")
-load(":coco.bzl", "FILE_NAME_MANGLER_STYLES", "compute_output_paths", "mangle_name", "module_path_for", "package_relative_dir")
+load(":coco.bzl", "FILE_NAME_MANGLER_STYLES", "compute_output_paths", "mangle_name", "module_path_for", "workspace_dirname")
 load(":common_repositories.bzl", "coco_download", "download_prefix", "find_local_license_path")
 load(":known_shas.bzl", "FILE_KEY_TO_SHA")
 load(":platforms.bzl", "COCO_TOOLCHAIN_PLATFORMS", "archive_platform", "platform_binary_ext")
@@ -321,23 +321,22 @@ def _module_path_for_test_impl(ctx):
 
     return unittest.end(env)
 
-def _package_relative_dir_test_impl(ctx):
+module_path_for_test = unittest.make(_module_path_for_test_impl)
+
+def _workspace_dirname_test_impl(ctx):
     env = unittest.begin(ctx)
 
-    # Coco.toml beside the BUILD file: paths.relativize would return the path
-    # unchanged here, so this is the case the helper exists for.
-    asserts.equals(env, "", package_relative_dir("test/pkg", "test/pkg"))
+    # A file in the main repository, source or generated: short_path has no bin dir.
+    asserts.equals(env, "pkg/sub", workspace_dirname("pkg/sub/Coco.toml"))
+    asserts.equals(env, "", workspace_dirname("Coco.toml"))
 
-    # Coco.toml in a subdirectory of the BUILD file's package.
-    asserts.equals(env, "app", package_relative_dir("test/pkg/app", "test/pkg"))
-
-    # BUILD file at the repository root.
-    asserts.equals(env, "test/pkg", package_relative_dir("test/pkg", ""))
+    # A file in another repository: its path in that repository, without external/<repo>.
+    asserts.equals(env, "pkg", workspace_dirname("../coco_dep+/pkg/Coco.toml"))
+    asserts.equals(env, "", workspace_dirname("../coco_dep+/Coco.toml"))
 
     return unittest.end(env)
 
-module_path_for_test = unittest.make(_module_path_for_test_impl)
-package_relative_dir_test = unittest.make(_package_relative_dir_test_impl)
+workspace_dirname_test = unittest.make(_workspace_dirname_test_impl)
 
 # Tests for source_roots.bzl. Paths here are relative to the Coco.toml directory.
 
@@ -1629,7 +1628,7 @@ def coco_test_suite(name):
     unittest.suite(
         name + "_unit",
         module_path_for_test,
-        package_relative_dir_test,
+        workspace_dirname_test,
 
         # source_roots.bzl tests
         relative_path_test,

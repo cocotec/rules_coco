@@ -1,0 +1,24 @@
+# A coco package below the root of the "external" repository, generated to C++.
+
+load("@rules_coco//coco:cc.bzl", "coco_cc_library")
+load("@rules_coco//coco:defs.bzl", "coco_generate", "coco_package")
+
+coco_package(
+    name = "motor",
+    srcs = glob(["src/**/*.coco"]),
+    package = "Coco.toml",
+)
+
+coco_generate(
+    name = "motor_cpp",
+    language = "cpp",
+    package = ":motor",
+)
+
+coco_cc_library(
+    name = "motor_cc",
+    generated_package = ":motor_cpp",
+    # Maps to motor/, the package's path in this repository, below the generate's include root.
+    includes = ["."],
+    visibility = ["//visibility:public"],
+)

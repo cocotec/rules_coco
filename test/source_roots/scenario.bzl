@@ -37,7 +37,8 @@ def _generate_flags_test_impl(ctx):
     if len(actions) != 1:
         return analysistest.end(env)
     argv = actions[0].argv
-    output = ctx.bin_dir.path + "/" + ctx.attr.include_prefix
+    target = analysistest.target_under_test(env).label
+    output = "/".join([ctx.bin_dir.path, target.package, "_coco", target.name, ctx.attr.include_prefix])
     asserts.equals(env, output, _flag_value(argv, "--output"), "--output")
     asserts.equals(env, output, _flag_value(argv, "--test-output"), "--test-output")
     asserts.equals(env, ctx.attr.include_prefix, _flag_value(argv, "--include-prefix"), "--include-prefix")
@@ -46,7 +47,7 @@ def _generate_flags_test_impl(ctx):
 generate_flags_test = analysistest.make(
     _generate_flags_test_impl,
     attrs = {
-        "include_prefix": attr.string(mandatory = True, doc = "Expected --include-prefix; --output and --test-output are below the bin directory."),
+        "include_prefix": attr.string(mandatory = True, doc = "Expected --include-prefix; --output and --test-output are below the generate's include root."),
     },
 )
 

@@ -27,6 +27,7 @@ def coco_library(
         hdrs = [],
         deps = [],
         public_hdrs = None,
+        library_rule = None,
         **kwargs):
     """Creates a C/C++ library from Coco-generated code.
 
@@ -41,7 +42,9 @@ def coco_library(
         public_hdrs: List of generated header names to make public, or None for all.
                         Use bare filenames (e.g., 'ISensor.h') to match by name, or
                         path suffixes (e.g., 'sensors/ISensor.h') to disambiguate.
-        **kwargs: Additional arguments passed to cc_library
+        library_rule: The rule or macro that compiles the library, called with cc_library's
+                      attributes. None means rules_cc's cc_library.
+        **kwargs: Additional arguments passed to library_rule
     """
     if generated_package and generated_packages:
         fail("Cannot specify both generated_package and generated_packages")
@@ -53,13 +56,14 @@ def coco_library(
         _coco_cc_gen(
             name = gen_name,
             package = pkg,
+            includes = kwargs.get("includes", []),
             all_hdrs_public = (public_hdrs == None),
             public_hdrs = public_hdrs if public_hdrs != None else [],
             **companion_attrs(kwargs, extra_tags = ["manual"])
         )
         gen_targets.append(gen_name)
 
-    cc_library(
+    (library_rule or cc_library)(
         name = name,
         srcs = srcs + gen_targets,
         hdrs = hdrs,
@@ -77,6 +81,7 @@ def coco_test_library(
         deps = [],
         public_hdrs = None,
         gmock = "@googletest//:gtest",
+        library_rule = None,
         **kwargs):
     """Creates a C/C++ test library from Coco-generated test code.
 
@@ -93,7 +98,9 @@ def coco_test_library(
                         path suffixes (e.g., 'runnable/RunnableMock.h') to disambiguate.
         gmock: The GoogleTest/GoogleMock library to use (default: @googletest//:gtest).
                Set to None to omit gmock dependency.
-        **kwargs: Additional arguments passed to cc_library
+        library_rule: The rule or macro that compiles the library, called with cc_library's
+                      attributes. None means rules_cc's cc_library.
+        **kwargs: Additional arguments passed to library_rule
     """
     if generated_package and generated_packages:
         fail("Cannot specify both generated_package and generated_packages")
@@ -105,6 +112,7 @@ def coco_test_library(
         _coco_cc_gen(
             name = gen_name,
             package = pkg,
+            includes = kwargs.get("includes", []),
             use_test_outputs = True,
             all_hdrs_public = (public_hdrs == None),
             public_hdrs = public_hdrs if public_hdrs != None else [],
@@ -114,7 +122,7 @@ def coco_test_library(
 
     gmock_deps = [gmock] if gmock else []
 
-    cc_library(
+    (library_rule or cc_library)(
         name = name,
         srcs = srcs + gen_targets,
         hdrs = hdrs,
