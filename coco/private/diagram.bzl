@@ -391,8 +391,8 @@ def coco_counterexample_diagram(
         draw_title: Draw border and title on diagrams (default: True)
         deterministic: Ensure reproducible output (default: True)
         popili_version: The registered popili version to run, for this target and the package
-          beneath it (e.g. "1.5.1" or "stable"); wins over --@rules_coco//:version. Empty for the
-          version that flag selects.
+          beneath it (e.g. "1.5.1" or "stable"); wins over --@rules_coco//:version unless
+          --@rules_coco//:force_version is set. Empty for the version that flag selects.
         **kwargs: Additional Bazel arguments (e.g., visibility, tags)
     """
     if not counterexamples:

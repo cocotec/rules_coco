@@ -28,5 +28,7 @@ test_platform_popili_test = analysistest.make(
         "//command_line_option:extra_execution_platforms": [str(Label("@platforms//host")), str(Label("//:linux_aarch64"))],
         "//command_line_option:extra_toolchains": [str(Label("//:linux_aarch64_stub_cc_toolchain"))],
         "//command_line_option:platforms": str(Label("//:linux_aarch64")),
+        str(Label("@rules_coco//:version")): "",
+        str(Label("@rules_coco//:force_version")): False,
     },
 )

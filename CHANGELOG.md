@@ -45,6 +45,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   targets it builds from, but not to its `deps` or `gmock`. The runtime's extra deps (from
   `cc_runtime_deps`) are built where unpinned targets are, so they are built once however many
   versions are pinned, and a binary that also links them directly gets one copy.
+- `--@rules_coco//:force_version` makes `--@rules_coco//:version` (or the default when it is unset)
+  apply to every target, ignoring every `popili_version` pin, to try a Popili version on a whole
+  repository without editing BUILD files.
 
 ### Changed
 
