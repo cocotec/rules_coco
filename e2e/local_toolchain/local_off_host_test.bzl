@@ -19,7 +19,7 @@ _FOREIGN_CC_TOOLCHAIN = str(Label("@rules_coco//test/popili_diagnostics:riscv64_
 
 def _impl(ctx):
     env = analysistest.begin(ctx)
-    asserts.expect_failure(env, "needs the local popili (set by --@rules_coco//:version), but it only runs on the host and no registered execution platform is the host.")
+    asserts.expect_failure(env, "needs the local popili (set by --@rules_coco//:version or a popili_version pin above it), but it only runs on the host and no registered execution platform is the host.")
     asserts.expect_failure(env, "no registered execution platform is the host")
     asserts.expect_failure(env, "Registered popili versions: ")
     asserts.expect_failure(env, "local.")
@@ -27,7 +27,7 @@ def _impl(ctx):
 
 def _test_off_target_platform_impl(ctx):
     env = analysistest.begin(ctx)
-    asserts.expect_failure(env, "needs the local popili (set by --@rules_coco//:version), which only runs on the host, but Bazel runs a test")
+    asserts.expect_failure(env, "needs the local popili (set by --@rules_coco//:version or a popili_version pin above it), which only runs on the host, but Bazel runs a test")
     asserts.expect_failure(env, "matching the test's target platform (%s)" % _FOREIGN)
     asserts.expect_failure(env, "no registered execution platform both matches it and is the host")
     return analysistest.end(env)

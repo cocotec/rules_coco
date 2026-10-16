@@ -23,7 +23,7 @@ load(
     "PATH_CASE_DEFAULTS",
 )
 load(":cc_runtime_deps.bzl", "collect_cc_runtime_extra_deps", "normalize_cc_runtime_extra_deps")
-load(":coco.bzl", "FILE_NAME_MANGLER_STYLES", "compute_output_paths", "header_matches", "mangle_name", "missing_popili_message", "module_path_for")
+load(":coco.bzl", "FILE_NAME_MANGLER_STYLES", "compute_output_paths", "effective_version", "header_matches", "mangle_name", "missing_popili_message", "module_path_for", "pin_transition_settings")
 load(":common_repositories.bzl", "coco_download", "download_prefix", "find_local_license_paths", "is_license_file_name")
 load(":known_shas.bzl", "FILE_KEY_TO_SHA")
 load(":license_versions.bzl", "LICENSE_PROTOCOL_VERSIONS")
@@ -40,6 +40,7 @@ load(":toolchain_repositories.bzl", "BUILD_for_coco_toolchain", "coco_toolchain_
 load(":version_aliases.bzl", "VERSION_ALIASES")
 load(
     ":version_resolution.bzl",
+    "VERSION_FLAG",
     "license_protocol_version",
     "resolve_version_alias",
     "version_key",
@@ -1283,8 +1284,6 @@ resolve_versions_suffix_collision_rejected_test = unittest.make(_resolve_version
 
 # Tests for missing_popili_message
 
-_FLAG_SOURCE = "set by --@rules_coco//:version"
-_DEFAULT_SOURCE = "the default"
 _REGISTRY = struct(versions = ["1.5.0", "1.5.1"])
 _REGISTRY_WITH_LOCAL = struct(versions = ["1.5.0", "1.5.1", "local"])
 _REGISTRY_LOCAL_ONLY = struct(versions = ["local"])
@@ -1298,12 +1297,12 @@ def _assert_mentions(env, message, fragments, absent = []):
 def _missing_popili_unregistered_version_test(ctx):
     """A version nobody registered: lists the registered versions, the default and how to register more."""
     env = unittest.begin(ctx)
-    message = missing_popili_message("//a:gen", "1.99.0", _FLAG_SOURCE, _REGISTRY)
+    message = missing_popili_message("//a:gen", "1.99.0", _REGISTRY)
     _assert_mentions(
         env,
         message,
         [
-            "//a:gen needs popili 1.99.0 (set by --@rules_coco//:version)",
+            "//a:gen needs popili 1.99.0 (set by --@rules_coco//:version or a popili_version pin above it)",
             "no registered Coco toolchain provides it",
             "Registered popili versions: 1.5.0 (the default), 1.5.1.",
             "coco.toolchain(versions = [...])",
@@ -1318,12 +1317,12 @@ def _missing_popili_unregistered_version_test(ctx):
 def _missing_popili_local_unregistered_test(ctx):
     """`local` without a local toolchain: says how to register one."""
     env = unittest.begin(ctx)
-    message = missing_popili_message("//a:gen", "local", _FLAG_SOURCE, _REGISTRY)
+    message = missing_popili_message("//a:gen", "local", _REGISTRY)
     _assert_mentions(
         env,
         message,
         [
-            "//a:gen needs the local popili (set by --@rules_coco//:version)",
+            "//a:gen needs the local popili (set by --@rules_coco//:version or a popili_version pin above it)",
             "no local Coco toolchain is registered",
             "Registered popili versions: 1.5.0 (the default), 1.5.1.",
             "coco.local_toolchain(popili = ...)",
@@ -1337,12 +1336,12 @@ def _missing_popili_local_unregistered_test(ctx):
 def _missing_popili_no_execution_platform_test(ctx):
     """A registered version with no popili for any execution platform: says to register one popili is available for."""
     env = unittest.begin(ctx)
-    message = missing_popili_message("//a:gen", "1.5.1", _FLAG_SOURCE, _REGISTRY)
+    message = missing_popili_message("//a:gen", "1.5.1", _REGISTRY)
     _assert_mentions(
         env,
         message,
         [
-            "//a:gen needs popili 1.5.1 (set by --@rules_coco//:version), which is registered",
+            "//a:gen needs popili 1.5.1 (set by --@rules_coco//:version or a popili_version pin above it), which is registered",
             "none of the registered execution platforms can run it",
             "Register an execution platform popili is available for (--extra_execution_platforms)",
             "Registered popili versions: 1.5.0 (the default), 1.5.1.",
@@ -1351,19 +1350,19 @@ def _missing_popili_no_execution_platform_test(ctx):
     )
 
     # The default is worded as the version it stands for.
-    message = missing_popili_message("//a:gen", "", _DEFAULT_SOURCE, _REGISTRY)
+    message = missing_popili_message("//a:gen", "", _REGISTRY)
     _assert_mentions(env, message, ["//a:gen needs popili 1.5.0 (the default), which is registered"])
     return unittest.end(env)
 
 def _missing_popili_local_off_host_test(ctx):
     """`local` is registered but only for the host, which is not an execution platform."""
     env = unittest.begin(ctx)
-    message = missing_popili_message("//a:gen", "local", _FLAG_SOURCE, _REGISTRY_WITH_LOCAL)
+    message = missing_popili_message("//a:gen", "local", _REGISTRY_WITH_LOCAL)
     _assert_mentions(
         env,
         message,
         [
-            "//a:gen needs the local popili (set by --@rules_coco//:version)",
+            "//a:gen needs the local popili (set by --@rules_coco//:version or a popili_version pin above it)",
             "only runs on the host and no registered execution platform is the host",
             "--extra_execution_platforms=@platforms//host",
             "Registered popili versions: 1.5.0 (the default), 1.5.1, local.",
@@ -1375,7 +1374,7 @@ def _missing_popili_local_off_host_test(ctx):
 def _missing_popili_local_only_test(ctx):
     """A local-only registration has no default, and `local` is never called the default."""
     env = unittest.begin(ctx)
-    message = missing_popili_message("//a:gen", "", _DEFAULT_SOURCE, _REGISTRY_LOCAL_ONLY)
+    message = missing_popili_message("//a:gen", "", _REGISTRY_LOCAL_ONLY)
     _assert_mentions(
         env,
         message,
@@ -1388,11 +1387,11 @@ def _missing_popili_local_only_test(ctx):
         absent = ["(the default)"],
     )
 
-    message = missing_popili_message("//a:gen", "1.5.0", _FLAG_SOURCE, _REGISTRY_LOCAL_ONLY)
+    message = missing_popili_message("//a:gen", "1.5.0", _REGISTRY_LOCAL_ONLY)
     _assert_mentions(
         env,
         message,
-        ["//a:gen needs popili 1.5.0 (set by --@rules_coco//:version), but no registered Coco toolchain provides it", "Registered popili versions: local."],
+        ["//a:gen needs popili 1.5.0 (set by --@rules_coco//:version or a popili_version pin above it), but no registered Coco toolchain provides it", "Registered popili versions: local."],
         absent = ["(the default)"],
     )
     return unittest.end(env)
@@ -1401,9 +1400,9 @@ def _missing_popili_empty_registry_test(ctx):
     """Nothing registered at all still words a message rather than failing on an empty list."""
     env = unittest.begin(ctx)
     registry = struct(versions = [])
-    message = missing_popili_message("//a:gen", "", _DEFAULT_SOURCE, registry)
+    message = missing_popili_message("//a:gen", "", registry)
     _assert_mentions(env, message, ["none is registered", "Registered popili versions: none."])
-    message = missing_popili_message("//a:gen", "1.5.0", _FLAG_SOURCE, registry)
+    message = missing_popili_message("//a:gen", "1.5.0", registry)
     _assert_mentions(env, message, ["no registered Coco toolchain provides it", "Registered popili versions: none."])
     return unittest.end(env)
 
@@ -1412,12 +1411,12 @@ def _missing_popili_alias_test(ctx):
     env = unittest.begin(ctx)
     stable = VERSION_ALIASES["stable"]
     registry = struct(versions = [stable])
-    message = missing_popili_message("//a:gen", "stable", _FLAG_SOURCE, registry)
+    message = missing_popili_message("//a:gen", "stable", registry)
     _assert_mentions(
         env,
         message,
         [
-            "//a:gen needs popili stable (set by --@rules_coco//:version), but stable is an alias",
+            "//a:gen needs popili stable (set by --@rules_coco//:version or a popili_version pin above it), but stable is an alias",
             "set it to %s" % stable,
             "Registered popili versions: %s (the default)." % stable,
         ],
@@ -1425,19 +1424,34 @@ def _missing_popili_alias_test(ctx):
     )
 
     # When the version it stands for is not registered either, say how to register it.
-    message = missing_popili_message("//a:gen", "stable", _FLAG_SOURCE, _REGISTRY)
+    message = missing_popili_message("//a:gen", "stable", _REGISTRY)
     _assert_mentions(env, message, ["set it to %s" % stable, "Register %s with coco.toolchain(versions = [...])" % stable])
+    return unittest.end(env)
+
+def _missing_popili_pinned_version_test(ctx):
+    """A pin names the attribute as the source, and an alias pin is named as written."""
+    env = unittest.begin(ctx)
+    message = missing_popili_message("//a:gen", "1.99.0", _REGISTRY, pin = "1.99.0")
+    _assert_mentions(
+        env,
+        message,
+        ["//a:gen needs popili 1.99.0 (pinned by popili_version), but no registered Coco toolchain provides it"],
+        absent = ["--@rules_coco//:version"],
+    )
+    stable = resolve_version_alias("stable")
+    message = missing_popili_message("//a:gen", stable, _REGISTRY, pin = "stable")
+    _assert_mentions(env, message, ["//a:gen needs popili %s (pinned by popili_version = \"stable\"), but no registered" % stable])
     return unittest.end(env)
 
 def _missing_popili_test_platform_test(ctx):
     """A test whose target platform no popili-capable execution platform matches says so."""
     env = unittest.begin(ctx)
-    message = missing_popili_message("//a:verify", "1.5.1", _FLAG_SOURCE, _REGISTRY, "//p:riscv64")
+    message = missing_popili_message("//a:verify", "1.5.1", _REGISTRY, test_target_platform = "//p:riscv64")
     _assert_mentions(
         env,
         message,
         [
-            "//a:verify needs popili 1.5.1 (set by --@rules_coco//:version), which is registered",
+            "//a:verify needs popili 1.5.1 (set by --@rules_coco//:version or a popili_version pin above it), which is registered",
             "matching the test's target platform (//p:riscv64)",
             "no registered execution platform both matches it and can run popili",
             "Build the test for a platform popili is available for",
@@ -1446,12 +1460,12 @@ def _missing_popili_test_platform_test(ctx):
         absent = ["none of the registered execution platforms can run it"],
     )
 
-    message = missing_popili_message("//a:verify", "local", _FLAG_SOURCE, _REGISTRY_WITH_LOCAL, "//p:rbe")
+    message = missing_popili_message("//a:verify", "local", _REGISTRY_WITH_LOCAL, test_target_platform = "//p:rbe")
     _assert_mentions(
         env,
         message,
         [
-            "//a:verify needs the local popili (set by --@rules_coco//:version), which only runs on the host,",
+            "//a:verify needs the local popili (set by --@rules_coco//:version or a popili_version pin above it), which only runs on the host,",
             "matching the test's target platform (//p:rbe)",
             "no registered execution platform both matches it and is the host",
             "--platforms=@platforms//host",
@@ -1461,13 +1475,14 @@ def _missing_popili_test_platform_test(ctx):
     )
 
     # The test's platform matters only once the version is known to be registered.
-    message = missing_popili_message("//a:verify", "1.99.0", _FLAG_SOURCE, _REGISTRY, "//p:riscv64")
+    message = missing_popili_message("//a:verify", "1.99.0", _REGISTRY, test_target_platform = "//p:riscv64")
     _assert_mentions(env, message, ["no registered Coco toolchain provides it"], absent = ["target platform"])
-    message = missing_popili_message("//a:verify", "local", _FLAG_SOURCE, _REGISTRY, "//p:riscv64")
+    message = missing_popili_message("//a:verify", "local", _REGISTRY, test_target_platform = "//p:riscv64")
     _assert_mentions(env, message, ["no local Coco toolchain is registered"], absent = ["target platform"])
     return unittest.end(env)
 
 missing_popili_unregistered_version_test = unittest.make(_missing_popili_unregistered_version_test)
+missing_popili_pinned_version_test = unittest.make(_missing_popili_pinned_version_test)
 missing_popili_local_unregistered_test = unittest.make(_missing_popili_local_unregistered_test)
 missing_popili_no_execution_platform_test = unittest.make(_missing_popili_no_execution_platform_test)
 missing_popili_local_off_host_test = unittest.make(_missing_popili_local_off_host_test)
@@ -1475,6 +1490,74 @@ missing_popili_local_only_test = unittest.make(_missing_popili_local_only_test)
 missing_popili_empty_registry_test = unittest.make(_missing_popili_empty_registry_test)
 missing_popili_alias_test = unittest.make(_missing_popili_alias_test)
 missing_popili_test_platform_test = unittest.make(_missing_popili_test_platform_test)
+
+# Tests for effective_version and pin_transition_settings
+
+def _effective_version_test(ctx):
+    """The flag when set, else the first registered version unless it is local, else nothing."""
+    env = unittest.begin(ctx)
+    asserts.equals(env, "1.5.1", effective_version("1.5.1", ["1.5.0", "1.5.1"]))
+    asserts.equals(env, "local", effective_version("local", ["1.5.0", "local"]))
+    asserts.equals(env, "1.5.0", effective_version("", ["1.5.0", "1.5.1"]))
+    asserts.equals(env, "1.5.0", effective_version("", ["1.5.0", "local"]))
+    asserts.equals(env, "", effective_version("", ["local"]))
+    asserts.equals(env, "", effective_version("", []))
+    return unittest.end(env)
+
+_REGISTERED = ["1.5.0", "1.5.1"]
+
+def _pin_transition_settings_unpinned_test(ctx):
+    """Without a pin the transition is a no-op, whatever the flag says, even an alias."""
+    env = unittest.begin(ctx)
+    asserts.equals(env, {}, pin_transition_settings("", "", _REGISTERED))
+    asserts.equals(env, {}, pin_transition_settings("", "1.5.1", _REGISTERED))
+    asserts.equals(env, {}, pin_transition_settings("", "stable", _REGISTERED))
+    return unittest.end(env)
+
+def _pin_transition_settings_pinned_test(ctx):
+    """A pin sets the version flag, over the default and over a flag naming another version."""
+    env = unittest.begin(ctx)
+    pinned = {VERSION_FLAG: "1.5.1"}
+    asserts.equals(env, pinned, pin_transition_settings("1.5.1", "", _REGISTERED))
+    asserts.equals(env, pinned, pin_transition_settings("1.5.1", "1.5.0", _REGISTERED))
+    asserts.equals(env, pinned, pin_transition_settings("1.5.1", "local", _REGISTERED + ["local"]))
+    return unittest.end(env)
+
+def _pin_transition_settings_alias_test(ctx):
+    """Aliases in a pin are resolved, so the flag never carries one; an alias on the flag is not."""
+    env = unittest.begin(ctx)
+    stable = resolve_version_alias("stable")
+    asserts.equals(env, {VERSION_FLAG: stable}, pin_transition_settings("stable", "", _REGISTERED))
+    asserts.equals(env, {VERSION_FLAG: stable}, pin_transition_settings("stable", "stable", [stable]))
+    asserts.equals(env, {}, pin_transition_settings("stable", "", [stable]))
+    return unittest.end(env)
+
+def _pin_transition_settings_already_pinned_test(ctx):
+    """A pin equal to the incoming flag changes nothing, so the configuration is shared."""
+    env = unittest.begin(ctx)
+    asserts.equals(env, {}, pin_transition_settings("1.5.1", "1.5.1", _REGISTERED))
+    asserts.equals(env, {}, pin_transition_settings("stable", resolve_version_alias("stable"), _REGISTERED))
+    return unittest.end(env)
+
+def _pin_transition_settings_default_test(ctx):
+    """A pin to the default without a flag shares the configuration; with no default it sets the flag."""
+    env = unittest.begin(ctx)
+    asserts.equals(env, {}, pin_transition_settings("1.5.0", "", _REGISTERED))
+    pinned = {VERSION_FLAG: "1.5.0"}
+    asserts.equals(env, pinned, pin_transition_settings("1.5.0", "", []))
+    asserts.equals(env, pinned, pin_transition_settings("1.5.0", "", ["local", "1.5.0"]))
+
+    # local is never the default, so a pin to it always sets the flag unless the flag says local.
+    asserts.equals(env, {VERSION_FLAG: "local"}, pin_transition_settings("local", "", ["local"]))
+    asserts.equals(env, {}, pin_transition_settings("local", "local", ["local"]))
+    return unittest.end(env)
+
+effective_version_test = unittest.make(_effective_version_test)
+pin_transition_settings_unpinned_test = unittest.make(_pin_transition_settings_unpinned_test)
+pin_transition_settings_pinned_test = unittest.make(_pin_transition_settings_pinned_test)
+pin_transition_settings_alias_test = unittest.make(_pin_transition_settings_alias_test)
+pin_transition_settings_already_pinned_test = unittest.make(_pin_transition_settings_already_pinned_test)
+pin_transition_settings_default_test = unittest.make(_pin_transition_settings_default_test)
 
 # Tests for toolchain_hub_entries
 
@@ -2187,6 +2270,7 @@ def coco_test_suite(name):
 
         # missing_popili_message tests
         missing_popili_unregistered_version_test,
+        missing_popili_pinned_version_test,
         missing_popili_local_unregistered_test,
         missing_popili_no_execution_platform_test,
         missing_popili_local_off_host_test,
@@ -2194,6 +2278,14 @@ def coco_test_suite(name):
         missing_popili_empty_registry_test,
         missing_popili_alias_test,
         missing_popili_test_platform_test,
+
+        # effective_version and pin_transition_settings tests
+        effective_version_test,
+        pin_transition_settings_unpinned_test,
+        pin_transition_settings_pinned_test,
+        pin_transition_settings_alias_test,
+        pin_transition_settings_already_pinned_test,
+        pin_transition_settings_default_test,
 
         # toolchain_hub_entries tests
         hub_entries_single_version_test,

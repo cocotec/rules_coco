@@ -170,64 +170,77 @@ The `license_token` parameter is available in repository configuration for conve
 
 ### Popili Version
 
-There are several ways of setting the version of Popili that you would like to use.
+Register every Popili version you need; the first one is the default. In `MODULE.bazel`:
 
-1. In `WORKSPACE` or `MODULE.bazel` you can specify a single version in `versions = [...]`.
-2. If specifying several different versions in `WORKSPACE` or `MODULE.bazel` you can select your preferred one using
-   `bazel build --@rules_coco//:version=1.5.1`
-3. If you wish to use different versions of Popili by using transitions:
+```starlark
+coco = use_extension("@rules_coco//coco:extensions.bzl", "coco")
+coco.toolchain(
+    c = True,
+    cc = True,
+    versions = ["1.5.0", "1.5.1"],
+)
+```
 
-   In your `MODULE.bazel`:
+or, in `WORKSPACE`:
 
-   ```starlark
-   coco = use_extension("@rules_coco//coco:extensions.bzl", "coco")
-   coco.toolchain(
-       c = True,
-       cc = True,
-       versions = ["1.5.0", "1.5.1"],  # Register both versions
-   )
-   ```
+```starlark
+coco_repositories(
+    c = True,
+    cc = True,
+    versions = ["1.5.0", "1.5.1"],
+)
+```
 
-   or, in `WORKSPACE`:
+Then choose the version per target with `popili_version` on the rules that run Popili:
+`coco_generate`, `coco_verify_test`, `coco_fmt_test` (its `<name>.format` binary formats with the
+same version), `coco_architecture_diagram`, `coco_state_diagram` and `coco_counterexample_diagram`.
+A pin applies to that target and everything beneath it, so the `coco_package` it reads is analysed
+with the same version. Aliases such as `"stable"` are allowed.
 
-   ```starlark
-   coco_repositories(
-       c = True,
-       cc = True,
-       versions = ["1.5.0", "1.5.1"],  # Register both versions
-   )
-   ```
+```starlark
+coco_package(
+    name = "modern",
+    srcs = ["modern/src/Example.coco"],
+    package = "modern/Coco.toml",
+)
 
-   Then in your `BUILD.bazel`:
+coco_generate(
+    name = "modern_cpp",
+    language = "cpp",
+    package = ":modern",
+    popili_version = "1.5.1",
+)
 
-   ```starlark
-   coco_package(
-       name = "modern",
-       srcs = ["modern/src/Example.coco"],
-       package = "modern/Coco.toml",
-   )
+coco_cc_library(
+    name = "modern_cc",
+    generated_package = ":modern_cpp",
+)
 
-   # Wrap the target that RUNS popili, not just the package it reads.
-   coco_generate(
-       name = "modern_cpp_impl",
-       language = "cpp",
-       package = ":modern",
-   )
+coco_verify_test(
+    name = "modern_verify",
+    package = ":modern",
+    popili_version = "1.5.1",
+)
+```
 
-   with_popili_version(
-       name = "modern_cpp",
-       target = ":modern_cpp_impl",
-       version = "1.5.0",
-   )
-   ```
+`coco_cc_library` and `coco_c_library` take no pin: they do not run Popili, and the `coco_generate`
+they build from already carries one.
 
-   `with_popili_version` carries an _incoming_ transition: it applies to the target it wraps and
-   everything below it, not to whatever consumes it. So the rule that actually invokes popili —
-   `coco_generate`, `coco_verify_test`, `coco_fmt_test`, the diagram rules, or `coco_package` with
-   `typecheck = True` — must itself be the wrapped target. Wrapping only a plain `coco_package`
-   has no effect on the version used to verify or generate from it.
+Everything without a pin uses the default, or the version `--@rules_coco//:version` selects, for
+example `bazel build --@rules_coco//:version=1.5.1 //...`. The flag takes a concrete version (or
+`local`); aliases such as `stable` are for pins only. A pin always wins over the flag.
 
-   See `e2e/multi_version` for a full example, in both `MODULE.bazel` and `WORKSPACE` form.
+A pin equal to the version the build uses anyway (the flag, or the default when the flag is unset)
+costs nothing. A target pinned to any other version is built in a configuration of its own, so its
+outputs and test logs land under `bazel-out/<cpu>-fastbuild-ST-<hash>/` rather than in `bazel-bin`
+and `bazel-testlogs`. In CI, collect test results through the Build Event Protocol
+(`--build_event_json_file`) or from `bazel-out/*/testlogs/**/test.xml`.
+
+`with_popili_version` remains for targets that have no `popili_version` of their own, such as a
+custom rule that resolves the Coco toolchain: it builds the wrapped target and everything beneath
+it with the given version.
+
+See `e2e/multi_version` for a full example, in both `MODULE.bazel` and `WORKSPACE` form.
 
 ### Using a local toolchain
 

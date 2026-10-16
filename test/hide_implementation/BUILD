@@ -21,9 +21,11 @@ load("@rules_coco//coco:defs.bzl", "coco_generate", "coco_package", "with_popili
 # class template cannot be pimpl'd. Either way popili writes the same files as
 # under "Regular", so coco_generate needs no setting for it.
 #
-# The package uses standard 2026, which needs popili 1.6, so every target is
-# wrapped to use "testing"; the unwrapped ones are manual, as the default popili
-# rejects standard 2026. Drop the wrappers and manual tags once 1.6 is stable.
+# The package uses standard 2026, which needs popili 1.6, so the generate is
+# pinned to "testing". The package stays manual: built on its own it is
+# typechecked by the default popili, which rejects standard 2026. The libraries
+# are wrapped so that they link the "testing" runtime, and are manual unwrapped.
+# Drop the pins, wrappers and manual tags once 1.6 is stable.
 
 coco_package(
     name = "hide_implementation_test",
@@ -32,30 +34,18 @@ coco_package(
     tags = ["manual"],
 )
 
-with_popili_version(
-    name = "hide_implementation_test_testing",
-    target = ":hide_implementation_test",
-    version = "testing",
-)
-
 coco_generate(
     name = "hide_implementation_test_cpp",
     include_prefix = "hide_implementation",
     language = "cpp",
     mocks = True,
-    package = ":hide_implementation_test_testing",
-    tags = ["manual"],
-)
-
-with_popili_version(
-    name = "hide_implementation_test_cpp_testing",
-    target = ":hide_implementation_test_cpp",
-    version = "testing",
+    package = ":hide_implementation_test",
+    popili_version = "testing",
 )
 
 coco_cc_library(
     name = "hide_implementation_test_cc_impl",
-    generated_package = ":hide_implementation_test_cpp_testing",
+    generated_package = ":hide_implementation_test_cpp",
     tags = ["manual"],
 )
 
@@ -67,7 +57,7 @@ with_popili_version(
 
 coco_cc_test_library(
     name = "hide_implementation_test_cc_tst_impl",
-    generated_package = ":hide_implementation_test_cpp_testing",
+    generated_package = ":hide_implementation_test_cpp",
     tags = ["manual"],
     deps = [":hide_implementation_test_cc"],
 )

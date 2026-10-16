@@ -62,6 +62,7 @@ no_execution_platform_test = analysistest.make(
     _expect_message_impl,
     attrs = _ATTRS,
     config_settings = {
+        _VERSION_FLAG: "",
         "//command_line_option:extra_execution_platforms": [_RISCV64],
         "//command_line_option:host_platform": _RISCV64,
     },
@@ -110,7 +111,7 @@ def popili_diagnostics_tests(name, registered_versions, targets, test_targets = 
             size = "small",
             target_under_test = target,
             expected = [
-                "needs popili 1.99.0 (set by --@rules_coco//:version), but no registered Coco toolchain provides it.",
+                "needs popili 1.99.0 (set by --@rules_coco//:version or a popili_version pin above it), but no registered Coco toolchain provides it.",
                 registered,
                 "coco.toolchain(versions = [...])",
                 "target_settings",
@@ -121,7 +122,7 @@ def popili_diagnostics_tests(name, registered_versions, targets, test_targets = 
             size = "small",
             target_under_test = target,
             expected = [
-                "needs popili stable (set by --@rules_coco//:version), but stable is an alias",
+                "needs popili stable (set by --@rules_coco//:version or a popili_version pin above it), but stable is an alias",
                 "set it to ",
                 registered,
             ],
@@ -131,21 +132,18 @@ def popili_diagnostics_tests(name, registered_versions, targets, test_targets = 
             size = "small",
             target_under_test = target,
             expected = [
-                "needs the local popili (set by --@rules_coco//:version), but no local Coco toolchain is registered.",
+                "needs the local popili (set by --@rules_coco//:version or a popili_version pin above it), but no local Coco toolchain is registered.",
                 registered,
                 "coco.local_toolchain(popili = ...)",
             ],
         )
 
-        # The source of the version is not checked: a package under a with_popili_version wrapper
-        # fails first and sees the version the wrapper set, not the default.
         no_execution_platform_test(
             name = "%s_no_execution_platform_%s" % (name, consumer),
             size = "small",
             target_under_test = target,
             expected = [
-                "needs popili %s (" % default,
-                "), which is registered, but none of the registered execution platforms can run it.",
+                "needs popili %s (the default), which is registered, but none of the registered execution platforms can run it." % default,
                 registered,
             ],
         )
