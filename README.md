@@ -523,7 +523,8 @@ coco_generate(
 )
 ```
 
-This can then be compiled using `cc_library` like normal:
+This can then be compiled using `cc_library`, listing the generate in both `srcs` (the generated sources) and
+`deps` (the generated headers and the directory they are included from):
 
 ```starlark
 load("@rules_cc//cc:defs.bzl", "cc_library")
@@ -531,9 +532,16 @@ load("@rules_cc//cc:defs.bzl", "cc_library")
 cc_library(
     name = "my_package_cc",
     srcs = [":my_package_cc_src"],
-    deps = [""],
+    deps = [
+        ":my_package_cc_src",
+        "@rules_coco//coco:cc_runtime",
+    ],
 )
 ```
+
+The generated files are written below a directory of the `coco_generate`'s own
+(`bazel-bin/<package>/_coco/<name>/`), so include them by their path in the workspace, such as
+`#include "my/package/Foo.h"`, not by their path in `bazel-bin`.
 
 Alternatively these steps can be combined using `coco_cc_library`:
 
