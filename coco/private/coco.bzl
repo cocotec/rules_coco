@@ -112,6 +112,71 @@ TOOLCHAIN_ATTRIBUTES = {
     ),
 }
 
+POPILI_VERSION_ATTRIBUTES = {
+    "popili_version": attr.string(
+        doc = "The registered popili version this target and everything beneath it, including the " +
+              "coco_package it reads, run with: a version such as `\"1.5.1\"` or an alias such as " +
+              "`\"stable\"`. It wins over `--@rules_coco//:version`. Empty (the default) uses the version " +
+              "that flag selects, or the first registered version when the flag is unset too.",
+    ),
+}
+
+# What the hub registered, as a build setting so that transitions can read it.
+_REGISTERED_VERSIONS_SETTING = str(Label("@coco_toolchains//:registered_versions"))
+
+def _effective_version(version, registered_versions):
+    """The popili version a configuration effectively asks for.
+
+    Pure, so that other transitions, such as a package's self-pin, and the diagnostics that name
+    the default can share it.
+
+    Args:
+        version: The value of `--@rules_coco//:version` in the configuration.
+        registered_versions: The hub's registered versions in registration order.
+
+    Returns:
+        The flag when it is set, else the default (the first registered version unless that is
+        `local`, which is never the default), else "".
+    """
+    if version:
+        return version
+    if registered_versions and registered_versions[0] != LOCAL_VERSION:
+        return registered_versions[0]
+    return ""
+
+def _pin_transition_settings(pin, version, registered_versions):
+    """Decides what a popili-resolving rule's transition changes.
+
+    Args:
+        pin: The target's `popili_version`, "" when unpinned or the rule has none.
+        version: The value of `--@rules_coco//:version` in the incoming configuration.
+        registered_versions: The hub's registered versions in registration order.
+
+    Returns:
+        The dict the transition returns: `{}` without a pin or when the pin (aliases resolved)
+        is the version the incoming configuration effectively asks for, so the configuration and
+        its output paths are shared; else the version flag set to the resolved pin.
+    """
+    if not pin:
+        return {}
+    resolved = resolve_version_alias(pin)
+    if resolved == _effective_version(version, registered_versions):
+        return {}
+    return {VERSION_FLAG: resolved}
+
+def _popili_version_pin_impl(settings, attr):
+    return _pin_transition_settings(
+        getattr(attr, "popili_version", ""),
+        settings[VERSION_FLAG],
+        settings[_REGISTERED_VERSIONS_SETTING],
+    )
+
+popili_version_pin = transition(
+    implementation = _popili_version_pin_impl,
+    inputs = [VERSION_FLAG, _REGISTERED_VERSIONS_SETTING],
+    outputs = [VERSION_FLAG],
+)
+
 def _popili_version_transition_impl(_settings, attr):
     """Transition implementation for per-target popili version selection.
 
@@ -218,24 +283,36 @@ def _coco_toolchain(ctx):
         fail(_missing_toolchain_message(ctx))
     return toolchain
 
-def _configured_version(ctx):
-    """Returns the popili version this target's configuration asks for and where it came from.
+def _version_source(version, pin):
+    """Words where a target's configured popili version came from.
+
+    A pin on a target above reaches this target only through the flag it sets, so a target
+    without a pin of its own words a version it did not choose as set by the flag.
+
+    Args:
+        version: The value of `--@rules_coco//:version` in the target's configuration.
+        pin: The target's `popili_version`, "" when it has none.
 
     Returns:
-        A (version, source) pair: the value of `--@rules_coco//:version`, or "" for the default,
-        and a phrase for messages such as "set by --@rules_coco//:version" or "the default".
+        A phrase interpolated as "(%s)" in `_missing_popili_message`: "pinned by popili_version"
+        (naming the pin as written when it is an alias), "set by --@rules_coco//:version", or
+        "the default".
     """
-    version = ctx.attr._version[BuildSettingInfo].value
+    if pin:
+        if pin == version:
+            return "pinned by popili_version"
+        return "pinned by popili_version = %r" % pin
     if version:
-        return version, "set by --%s" % VERSION_FLAG
-    return "", "the default"
+        return "set by --%s" % VERSION_FLAG
+    return "the default"
 
 def _describe_registered_versions(registry):
     if not registry.versions:
         return "none"
+    default = _effective_version("", registry.versions)
     described = []
     for version in registry.versions:
-        if version == registry.versions[0] and version != LOCAL_VERSION:
+        if version == default:
             described.append("%s (the default)" % version)
         else:
             described.append(version)
@@ -252,7 +329,7 @@ _REGISTER_LOCAL_HINT = (
     "in MODULE.bazel or coco_local_repositories(path = ...) / coco_repositories(local_popili = ...) in WORKSPACE."
 )
 
-def _missing_popili_message(label, version, source, registry, test_target_platform = None):
+def _missing_popili_message(label, version, registry, pin = "", test_target_platform = None):
     """Words the failure of a rule whose Coco toolchain did not resolve.
 
     Decided after toolchain resolution, so it never second-guesses resolution: the registry is
@@ -260,15 +337,17 @@ def _missing_popili_message(label, version, source, registry, test_target_platfo
 
     Args:
         label: The failing target's label.
-        version: The configured version ("" for the default), as `_configured_version` returns it.
-        source: Where the version came from, as `_configured_version` phrases it.
+        version: The value of `--@rules_coco//:version` in the target's configuration, "" for
+            the default.
         registry: The hub's `CocoVersionRegistryInfo` (or any struct with its fields).
+        pin: The target's `popili_version`, "" when it has none.
         test_target_platform: For a test that lost popili to the execution platform Bazel runs
             tests on, its target platform, as `_test_target_platform` returns it; else None.
 
     Returns:
         The message to fail with.
     """
+    source = _version_source(version, pin)
     registered = "Registered popili versions: %s." % _describe_registered_versions(registry)
 
     if version == LOCAL_VERSION:
@@ -294,13 +373,13 @@ def _missing_popili_message(label, version, source, registry, test_target_platfo
         )
 
     if not version:
-        if not registry.versions or registry.versions[0] == LOCAL_VERSION:
+        version = _effective_version("", registry.versions)
+        if not version:
             return (
                 "%s needs the default popili version, but none is registered: the local popili never " % label +
                 "becomes the default and is selected only with --%s=%s. %s %s" %
                 (VERSION_FLAG, LOCAL_VERSION, registered, _register_versions_hint("a version"))
             )
-        version = registry.versions[0]
 
     # The hub's config_settings match version numbers only; transitions resolve aliases, the flag does not.
     resolved = resolve_version_alias(version)
@@ -357,9 +436,13 @@ def _missing_toolchain_message(ctx):
             "%s needs a Coco toolchain, but no toolchain of type %s resolved." %
             (ctx.label, COCO_TOOLCHAIN_TYPE_LABEL)
         )
-    version, source = _configured_version(ctx)
-    registry = ctx.attr._version_registry[CocoVersionRegistryInfo]
-    return _missing_popili_message(ctx.label, version, source, registry, _test_target_platform(ctx))
+    return _missing_popili_message(
+        ctx.label,
+        ctx.attr._version[BuildSettingInfo].value,
+        ctx.attr._version_registry[CocoVersionRegistryInfo],
+        getattr(ctx.attr, "popili_version", ""),
+        _test_target_platform(ctx),
+    )
 
 def _runtime_path(file, is_test):
     return file.short_path if is_test else file.path
@@ -865,7 +948,7 @@ def _coco_package_verify(ctx):
 
 _coco_verify_test = rule(
     implementation = _coco_package_verify,
-    attrs = dict(LICENSE_ATTRIBUTES.items() + TOOLCHAIN_ATTRIBUTES.items() + {
+    attrs = dict(LICENSE_ATTRIBUTES.items() + TOOLCHAIN_ATTRIBUTES.items() + POPILI_VERSION_ATTRIBUTES.items() + {
         "package": attr.label(
             providers = [CocoPackageInfo],
             mandatory = True,
@@ -873,6 +956,7 @@ _coco_verify_test = rule(
         ),
         "_verification_backend": attr.label(default = Label("//:verification_backend")),
     }.items()),
+    cfg = popili_version_pin,
     test = True,
     **COCO_TEST_RULE_ARGS
 )
@@ -1338,7 +1422,7 @@ def _include_prefix(ctx):
 
 _coco_generate = rule(
     implementation = _coco_package_generate_impl,
-    attrs = dict(LICENSE_ATTRIBUTES.items() + TOOLCHAIN_ATTRIBUTES.items() + {
+    attrs = dict(LICENSE_ATTRIBUTES.items() + TOOLCHAIN_ATTRIBUTES.items() + POPILI_VERSION_ATTRIBUTES.items() + {
         # C output path options
         "c_file_name_mangler": attr.string(
             default = "Unaltered",
@@ -1435,6 +1519,7 @@ _coco_generate = rule(
             doc = "The coco_package target containing the source files to generate from.",
         ),
     }.items()),
+    cfg = popili_version_pin,
     toolchains = [
         COCO_TOOLCHAIN_TYPE,
     ],
@@ -1596,6 +1681,7 @@ def _popili_version_alias_impl(ctx):
 _popili_version_alias = rule(
     attrs = dict(LICENSE_ATTRIBUTES.items() + TOOLCHAIN_ATTRIBUTES.items()),
     implementation = _popili_version_alias_impl,
+    cfg = popili_version_pin,
     toolchains = [COCO_TOOLCHAIN_TYPE],
 )
 
@@ -1625,5 +1711,7 @@ coco_cc_gen = _coco_cc_gen
 # Exported for testing
 mangle_name = _mangle_name
 missing_popili_message = _missing_popili_message
+pin_transition_settings = _pin_transition_settings
+effective_version = _effective_version
 compute_output_paths = _compute_output_paths
 module_path_for = _module_path_for
