@@ -8,12 +8,17 @@ and `WORKSPACE` mode.
 - Several popili versions can be registered at once, and each gets its own version-mangled
   repository (`io_cocotec_coco_<os>_<arch>__<version>`).
 - The first registered version is what an unset `--@rules_coco//:version` resolves to.
-- `--@rules_coco//:version=<v>` and the `with_popili_version` transition select another registered
-  version — in WORKSPACE mode as well as under bzlmod.
-- Code generation and `coco_cc_library` work against version-specific toolchains and runtimes.
+- `popili_version` on a rule that runs popili selects another registered version for that target
+  and the package beneath it, and wins over `--@rules_coco//:version`; an unpinned target follows
+  the flag. In WORKSPACE mode as well as under bzlmod.
+- `with_popili_version` still gives a version to a rule that has no `popili_version` of its own.
+- Code generation at a pinned version feeds a `coco_cc_library` and a `cc_test` in the default
+  configuration.
 - `coco_verify_test` and `coco_fmt_test` name the popili of the execution platform the test runs
   on (`test_platform_test.bzl`), checked with a foreign target platform and the host as the first
   execution platform. Bazel 9+ only: Bazel 8 does not tie tests to the target platform.
+- A build without a matching toolchain fails with rules_coco's own message
+  (`popili_diagnostics_test.bzl`).
 
 ## Structure
 
@@ -21,12 +26,14 @@ and `WORKSPACE` mode.
 e2e/multi_version/
 ├── MODULE.bazel               # Registers popili 1.5.0 and 1.5.1 (bzlmod)
 ├── WORKSPACE                  # Registers the same two versions (WORKSPACE mode)
-├── BUILD.bazel                # Version-selection assertions + per-version packages
+├── BUILD.bazel                # Per-version packages, pins and the assertions
+├── pinned_popili_test.bzl     # Analysis tests: which popili a pinned/unpinned target runs
 ├── popili_version_report.bzl  # Rule asserting which popili the toolchain resolves to
+├── popili_diagnostics_test.bzl# Analysis tests: the message when no toolchain matches
 ├── test_platform_test.bzl     # Analysis test: a test's wrapper names popili for the test's platform
-├── modern/                    # Package built against popili 1.5.0
-├── legacy/                    # Package built against popili 1.5.1
-└── flexible/                  # Package built against the default version
+├── modern/                    # Package pinned to popili 1.5.0
+├── legacy/                    # Package pinned to popili 1.5.1, linked into a cc_test
+└── flexible/                  # Package left on the default version
 ```
 
 ## Running
@@ -40,8 +47,9 @@ bazel test --config=workspace //...     # needs Bazel 8.x; WORKSPACE is gone in 
 
 # Just the version-selection assertions (analysis only, no popili execution, no licence)
 bazel build --config=workspace --nobuild //:popili_is_150_by_default //:popili_is_151
+bazel test --config=workspace //:pinned_popili
 
-# Override the default version
+# Override the default version for everything unpinned
 bazel build --config=workspace --@rules_coco//:version=1.5.1 //:flexible_cpp
 ```
 
@@ -51,12 +59,14 @@ CI runs this scenario in both modes via the `e2e/*/` loop in
 
 ## How version selection is asserted
 
-`popili_version_report` resolves `@rules_coco//coco:toolchain_type` in its own configuration and
-fails at analysis time unless the resolved popili lives in the expected version's repository. That
-is a direct assertion on toolchain resolution: it needs no licence, no network and no popili
-execution, and reads identically in both modes.
+`pinned_popili_test.bzl` reads the popili a target would run off its action (the run action's
+executable, or a test's wrapper script) and checks the version-mangled repository name, with and
+without `--@rules_coco//:version=1.5.1` on the command line. That is a direct assertion on
+toolchain resolution in the real rules: it needs no licence, no network and no popili execution,
+and reads identically in both modes.
 
-Two cases are covered:
+`popili_version_report` does the same for a rule that resolves the toolchain itself, and also
+checks the toolchain's `version` field:
 
 - `popili_is_150_by_default` — unwrapped, so it must resolve 1.5.0, the first registered version.
 - `popili_is_151` — wrapped in `with_popili_version(version = "1.5.1")`, so it must resolve 1.5.1.
@@ -66,16 +76,3 @@ of `//...` is enough for `bazel build` or `bazel test` to run them. There is del
 `build_test` wrapper — it generates genrules, which need a working `bash`, and the assertion needs
 no action to run at all. `popili_is_151_impl` is tagged `manual` so that `//...` reaches it only
 through the transition wrapper; built directly it would resolve the default version and fail.
-
-## Known gap
-
-`modern_verify`, `legacy_verify` and `flexible_verify` take a _wrapped package_ but are not wrapped
-themselves. `with_popili_version` carries an incoming transition, so it affects the target it wraps
-and everything below it — not the target that consumes it. Those tests therefore run the default
-popili regardless of the version their package asks for, and pass only because every registered
-version can verify every package here. The `popili_version_report` targets above are what actually
-pin version selection in the meantime.
-
-Fixing the ergonomics — so that `coco_verify_test(package = ":legacy", popili_version = "1.5.1")`
-works without a wrapper — needs an attribute transition on the popili-running rules, which is a
-separate change with its own API design.

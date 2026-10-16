@@ -15,7 +15,7 @@
 """Internal C++ runtime rule implementation."""
 
 load("@rules_cc//cc:defs.bzl", "CcInfo")
-load("//coco/private:coco.bzl", "COCO_TOOLCHAIN_TYPE", "TOOLCHAIN_ATTRIBUTES", "coco_toolchain_or_fail")
+load("//coco/private:coco.bzl", "COCO_TOOLCHAIN_TYPE", "TOOLCHAIN_ATTRIBUTES", "coco_toolchain_or_fail", "popili_version_pin")
 
 def _coco_cc_runtime_impl(ctx):
     """Helper rule that provides the C++ runtime from the toolchain."""
@@ -29,6 +29,7 @@ def _coco_cc_runtime_impl(ctx):
 coco_cc_runtime = rule(
     implementation = _coco_cc_runtime_impl,
     attrs = TOOLCHAIN_ATTRIBUTES,
+    cfg = popili_version_pin,
     toolchains = [COCO_TOOLCHAIN_TYPE],
     doc = """Internal helper rule that provides the C++ runtime from the Coco toolchain.
 

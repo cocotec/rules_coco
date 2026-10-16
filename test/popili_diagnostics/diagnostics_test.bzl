@@ -15,8 +15,8 @@
 """Analysis tests: a build without a matching Coco toolchain fails with rules_coco's own message.
 
 Shared by the root workspace and e2e/multi_version, which register different versions and no
-local distribution, so the message can be checked for a version nobody registered, an alias on
-the flag, `local` without a local toolchain, and the registered default when only an execution
+local distribution, so the message can be checked for a version nobody registered,
+`local` without a local toolchain, and the registered default when only an execution
 platform popili is not published for exists (the host platform is replaced too, because Bazel
 always offers the host as an execution platform otherwise). Test rules are also built for that
 platform with it listed before the host, so Bazel runs them on it, where popili cannot run.
@@ -44,13 +44,6 @@ unknown_version_test = analysistest.make(
     expect_failure = True,
 )
 
-alias_version_test = analysistest.make(
-    _expect_message_impl,
-    attrs = _ATTRS,
-    config_settings = {_VERSION_FLAG: "stable"},
-    expect_failure = True,
-)
-
 local_without_local_test = analysistest.make(
     _expect_message_impl,
     attrs = _ATTRS,
@@ -62,6 +55,7 @@ no_execution_platform_test = analysistest.make(
     _expect_message_impl,
     attrs = _ATTRS,
     config_settings = {
+        _VERSION_FLAG: "",
         "//command_line_option:extra_execution_platforms": [_RISCV64],
         "//command_line_option:host_platform": _RISCV64,
     },
@@ -119,16 +113,6 @@ def popili_diagnostics_tests(name, registered_versions, targets, test_targets = 
                 "target_settings",
             ],
         )
-        alias_version_test(
-            name = "%s_alias_version_%s" % (name, consumer),
-            size = "small",
-            target_under_test = target,
-            expected = [
-                "needs popili stable (set by --@rules_coco//:version), but stable is an alias",
-                "set it to ",
-                registered,
-            ],
-        )
         local_without_local_test(
             name = "%s_local_without_local_%s" % (name, consumer),
             size = "small",
@@ -140,22 +124,19 @@ def popili_diagnostics_tests(name, registered_versions, targets, test_targets = 
             ],
         )
 
-        # The source of the version is not checked: a package under a with_popili_version wrapper
-        # fails first and sees the version the wrapper set, not the default.
         no_execution_platform_test(
             name = "%s_no_execution_platform_%s" % (name, consumer),
             size = "small",
             target_under_test = target,
             expected = [
-                "needs popili %s (" % default,
-                "), which is registered, but none of the registered execution platforms can run it",
+                "needs popili %s (the default), which is registered, but none of the registered execution platforms can run it" % default,
                 "osx/aarch64, linux/aarch64, linux/x86_64, windows/x86_64",
                 registered,
             ],
         )
         tests += [
             "%s_%s_%s" % (name, case, consumer)
-            for case in ["unknown_version", "alias_version", "local_without_local", "no_execution_platform"]
+            for case in ["unknown_version", "local_without_local", "no_execution_platform"]
         ]
 
     if _TESTS_FOLLOW_TARGET_PLATFORM:

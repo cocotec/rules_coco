@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
+load("@bazel_skylib//rules:common_settings.bzl", "string_flag", "string_setting")
 load("@rules_coco//coco:defs.bzl", "LICENSE_SOURCES")
 
 string_flag(
@@ -52,6 +52,17 @@ string_flag(
 string_flag(
     name = "version",
     build_setting_default = "",
+    visibility = ["//visibility:public"],
+)
+
+# Internal: where :version came from when a popili_version pin set it; see version_resolution.bzl.
+string_setting(
+    name = "_version_source",
+    build_setting_default = "",
+    values = [
+        "",
+        "pin",
+    ],
     visibility = ["//visibility:public"],
 )
 

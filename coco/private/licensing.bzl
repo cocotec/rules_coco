@@ -14,7 +14,7 @@
 
 """Licensing rules and helpers for Coco."""
 
-load(":coco.bzl", "COCO_TOOLCHAIN_TYPE", "COCO_TOOLCHAIN_TYPE_LABEL")
+load(":coco.bzl", "COCO_TOOLCHAIN_TYPE", "COCO_TOOLCHAIN_TYPE_LABEL", "popili_version_pin")
 
 def _fetch_license_impl(ctx):
     # Without a toolchain the consumer fails with coco_toolchain_or_fail's message, which failing
@@ -54,6 +54,7 @@ _fetch_license = rule(
         "auth_token": attr.label(allow_single_file = True),
         "product": attr.string(),
     },
+    cfg = popili_version_pin,
     implementation = _fetch_license_impl,
     toolchains = [
         COCO_TOOLCHAIN_TYPE,
