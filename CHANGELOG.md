@@ -83,6 +83,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   group, and the test runs where that popili runs. On Bazel 9 and later that is an execution platform matching
   the target platform, as Bazel places tests by default; Bazel 8 lacks the default test toolchain type this
   relies on, so there the test runs on the first execution platform that has a popili.
+- Registering a Popili release newer than your rules_coco (one without a `known_shas.bzl` entry)
+  failed while fetching its C or C++ runtime with `parameter 'sha256' got value of type 'NoneType'`.
+  The runtime archives are now downloaded unverified, as the popili archive already was.
 
 ## [0.3.0] - 2026/05/31
 

@@ -1057,10 +1057,56 @@ def _hub_entries_local_alongside_versions_test(ctx):
 
     return unittest.end(env)
 
+def _hub_unknown_version_test(ctx):
+    """A version with no known_shas.bzl entry registers like any other (forward compatibility).
+
+    Nothing on the way from the registration to the hub consults rules_coco's tables, so a
+    release newer than this rules_coco gets its toolchains, default and config_setting.
+    """
+    env = unittest.begin(ctx)
+
+    version = "1.99.0"
+    asserts.false(
+        env,
+        any([key.startswith(version + "/") for key in FILE_KEY_TO_SHA]),
+        "%s must be unknown to known_shas.bzl for this test to mean anything" % version,
+    )
+
+    versions, error = resolve_versions([version])
+    asserts.equals(env, None, error)
+    asserts.equals(env, [version], versions)
+
+    entries = toolchain_hub_entries(versions, _HOST)
+    asserts.equals(env, 2 * len(COCO_TOOLCHAIN_PLATFORMS), len(entries.toolchain_names))
+    asserts.equals(env, {version: "1_99_0"}, entries.version_suffixes)
+    label = "@io_cocotec_coco_linux_x86_64__1_99_0//:toolchain_impl"
+    asserts.equals(env, label, entries.toolchain_labels["linux_x86_64__1_99_0"])
+    asserts.equals(env, label, entries.toolchain_labels["linux_x86_64__default"])
+    asserts.equals(
+        env,
+        ["@coco_toolchains//:version_1_99_0"],
+        entries.target_settings["linux_x86_64__1_99_0"],
+    )
+
+    build = render_toolchain_hub_build(entries)
+    asserts.true(
+        env,
+        '"@rules_coco//:version": "1.99.0"' in build,
+        "version config_setting missing: %s" % build,
+    )
+    asserts.true(
+        env,
+        'toolchain = "%s"' % label in build,
+        "toolchain for the unknown version missing: %s" % build,
+    )
+
+    return unittest.end(env)
+
 hub_entries_single_version_test = unittest.make(_hub_entries_single_version_test)
 hub_entries_default_is_first_version_only_test = unittest.make(_hub_entries_default_is_first_version_only_test)
 hub_entries_local_only_test = unittest.make(_hub_entries_local_only_test)
 hub_entries_local_alongside_versions_test = unittest.make(_hub_entries_local_alongside_versions_test)
+hub_unknown_version_test = unittest.make(_hub_unknown_version_test)
 
 # Tests for render_toolchain_hub_build
 
@@ -1475,6 +1521,7 @@ def coco_test_suite(name):
         hub_entries_default_is_first_version_only_test,
         hub_entries_local_only_test,
         hub_entries_local_alongside_versions_test,
+        hub_unknown_version_test,
 
         # render_toolchain_hub_build tests
         hub_build_labels_test,
