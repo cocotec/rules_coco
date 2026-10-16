@@ -2,9 +2,13 @@
 # This BUILD file demonstrates using different popili versions for different packages
 # using the with_popili_version() wrapper
 
+load("@bazel_features//:features.bzl", "bazel_features")
+load("@rules_cc//cc:defs.bzl", "cc_toolchain")
 load("@rules_coco//coco:cc.bzl", "coco_cc_library")
-load("@rules_coco//coco:defs.bzl", "coco_generate", "coco_package", "coco_verify_test", "with_popili_version")
+load("@rules_coco//coco:defs.bzl", "coco_fmt_test", "coco_generate", "coco_package", "coco_verify_test", "with_popili_version")
 load(":popili_version_report.bzl", "popili_version_report")
+load(":stub_cc_toolchain.bzl", "stub_cc_toolchain_config")
+load(":test_platform_test.bzl", "test_platform_popili_test")
 
 # Which popili a target actually resolves is asserted directly, rather than inferred from a
 # successful verify: every registered version can verify every package here, so the verify
@@ -53,6 +57,11 @@ with_popili_version(
 # for. The popili_version_report targets above are what actually pin version selection.
 coco_verify_test(
     name = "modern_verify",
+    package = ":modern_v150",
+)
+
+coco_fmt_test(
+    name = "modern_fmt",
     package = ":modern_v150",
 )
 
@@ -163,3 +172,59 @@ with_popili_version(
     target = ":flexible_cc_impl",
     version = "1.5.0",
 )
+
+# Foreign to every CI host; test_platform_test.bzl targets it, with the host as first execution platform.
+platform(
+    name = "linux_aarch64",
+    constraint_values = [
+        "@platforms//os:linux",
+        "@platforms//cpu:aarch64",
+    ],
+)
+
+# The Coco toolchain carries the C++ runtime, which needs a C++ toolchain for :linux_aarch64. Only
+# test_platform_test.bzl registers this one, and it only analyses.
+stub_cc_toolchain_config(name = "stub_cc_toolchain_config")
+
+cc_toolchain(
+    name = "stub_cc_toolchain",
+    all_files = ":empty",
+    compiler_files = ":empty",
+    dwp_files = ":empty",
+    linker_files = ":empty",
+    objcopy_files = ":empty",
+    strip_files = ":empty",
+    toolchain_config = ":stub_cc_toolchain_config",
+)
+
+filegroup(name = "empty")
+
+toolchain(
+    name = "linux_aarch64_stub_cc_toolchain",
+    target_compatible_with = [
+        "@platforms//os:linux",
+        "@platforms//cpu:aarch64",
+    ],
+    toolchain = ":stub_cc_toolchain",
+    toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
+)
+
+# Bazel 8 has no default test toolchain type, so its tests are not tied to the target platform.
+TESTS_FOLLOW_TARGET_PLATFORM = getattr(
+    bazel_features.toolchains,
+    "has_default_test_toolchain_type",
+    False,
+)
+
+[
+    test_platform_popili_test(
+        name = test + "_popili_follows_test_platform",
+        expected_repo = "io_cocotec_coco_linux_aarch64__1_5_0",
+        target_under_test = ":" + test,
+    )
+    for test in [
+        "modern_verify",
+        "modern_fmt",
+    ]
+    if TESTS_FOLLOW_TARGET_PLATFORM
+]

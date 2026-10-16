@@ -93,6 +93,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   their `#include`s resolve and mocks are declared where popili writes them.
 - The `.coco` files in `test_srcs` are now inputs of the popili actions, so a package with `testSources` no longer
   fails with `could not open the directory ...` under Bazel's sandbox.
+- On Bazel 9, `coco_verify_test` and `coco_fmt_test` could run a popili built for a different execution platform
+  than the test's.
 
 ## [0.3.0] - 2026/05/31
 
