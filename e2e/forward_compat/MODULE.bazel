@@ -1,0 +1,32 @@
+# E2E for forward compatibility: a popili release that rules_coco does not know (no
+# known_shas.bzl entry) must still register, download and run. Depends on ./rules_coco_unaware,
+# a copy of rules_coco with the newest registered version stripped from known_shas.bzl; run
+# stage.py to produce it. .bazelrc selects that version, so both its popili archive and its
+# C++ runtime are fetched without a checksum. Also tested in WORKSPACE mode via the WORKSPACE
+# file (--config=workspace).
+
+module(
+    name = "rules_coco_forward_compat_test",
+    version = "0.0.0",
+)
+
+bazel_dep(name = "rules_coco", version = "")
+local_path_override(
+    module_name = "rules_coco",
+    path = "rules_coco_unaware",
+)
+
+# Required dependencies
+bazel_dep(name = "bazel_skylib", version = "1.9.2")
+bazel_dep(name = "platforms", version = "1.1.0")
+bazel_dep(name = "rules_cc", version = "0.2.18")
+
+# A release the copy knows, then the one it does not. Keep in sync with WORKSPACE and .bazelrc.
+coco = use_extension("@rules_coco//coco:extensions.bzl", "coco")
+coco.toolchain(
+    cc = True,
+    versions = [
+        "1.5.7",
+        "1.5.8",
+    ],
+)

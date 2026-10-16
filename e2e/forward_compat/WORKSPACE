@@ -1,0 +1,21 @@
+# E2E forward-compatibility test WORKSPACE (WORKSPACE mode); see MODULE.bazel.
+
+workspace(name = "rules_coco_forward_compat_test")
+
+load("@bazel_tools//tools/build_defs/repo:local.bzl", "local_repository")
+
+local_repository(
+    name = "rules_coco",
+    path = "rules_coco_unaware",
+)
+
+load("@rules_coco//coco:repositories.bzl", "coco_repositories")
+
+# Keep in sync with MODULE.bazel and .bazelrc.
+coco_repositories(
+    cc = True,
+    versions = [
+        "1.5.7",
+        "1.5.8",
+    ],
+)

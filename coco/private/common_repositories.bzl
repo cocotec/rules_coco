@@ -134,7 +134,7 @@ def _coco_cc_runtime_repository_impl(ctx):
         url = "https://dl.cocotec.io/popili/{download_prefix}/coco-cpp-runtime.zip".format(
             download_prefix = download_prefix(version),
         ),
-        sha256 = FILE_KEY_TO_SHA.get("{version}/coco-cpp-runtime.zip".format(version = version)),
+        sha256 = FILE_KEY_TO_SHA.get("{version}/coco-cpp-runtime.zip".format(version = version)) or "",
     )
 
     ctx.file("WORKSPACE", """workspace(name = "{}")""".format(ctx.name))
@@ -163,7 +163,7 @@ def _coco_c_runtime_repository_impl(ctx):
         url = "https://dl.cocotec.io/popili/{download_prefix}/coco-c-runtime.zip".format(
             download_prefix = download_prefix(version),
         ),
-        sha256 = FILE_KEY_TO_SHA.get("{version}/coco-c-runtime.zip".format(version = version)),
+        sha256 = FILE_KEY_TO_SHA.get("{version}/coco-c-runtime.zip".format(version = version)) or "",
     )
 
     ctx.file("WORKSPACE", """workspace(name = "{}")""".format(ctx.name))
