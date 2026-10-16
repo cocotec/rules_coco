@@ -44,7 +44,9 @@ bzl_library(
     srcs = ["coco.bzl"],
     deps = [
         ":common_attrs_bzl",
+        ":platforms_bzl",
         ":source_roots_bzl",
+        ":version_registry_bzl",
         ":version_resolution_bzl",
         "@bazel_features//:features",
         "@bazel_skylib//lib:paths",
@@ -142,6 +144,7 @@ bzl_library(
 bzl_library(
     name = "licensing_bzl",
     srcs = ["licensing.bzl"],
+    deps = [":coco_bzl"],
 )
 
 bzl_library(

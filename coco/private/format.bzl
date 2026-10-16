@@ -16,10 +16,11 @@
 
 load(
     "//coco/private:coco.bzl",
-    "COCO_TEST_EXEC_GROUPS",
+    "COCO_TEST_RULE_ARGS",
     "COCO_TOOLCHAIN_TYPE",
     "CocoPackageInfo",
     "LICENSE_ATTRIBUTES",
+    "TOOLCHAIN_ATTRIBUTES",
     "coco_runfiles",
     "create_coco_wrapper_script",
 )
@@ -46,7 +47,7 @@ def _coco_fmt_test_impl(ctx):
 
 _coco_fmt_test = rule(
     implementation = _coco_fmt_test_impl,
-    attrs = dict(LICENSE_ATTRIBUTES.items() + {
+    attrs = dict(LICENSE_ATTRIBUTES.items() + TOOLCHAIN_ATTRIBUTES.items() + {
         "package": attr.label(
             providers = [CocoPackageInfo],
             mandatory = True,
@@ -83,7 +84,7 @@ To skip this test for specific targets, use standard Bazel tags:
     ```
 """,
     test = True,
-    exec_groups = COCO_TEST_EXEC_GROUPS,
+    **COCO_TEST_RULE_ARGS
 )
 
 def _coco_fmt_binary_impl(ctx):
@@ -104,7 +105,7 @@ def _coco_fmt_binary_impl(ctx):
 
 _coco_fmt_binary = rule(
     implementation = _coco_fmt_binary_impl,
-    attrs = dict(LICENSE_ATTRIBUTES.items() + {
+    attrs = dict(LICENSE_ATTRIBUTES.items() + TOOLCHAIN_ATTRIBUTES.items() + {
         "package": attr.label(
             providers = [CocoPackageInfo],
             mandatory = True,
