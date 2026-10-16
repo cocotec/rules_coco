@@ -1353,8 +1353,25 @@ def _coco_cc_gen_impl(ctx):
             else:
                 private_hdrs.append(h)
 
+    # cc_library only searches the bin dir of its own configuration, both for the generated
+    # sources' includes and under its `includes`. A coco_generate in another configuration
+    # (e.g. beneath with_popili_version) writes to another bin dir, so add that one's root and
+    # `includes` here. All outputs come from one action, so they share that bin dir.
+    quote_includes = []
+    includes = []
+    generated = all_headers if all_headers else sources
+    if generated and generated[0].root.path != ctx.bin_dir.path:
+        root = generated[0].root.path
+        quote_includes.append(root)
+        includes = [
+            _join_path([root, ctx.label.workspace_root, ctx.label.package, include])
+            for include in ctx.attr.includes
+        ]
+
     compilation_context = cc_common.create_compilation_context(
         headers = depset(public_hdrs),
+        quote_includes = depset(quote_includes),
+        includes = depset(includes),
     )
 
     return [
@@ -1366,6 +1383,9 @@ _coco_cc_gen = rule(
     implementation = _coco_cc_gen_impl,
     attrs = {
         "all_hdrs_public": attr.bool(default = True),
+        "includes": attr.string_list(
+            doc = "The consuming cc_library's `includes`, made to cover the generated files' bin dir too.",
+        ),
         "package": attr.label(
             providers = [CocoCcGeneratedInfo],
             mandatory = True,
