@@ -73,6 +73,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `coco_generate`, the C/C++ library macros and `coco_fmt_test` now work with `tags = ["manual"]` and `testonly`.
 - `coco_generate` with `language = "c"` and `mocks = True` now fails with a clear error, since C mocks are not
   supported.
+- `coco_verify_test` and `coco_fmt_test` resolved popili for the default execution platform while Bazel ran
+  the test on its `test` execution group, so with several execution platforms the test could run on a platform
+  the popili in its wrapper script was not built for. The toolchain is now resolved on the `test` execution
+  group, and the test runs where that popili runs. On Bazel 9 and later that is an execution platform matching
+  the target platform, as Bazel places tests by default; Bazel 8 lacks the default test toolchain type this
+  relies on, so there the test runs on the first execution platform that has a popili.
 
 ## [0.3.0] - 2026/05/31
 
