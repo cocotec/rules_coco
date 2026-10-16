@@ -2,10 +2,11 @@
 # This BUILD file demonstrates using different popili versions for different packages
 # using the with_popili_version() wrapper
 
-load("@bazel_features//:features.bzl", "bazel_features")
 load("@rules_cc//cc:defs.bzl", "cc_toolchain")
 load("@rules_coco//coco:cc.bzl", "coco_cc_library")
 load("@rules_coco//coco:defs.bzl", "coco_fmt_test", "coco_generate", "coco_package", "coco_verify_test", "with_popili_version")
+load("@rules_coco//coco/private:coco.bzl", "TESTS_FOLLOW_TARGET_PLATFORM")  # buildifier: disable=bzl-visibility
+load("@rules_coco//test/popili_diagnostics:diagnostics_test.bzl", "popili_diagnostics_tests")
 load(":popili_version_report.bzl", "popili_version_report")
 load(":stub_cc_toolchain.bzl", "stub_cc_toolchain_config")
 load(":test_platform_test.bzl", "test_platform_popili_test")
@@ -209,13 +210,7 @@ toolchain(
     toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
 )
 
-# Bazel 8 has no default test toolchain type, so its tests are not tied to the target platform.
-TESTS_FOLLOW_TARGET_PLATFORM = getattr(
-    bazel_features.toolchains,
-    "has_default_test_toolchain_type",
-    False,
-)
-
+# Only on Bazel 9+ does a test run on an execution platform matching its target platform.
 [
     test_platform_popili_test(
         name = test + "_popili_follows_test_platform",
@@ -228,3 +223,22 @@ TESTS_FOLLOW_TARGET_PLATFORM = getattr(
     ]
     if TESTS_FOLLOW_TARGET_PLATFORM
 ]
+
+popili_diagnostics_tests(
+    name = "popili_diagnostics",
+    registered_versions = [
+        "1.5.0",
+        "1.5.1",
+    ],
+    targets = {
+        "cc_runtime": "@rules_coco//coco:cc_runtime",
+        "fmt_test": ":modern_fmt",
+        "generate": ":modern_cpp",
+        "package": ":modern",
+        "verify_test": ":modern_verify",
+    },
+    test_targets = [
+        "fmt_test",
+        "verify_test",
+    ],
+)
