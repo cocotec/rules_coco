@@ -66,12 +66,14 @@ rules_shell_toolchains()
 
 load("@rules_coco//coco:repositories.bzl", "coco_repositories")
 
+# Kept in step with MODULE.bazel and test/version_registry/root_versions.bzl.
 coco_repositories(
     c = True,
     cc = True,
     versions = [
         "stable",
         "testing",
+        "1.5.7",
     ],
 )
 

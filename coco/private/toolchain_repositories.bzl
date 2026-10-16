@@ -25,13 +25,14 @@ load(
     "resolve_local_path",
 )
 load(":platforms.bzl", "archive_platform", "platform_binary_ext")
-load(":version_resolution.bzl", "version_tuple")
+load(":version_resolution.bzl", "LOCAL_VERSION", "version_tuple")
 
-def BUILD_for_coco_toolchain(name, cc_runtime_label = None, c_runtime_label = None, license_source = None, license_token = None, auth_token_path = None):
+def BUILD_for_coco_toolchain(name, popili_version, cc_runtime_label = None, c_runtime_label = None, license_source = None, license_token = None, auth_token_path = None):
     """Emits a toolchain declaration to match an existing compiler and stdlib.
 
     Args:
       name: The name of the toolchain declaration
+      popili_version: The popili version the toolchain is, e.g. "1.5.7" or "local"
       cc_runtime_label: Optional label to the C++ runtime library (can be a Label object or string)
       c_runtime_label: Optional label to the C runtime library (can be a Label object or string)
       license_source: Optional license source mode (e.g., "local_user", "local_acquire", "token", "action_environment", "action_file")
@@ -64,11 +65,13 @@ def BUILD_for_coco_toolchain(name, cc_runtime_label = None, c_runtime_label = No
     if auth_token_path and auth_token_path != "":
         auth_token_path_attr = '\n    auth_token_path = "{}",'.format(auth_token_path)
 
+    popili_version_attr = '\n    popili_version = "{}",'.format(popili_version)
+
     return """
 coco_toolchain(
     name = "{toolchain_name}_impl",
     coco = "//:coco",
-    cocotec_licensing_server = "//:cocotec_licensing_server",{cc_runtime_attr}{c_runtime_attr}{license_source_attr}{license_token_attr}{auth_token_path_attr}
+    cocotec_licensing_server = "//:cocotec_licensing_server",{cc_runtime_attr}{c_runtime_attr}{license_source_attr}{license_token_attr}{auth_token_path_attr}{popili_version_attr}
     visibility = ["//visibility:public"],
 )
 """.format(
@@ -78,6 +81,7 @@ coco_toolchain(
         license_source_attr = license_source_attr,
         license_token_attr = license_token_attr,
         auth_token_path_attr = auth_token_path_attr,
+        popili_version_attr = popili_version_attr,
     )
 
 def BUILD_for_coco_archive(binary_ext, product):
@@ -150,6 +154,7 @@ def _coco_toolchain_repository_impl(ctx):
             license_source = ctx.attr.license_source,
             license_token = ctx.attr.license_token,
             auth_token_path = ctx.attr.auth_token_path,
+            popili_version = ctx.attr.version,
         ),
     ]))
 
@@ -208,6 +213,7 @@ def _coco_local_toolchain_repository_impl(ctx):
             license_source = ctx.attr.license_source,
             license_token = ctx.attr.license_token,
             auth_token_path = ctx.attr.auth_token_path,
+            popili_version = LOCAL_VERSION,
         ),
     ]))
 

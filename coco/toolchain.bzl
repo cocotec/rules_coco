@@ -14,7 +14,15 @@
 
 """Coco toolchain implementation."""
 
+load("//coco/private:version_resolution.bzl", "LOCAL_VERSION", "version_tuple")
+
 def _coco_toolchain_impl(ctx):
+    version = ctx.attr.popili_version
+    if version != LOCAL_VERSION and version_tuple(version) == None:
+        fail(
+            "%s: popili_version must be the version of the popili binary, such as \"1.5.8\", not %r: " % (ctx.label, version) +
+            "an alias such as \"stable\" moves when rules_coco is upgraded.",
+        )
     toolchain = platform_common.ToolchainInfo(
         coco = ctx.file.coco,
         cocotec_licensing_server = ctx.file.cocotec_licensing_server,
@@ -24,6 +32,7 @@ def _coco_toolchain_impl(ctx):
         license_source = ctx.attr.license_source,
         license_token = ctx.attr.license_token,
         auth_token_path = ctx.attr.auth_token_path,
+        popili_version = ctx.attr.popili_version,
     )
     return toolchain
 
@@ -63,6 +72,13 @@ coco_toolchain = rule(
         "license_token": attr.string(
             doc = "The license token to use when license_source is 'token'. Optional.",
             default = "",
+        ),
+        "popili_version": attr.string(
+            doc = (
+                "The version of the `popili` binary, such as \"1.5.8\"; not an alias such as " +
+                "\"stable\". The toolchains rules_coco generates set it; a local distribution is 'local'."
+            ),
+            mandatory = True,
         ),
         "preferences_file": attr.label(
             doc = "The location of the Popili `preferences.toml` file. Can be a direct source or a filegroup containing one item.",

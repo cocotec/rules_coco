@@ -28,6 +28,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `coco_generate` attribute `include_prefix`, mirroring `generator.cpp.includePrefix` / `generator.c.includePrefix`
   in `Coco.toml` like the other generator settings. Set it to the package's effective value, including one inherited
   from a workspace or received through `exportConfig`; the default `""` is popili's default too. Not allowed for C#.
+- `coco_toolchain` gained a required `popili_version` attribute, a concrete version such as `"1.5.8"`
+  (not an alias), exposed as the `popili_version` field of the toolchain. The toolchains rules_coco
+  generates set it to their Popili version (`local` for a local distribution).
 
 ### Changed
 
