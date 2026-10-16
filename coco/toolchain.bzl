@@ -24,11 +24,17 @@ def _coco_toolchain_impl(ctx):
         license_source = ctx.attr.license_source,
         license_token = ctx.attr.license_token,
         auth_token_path = ctx.attr.auth_token_path,
+        version = ctx.attr.version,
     )
     return toolchain
 
 coco_toolchain = rule(
     _coco_toolchain_impl,
+    doc = (
+        "Declares a Popili distribution as a Coco toolchain, for bringing your own instead of " +
+        "the toolchains `coco.toolchain` / `coco_repositories` generate. Register it with " +
+        "`toolchain(toolchain_type = \"@rules_coco//coco:toolchain_type\", ...)`."
+    ),
     attrs = {
         "auth_token_path": attr.string(
             doc = "The path to auth token file to use when license_source is 'action_file'. The file must be available in the execution environment. Optional.",
@@ -68,6 +74,14 @@ coco_toolchain = rule(
             doc = "The location of the Popili `preferences.toml` file. Can be a direct source or a filegroup containing one item.",
             allow_single_file = True,
             default = "@io_cocotec_coco_preferences//:preferences",
+        ),
+        "version": attr.string(
+            doc = (
+                "The popili version of the `coco` binary, e.g. '1.5.7'. The toolchains rules_coco " +
+                "generates set it; a local distribution is 'local'. Optional: leave it empty when the " +
+                "version is unknown, which no version check rejects."
+            ),
+            default = "",
         ),
     },
 )

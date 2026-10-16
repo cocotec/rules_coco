@@ -121,6 +121,11 @@ bzl_library(
 )
 
 bzl_library(
+    name = "version_registry_bzl",
+    srcs = ["version_registry.bzl"],
+)
+
+bzl_library(
     name = "licensing_bzl",
     srcs = ["licensing.bzl"],
 )
@@ -174,6 +179,7 @@ bzl_library(
         ":toolchain_hub_bzl",
         ":toolchain_repositories_bzl",
         ":version_aliases_bzl",
+        ":version_registry_bzl",
         ":version_resolution_bzl",
     ],
 )

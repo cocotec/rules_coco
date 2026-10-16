@@ -10,6 +10,7 @@ All API documentation is auto-generated from the source .bzl files:
 - [c.md](c.md) - C integration rules (coco_c_library, coco_c_test_library, etc.)
 - [cc.md](cc.md) - C++ integration rules (coco_cc_library, coco_cc_test_library, etc.)
 - [repositories.md](repositories.md) - Repository setup rules (coco_repositories, etc.)
+- [toolchain.md](toolchain.md) - `coco_toolchain`, for bringing your own Popili distribution
 
 ## Regenerating Documentation
 

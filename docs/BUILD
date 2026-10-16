@@ -46,6 +46,13 @@ stardoc(
 )
 
 stardoc(
+    name = "toolchain",
+    out = "toolchain.md",
+    input = "//coco:toolchain.bzl",
+    deps = ["//coco:toolchain"],
+)
+
+stardoc(
     name = "extensions",
     out = "extensions.md",
     input = "//coco:extensions.bzl",
@@ -61,6 +68,7 @@ filegroup(
         "defs.md",
         "extensions.md",
         "repositories.md",
+        "toolchain.md",
     ],
     visibility = ["//visibility:public"],
 )
