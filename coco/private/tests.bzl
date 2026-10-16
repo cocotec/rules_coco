@@ -998,8 +998,7 @@ def _hub_entries_local_only_test(ctx):
     )
     asserts.equals(env, ["@coco_toolchains//:version_local"], entries.target_settings["local"])
 
-    # Host-only: the local binaries only exist on the machine that staged them.
-    asserts.equals(env, [], entries.exec_compatible_with["local"])
+    asserts.equals(env, "HOST_CONSTRAINTS", entries.exec_compatible_with["local"])
 
     return unittest.end(env)
 
@@ -1020,6 +1019,14 @@ def _hub_entries_local_alongside_versions_test(ctx):
         entries.toolchain_labels["linux_x86_64__default"],
     )
     asserts.equals(env, ["@coco_toolchains//:version_local"], entries.target_settings["local"])
+
+    asserts.equals(env, "HOST_CONSTRAINTS", entries.exec_compatible_with["local"])
+    for (os, arch) in COCO_TOOLCHAIN_PLATFORMS:
+        asserts.equals(
+            env,
+            ["@platforms//os:%s" % os, "@platforms//cpu:%s" % arch],
+            entries.exec_compatible_with["%s_%s__1_5_7" % (os, arch)],
+        )
 
     return unittest.end(env)
 
@@ -1064,13 +1071,16 @@ def _hub_build_labels_test(ctx):
 
     return unittest.end(env)
 
-def _hub_build_has_no_loads_test(ctx):
-    """The hub uses only native rules, so it stays loadable before skylib is fetched."""
+def _hub_build_loads_only_platforms_test(ctx):
+    """The hub loads nothing but @platforms, so it stays loadable before skylib is fetched."""
     env = unittest.begin(ctx)
 
-    build = render_toolchain_hub_build(toolchain_hub_entries(["1.5.7"], has_local = True))
+    build = render_toolchain_hub_build(toolchain_hub_entries(["1.5.7"]))
+    asserts.true(env, "load(" not in build, "hub BUILD without local must not load anything: %s" % build)
 
-    asserts.true(env, "load(" not in build, "hub BUILD must not load anything: %s" % build)
+    build = render_toolchain_hub_build(toolchain_hub_entries(["1.5.7"], has_local = True))
+    loads = [line for line in build.splitlines() if line.startswith("load(")]
+    asserts.equals(env, ['load("@platforms//host:constraints.bzl", "HOST_CONSTRAINTS")'], loads)
 
     return unittest.end(env)
 
@@ -1089,9 +1099,24 @@ def _hub_build_constrains_exec_only_test(ctx):
 
     return unittest.end(env)
 
+def _hub_build_local_is_host_only_test(ctx):
+    """The local toolchain() carries the host's constraints, as @platforms detects them."""
+    env = unittest.begin(ctx)
+
+    build = render_toolchain_hub_build(toolchain_hub_entries([], has_local = True))
+
+    asserts.true(
+        env,
+        "exec_compatible_with = HOST_CONSTRAINTS," in build,
+        "local toolchain must be constrained to the host: %s" % build,
+    )
+
+    return unittest.end(env)
+
 hub_build_labels_test = unittest.make(_hub_build_labels_test)
-hub_build_has_no_loads_test = unittest.make(_hub_build_has_no_loads_test)
+hub_build_loads_only_platforms_test = unittest.make(_hub_build_loads_only_platforms_test)
 hub_build_constrains_exec_only_test = unittest.make(_hub_build_constrains_exec_only_test)
+hub_build_local_is_host_only_test = unittest.make(_hub_build_local_is_host_only_test)
 
 # Tests for normalize_cc_runtime_extra_deps
 
@@ -1426,8 +1451,9 @@ def coco_test_suite(name):
 
         # render_toolchain_hub_build tests
         hub_build_labels_test,
-        hub_build_has_no_loads_test,
+        hub_build_loads_only_platforms_test,
         hub_build_constrains_exec_only_test,
+        hub_build_local_is_host_only_test,
 
         # normalize_cc_runtime_extra_deps tests
         normalize_extra_deps_list_applies_to_all_test,

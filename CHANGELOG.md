@@ -63,6 +63,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `local_user` now finds the license in the correct directory (`XDG_DATA_HOME` or
   `%LOCALAPPDATA%`), and respects the `POPILI_DATA` override.
+- The local toolchain (`coco.local_toolchain` in bzlmod, `coco_local_repositories` in WORKSPACE) is
+  now constrained to the host's OS and CPU.
 - `coco_repositories(versions = [...])` was accepted but silently ignored in WORKSPACE mode, so a
   workspace following the README's "Popili Version" section got `stable` instead of the versions it
   asked for. It is now honoured — check that your default version has not moved.
