@@ -22,6 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `coco_package` attributes `source_roots` and `test_source_roots`, mirroring `package.sources` and
   `package.testSources` in `Coco.toml`. They are inferred from `srcs`/`test_srcs` when omitted; set them when a
   package has several source roots or all sources sit in a subdirectory of the root.
+- `coco_cc_library`, `coco_c_library` and their test-library variants accept `library_rule`, the rule or macro
+  that compiles the library, for projects that wrap `cc_library` in a macro of their own. The default is
+  rules_cc's `cc_library`.
 
 ### Changed
 
@@ -53,19 +56,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the exec platform and the runtime it provides is source, so the toolchain now resolves for any
   target platform, including when cross-compiling with `--platforms`. Before, bzlmod required the
   target platform to match the host; WORKSPACE mode never had the constraint.
-- **Breaking:** `coco_generate` now writes all generated code, test code and mocks included, below the directory
-  containing `Coco.toml`, instead of below the package's source root. Each file keeps its path relative to its own
-  source root, so `src/Foo.coco` in a package `pkg` is now included as `#include "pkg/Foo.h"` rather than
-  `#include "pkg/src/Foo.h"`. To migrate, remove the source root from:
+- **Breaking:** `coco_generate` now writes all generated code, test code and mocks included, below a directory of
+  its own, `bazel-bin/<package>/_coco/<name>/`, at the path of the directory containing `Coco.toml` within the
+  workspace, instead of below the package's source root in `bazel-bin`. `coco_cc_library` and `coco_c_library`
+  add that directory to the include path. Each file keeps its path relative to its own source root, so
+  `src/Foo.coco` in a package `pkg` is now included as `#include "pkg/Foo.h"` rather than
+  `#include "pkg/src/Foo.h"`. For a package in another repository that path is its path within that repository:
+  `@dep//pkg` is included as `#include "pkg/Foo.h"`, not `#include "external/dep+/pkg/Foo.h"`. To migrate:
+
+  - replace a plain `cc_library` compiling a `coco_generate`'s sources by `coco_cc_library` or `coco_c_library`,
+    passing a wrapper of `cc_library` as `library_rule` if you use one;
+  - on Windows, run `bazel clean` once, so that files left at the old paths cannot be included by mistake;
+
+  and remove the source root from:
 
   - `#include`s of generated headers, e.g. `"pkg/src/Foo.h"` becomes `"pkg/Foo.h"` and `"pkg/src/sub/Bar.h"`
     becomes `"pkg/sub/Bar.h"`;
   - `includes` on libraries of dependency packages, e.g. `includes = ["middle/src"]` becomes
     `includes = ["middle"]`;
   - `public_hdrs` path suffixes, e.g. `"src/IApi.h"` becomes `"pkg/IApi.h"` or just `"IApi.h"`;
-  - paths to generated C# files.
+  - paths to generated C# files, which also gain the `_coco/<name>/` prefix.
 
-  Packages whose sources sit next to `Coco.toml` are unaffected.
+  Two `coco_generate` targets over one `coco_package` no longer conflict.
 
 ### Removed
 
@@ -74,6 +86,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `coco_cc_library` and `coco_c_library` no longer fail to find generated headers when their
+  `coco_generate` is built with a different Popili version, for example through `with_popili_version`,
+  nor pick up a copy of them built at another version (an undeclared inclusion, on Windows).
 - `local_user` now finds the license in the correct directory (`XDG_DATA_HOME` or
   `%LOCALAPPDATA%`), and respects the `POPILI_DATA` override.
 - The local toolchain (`coco.local_toolchain` in bzlmod, `coco_local_repositories` in WORKSPACE) is

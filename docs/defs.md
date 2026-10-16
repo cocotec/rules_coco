@@ -249,8 +249,10 @@ coco_generate(*, <a href="#coco_generate-name">name</a>, <a href="#coco_generate
 
 Generate C, C++, or C# code from a Coco package.
 
-The generated files can then be compiled into libraries or executables using
-standard build rules (e.g., cc_library for C/C++).
+The generated C/C++ files are compiled with coco_cc_library or coco_c_library,
+which find them below an include root of this target's own; `library_rule`
+lets those macros call a custom cc_library. The generated files are also
+exposed through DefaultInfo for other consumers.
 
 The generator configuration options (file extensions, prefixes, etc.) must
 match the settings in your Coco.toml file under the corresponding generator

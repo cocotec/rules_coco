@@ -51,6 +51,7 @@ CocoCcGeneratedInfo = provider(
     doc = "Generated C/C++ code from a Coco package",
     fields = {
         "headers": "Generated header files as a depset",
+        "include_root": "The directory the generated files' include paths are relative to, as an exec path",
         "sources": "Generated implementation files as a depset",
         "test_headers": "Generated test/mock header files as a depset",
         "test_sources": "Generated test/mock implementation files as a depset",
@@ -833,6 +834,23 @@ def _join_path(components):
     """Join non-empty path components with "/"."""
     return "/".join([c for c in components if c])
 
+def _workspace_dirname(short_path):
+    """The directory of a file's short path, relative to the root of its own repository.
+
+    Unlike File.dirname, this drops the bin dir of a generated file and the prefix of a file in
+    another repository: external/<repo>/, or ../<repo>/ with --experimental_sibling_repository_layout.
+
+    Args:
+        short_path: A File.short_path, e.g. "pkg/Coco.toml" or "../dep+/pkg/Coco.toml"
+
+    Returns:
+        The directory, e.g. "pkg", or "" for the repository root
+    """
+    segments = short_path.split("/")
+    if segments[0] == "..":
+        segments = segments[2:]
+    return "/".join(segments[:-1])
+
 def _output_file_names(base_name, config):
     """Compute the four output file names for an already-mangled base name.
 
@@ -950,17 +968,17 @@ def _build_language_config(ctx, language):
     else:
         fail("unrecognised language: " + language)
 
-def _make_path_builder(ctx, package_relative_dir):
-    """Create a path builder that declares files below the package directory.
+def _make_path_builder(ctx, output_dir):
+    """Create a path builder that declares files below the output directory.
 
     Args:
         ctx: Rule context
-        package_relative_dir: Path from the BUILD file to the package directory
+        output_dir: Path from the BUILD file to the output directory
 
     Returns:
         Function(output_path) -> declared file
     """
-    return lambda output_path: ctx.actions.declare_file(_join_path([package_relative_dir, output_path]))
+    return lambda output_path: ctx.actions.declare_file(_join_path([output_dir, output_path]))
 
 def _declare_language_outputs(ctx, headers, sources, mock_headers, mock_sources, config, path_builder, module_path):
     """Core logic for declaring output files.
@@ -1026,26 +1044,6 @@ def _add_outputs(ctx, headers, sources, mock_headers, mock_sources, config, path
     module_path = _module_path_for(src, package_dir, source_root)
     _declare_language_outputs(ctx, headers, sources, mock_headers, mock_sources, config, path_builder, module_path)
 
-def _package_relative_dir(package_dir, label_package):
-    """Path from the BUILD file's directory to the package directory.
-
-    `paths.relativize` returns its input unchanged when the two paths are
-    equal, rather than "", so that case is handled explicitly. It matters
-    whenever Coco.toml sits next to the BUILD file, which is the common layout.
-
-    Args:
-        package_dir: Directory containing the package's Coco.toml
-        label_package: The BUILD file's package path
-
-    Returns:
-        The relative path, or "" when they are the same directory
-    """
-    if not label_package:
-        return package_dir
-    if package_dir == label_package:
-        return ""
-    return paths.relativize(package_dir, label_package)
-
 def _coco_package_generate_impl(ctx):
     if ctx.attr.language == "c" and ctx.attr.mocks:
         fail("mocks = True is not supported for language = \"c\": popili does not generate C mocks", attr = "mocks")
@@ -1056,6 +1054,7 @@ def _coco_package_generate_impl(ctx):
     srcs = info.direct_srcs
     test_srcs = info.direct_test_srcs
     package_dir = info.package_file.dirname
+    workspace_dir = _workspace_dirname(info.package_file.short_path)
 
     headers = []
     sources = []
@@ -1064,11 +1063,13 @@ def _coco_package_generate_impl(ctx):
     test_headers = []
     test_sources = []
 
-    # All generated files go below the package directory (the one containing Coco.toml), declared relative
-    # to the BUILD file. popili never writes two generated files, regular or test, to the same path below it.
-    package_relative_dir = _package_relative_dir(package_dir, ctx.label.package)
+    # Generated files go below an include root of this target's own, at the package directory's
+    # path in its repository, so "<workspace dir>/Foo.h" can't resolve to the same files built in
+    # another configuration or by another coco_generate, as it would below a bin dir root.
+    output_prefix = _join_path(["_coco", ctx.label.name])
+    include_root = _join_path([ctx.bin_dir.path, ctx.label.workspace_root, ctx.label.package, output_prefix])
     config = _build_language_config(ctx, ctx.attr.language)
-    path_builder = _make_path_builder(ctx, package_relative_dir)
+    path_builder = _make_path_builder(ctx, _join_path([output_prefix, workspace_dir]))
 
     # Get the list of packages to regenerate based on language
     regenerate_pkgs = {
@@ -1094,7 +1095,7 @@ def _coco_package_generate_impl(ctx):
 
     # Test code and mocks land beside the regular code. --test-output is passed explicitly rather than
     # relying on popili defaulting it to --output.
-    generated_dir = paths.join(ctx.genfiles_dir.path, package_dir)
+    generated_dir = paths.join(include_root, workspace_dir)
     arguments = [
         "generate-%s" % ctx.attr.language,
         "--output",
@@ -1108,7 +1109,7 @@ def _coco_package_generate_impl(ctx):
         # Make all include paths absolute within the workspace to avoid the need for includes
         arguments += [
             "--include-prefix",
-            package_dir,
+            workspace_dir,
         ]
 
     all_outputs = headers + sources
@@ -1126,6 +1127,7 @@ def _coco_package_generate_impl(ctx):
     if ctx.attr.language in ("cpp", "c"):
         lang_provider = CocoCcGeneratedInfo(
             headers = depset(headers),
+            include_root = include_root,
             sources = depset(sources),
             test_headers = depset(test_headers),
             test_sources = depset(test_sources),
@@ -1301,8 +1303,17 @@ def _coco_cc_gen_impl(ctx):
             else:
                 private_hdrs.append(h)
 
+    # Export the generate's include root, and the library's `includes` below it, which cc_library
+    # only applies below its own bin dir. Below the root, paths are relative to the repository root,
+    # as for the generated files.
+    root = gen_info.include_root
     compilation_context = cc_common.create_compilation_context(
         headers = depset(public_hdrs),
+        quote_includes = depset([root]),
+        includes = depset([
+            _join_path([root, ctx.label.package, include])
+            for include in ctx.attr.includes
+        ]),
     )
 
     return [
@@ -1314,6 +1325,9 @@ _coco_cc_gen = rule(
     implementation = _coco_cc_gen_impl,
     attrs = {
         "all_hdrs_public": attr.bool(default = True),
+        "includes": attr.string_list(
+            doc = "The consuming cc_library's `includes`, applied below the generated files' include root too.",
+        ),
         "package": attr.label(
             providers = [CocoCcGeneratedInfo],
             mandatory = True,
@@ -1349,8 +1363,10 @@ def _coco_generate_macro_impl(name, visibility, **kwargs):
 coco_generate = macro(
     doc = """Generate C, C++, or C# code from a Coco package.
 
-The generated files can then be compiled into libraries or executables using
-standard build rules (e.g., cc_library for C/C++).
+The generated C/C++ files are compiled with coco_cc_library or coco_c_library,
+which find them below an include root of this target's own; `library_rule`
+lets those macros call a custom cc_library. The generated files are also
+exposed through DefaultInfo for other consumers.
 
 The generator configuration options (file extensions, prefixes, etc.) must
 match the settings in your Coco.toml file under the corresponding generator
@@ -1408,4 +1424,4 @@ coco_cc_gen = _coco_cc_gen
 mangle_name = _mangle_name
 compute_output_paths = _compute_output_paths
 module_path_for = _module_path_for
-package_relative_dir = _package_relative_dir
+workspace_dirname = _workspace_dirname

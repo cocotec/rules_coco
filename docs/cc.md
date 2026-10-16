@@ -10,7 +10,7 @@ C++ integration macros for Coco-generated code.
 load("@rules_coco//coco:cc.bzl", "coco_cc_library")
 
 coco_cc_library(<a href="#coco_cc_library-name">name</a>, <a href="#coco_cc_library-generated_package">generated_package</a>, <a href="#coco_cc_library-generated_packages">generated_packages</a>, <a href="#coco_cc_library-srcs">srcs</a>, <a href="#coco_cc_library-hdrs">hdrs</a>, <a href="#coco_cc_library-deps">deps</a>, <a href="#coco_cc_library-public_hdrs">public_hdrs</a>,
-                <a href="#coco_cc_library-kwargs">**kwargs</a>)
+                <a href="#coco_cc_library-library_rule">library_rule</a>, <a href="#coco_cc_library-kwargs">**kwargs</a>)
 </pre>
 
 Creates a C++ library from Coco-generated C++ code.
@@ -40,7 +40,8 @@ to disambiguate when multiple generated files share a name.
 | <a id="coco_cc_library-hdrs"></a>hdrs |  Additional C++ header files   |  `[]` |
 | <a id="coco_cc_library-deps"></a>deps |  Additional dependencies   |  `[]` |
 | <a id="coco_cc_library-public_hdrs"></a>public_hdrs |  List of generated header names to make public, or None for all   |  `None` |
-| <a id="coco_cc_library-kwargs"></a>kwargs |  Additional arguments passed to cc_library   |  none |
+| <a id="coco_cc_library-library_rule"></a>library_rule |  The rule or macro that compiles the library, such as a wrapper of cc_library adding your project's defaults. It is called with cc_library's attributes. None means rules_cc's cc_library.   |  `None` |
+| <a id="coco_cc_library-kwargs"></a>kwargs |  Additional arguments passed to library_rule   |  none |
 
 
 <a id="coco_cc_test_library"></a>
@@ -51,7 +52,7 @@ to disambiguate when multiple generated files share a name.
 load("@rules_coco//coco:cc.bzl", "coco_cc_test_library")
 
 coco_cc_test_library(<a href="#coco_cc_test_library-name">name</a>, <a href="#coco_cc_test_library-generated_package">generated_package</a>, <a href="#coco_cc_test_library-generated_packages">generated_packages</a>, <a href="#coco_cc_test_library-srcs">srcs</a>, <a href="#coco_cc_test_library-hdrs">hdrs</a>, <a href="#coco_cc_test_library-deps">deps</a>, <a href="#coco_cc_test_library-public_hdrs">public_hdrs</a>,
-                     <a href="#coco_cc_test_library-gmock">gmock</a>, <a href="#coco_cc_test_library-kwargs">**kwargs</a>)
+                     <a href="#coco_cc_test_library-gmock">gmock</a>, <a href="#coco_cc_test_library-library_rule">library_rule</a>, <a href="#coco_cc_test_library-kwargs">**kwargs</a>)
 </pre>
 
 Creates a C++ test library from Coco-generated C++ test code.
@@ -79,6 +80,7 @@ The `public_hdrs` parameter controls which generated test headers are public:
 | <a id="coco_cc_test_library-deps"></a>deps |  Additional dependencies   |  `[]` |
 | <a id="coco_cc_test_library-public_hdrs"></a>public_hdrs |  List of generated test header names to make public, or None for all   |  `None` |
 | <a id="coco_cc_test_library-gmock"></a>gmock |  The GoogleTest/GoogleMock library (default: @googletest//:gtest). Set to None to omit.   |  `"@googletest//:gtest"` |
-| <a id="coco_cc_test_library-kwargs"></a>kwargs |  Additional arguments passed to cc_library   |  none |
+| <a id="coco_cc_test_library-library_rule"></a>library_rule |  The rule or macro that compiles the library, such as a wrapper of cc_library adding your project's defaults. It is called with cc_library's attributes. None means rules_cc's cc_library.   |  `None` |
+| <a id="coco_cc_test_library-kwargs"></a>kwargs |  Additional arguments passed to library_rule   |  none |
 
 
