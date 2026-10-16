@@ -5,9 +5,12 @@ or the text of a test's wrapper script), or for a library off the headers of the
 `._gen` target forwards; the binary or runtime lives in a version-mangled repository
 (`io_cocotec_coco_<os>_<arch>__<version>`), so the path names the version in both bzlmod and
 WORKSPACE mode. Each pin is checked under the flag that makes it matter: a pin to 1.5.0, the
-default, under `--@rules_coco//:version=1.5.1`, a pin to 1.5.1 without one. A pin to the default
-leaves the configuration alone, so its outputs land next to an unpinned target's; a pin to 1.5.1
-does not, which its resolving 1.5.1 without a flag already shows. Nothing is executed.
+default, under `--@rules_coco//:version=1.5.1`, a pin to 1.5.1 without one, and forced, under the
+other version. Forcing an unpinned target changes nothing, so it is not checked. A pin to the
+default leaves the configuration alone, so its outputs land next to an unpinned target's; a pin to
+1.5.1 does not, which its resolving 1.5.1 without a flag already shows. Nothing is executed. Every
+test fixes both version flags itself, so the suite means the same thing whatever the command line
+sets.
 """
 
 load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts")
@@ -15,6 +18,7 @@ load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load("@rules_coco//test/popili_pinning:popili_evidence.bzl", "assert_popili_version")
 
 _VERSION_FLAG = str(Label("@rules_coco//:version"))
+_FORCE_FLAG = str(Label("@rules_coco//:force_version"))
 
 def _impl(ctx):
     env = analysistest.begin(ctx)
@@ -23,13 +27,18 @@ def _impl(ctx):
 
 _ATTRS = {"expected_version": attr.string(mandatory = True)}
 
-popili_version_test = analysistest.make(_impl, attrs = _ATTRS)
+# Nothing on the command line: a pin decides, an unpinned target gets the default.
+popili_version_test = analysistest.make(
+    _impl,
+    attrs = _ATTRS,
+    config_settings = {_VERSION_FLAG: "", _FORCE_FLAG: False},
+)
 
 # The command line asks for 1.5.1: a pin to 1.5.0 must still win, an unpinned target must follow.
 popili_version_under_flag_test = analysistest.make(
     _impl,
     attrs = _ATTRS,
-    config_settings = {_VERSION_FLAG: "1.5.1"},
+    config_settings = {_VERSION_FLAG: "1.5.1", _FORCE_FLAG: False},
 )
 
 def _output_root(target):
@@ -52,7 +61,7 @@ def _configuration_impl(ctx):
     return analysistest.end(env)
 
 # Both sides under the same, unset flag, so the comparison holds whatever the command line sets.
-_DEFAULT = {_VERSION_FLAG: ""}
+_DEFAULT = {_VERSION_FLAG: "", _FORCE_FLAG: False}
 
 configuration_test = analysistest.make(
     _configuration_impl,
@@ -60,6 +69,19 @@ configuration_test = analysistest.make(
         "reference": attr.label(mandatory = True, cfg = analysis_test_transition(settings = _DEFAULT)),
     },
     config_settings = _DEFAULT,
+)
+
+# Forced: every pin is ignored, and the flag (or, empty, the default) applies to everything.
+popili_version_forced_test = analysistest.make(
+    _impl,
+    attrs = _ATTRS,
+    config_settings = {_VERSION_FLAG: "1.5.1", _FORCE_FLAG: True},
+)
+
+popili_version_forced_default_test = analysistest.make(
+    _impl,
+    attrs = _ATTRS,
+    config_settings = {_VERSION_FLAG: "", _FORCE_FLAG: True},
 )
 
 def _expect_message_impl(ctx):
@@ -119,7 +141,13 @@ def pinned_popili_tests(name, pinned, unpinned, pinned_to_default):
                     target_under_test = target,
                     expected_version = version,
                 )
-                tests.append("%s_pin_beats_flag_%s" % (name, consumer))
+                popili_version_forced_test(
+                    name = "%s_forced_flag_%s" % (name, consumer),
+                    size = "small",
+                    target_under_test = target,
+                    expected_version = "1.5.1",
+                )
+                tests += ["%s_%s_%s" % (name, case, consumer) for case in ["pin_beats_flag", "forced_flag"]]
             else:
                 popili_version_test(
                     name = "%s_pinned_%s" % (name, consumer),
@@ -127,7 +155,13 @@ def pinned_popili_tests(name, pinned, unpinned, pinned_to_default):
                     target_under_test = target,
                     expected_version = version,
                 )
-                tests.append("%s_pinned_%s" % (name, consumer))
+                popili_version_forced_default_test(
+                    name = "%s_forced_default_%s" % (name, consumer),
+                    size = "small",
+                    target_under_test = target,
+                    expected_version = "1.5.0",
+                )
+                tests += ["%s_pinned_%s" % (name, consumer), "%s_forced_default_%s" % (name, consumer)]
     for consumer, target in unpinned.items():
         popili_version_test(
             name = "%s_unpinned_%s" % (name, consumer),

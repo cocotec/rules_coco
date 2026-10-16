@@ -22,7 +22,7 @@ load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load(":common_attrs.bzl", "companion_attrs")
 load(":source_roots.bzl", "leaves_directory", "relative_path", "resolve_source_roots", "source_root_for")
 load(":version_registry.bzl", "CocoVersionRegistryInfo")
-load(":version_resolution.bzl", "LOCAL_VERSION", "VERSION_FLAG", "license_protocol_version", "resolve_version_alias")
+load(":version_resolution.bzl", "FORCE_VERSION_FLAG", "LOCAL_VERSION", "VERSION_FLAG", "license_protocol_version", "resolve_version_alias")
 
 CocoPackageInfo = provider(
     doc = "Information about a Coco package",
@@ -106,6 +106,7 @@ COCO_TEST_RULE_ARGS = {
 
 # What a rule needs for `_coco_toolchain`'s full message: the configured version and the registry.
 TOOLCHAIN_ATTRIBUTES = {
+    "_force_version": attr.label(default = Label("//:force_version")),
     "_pinned_from": attr.label(default = Label("//coco/private:pinned_from")),
     "_version": attr.label(default = Label("//:version")),
     "_version_registry": attr.label(
@@ -118,8 +119,9 @@ POPILI_VERSION_ATTRIBUTES = {
     "popili_version": attr.string(
         doc = "The registered popili version this target and everything beneath it, including the " +
               "coco_package it reads, run with: a version such as `\"1.5.1\"` or an alias such as " +
-              "`\"stable\"`. It wins over `--@rules_coco//:version`. Empty (the default) uses the version " +
-              "that flag selects, or the first registered version when the flag is unset too.",
+              "`\"stable\"`. It wins over `--@rules_coco//:version`, unless `--@rules_coco//:force_version` " +
+              "is set, which ignores every pin. Empty (the default) uses the version that flag selects, or " +
+              "the first registered version when the flag is unset too.",
     ),
 }
 
@@ -152,23 +154,25 @@ def _effective_version(version, registered_versions):
 # messages tell a version set by a pin above a target from one set on the command line.
 _PINNED_FROM_SETTING = str(Label("//coco/private:pinned_from"))
 
-def _pin_transition_settings(pin, version, registered_versions, pinned_from = []):
+def _pin_transition_settings(pin, version, registered_versions, forced = False, pinned_from = []):
     """Decides what a popili-resolving rule's transition changes.
 
     Args:
         pin: The target's `popili_version`, "" when unpinned or the rule has none.
         version: The value of `--@rules_coco//:version` in the incoming configuration.
         registered_versions: The hub's registered versions in registration order.
+        forced: The value of `--@rules_coco//:force_version` in the incoming configuration.
         pinned_from: The incoming `pinned_from` setting: `[outer version]` inside a pin, else `[]`.
 
     Returns:
-        The dict the transition returns: `{}` without a pin or when the pin (aliases resolved)
-        is the version the incoming configuration effectively asks for, so the configuration and
-        its output paths are shared; the configuration outside any pin when the pin is the version
-        that one effectively asks for; else the version flag set to the resolved pin, recording
-        the version outside any pin.
+        The dict the transition returns: `{}` when forced (every pin is ignored and the build is
+        analysed in the command line's configuration), without a pin, or when the pin (aliases
+        resolved) is the version the incoming configuration effectively asks for, so the
+        configuration and its output paths are shared; the configuration outside any pin when
+        the pin is the version that one effectively asks for; else the version flag set to the
+        resolved pin, recording the version outside any pin.
     """
-    if not pin:
+    if forced or not pin:
         return {}
     resolved = resolve_version_alias(pin)
     if resolved == _effective_version(version, registered_versions):
@@ -183,12 +187,13 @@ def _popili_version_pin_impl(settings, attr):
         getattr(attr, "popili_version", ""),
         settings[VERSION_FLAG],
         settings[_REGISTERED_VERSIONS_SETTING],
-        settings[_PINNED_FROM_SETTING],
+        settings[FORCE_VERSION_FLAG],
+        pinned_from = settings[_PINNED_FROM_SETTING],
     )
 
 popili_version_pin = transition(
     implementation = _popili_version_pin_impl,
-    inputs = [VERSION_FLAG, _REGISTERED_VERSIONS_SETTING, _PINNED_FROM_SETTING],
+    inputs = [VERSION_FLAG, FORCE_VERSION_FLAG, _REGISTERED_VERSIONS_SETTING, _PINNED_FROM_SETTING],
     outputs = [VERSION_FLAG, _PINNED_FROM_SETTING],
 )
 
@@ -233,7 +238,7 @@ def _coco_toolchain(ctx):
         fail(_missing_toolchain_message(ctx))
     return toolchain
 
-def _version_source(version, pin, pinned_from = None):
+def _version_source(version, pin, pinned_from = None, forced = False):
     """Words where a target's configured popili version came from.
 
     A target without a pin of its own tells the flag on the command line from a pin on a target
@@ -245,13 +250,19 @@ def _version_source(version, pin, pinned_from = None):
         pin: The target's `popili_version`, "" when it has none.
         pinned_from: The `pinned_from` setting in the target's configuration, or None when the
             rule cannot read it.
+        forced: The value of `--@rules_coco//:force_version` in the target's configuration.
 
     Returns:
-        A phrase interpolated as "(%s)" in messages: "pinned by popili_version" (naming the pin
-        as written when it is an alias), "pinned by a target above it", "set by
+        A phrase interpolated as "(%s)" in messages: "forced by --@rules_coco//:force_version"
+        (with "the default, " in front when the version flag is empty), "pinned by popili_version"
+        (naming the pin as written when it is an alias), "pinned by a target above it", "set by
         --@rules_coco//:version", "set by --@rules_coco//:version or a popili_version pin above
         it" when `pinned_from` is unknown, or "the default".
     """
+    if forced:
+        if version:
+            return "forced by --%s" % FORCE_VERSION_FLAG
+        return "the default, forced by --%s" % FORCE_VERSION_FLAG
     if pin:
         if pin == version:
             return "pinned by popili_version"
@@ -267,13 +278,16 @@ def _version_source(version, pin, pinned_from = None):
 def _version_source_of(ctx):
     """Where this target's configured popili version came from, as `_version_source` words it.
 
-    Reads what a rule with TOOLCHAIN_ATTRIBUTES has; a custom rule may lack `_pinned_from`.
+    Reads what a rule with TOOLCHAIN_ATTRIBUTES has; a custom rule may lack `_pinned_from` and
+    `_force_version`.
     """
     pinned_from = getattr(ctx.attr, "_pinned_from", None)
+    force = getattr(ctx.attr, "_force_version", None)
     return _version_source(
         ctx.attr._version[BuildSettingInfo].value,
         getattr(ctx.attr, "popili_version", ""),
         pinned_from[BuildSettingInfo].value if pinned_from else None,
+        force[BuildSettingInfo].value if force else False,
     )
 
 def _describe_registered_versions(registry):
