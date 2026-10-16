@@ -149,7 +149,7 @@ def _effective_version(version, registered_versions):
     return ""
 
 # The value `--@rules_coco//:version` had outside any pin, as a one-element list inside a pin and
-# empty outside one; only the pin transitions set it. It lets the runtime's extra deps go back to
+# empty outside one; only the pin transition sets it. It lets the runtime's extra deps go back to
 # the configuration of unpinned targets, so a binary that also links them gets one copy, and
 # messages tell a version set by a pin above a target from one set on the command line.
 _PINNED_FROM_SETTING = str(Label("//coco/private:pinned_from"))
@@ -215,96 +215,6 @@ popili_version_unpin = transition(
     implementation = _popili_version_unpin_impl,
     inputs = [VERSION_FLAG, _PINNED_FROM_SETTING],
     outputs = [VERSION_FLAG, _PINNED_FROM_SETTING],
-)
-
-def _popili_version_transition_impl(settings, attr):
-    """Transition implementation for per-target popili version selection.
-
-    If the target specifies a version attribute, transition to that version.
-    Version aliases (like "stable") are resolved to actual version numbers.
-    Otherwise, keep the current configuration's version setting. Like a pin, it records the
-    version outside any pin.
-    """
-    if hasattr(attr, "version") and attr.version:
-        resolved_version = resolve_version_alias(attr.version)
-        pinned_from = settings[_PINNED_FROM_SETTING] or [settings[VERSION_FLAG]]
-        return {VERSION_FLAG: resolved_version, _PINNED_FROM_SETTING: pinned_from}
-    return {}
-
-_popili_version_transition = transition(
-    implementation = _popili_version_transition_impl,
-    inputs = [VERSION_FLAG, _PINNED_FROM_SETTING],
-    outputs = [VERSION_FLAG, _PINNED_FROM_SETTING],
-)
-
-# Export for use in cc.bzl
-popili_version_transition = _popili_version_transition
-
-def _with_popili_version_impl(ctx):
-    """Wrapper rule that applies popili version transition to a target.
-
-    This allows users to build a specific target with a different popili version
-    than the default specified by --@rules_coco//:version.
-    """
-
-    # When using configuration transitions, ctx.attr.target becomes a list
-    target = ctx.attr.target[0] if type(ctx.attr.target) == type([]) else ctx.attr.target
-
-    # Forward all providers from the target
-    # We need to explicitly check for each provider type and forward them
-    providers = []
-
-    # Forward DefaultInfo if present
-    if hasattr(target, "files"):
-        providers.append(target[DefaultInfo])
-
-    # Forward CocoPackageInfo if present
-    if CocoPackageInfo in target:
-        providers.append(target[CocoPackageInfo])
-
-    # Forward language-specific generated code providers if present
-    if CocoCcGeneratedInfo in target:
-        providers.append(target[CocoCcGeneratedInfo])
-    if CocoCSharpGeneratedInfo in target:
-        providers.append(target[CocoCSharpGeneratedInfo])
-
-    # Forward CcInfo if present
-    if CcInfo in target:
-        providers.append(target[CcInfo])
-
-    # Forward OutputGroupInfo if present
-    if OutputGroupInfo in target:
-        providers.append(target[OutputGroupInfo])
-
-    return providers
-
-with_popili_version = rule(
-    implementation = _with_popili_version_impl,
-    attrs = {
-        "target": attr.label(
-            mandatory = True,
-            doc = "The target to build with a specific popili version",
-        ),
-        "version": attr.string(
-            mandatory = True,
-            doc = "The popili version to use (e.g., '1.5.0', '1.4.7')",
-        ),
-    },
-    cfg = _popili_version_transition,
-    doc = """Wrapper rule to build a target with a specific popili version.
-
-    Use this when you need to build different targets with different popili versions
-    in the same build. For most cases, just use --@rules_coco//:version=X.Y.Z.
-
-    Example:
-        coco_package(name = "pkg", ...)
-
-        with_popili_version(
-            name = "pkg_v147",
-            target = ":pkg",
-            version = "1.4.7",
-        )
-    """,
 )
 
 # License files are now obtained from the toolchain, not passed as attributes

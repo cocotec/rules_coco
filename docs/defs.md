@@ -2,40 +2,6 @@
 
 Public API for Coco package rules and code generation.
 
-<a id="with_popili_version"></a>
-
-## with_popili_version
-
-<pre>
-load("@rules_coco//coco:defs.bzl", "with_popili_version")
-
-with_popili_version(<a href="#with_popili_version-name">name</a>, <a href="#with_popili_version-target">target</a>, <a href="#with_popili_version-version">version</a>)
-</pre>
-
-Wrapper rule to build a target with a specific popili version.
-
-Use this when you need to build different targets with different popili versions
-in the same build. For most cases, just use --@rules_coco//:version=X.Y.Z.
-
-Example:
-    coco_package(name = "pkg", ...)
-
-    with_popili_version(
-        name = "pkg_v147",
-        target = ":pkg",
-        version = "1.4.7",
-    )
-
-**ATTRIBUTES**
-
-
-| Name  | Description | Type | Mandatory | Default |
-| :------------- | :------------- | :------------- | :------------- | :------------- |
-| <a id="with_popili_version-name"></a>name |  A unique name for this target.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
-| <a id="with_popili_version-target"></a>target |  The target to build with a specific popili version   | <a href="https://bazel.build/concepts/labels">Label</a> | required |  |
-| <a id="with_popili_version-version"></a>version |  The popili version to use (e.g., '1.5.0', '1.4.7')   | String | required |  |
-
-
 <a id="CocoWorkspaceInfo"></a>
 
 ## CocoWorkspaceInfo

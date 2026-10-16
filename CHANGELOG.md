@@ -106,6 +106,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- **Breaking:** `with_popili_version` is removed. Set `popili_version` on the targets that run Popili
+  instead (`coco_generate`, `coco_verify_test`, `coco_fmt_test`, the diagram rules), and on a
+  `coco_cc_library` or `coco_c_library` for the runtime it links; the `coco_package` beneath a
+  pinned target follows its version.
 - The macOS Intel (`osx`/`x86_64`) toolchain is no longer supported, as Popili dropped Intel macOS with
   1.5.0.
 
@@ -114,8 +118,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `local_user` licensing passes each popili version the licence file it reads, instead of the first
   one found, which popili 1.6 rejects.
 - `coco_cc_library` and `coco_c_library` no longer fail to find generated headers when their
-  `coco_generate` is built with a different Popili version, for example through `with_popili_version`,
-  nor pick up a copy of them built at another version (an undeclared inclusion, on Windows).
+  `coco_generate` is built in another configuration than the library, for example under a different
+  `popili_version` pin, nor pick up a copy of them built in the library's own configuration (an
+  undeclared inclusion, on Windows).
 - `local_user` now finds the license in the correct directory (`XDG_DATA_HOME` or
   `%LOCALAPPDATA%`), and respects the `POPILI_DATA` override.
 - The local toolchain (`coco.local_toolchain` in bzlmod, `coco_local_repositories` in WORKSPACE) is
