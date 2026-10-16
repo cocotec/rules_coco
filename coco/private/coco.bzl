@@ -283,6 +283,7 @@ def _coco_runfiles(ctx, package, is_test):
     if package:
         direct.append(package[CocoPackageInfo].package_file)
         transitive.append(package[CocoPackageInfo].srcs)
+        transitive.append(package[CocoPackageInfo].test_srcs)
         transitive.append(package[CocoPackageInfo].dep_package_files)
         transitive.append(package[CocoPackageInfo].workspace_files)
 
