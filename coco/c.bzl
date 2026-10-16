@@ -38,7 +38,7 @@ def coco_c_library(
     - ["ISensor.h", "Types.h"]: only listed headers are public, rest are private
     - []: no generated headers are public (all private)
 
-    Use bare filenames to match by name, or path suffixes (e.g., "src/ISensor.h")
+    Use bare filenames to match by name, or path suffixes (e.g., "sensors/ISensor.h")
     to disambiguate when multiple generated files share a name.
 
     Args:

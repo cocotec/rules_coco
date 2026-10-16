@@ -28,6 +28,7 @@ load(":coco.bzl", "FILE_NAME_MANGLER_STYLES", "component_styles", "compute_outpu
 load(":common_repositories.bzl", "download_prefix", "find_local_license_path")
 load(":known_shas.bzl", "FILE_KEY_TO_SHA")
 load(":platforms.bzl", "COCO_TOOLCHAIN_PLATFORMS", "archive_platform", "platform_binary_ext")
+load(":source_roots.bzl", "infer_source_root", "leaves_directory", "normalize_root", "relative_path", "resolve_source_roots", "source_root_for")
 load(
     ":toolchain_hub.bzl",
     "merge_toolchain_tags",
@@ -325,6 +326,21 @@ def _module_path_for_test_impl(ctx):
         module_path_for(struct(path = "pkg/Runnable.coco"), "pkg", ""),
     )
 
+    # A source root outside the package: sources = ["src_root", "../external_sources"].
+    asserts.equals(
+        env,
+        ["MyPort"],
+        module_path_for(struct(path = "external_sources/MyPort.coco"), "Main", "../external_sources"),
+    )
+    asserts.equals(
+        env,
+        ["Sub", "X"],
+        module_path_for(struct(path = "external_sources/Sub/X.coco"), "Main", "../external_sources"),
+    )
+
+    # Coco.toml at the workspace root.
+    asserts.equals(env, ["Comp"], module_path_for(struct(path = "src/Comp.coco"), "", "src"))
+
     return unittest.end(env)
 
 def _package_relative_dir_test_impl(ctx):
@@ -344,6 +360,194 @@ def _package_relative_dir_test_impl(ctx):
 
 module_path_for_test = unittest.make(_module_path_for_test_impl)
 package_relative_dir_test = unittest.make(_package_relative_dir_test_impl)
+
+# Tests for source_roots.bzl. Paths here are relative to the Coco.toml directory.
+
+def _infer_source_root_single_root_test(ctx):
+    env = unittest.begin(ctx)
+
+    # sources = ["src"], glob(["src/*.coco"])
+    asserts.equals(env, "src", infer_source_root(["src/Comp.coco", "src/Runnable.coco"]))
+
+    return unittest.end(env)
+
+def _infer_source_root_nested_order_independent_test(ctx):
+    env = unittest.begin(ctx)
+
+    # sources = ["src"], glob(["src/**/*.coco"]). glob() sorts, so the nested file comes first whenever
+    # its directory sorts before the top-level file ("Api" < "Main.coco").
+    asserts.equals(env, "src", infer_source_root(["src/Main.coco", "src/types/Dimension.coco"]))
+    asserts.equals(env, "src", infer_source_root(["src/Api/Foo.coco", "src/Main.coco"]))
+
+    return unittest.end(env)
+
+def _infer_source_root_nested_siblings_test(ctx):
+    env = unittest.begin(ctx)
+
+    # Files only in two sibling subdirectories: the root is their parent, not either sibling.
+    asserts.equals(env, "src", infer_source_root(["src/a/X.coco", "src/b/Y.coco"]))
+    asserts.equals(env, "src", infer_source_root(["src/b/Y.coco", "src/a/X.coco"]))
+
+    return unittest.end(env)
+
+def _infer_source_root_mixed_depths_test(ctx):
+    env = unittest.begin(ctx)
+
+    for order in [
+        ["src/Top.coco", "src/a/Mid.coco", "src/a/b/Deep.coco"],
+        ["src/a/Mid.coco", "src/Top.coco", "src/a/b/Deep.coco"],
+        ["src/a/b/Deep.coco", "src/Top.coco", "src/a/Mid.coco"],
+        ["src/a/b/Deep.coco", "src/a/Mid.coco", "src/Top.coco"],
+    ]:
+        asserts.equals(env, "src", infer_source_root(order), "order %s" % order)
+
+    return unittest.end(env)
+
+def _infer_source_root_beside_manifest_test(ctx):
+    env = unittest.begin(ctx)
+
+    # sources = ["."]: everything next to Coco.toml (test/package_directory), or one file next to it and
+    # one in a subdirectory, in either order.
+    asserts.equals(env, "", infer_source_root(["Comp.coco", "Runnable.coco"]))
+    asserts.equals(env, "", infer_source_root(["Top.coco", "sub/Nested.coco"]))
+    asserts.equals(env, "", infer_source_root(["sub/Nested.coco", "Top.coco"]))
+
+    return unittest.end(env)
+
+def _infer_source_root_nested_only_test(ctx):
+    env = unittest.begin(ctx)
+
+    # sources = ["src"], but every file lives in src/a: inference gives "src/a" (see infer_source_root).
+    asserts.equals(env, "src/a", infer_source_root(["src/a/X.coco", "src/a/Y.coco"]))
+    asserts.equals(env, "src", source_root_for("src/a/X.coco", ["src"]))
+
+    return unittest.end(env)
+
+def _infer_source_root_empty_test(ctx):
+    env = unittest.begin(ctx)
+
+    # glob() may match nothing.
+    asserts.equals(env, "", infer_source_root([]))
+
+    return unittest.end(env)
+
+def _source_root_for_multiple_roots_test(ctx):
+    env = unittest.begin(ctx)
+
+    # sources = ["src", "generated"]: each file's module path is relative to its own root.
+    roots = ["src", "generated"]
+    asserts.equals(env, "src", source_root_for("src/Comp.coco", roots))
+    asserts.equals(env, "generated", source_root_for("generated/Runnable.coco", roots))
+    asserts.equals(env, "generated", source_root_for("generated/deep/Runnable.coco", roots))
+
+    return unittest.end(env)
+
+def _source_root_for_root_matching_test(ctx):
+    env = unittest.begin(ctx)
+
+    # "" (the Coco.toml directory) contains everything.
+    asserts.equals(env, "", source_root_for("sub/X.coco", [""]))
+
+    # Nested roots: the longest containing root wins.
+    asserts.equals(env, "src/gen", source_root_for("src/gen/X.coco", ["src", "src/gen"]))
+    asserts.equals(env, "src", source_root_for("src/X.coco", ["src/gen", "src"]))
+
+    # A root must be a directory prefix, not just a string prefix.
+    asserts.equals(env, "", source_root_for("srcs/X.coco", ["src", ""]))
+
+    # Roots outside the Coco.toml directory.
+    asserts.equals(env, "../ext", source_root_for("../ext/MyPort.coco", ["src", "../ext"]))
+    asserts.equals(env, "..", source_root_for("../ext2/X.coco", ["src", "../ext", ".."]))
+
+    return unittest.end(env)
+
+def _relative_path_test(ctx):
+    env = unittest.begin(ctx)
+
+    asserts.equals(env, "src/A.coco", relative_path("pkg/src/A.coco", "pkg"))
+    asserts.equals(env, "../external_sources/MyPort.coco", relative_path("external_sources/MyPort.coco", "Main"))
+    asserts.equals(env, "../../b/X.coco", relative_path("a/b/X.coco", "a/c/d"))
+    asserts.equals(env, "", relative_path("pkg", "pkg"))
+
+    # "" is the workspace root, where Coco.toml may sit.
+    asserts.equals(env, "src/X.coco", relative_path("src/X.coco", ""))
+
+    # Directories are compared by segment, not by string prefix.
+    asserts.equals(env, "../pkg2/X.coco", relative_path("pkg2/X.coco", "pkg"))
+
+    # Paths that already leave their directory, as module paths do relative to a root outside the package.
+    asserts.equals(env, "MyPort.coco", relative_path("../ext/MyPort.coco", "../ext"))
+
+    return unittest.end(env)
+
+def _leaves_directory_test(ctx):
+    env = unittest.begin(ctx)
+
+    asserts.true(env, leaves_directory(".."))
+    asserts.true(env, leaves_directory("../ext/X.coco"))
+    asserts.false(env, leaves_directory("..ext/X.coco"))
+    asserts.false(env, leaves_directory("src/X.coco"))
+
+    return unittest.end(env)
+
+def _normalize_root_test(ctx):
+    env = unittest.begin(ctx)
+
+    asserts.equals(env, "", normalize_root(""))
+    asserts.equals(env, "", normalize_root("."))
+    asserts.equals(env, "", normalize_root("./"))
+    asserts.equals(env, "src", normalize_root("src/"))
+    asserts.equals(env, "src", normalize_root("./src"))
+    asserts.equals(env, "src/a", normalize_root("src/./a/"))
+
+    # Roots outside the Coco.toml directory.
+    asserts.equals(env, "..", normalize_root(".."))
+    asserts.equals(env, "../x", normalize_root("../x"))
+    asserts.equals(env, "../x", normalize_root("../x/"))
+    asserts.equals(env, "../x", normalize_root("./../x"))
+    asserts.equals(env, "../x", normalize_root("src/../../x"))
+
+    return unittest.end(env)
+
+def _resolve_source_roots_test(ctx):
+    env = unittest.begin(ctx)
+
+    # resolve_source_roots only reads `.path`, so structs with a `path` field stand in for Files.
+    files = [struct(path = "pkg/src/Comp.coco"), struct(path = "pkg/src/api/Runnable.coco")]
+    asserts.equals(env, ["src"], resolve_source_roots("pkg", files, []))
+    asserts.equals(env, ["src"], resolve_source_roots("pkg", files, ["src/"]))
+    asserts.equals(env, ["src", "generated"], resolve_source_roots("pkg", files, ["src", "generated"]))
+
+    # sources = ["src_root", "../external_sources"]
+    asserts.equals(
+        env,
+        ["src_root", "../external_sources"],
+        resolve_source_roots(
+            "Main",
+            [struct(path = "Main/src_root/MainComponent.coco"), struct(path = "external_sources/MyPort.coco")],
+            ["src_root", "../external_sources/"],
+        ),
+    )
+
+    # Coco.toml at the workspace root: package_file.dirname is "".
+    asserts.equals(env, ["src"], resolve_source_roots("", [struct(path = "src/Comp.coco")], []))
+
+    return unittest.end(env)
+
+# Create test rules for source_roots.bzl
+infer_source_root_single_root_test = unittest.make(_infer_source_root_single_root_test)
+relative_path_test = unittest.make(_relative_path_test)
+leaves_directory_test = unittest.make(_leaves_directory_test)
+infer_source_root_nested_order_independent_test = unittest.make(_infer_source_root_nested_order_independent_test)
+infer_source_root_nested_siblings_test = unittest.make(_infer_source_root_nested_siblings_test)
+infer_source_root_mixed_depths_test = unittest.make(_infer_source_root_mixed_depths_test)
+infer_source_root_beside_manifest_test = unittest.make(_infer_source_root_beside_manifest_test)
+infer_source_root_nested_only_test = unittest.make(_infer_source_root_nested_only_test)
+infer_source_root_empty_test = unittest.make(_infer_source_root_empty_test)
+source_root_for_multiple_roots_test = unittest.make(_source_root_for_multiple_roots_test)
+source_root_for_root_matching_test = unittest.make(_source_root_for_root_matching_test)
+normalize_root_test = unittest.make(_normalize_root_test)
+resolve_source_roots_test = unittest.make(_resolve_source_roots_test)
 
 # Tests for find_local_license_path
 
@@ -1361,6 +1565,21 @@ def coco_test_suite(name):
         name + "_unit",
         module_path_for_test,
         package_relative_dir_test,
+
+        # source_roots.bzl tests
+        relative_path_test,
+        leaves_directory_test,
+        infer_source_root_single_root_test,
+        infer_source_root_nested_order_independent_test,
+        infer_source_root_nested_siblings_test,
+        infer_source_root_mixed_depths_test,
+        infer_source_root_beside_manifest_test,
+        infer_source_root_nested_only_test,
+        infer_source_root_empty_test,
+        source_root_for_multiple_roots_test,
+        source_root_for_root_matching_test,
+        normalize_root_test,
+        resolve_source_roots_test,
 
         # collect_cc_runtime_extra_deps tests
         cc_runtime_deps_root_single_version_test,

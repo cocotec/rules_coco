@@ -1,6 +1,6 @@
 #include "gtest/gtest.h"
 
-#include "test/workspace_explicit/pkg/src/IPkg.h"
+#include "test/workspace_explicit/pkg/IPkg.h"
 
 TEST(WorkspaceExplicitTest, PixelFromNonChildWorkspaceMember) {
   Pixel pixel(Colour::GREEN, 200);

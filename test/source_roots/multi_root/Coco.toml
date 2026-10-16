@@ -1,0 +1,7 @@
+[package]
+name = "multi_root"
+sources = ["src", "interfaces"]
+
+[language]
+standard = "1.2"
+profiles = ["C++"]

@@ -93,7 +93,7 @@ coco_generate(
 cc_test(
     name = "csharp_test",
     srcs = ["app/test/csharp_validator.cc"],
-    args = ["test/regenerate_packages/app/sources"],
+    args = ["test/regenerate_packages/app"],
     data = [":app_csharp"],
 )
 

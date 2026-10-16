@@ -1,0 +1,11 @@
+[package]
+name = "test_root"
+sources = ["src/main"]
+testSources = ["test"]
+
+[language]
+standard = "1.2"
+profiles = ["C++"]
+
+[generator.cpp]
+generateMocks = "GMock"

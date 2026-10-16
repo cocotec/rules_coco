@@ -2,7 +2,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdint.h>
-#include "src/add.h"
+#include "add.h"
 
 int main(void) {
     int32_t result = add(2, 3);

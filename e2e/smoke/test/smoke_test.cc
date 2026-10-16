@@ -1,8 +1,8 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
-#include "src/Example.h"
-#include "src/ExampleMock.h"
+#include "Example.h"
+#include "ExampleMock.h"
 
 using ::testing::_;
 using ::testing::Exactly;

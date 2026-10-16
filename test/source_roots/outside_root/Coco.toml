@@ -1,0 +1,7 @@
+[package]
+name = "outside_root"
+sources = ["src", "../outside_root_shared"]
+
+[language]
+standard = "1.2"
+profiles = ["C++"]

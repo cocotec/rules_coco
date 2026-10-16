@@ -45,7 +45,7 @@ coco_generate(
 coco_cc_library(
     name = "base_cc",
     generated_package = ":base_cpp",
-    includes = ["base/src"],
+    includes = ["base"],
 )
 
 coco_package(
@@ -70,7 +70,7 @@ coco_generate(
 coco_cc_library(
     name = "middle_cc",
     generated_package = ":middle_cpp",
-    includes = ["middle/src"],
+    includes = ["middle"],
     deps = [":base_cc"],
 )
 
