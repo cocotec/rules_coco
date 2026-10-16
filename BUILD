@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("@bazel_skylib//rules:common_settings.bzl", "string_flag", "string_setting")
+load("@bazel_skylib//rules:common_settings.bzl", "bool_flag", "string_flag", "string_setting")
 load("@rules_coco//coco:defs.bzl", "LICENSE_SOURCES")
 
 string_flag(
@@ -52,6 +52,14 @@ string_flag(
 string_flag(
     name = "version",
     build_setting_default = "",
+    visibility = ["//visibility:public"],
+)
+
+# Makes :version (or the default) apply to every target, ignoring popili_version pins and
+# with_popili_version wrappers.
+bool_flag(
+    name = "force_version",
+    build_setting_default = False,
     visibility = ["//visibility:public"],
 )
 

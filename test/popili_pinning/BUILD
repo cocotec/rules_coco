@@ -94,7 +94,8 @@ coco_cc_library(
     generated_package = ":unpinned_cpp",
 )
 
-# Unpinned, for the same assertions on a test.
+# Unpinned, for the same assertions on a test, and the reference configuration under
+# --@rules_coco//:force_version.
 coco_verify_test(
     name = "unpinned_verify",
     package = ":base",
@@ -114,6 +115,17 @@ coco_generate(
     package = ":base",
     popili_version = "1.99.0",
     tags = ["manual"],
+)
+
+# Pinned to a version nobody registered, for the assertion that --@rules_coco//:force_version
+# ignores the pin. A diagram, because its outputs are named by the target, so forced it does not
+# write the files of the stable-pinned coco_generate over the same package.
+coco_state_diagram(
+    name = "unregistered_states",
+    package = ":base",
+    popili_version = "1.99.0",
+    tags = ["manual"],
+    targets = ["Runnable.M"],
 )
 
 # A typechecked package: its typecheck script shows the popili the package itself resolved.
@@ -145,5 +157,6 @@ popili_pinning_tests(
         "verify_test": ":unpinned_verify",
     },
     unregistered = ":unregistered_cpp",
+    unregistered_diagram = ":unregistered_states",
     untransitioned = ":untransitioned",
 )

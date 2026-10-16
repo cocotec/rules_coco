@@ -236,7 +236,8 @@ coco_verify_test(
 
 Everything without a pin uses the default, or the version `--@rules_coco//:version` selects, for
 example `bazel build --@rules_coco//:version=1.5.1 //...`. The flag takes a concrete version (or
-`local`); aliases such as `stable` are for pins only. A pin always wins over the flag.
+`local`); aliases such as `stable` are for pins only. A pin wins over the flag, unless
+`--@rules_coco//:force_version` is set (below).
 
 A pin equal to the version the build uses anyway (the flag, or the default when the flag is unset)
 costs nothing. A target pinned to any other version is built in a configuration of its own, so its
@@ -247,6 +248,11 @@ and `bazel-testlogs`. In CI, collect test results through the Build Event Protoc
 `with_popili_version` remains for targets that have no `popili_version` of their own, such as a
 custom rule that resolves the Coco toolchain: it builds the wrapped target and everything beneath
 it with the given version.
+
+To try a version on the whole repository without editing BUILD files, add
+`--@rules_coco//:force_version`: every pin and every `with_popili_version` wrapper is ignored, and
+`--@rules_coco//:version` (or the default when it is unset) applies everywhere, for example
+`bazel test --@rules_coco//:force_version --@rules_coco//:version=1.5.1 //...`.
 
 See `e2e/multi_version` for a full example, in both `MODULE.bazel` and `WORKSPACE` form.
 

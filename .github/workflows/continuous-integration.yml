@@ -246,6 +246,22 @@ jobs:
               --@rules_coco//:auth_token_path=${{ matrix.auth_token_path }} \
               --@rules_coco//:verification_backend=${{ matrix.verification_backend }} \
               //...) || exit 1
+
+            # One forced build: legacy_mock_test's generator, runtime and mocks are pinned to
+            # 1.5.1, and --force_version builds all of them with the default, 1.5.0, instead.
+            if [ "$dir" = "e2e/multi_version" ]; then
+              echo "Testing ${dir} forced..."
+              (cd "${dir}" && bazel test \
+                --config=${{ matrix.build_system }} \
+                --repo_env=COCOTEC_AUTH_TOKEN \
+                --color=yes \
+                --test_output=errors \
+                --@rules_coco//:license_source=${{ matrix.license_source }} \
+                --@rules_coco//:auth_token_path=${{ matrix.auth_token_path }} \
+                --@rules_coco//:verification_backend=${{ matrix.verification_backend }} \
+                --@rules_coco//:force_version \
+                //:legacy_mock_test) || exit 1
+            fi
           done
         shell: bash
         env:

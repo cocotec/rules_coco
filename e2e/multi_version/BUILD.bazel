@@ -14,7 +14,13 @@ load(
 )
 load("@rules_coco//coco/private:coco.bzl", "TESTS_FOLLOW_TARGET_PLATFORM")  # buildifier: disable=bzl-visibility
 load("@rules_coco//test/popili_diagnostics:diagnostics_test.bzl", "popili_diagnostics_tests")
-load(":pinned_popili_test.bzl", "library_version_mismatch_test", "pinned_popili_tests")
+load(
+    ":pinned_popili_test.bzl",
+    "library_version_mismatch_test",
+    "pinned_popili_tests",
+    "popili_version_forced_default_test",
+    "popili_version_forced_test",
+)
 load(":popili_version_report.bzl", "popili_version_report")
 load(":stub_cc_toolchain.bzl", "stub_cc_toolchain_config")
 load(":test_platform_test.bzl", "test_platform_popili_test")
@@ -210,6 +216,23 @@ library_version_mismatch_test(
     target_under_test = ":mixed_cc",
 )
 
+# Forced, the pins of library and generator are both ignored, so they agree on the command line's
+# version (or the default) and the mismatched libraries build. The unpinned library under a flag
+# naming 1.5.1 would agree with its generator unforced, so it is left out.
+[
+    test(
+        name = "library_%s_forced_%s" % (library, case),
+        size = "small",
+        expected_version = version,
+        target_under_test = ":legacy_cc_%s._gen" % library,
+    )
+    for library, case, test, version in [
+        ("at_150", "flag", popili_version_forced_test, "1.5.1"),
+        ("at_150", "default", popili_version_forced_default_test, "1.5.0"),
+        ("unpinned", "default", popili_version_forced_default_test, "1.5.0"),
+    ]
+]
+
 coco_state_diagram(
     name = "legacy_states",
     package = ":legacy",
@@ -280,6 +303,7 @@ pinned_popili_tests(
         "flexible_generate": ":flexible_cpp",
         "flexible_verify": ":flexible_verify",
     },
+    wrapped = ":popili_is_151",
 )
 
 # Foreign to every CI host; test_platform_test.bzl targets it, with the host as first execution platform.
