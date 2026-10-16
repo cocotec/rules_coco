@@ -67,7 +67,6 @@ bzl_library(
     srcs = ["toolchain_repositories.bzl"],
     deps = [
         ":common_repositories_bzl",
-        ":known_shas_bzl",
         ":platforms_bzl",
         ":version_resolution_bzl",
     ],
