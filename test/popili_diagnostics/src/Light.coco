@@ -1,0 +1,13 @@
+port Light {
+  function on() : Nil
+  function off() : Nil
+
+  machine M {
+    state Off {
+      on() = setNextState(On)
+    }
+    state On {
+      off() = setNextState(Off)
+    }
+  }
+}

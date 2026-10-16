@@ -44,6 +44,7 @@ load(
     ":version_resolution.bzl",
     "LOCAL_VERSION",
     "RESERVED_VERSIONS",
+    "TOOLCHAIN_TYPE",
     "VERSION_FLAG",
     "resolve_version_alias",
     "validate_minimum_version",
@@ -63,7 +64,7 @@ toolchain(
     exec_compatible_with = {exec_compatible_with},
     target_settings = {target_settings},
     toolchain = "{toolchain_label}",
-    toolchain_type = "@rules_coco//coco:toolchain_type",
+    toolchain_type = "{toolchain_type}",
     visibility = ["//visibility:public"],
 )
 """
@@ -359,6 +360,7 @@ def render_toolchain_hub_build(entries):
             exec_compatible_with = entries.exec_compatible_with[name],
             target_settings = entries.target_settings[name],
             toolchain_label = entries.toolchain_labels[name],
+            toolchain_type = TOOLCHAIN_TYPE,
         )
         for name in entries.toolchain_names
     ])

@@ -20,6 +20,8 @@ load(
     "COCO_TOOLCHAIN_TYPE",
     "CocoPackageInfo",
     "LICENSE_ATTRIBUTES",
+    "TOOLCHAIN_ATTRIBUTES",
+    "coco_toolchain_or_fail",
     "run_coco",
 )
 
@@ -43,6 +45,7 @@ def _coco_architecture_diagram_impl(ctx):
 
     Generates architecture diagrams using `popili graph-component`.
     """
+    coco_toolchain_or_fail(ctx)
     package = ctx.attr.package
 
     filenames = ctx.attr.component_filenames
@@ -99,7 +102,7 @@ def _coco_architecture_diagram_impl(ctx):
 
 _coco_architecture_diagram = rule(
     implementation = _coco_architecture_diagram_impl,
-    attrs = dict(LICENSE_ATTRIBUTES.items() + {
+    attrs = dict(LICENSE_ATTRIBUTES.items() + TOOLCHAIN_ATTRIBUTES.items() + {
         "component_filenames": attr.string_list(
             mandatory = True,
         ),
@@ -201,7 +204,7 @@ def _coco_state_diagram_impl(ctx):
 
 _coco_state_diagram = rule(
     implementation = _coco_state_diagram_impl,
-    attrs = dict(LICENSE_ATTRIBUTES.items() + {
+    attrs = dict(LICENSE_ATTRIBUTES.items() + TOOLCHAIN_ATTRIBUTES.items() + {
         "package": attr.label(
             providers = [CocoPackageInfo],
             mandatory = True,
@@ -225,6 +228,7 @@ def _coco_counterexample_diagram_impl(ctx):
 
     Generates counterexample diagrams using `popili verify --counterexample-svg`.
     """
+    coco_toolchain_or_fail(ctx)
     package = ctx.attr.package
 
     filenames = ctx.attr.counterexample_filenames
@@ -283,7 +287,7 @@ def _coco_counterexample_diagram_impl(ctx):
 
 _coco_counterexample_diagram = rule(
     implementation = _coco_counterexample_diagram_impl,
-    attrs = dict(LICENSE_ATTRIBUTES.items() + {
+    attrs = dict(LICENSE_ATTRIBUTES.items() + TOOLCHAIN_ATTRIBUTES.items() + {
         "counterexample_assertions": attr.string_list(
             default = [],
         ),
