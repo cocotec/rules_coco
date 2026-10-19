@@ -1,5 +1,5 @@
-// Instantiates a generic from another module, so App.cc must include
-// Relay_impl.h.
+// Instantiates a generic from another module, so App's hidden implementation
+// needs the whole template from Relay.h.
 
 import Relay
 

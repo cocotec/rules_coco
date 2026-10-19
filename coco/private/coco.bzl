@@ -689,12 +689,6 @@ FILE_NAME_MANGLER_STYLES = [
     "CapsUpperUnderscore",
 ]
 
-# The component styles of popili's generator.cpp.componentStyle.
-COMPONENT_STYLES = [
-    "Regular",
-    "HideImplementation",
-]
-
 # The styles that keep the input's underscores and separate words with one.
 # LowerCamelCasePrefixUnderscore is *not* one of them: apart from the leading
 # underscore it is plain LowerCamelCase.
@@ -825,18 +819,17 @@ def _join_path(components):
     return "/".join([c for c in components if c])
 
 def _output_file_names(base_name, config):
-    """Compute the output file names for an already-mangled base name.
+    """Compute the four output file names for an already-mangled base name.
 
-    popili appends the "Mock" and "_impl" suffixes *after* mangling, and
-    mangles neither the suffixes nor the prefixes.
+    popili appends the "Mock" suffix *after* mangling, and mangles neither the
+    suffix nor the prefixes.
 
     Args:
         base_name: The mangled base name
         config: Language configuration struct
 
     Returns:
-        A struct with header, impl, mock_header, mock_impl, hidden_header and
-        hidden_impl names; the optional ones are None when not generated
+        A struct with header, impl, mock_header and mock_impl names
     """
     mock_header = None
     mock_impl = None
@@ -844,19 +837,11 @@ def _output_file_names(base_name, config):
         mock_header = config.header_prefix + base_name + "Mock" + config.header_extension
         mock_impl = config.impl_prefix + base_name + "Mock" + config.impl_extension
 
-    hidden_header = None
-    hidden_impl = None
-    if config.component_style == "HideImplementation":
-        hidden_header = config.header_prefix + base_name + "_impl" + config.header_extension
-        hidden_impl = config.impl_prefix + base_name + "_impl" + config.impl_extension
-
     return struct(
         header = config.header_prefix + base_name + config.header_extension,
         impl = config.impl_prefix + base_name + config.impl_extension,
         mock_header = mock_header,
         mock_impl = mock_impl,
-        hidden_header = hidden_header,
-        hidden_impl = hidden_impl,
     )
 
 def _compute_output_paths(module_path, config):
@@ -874,8 +859,7 @@ def _compute_output_paths(module_path, config):
         config: Language configuration struct
 
     Returns:
-        A struct with header, impl, mock_header, mock_impl, hidden_header and
-        hidden_impl paths
+        A struct with header, impl, mock_header and mock_impl paths
     """
     components = module_path
     if config.flat_hierarchy:
@@ -891,8 +875,6 @@ def _compute_output_paths(module_path, config):
         impl = _join_path([directory, names.impl]),
         mock_header = _join_path([directory, names.mock_header]) if names.mock_header else None,
         mock_impl = _join_path([directory, names.mock_impl]) if names.mock_impl else None,
-        hidden_header = _join_path([directory, names.hidden_header]) if names.hidden_header else None,
-        hidden_impl = _join_path([directory, names.hidden_impl]) if names.hidden_impl else None,
     )
 
 def _module_path_for(src, package_dir, root_output_dir):
@@ -937,7 +919,6 @@ def _build_language_config(ctx, language):
             impl_extension = ctx.attr.cpp_implementation_file_extension,
             mocks = ctx.attr.mocks,
             flat_hierarchy = ctx.attr.cpp_flat_file_hierarchy,
-            component_style = ctx.attr.cpp_component_style,
         )
     elif language == "c":
         return struct(
@@ -948,7 +929,6 @@ def _build_language_config(ctx, language):
             impl_extension = ctx.attr.c_implementation_file_extension,
             mocks = ctx.attr.mocks,
             flat_hierarchy = ctx.attr.c_flat_file_hierarchy,
-            component_style = "Regular",
         )
     elif language == "csharp":
         return None  # C# doesn't use config struct
@@ -989,10 +969,6 @@ def _declare_language_outputs(ctx, headers, sources, mock_headers, mock_sources,
         if output_paths.mock_header:
             mock_headers.append(path_builder(output_paths.mock_header))
             mock_sources.append(path_builder(output_paths.mock_impl))
-
-        if output_paths.hidden_header:
-            headers.append(path_builder(output_paths.hidden_header))
-            sources.append(path_builder(output_paths.hidden_impl))
     elif ctx.attr.language == "csharp":
         # C# generation - simple .cs files, always hierarchical.
         #
@@ -1192,14 +1168,6 @@ _coco_generate = rule(
             doc = "Other coco_package targets to regenerate with this target's C generator settings.",
         ),
         # C++ output path options
-        "cpp_component_style": attr.string(
-            default = "Regular",
-            values = COMPONENT_STYLES,
-            doc = "C++ component generation style. Must match Coco.toml generator.cpp.componentStyle. " +
-                  "Options: \"Regular\" (default), \"HideImplementation\". Under HideImplementation popili " +
-                  "writes an extra `<Module>_impl` header and implementation file for every module, which " +
-                  "rules_coco has to declare as outputs.",
-        ),
         "cpp_file_name_mangler": attr.string(
             default = "Unaltered",
             doc = "C++ file naming style. Must match Coco.toml generator.cpp.fileNameMangler. " +
@@ -1423,7 +1391,6 @@ coco_cc_gen = _coco_cc_gen
 
 # Exported for testing
 mangle_name = _mangle_name
-component_styles = COMPONENT_STYLES
 compute_output_paths = _compute_output_paths
 module_path_for = _module_path_for
 package_relative_dir = _package_relative_dir

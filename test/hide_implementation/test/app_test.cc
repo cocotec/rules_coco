@@ -18,11 +18,8 @@
 
 // Public headers must be usable on their own.
 #include "test/hide_implementation/App.h"
+#include "test/hide_implementation/Relay.h"
 #include "test/hide_implementation/Switch.h"
-
-// Forwarder lives only in the _impl header: instantiating it proves that file
-// was generated and declared.
-#include "test/hide_implementation/Relay_impl.h"
 
 TEST(HideImplementation, AppCompilesAndLinks) {
   App app;
@@ -31,7 +28,9 @@ TEST(HideImplementation, AppCompilesAndLinks) {
   (void)sw;
 }
 
-TEST(HideImplementation, GenericIsInstantiableFromImplHeader) {
+// Forwarder is a class template, so HideImplementation leaves it whole in the
+// public header.
+TEST(HideImplementation, GenericIsInstantiableFromPublicHeader) {
   Forwarder<std::string> forwarder;
   (void)forwarder;
 }

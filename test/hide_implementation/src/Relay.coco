@@ -1,5 +1,5 @@
-// A generic component: under HideImplementation its whole definition goes into
-// Relay_impl.h, since a class template cannot be pimpl'd.
+// A generic component: under HideImplementation its whole definition stays in
+// Relay.h, since a class template cannot be pimpl'd.
 
 port Channel<T> where !Verified<T> {
   function push(x : T) : Nil
