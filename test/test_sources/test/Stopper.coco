@@ -1,0 +1,6 @@
+import unqualified Runnable
+
+@runtime(.MultiThreaded)
+external component Stopper {
+  val client : Provided<Runnable>
+}

@@ -1,0 +1,8 @@
+[package]
+name = "test_sources"
+sources = ["src"]
+testSources = ["test"]
+
+[language]
+standard = "1.2"
+profiles = ["C++"]
