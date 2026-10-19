@@ -1,6 +1,6 @@
 #include "gtest/gtest.h"
 
-#include "test/workspace_nested/inner/pkg/src/IPkg.h"
+#include "test/workspace_nested/inner/pkg/IPkg.h"
 
 TEST(WorkspaceNestedTest, PixelStructFromNestedWorkspacePackage) {
   Pixel pixel(Colour::GREEN, 200);

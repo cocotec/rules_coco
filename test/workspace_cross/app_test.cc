@@ -1,7 +1,7 @@
 #include "gtest/gtest.h"
 
-#include "test/workspace_cross/app/src/IApp.h"
-#include "test/workspace_cross/lib/src/ILib.h"
+#include "test/workspace_cross/app/IApp.h"
+#include "test/workspace_cross/lib/ILib.h"
 
 TEST(WorkspaceCrossTest, ConfigFromLibWorkspace) {
   Config config(100, Status::OK);

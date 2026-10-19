@@ -469,6 +469,44 @@ coco_package(
 
 When enabled, any target depending on this package (such as `coco_generate`) will wait for typecheck to pass.
 
+#### Where Generated Code Goes
+
+`coco_generate` writes all generated code, including test code and mocks, into the directory containing `Coco.toml`.
+Each file keeps its path relative to its source root (`package.sources` or `package.testSources` in `Coco.toml`).
+With `Coco.toml` in `pkg` and `sources = ["src", "interfaces"]`:
+
+| Source                        | Include the generated header as |
+| ----------------------------- | ------------------------------- |
+| `pkg/src/Foo.coco`            | `#include "pkg/Foo.h"`          |
+| `pkg/interfaces/api/Bar.coco` | `#include "pkg/api/Bar.h"`      |
+
+`outputDirectory` and `testOutputDirectory` in `Coco.toml` are ignored. If one package is generated for several
+languages, give each `coco_generate` different file extensions (see [Output Paths](#output-paths)) so that their
+files do not clash.
+
+> [!NOTE]
+> rules_coco 0.3 wrote generated code below the source root instead (`#include "pkg/src/Foo.h"`). See the
+> [changelog](CHANGELOG.md) for how to update your include paths.
+
+To predict these paths, `coco_package` needs the source roots. If all `srcs` (or `test_srcs`) are below one
+directory, that directory is used. Otherwise, for example when a package has several roots, set `source_roots` (or
+`test_source_roots`):
+
+```starlark
+coco_package(
+    name = "my_package",
+    srcs = glob([
+        "src/**/*.coco",
+        "interfaces/**/*.coco",
+    ]),
+    package = "Coco.toml",
+    source_roots = [
+        "src",
+        "interfaces",
+    ],  # Must match package.sources in Coco.toml
+)
+```
+
 ### Generating Code
 
 #### C++ Code Generation
@@ -548,7 +586,7 @@ can affect output paths, these settings must be repeated in the `BUILD` file. If
 errors when running `coco_generate` such as:
 
 ```
-ERROR: example/BUILD:10:14: output 'example/src/Example.h' was not created
+ERROR: example/BUILD:10:14: output 'example/Example.h' was not created
 ERROR: example/BUILD:10:14: Generating cpp example_test failed: not all outputs were created or valid
 ```
 

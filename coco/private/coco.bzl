@@ -19,6 +19,7 @@ load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
 load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load(":common_attrs.bzl", "companion_attrs")
+load(":source_roots.bzl", "relative_path", "resolve_source_roots", "source_root_for")
 load(":version_resolution.bzl", "VERSION_FLAG", "resolve_version_alias")
 
 CocoPackageInfo = provider(
@@ -29,7 +30,9 @@ CocoPackageInfo = provider(
         "direct_test_srcs": "The .coco files that are direct test_sources of this package only",
         "name": "The name of the package",
         "package_file": "The Coco.toml file for this package",
+        "source_roots": "Directories relative to the Coco.toml directory that hold this package's sources (`sources` in Coco.toml)",
         "srcs": "All .coco files that are sources of this package or any of its transitive dependencies",
+        "test_source_roots": "Directories relative to the Coco.toml directory that hold this package's test sources (`testSources` in Coco.toml)",
         "test_srcs": "All .coco files that are test_sources of this package or any of its transitive dependencies",
         "typecheck_marker": "Marker file indicating typecheck passed (or None if typecheck disabled)",
         "workspace_files": "Coco.toml files for any enclosing workspaces of this package or its transitive dependencies",
@@ -472,6 +475,12 @@ def _coco_package_impl(ctx):
         workspace_transitive.append(ctx.attr.workspace[CocoWorkspaceInfo].files)
     workspace_files = depset(transitive = workspace_transitive)
 
+    package_dir = package_file.dirname
+    source_roots = resolve_source_roots(package_dir, ctx.files.srcs, ctx.attr.source_roots, "source_roots", ctx.label)
+    test_source_roots = []
+    if ctx.files.test_srcs:
+        test_source_roots = resolve_source_roots(package_dir, ctx.files.test_srcs, ctx.attr.test_source_roots, "test_source_roots", ctx.label)
+
     # Conditionally run typecheck
     typecheck_marker = None
     if ctx.attr.typecheck:
@@ -494,7 +503,9 @@ def _coco_package_impl(ctx):
             dep_package_files = dep_package_files,
             direct_srcs = depset(ctx.files.srcs),
             direct_test_srcs = depset(ctx.files.test_srcs),
+            source_roots = source_roots,
             srcs = srcs,
+            test_source_roots = test_source_roots,
             test_srcs = test_srcs,
             typecheck_marker = typecheck_marker,
             workspace_files = workspace_files,
@@ -514,10 +525,20 @@ _coco_package = rule(
             allow_single_file = [".toml"],
             doc = "Label pointing to the Coco.toml file for this package.",
         ),
+        "source_roots": attr.string_list(
+            doc = "Directories, relative to Coco.toml, that hold the .coco sources. Must match " +
+                  "Coco.toml package.sources. When empty, the common directory of `srcs` is used, " +
+                  "which is right whenever all sources sit directly below a single root. Set it when " +
+                  "there are several roots, or when every source is in a subdirectory of the root.",
+        ),
         "srcs": attr.label_list(
             allow_files = [".coco"],
             mandatory = True,
             doc = "The .coco source files for this package.",
+        ),
+        "test_source_roots": attr.string_list(
+            doc = "Directories, relative to Coco.toml, that hold the .coco test sources. Must match " +
+                  "Coco.toml package.testSources. When empty, the common directory of `test_srcs` is used.",
         ),
         "test_srcs": attr.label_list(
             allow_files = [".coco"],
@@ -884,16 +905,12 @@ def _module_path_for(src, package_dir, root_output_dir):
     Args:
         src: Source file
         package_dir: Directory containing the package's Coco.toml
-        root_output_dir: Source root within the package (e.g. "src")
+        root_output_dir: Source root relative to the package (e.g. "src" or "../shared")
 
     Returns:
         A list of path components with the .coco extension stripped
     """
-    relative_to_package = paths.relativize(src.path, package_dir)
-    if root_output_dir:
-        relative_to_root = paths.relativize(relative_to_package, root_output_dir)
-    else:
-        relative_to_root = relative_to_package
+    relative_to_root = relative_path(relative_path(src.path, package_dir), root_output_dir)
 
     stem = relative_to_root
     if stem.endswith(".coco"):
@@ -901,13 +918,12 @@ def _module_path_for(src, package_dir, root_output_dir):
 
     return stem.split("/")
 
-def _build_language_config(ctx, language, root_output_dir):
+def _build_language_config(ctx, language):
     """Build configuration struct for code generation.
 
     Args:
         ctx: Rule context
         language: Language string ("cpp", "c", or "csharp")
-        root_output_dir: Root output directory
 
     Returns:
         Struct containing language-specific configuration, or None for C#
@@ -922,7 +938,6 @@ def _build_language_config(ctx, language, root_output_dir):
             mocks = ctx.attr.mocks,
             flat_hierarchy = ctx.attr.cpp_flat_file_hierarchy,
             component_style = ctx.attr.cpp_component_style,
-            root_output_dir = root_output_dir,
         )
     elif language == "c":
         return struct(
@@ -934,26 +949,23 @@ def _build_language_config(ctx, language, root_output_dir):
             mocks = ctx.attr.mocks,
             flat_hierarchy = ctx.attr.c_flat_file_hierarchy,
             component_style = "Regular",
-            root_output_dir = root_output_dir,
         )
     elif language == "csharp":
         return None  # C# doesn't use config struct
     else:
         fail("unrecognised language: " + language)
 
-def _make_path_builder(ctx, package_relative_dir, root_output_dir):
-    """Create a path builder that declares files under the source root.
+def _make_path_builder(ctx, package_relative_dir):
+    """Create a path builder that declares files below the package directory.
 
     Args:
         ctx: Rule context
         package_relative_dir: Path from the BUILD file to the package directory
-        root_output_dir: Source root within the package (e.g. "src")
 
     Returns:
-        Function(relative_path) -> declared file
+        Function(output_path) -> declared file
     """
-    prefix = _join_path([package_relative_dir, root_output_dir])
-    return lambda relative_path: ctx.actions.declare_file(_join_path([prefix, relative_path]))
+    return lambda output_path: ctx.actions.declare_file(_join_path([package_relative_dir, output_path]))
 
 def _declare_language_outputs(ctx, headers, sources, mock_headers, mock_sources, config, path_builder, module_path):
     """Core logic for declaring output files.
@@ -1001,8 +1013,11 @@ def _declare_language_outputs(ctx, headers, sources, mock_headers, mock_sources,
     else:
         fail("unrecognised language")
 
-def _add_outputs(ctx, headers, sources, mock_headers, mock_sources, src, package_dir, package_relative_dir, root_output_dir):
-    """Add outputs for source files from the current package.
+def _add_outputs(ctx, headers, sources, mock_headers, mock_sources, config, path_builder, src, package_dir, source_roots):
+    """Declare the outputs for one source file.
+
+    Regenerated packages pass their own package_dir and source_roots with the current package's
+    path builder.
 
     Args:
         ctx: Rule context
@@ -1010,39 +1025,14 @@ def _add_outputs(ctx, headers, sources, mock_headers, mock_sources, src, package
         sources: List to append regular source outputs to
         mock_headers: List to append mock header outputs to
         mock_sources: List to append mock source outputs to
-        src: Source file from the current package
-        package_dir: Directory containing the package's Coco.toml
-        package_relative_dir: Path from the BUILD file to the package directory
-        root_output_dir: Root output directory
+        config: Language configuration struct (or None for C#)
+        path_builder: Declares outputs below the output directory
+        src: Source file
+        package_dir: Directory containing the Coco.toml of the package src belongs to
+        source_roots: Source roots of that package, which coco_package has checked cover src
     """
-    config = _build_language_config(ctx, ctx.attr.language, root_output_dir)
-    module_path = _module_path_for(src, package_dir, root_output_dir)
-    path_builder = _make_path_builder(ctx, package_relative_dir, root_output_dir)
-    _declare_language_outputs(ctx, headers, sources, mock_headers, mock_sources, config, path_builder, module_path)
-
-def _add_regenerated_outputs(ctx, headers, sources, mock_headers, mock_sources, src, package_relative_dir, root_output_dir, regen_pkg_dir, regen_root_output_dir):
-    """Add outputs for regenerated package files.
-
-    Regenerated files are placed in the current package's output directory,
-    not in the original package's directory, so the path is built from the
-    current package's root output directory while the module path comes from
-    the regenerated package.
-
-    Args:
-        ctx: Rule context
-        headers: List to append regular header outputs to
-        sources: List to append regular source outputs to
-        mock_headers: List to append mock header outputs to
-        mock_sources: List to append mock source outputs to
-        src: Source file from the regenerated package
-        package_relative_dir: Path from BUILD file to package directory (e.g., "app")
-        root_output_dir: Root output directory for the current package (e.g., "sources")
-        regen_pkg_dir: Regenerated package directory (e.g., "test/regenerate_packages/base")
-        regen_root_output_dir: Regenerated package's root output dir (e.g., "source")
-    """
-    config = _build_language_config(ctx, ctx.attr.language, root_output_dir)
-    module_path = _module_path_for(src, regen_pkg_dir, regen_root_output_dir)
-    path_builder = _make_path_builder(ctx, package_relative_dir, root_output_dir)
+    source_root = source_root_for(relative_path(src.path, package_dir), source_roots)
+    module_path = _module_path_for(src, package_dir, source_root)
     _declare_language_outputs(ctx, headers, sources, mock_headers, mock_sources, config, path_builder, module_path)
 
 def _package_relative_dir(package_dir, label_package):
@@ -1065,23 +1055,16 @@ def _package_relative_dir(package_dir, label_package):
         return ""
     return paths.relativize(package_dir, label_package)
 
-def _output_directory(package_dir, srcs):
-    root_output_dir = None
-    for src in srcs.to_list():
-        relative_to_package = paths.relativize(src.path, package_dir)
-        if not root_output_dir or len(relative_to_package) < len(root_output_dir):
-            root_output_dir = paths.dirname(relative_to_package)
-    return root_output_dir
-
 def _coco_package_generate_impl(ctx):
     if ctx.attr.language == "c" and ctx.attr.mocks:
         fail("mocks = True is not supported for language = \"c\": popili does not generate C mocks", attr = "mocks")
 
     # When using configuration transitions, ctx.attr.package becomes a list
     package = ctx.attr.package[0] if type(ctx.attr.package) == type([]) else ctx.attr.package
-    srcs = package[CocoPackageInfo].direct_srcs
-    test_srcs = package[CocoPackageInfo].direct_test_srcs
-    package_dir = package[CocoPackageInfo].package_file.dirname
+    info = package[CocoPackageInfo]
+    srcs = info.direct_srcs
+    test_srcs = info.direct_test_srcs
+    package_dir = info.package_file.dirname
 
     headers = []
     sources = []
@@ -1090,8 +1073,11 @@ def _coco_package_generate_impl(ctx):
     test_headers = []
     test_sources = []
 
-    root_output_dir = _output_directory(package_dir, srcs)
-    test_root_output_dir = _output_directory(package_dir, test_srcs) if test_srcs else root_output_dir
+    # All generated files go below the package directory (the one containing Coco.toml), declared relative
+    # to the BUILD file. popili never writes two generated files, regular or test, to the same path below it.
+    package_relative_dir = _package_relative_dir(package_dir, ctx.label.package)
+    config = _build_language_config(ctx, ctx.attr.language)
+    path_builder = _make_path_builder(ctx, package_relative_dir)
 
     # Get the list of packages to regenerate based on language
     regenerate_pkgs = {
@@ -1100,45 +1086,38 @@ def _coco_package_generate_impl(ctx):
         "csharp": ctx.attr.csharp_regenerate_packages,
     }.get(ctx.attr.language, [])
 
-    # Add outputs for regenerated packages (using current package's settings)
-    # Regenerated files go into the current package's output directory
-    # Compute path relative to BUILD file: from ctx.label.package to package_dir
-    package_relative_dir = _package_relative_dir(package_dir, ctx.label.package)
+    # Regenerated packages' files go into this package's output directory (using this package's
+    # generator settings), with module paths relative to their own source roots.
     for regen_pkg in regenerate_pkgs:
-        regen_pkg_dir = regen_pkg[CocoPackageInfo].package_file.dirname
-        regen_root_output_dir = _output_directory(regen_pkg_dir, regen_pkg[CocoPackageInfo].direct_srcs)
-        for src in regen_pkg[CocoPackageInfo].direct_srcs.to_list():
-            _add_regenerated_outputs(ctx, headers, sources, mock_headers, mock_sources, src, package_relative_dir, root_output_dir, regen_pkg_dir, regen_root_output_dir)
+        regen_info = regen_pkg[CocoPackageInfo]
+        for src in regen_info.direct_srcs.to_list():
+            _add_outputs(ctx, headers, sources, mock_headers, mock_sources, config, path_builder, src, regen_info.package_file.dirname, regen_info.source_roots)
 
     for src in srcs.to_list():
-        _add_outputs(ctx, headers, sources, mock_headers, mock_sources, src, package_dir, package_relative_dir, root_output_dir)
+        _add_outputs(ctx, headers, sources, mock_headers, mock_sources, config, path_builder, src, package_dir, info.source_roots)
+
     for src in test_srcs.to_list():
-        _add_outputs(ctx, test_headers, test_sources, mock_headers, mock_sources, src, package_dir, package_relative_dir, test_root_output_dir)
+        _add_outputs(ctx, test_headers, test_sources, mock_headers, mock_sources, config, path_builder, src, package_dir, info.test_source_roots)
     test_headers += mock_headers
     test_sources += mock_sources
-    output_dir = paths.join(ctx.genfiles_dir.path, package_dir, root_output_dir)
+
+    # Test code and mocks land beside the regular code. --test-output is passed explicitly rather than
+    # relying on popili defaulting it to --output.
+    generated_dir = paths.join(ctx.genfiles_dir.path, package_dir)
     arguments = [
         "generate-%s" % ctx.attr.language,
         "--output",
-        output_dir,
+        generated_dir,
+        "--test-output",
+        generated_dir,
         "--output-empty-files",
         "--output-runtime=false",
     ]
-    if test_srcs:
-        arguments += [
-            "--test-output",
-            paths.join(ctx.genfiles_dir.path, package_dir, _output_directory(package_dir, test_srcs)),
-        ]
-    elif ctx.attr.mocks:
-        arguments += [
-            "--test-output",
-            output_dir,
-        ]
     if ctx.attr.language == "cpp" or ctx.attr.language == "c":
         # Make all include paths absolute within the workspace to avoid the need for includes
         arguments += [
             "--include-prefix",
-            paths.join(package_dir, root_output_dir),
+            package_dir,
         ]
 
     all_outputs = headers + sources
@@ -1360,7 +1339,7 @@ _coco_cc_gen = rule(
             default = [],
             doc = "Header names to make public (when all_hdrs_public is False). " +
                   "Use bare filenames (e.g., 'ISensor.h') to match by name, or " +
-                  "path suffixes (e.g., 'src/ISensor.h') to disambiguate.",
+                  "path suffixes (e.g., 'sensors/ISensor.h') to disambiguate.",
         ),
         "use_test_outputs": attr.bool(default = False, doc = "If True, extract test/mock outputs instead of regular outputs"),
     },

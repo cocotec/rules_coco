@@ -2,9 +2,9 @@
 
 // This should work because app_cpp regenerates base with .hpp extension
 // Regenerated files are placed in the app package's output directory
-#include "test/regenerate_packages/app/sources/IBase.hpp"
-#include "test/regenerate_packages/app/sources/geometry/Dims.hpp"
-#include "test/regenerate_packages/app/sources/IApp.hpp"
+#include "test/regenerate_packages/app/IBase.hpp"
+#include "test/regenerate_packages/app/geometry/Dims.hpp"
+#include "test/regenerate_packages/app/IApp.hpp"
 
 TEST(RegeneratePackagesTest, CppWithCustomHeaderExtension) {
   // Test that we can use types from the regenerated base package

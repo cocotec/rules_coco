@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `coco.toolchain` with `coco.local_toolchain`.
 - `cc_runtime_extra_deps` now accepts a dict mapping a version to its labels, in addition to a flat
   list applied to every registered version.
+- `coco_package` attributes `source_roots` and `test_source_roots`, mirroring `package.sources` and
+  `package.testSources` in `Coco.toml`. They are inferred from `srcs`/`test_srcs` when omitted; set them when a
+  package has several source roots or all sources sit in a subdirectory of the root.
 
 ### Changed
 
@@ -53,6 +56,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `coco_generate` has a `cpp_component_style` attribute mirroring `generator.cpp.componentStyle`. Under
   `HideImplementation` popili writes a `<Module>_impl` header and implementation file for every module, and
   rules_coco now declares them as outputs, so such packages build instead of failing with missing outputs.
+- **Breaking:** `coco_generate` now writes all generated code, test code and mocks included, below the directory
+  containing `Coco.toml`, instead of below the package's source root. Each file keeps its path relative to its own
+  source root, so `src/Foo.coco` in a package `pkg` is now included as `#include "pkg/Foo.h"` rather than
+  `#include "pkg/src/Foo.h"`. To migrate, remove the source root from:
+
+  - `#include`s of generated headers, e.g. `"pkg/src/Foo.h"` becomes `"pkg/Foo.h"` and `"pkg/src/sub/Bar.h"`
+    becomes `"pkg/sub/Bar.h"`;
+  - `includes` on libraries of dependency packages, e.g. `includes = ["middle/src"]` becomes
+    `includes = ["middle"]`;
+  - `public_hdrs` path suffixes, e.g. `"src/IApi.h"` becomes `"pkg/IApi.h"` or just `"IApi.h"`;
+  - paths to generated C# files.
+
+  Packages whose sources sit next to `Coco.toml` are unaffected.
 
 ### Removed
 
@@ -73,6 +89,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `coco_generate`, the C/C++ library macros and `coco_fmt_test` now work with `tags = ["manual"]` and `testonly`.
 - `coco_generate` with `language = "c"` and `mocks = True` now fails with a clear error, since C mocks are not
   supported.
+- `coco_generate` no longer derives the source root from the shortest source path, which depended on file order and
+  failed for a source file next to `Coco.toml` with others in subdirectories, for sibling subdirectories, and for
+  several source roots.
+- Generated test code and mocks of a package with `test_srcs` are written next to the regular generated code, so
+  their `#include`s resolve and mocks are declared where popili writes them.
 - The `.coco` files in `test_srcs` are now inputs of the popili actions, so a package with `testSources` no longer
   fails with `could not open the directory ...` under Bazel's sandbox.
 
