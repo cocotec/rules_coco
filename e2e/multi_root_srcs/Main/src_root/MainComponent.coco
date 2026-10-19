@@ -1,0 +1,27 @@
+import unqualified ComponentToUse
+import unqualified MyPort
+import unqualified PortToUse
+
+@runtime(.MultiThreaded)
+component MainComponent {
+  val client : Provided<MyPort>
+  val user : MyPortUser
+  val externally_provided : ComponentToUse
+
+  init() = {
+    connect(client, user.client);
+    connect(user.ext, externally_provided.client);
+  }
+}
+
+@runtime(.MultiThreaded)
+component MyPortUser {
+  val client : Provided<MyPort>
+  val ext : Required<PortToUse>
+
+  machine {
+    client.f() = {
+      ext.g();
+    }
+  }
+}

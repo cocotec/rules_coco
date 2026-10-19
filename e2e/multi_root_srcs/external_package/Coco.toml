@@ -1,0 +1,10 @@
+[package]
+name = "external_package"
+sources = ["src_root"]
+
+[language]
+standard = "1.2"
+profiles = ["C++"]
+
+[generator]
+defaultLanguage = "C++"
