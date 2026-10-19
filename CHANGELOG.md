@@ -53,9 +53,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the exec platform and the runtime it provides is source, so the toolchain now resolves for any
   target platform, including when cross-compiling with `--platforms`. Before, bzlmod required the
   target platform to match the host; WORKSPACE mode never had the constraint.
-- `coco_generate` has a `cpp_component_style` attribute mirroring `generator.cpp.componentStyle`. Under
-  `HideImplementation` popili writes a `<Module>_impl` header and implementation file for every module, and
-  rules_coco now declares them as outputs, so such packages build instead of failing with missing outputs.
 - **Breaking:** `coco_generate` now writes all generated code, test code and mocks included, below the directory
   containing `Coco.toml`, instead of below the package's source root. Each file keeps its path relative to its own
   source root, so `src/Foo.coco` in a package `pkg` is now included as `#include "pkg/Foo.h"` rather than

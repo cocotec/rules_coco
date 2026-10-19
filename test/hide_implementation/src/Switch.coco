@@ -1,5 +1,5 @@
-// Non-generic, yet popili still writes a boilerplate Switch_impl.{h,cc}, so
-// build systems need not know which modules hold generics.
+// Non-generic, so HideImplementation keeps SwitchImpl's implementation in
+// Switch.cc, behind the class Switch.h declares.
 
 port Switch {
   function on() : Nil

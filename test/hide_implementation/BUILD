@@ -16,14 +16,14 @@ load("@rules_cc//cc:defs.bzl", "cc_test")
 load("@rules_coco//coco:cc.bzl", "coco_cc_library", "coco_cc_test_library")
 load("@rules_coco//coco:defs.bzl", "coco_generate", "coco_package", "with_popili_version")
 
-# componentStyle = "HideImplementation" makes popili also write a `<Module>_impl`
-# pair per module, which cpp_component_style declares. Under-declaring is silent
-# at generation (the sandbox drops undeclared files), so the cc_test catches it
-# when App.cc cannot find Relay_impl.h.
+# componentStyle = "HideImplementation" hides each non-generic component behind
+# a pimpl, but generates a generic one whole into its module's header, since a
+# class template cannot be pimpl'd. Either way popili writes the same files as
+# under "Regular", so coco_generate needs no setting for it.
 #
-# _impl outputs need popili 1.6, so every target is wrapped to use "testing"; the
-# unwrapped ones are manual, as the default popili rejects standard 2026. Drop the
-# wrappers and manual tags once 1.6 is stable.
+# The package uses standard 2026, which needs popili 1.6, so every target is
+# wrapped to use "testing"; the unwrapped ones are manual, as the default popili
+# rejects standard 2026. Drop the wrappers and manual tags once 1.6 is stable.
 
 coco_package(
     name = "hide_implementation_test",
@@ -40,7 +40,6 @@ with_popili_version(
 
 coco_generate(
     name = "hide_implementation_test_cpp",
-    cpp_component_style = "HideImplementation",
     language = "cpp",
     mocks = True,
     package = ":hide_implementation_test_testing",
@@ -65,8 +64,6 @@ with_popili_version(
     version = "testing",
 )
 
-# Mocks are test outputs and the _impl pair is not, though one action generates
-# both: check they do not get mixed up.
 coco_cc_test_library(
     name = "hide_implementation_test_cc_tst_impl",
     generated_package = ":hide_implementation_test_cpp_testing",
