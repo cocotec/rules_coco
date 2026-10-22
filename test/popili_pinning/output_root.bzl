@@ -18,6 +18,8 @@ Targets in the same configuration share a bin dir, so comparing the bin dirs of 
 tells whether a transition changed the configuration. Shared with e2e/multi_version.
 """
 
+load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
+
 def output_root(target):
     """The bin dir of a target's generated outputs, which names its configuration.
 
@@ -25,9 +27,32 @@ def output_root(target):
         target: The target under test.
 
     Returns:
-        The root path of the first generated file among the target's default outputs.
+        The root path of the first library a target links, else of the first generated file among
+        its default outputs.
     """
+
+    # A library's runtime is built in the library's configuration, whose bin dir this then is.
+    if CcInfo in target:
+        for linker_input in target[CcInfo].linking_context.linker_inputs.to_list():
+            for library in linker_input.libraries:
+                root = output_root_of(library)
+                if root:
+                    return root
     for file in target[DefaultInfo].files.to_list():
         if not file.is_source:
             return file.root.path
     fail("%s has no generated file to read its bin dir off" % target.label)
+
+def output_root_of(library):
+    """The bin dir of a LibraryToLink, which names the configuration it was built in.
+
+    Args:
+        library: A LibraryToLink.
+
+    Returns:
+        The root path of its first library file, or None when it has none.
+    """
+    for file in (library.static_library, library.pic_static_library, library.dynamic_library):
+        if file:
+            return file.root.path
+    return None

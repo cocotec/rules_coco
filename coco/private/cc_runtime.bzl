@@ -14,8 +14,9 @@
 
 """Internal C++ runtime rule implementation."""
 
-load("@rules_cc//cc:defs.bzl", "CcInfo")
-load("//coco/private:coco.bzl", "COCO_TOOLCHAIN_TYPE", "TOOLCHAIN_ATTRIBUTES", "coco_toolchain_or_fail")
+load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
+load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
+load("//coco/private:coco.bzl", "COCO_TOOLCHAIN_TYPE", "TOOLCHAIN_ATTRIBUTES", "coco_toolchain_or_fail", "popili_version_unpin")
 
 def _coco_cc_runtime_impl(ctx):
     """Helper rule that provides the C++ runtime from the toolchain."""
@@ -34,5 +35,28 @@ coco_cc_runtime = rule(
 
     This rule is not part of the public API and should not be used directly.
     Use `coco_cc_library` or `coco_cc_test_library` instead.
+    """,
+)
+
+def _coco_cc_runtime_extra_deps_impl(ctx):
+    return [
+        cc_common.merge_cc_infos(cc_infos = [dep[CcInfo] for dep in ctx.attr.deps]),
+        DefaultInfo(runfiles = ctx.runfiles().merge_all([dep[DefaultInfo].default_runfiles for dep in ctx.attr.deps])),
+    ]
+
+coco_cc_runtime_extra_deps = rule(
+    implementation = _coco_cc_runtime_extra_deps_impl,
+    attrs = {
+        "deps": attr.label_list(
+            providers = [CcInfo],
+            cfg = popili_version_unpin,
+            doc = "The extra deps registered for the runtime, such as Boost.",
+        ),
+    },
+    doc = """Internal: the C++ runtime's extra deps, analysed where unpinned targets are.
+
+    A runtime pinned with `popili_version` is built in the pin's configuration, but popili does not
+    affect its extra deps: built there too, they would be built once per pinned version, and a
+    binary that also links them would get two copies.
     """,
 )
