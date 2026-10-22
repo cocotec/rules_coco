@@ -35,14 +35,17 @@ coco_generate(
     popili_version = "stable",
 )
 
+# Pinned like the generator they build from, so the runtime is the generator's version.
 coco_cc_library(
     name = "pinned_cc",
     generated_package = ":pinned_cpp",
+    popili_version = "stable",
 )
 
 coco_cc_test_library(
     name = "pinned_cc_tst",
     generated_package = ":pinned_cpp",
+    popili_version = "stable",
     deps = [":pinned_cc"],
 )
 
@@ -86,6 +89,11 @@ coco_generate(
     package = ":unpinned_base",
 )
 
+coco_cc_library(
+    name = "unpinned_cc",
+    generated_package = ":unpinned_cpp",
+)
+
 # Unpinned, for the same assertions on a test.
 coco_verify_test(
     name = "unpinned_verify",
@@ -119,7 +127,10 @@ coco_package(
 popili_pinning_tests(
     name = "pinning",
     current_popili_version = "@rules_coco//coco:current_popili_version",
+    # A library's pin is read off its ._gen target, whose CcInfo carries the runtime.
     pinned = {
+        "cc_library": ":pinned_cc._gen",
+        "cc_tst": ":pinned_cc_tst._gen",
         "fmt_binary": ":pinned_fmt.format",
         "fmt_test": ":pinned_fmt",
         "generate": ":pinned_cpp",
@@ -127,6 +138,7 @@ popili_pinning_tests(
         "verify_test": ":pinned_verify",
     },
     unpinned = {
+        "cc_library": ":unpinned_cc._gen",
         "cc_runtime": "@rules_coco//coco:cc_runtime",
         "generate": ":unpinned_cpp",
         "package": ":typechecked",

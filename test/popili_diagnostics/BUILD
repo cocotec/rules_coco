@@ -14,6 +14,7 @@
 
 load("@bazel_skylib//rules:write_file.bzl", "write_file")
 load("@rules_cc//cc:defs.bzl", "cc_toolchain")
+load("@rules_coco//coco:cc.bzl", "coco_cc_library")
 load("@rules_coco//coco:defs.bzl", "coco_generate", "coco_package", "coco_state_diagram", "coco_verify_test")
 load("@rules_coco//coco/private:licensing.bzl", "fetch_license")  # buildifier: disable=bzl-visibility
 load("@rules_coco//coco/private:version_resolution.bzl", "resolve_version_alias")  # buildifier: disable=bzl-visibility
@@ -36,6 +37,12 @@ coco_generate(
     name = "base_cpp",
     language = "cpp",
     package = ":base",
+)
+
+coco_cc_library(
+    name = "base_cc",
+    generated_package = ":base_cpp",
+    tags = ["manual"],
 )
 
 coco_state_diagram(
@@ -99,6 +106,8 @@ popili_diagnostics_tests(
         resolve_version_alias("testing"),
     ],
     targets = {
+        # The library's ._gen, not the cc_library, which needs a C++ toolchain for riscv64 too.
+        "cc_library": ":base_cc._gen",
         "cc_runtime": "@rules_coco//coco:cc_runtime",
         "diagram": ":base_states",
         "generate": ":base_cpp",

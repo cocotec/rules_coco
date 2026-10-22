@@ -1,7 +1,8 @@
 """Analysis tests: a target's `popili_version` decides which registered popili it runs.
 
 Which popili a target resolved is read off the action it would run (the run action's executable,
-or the text of a test's wrapper script); the binary lives in a version-mangled repository
+or the text of a test's wrapper script), or for a library off the headers of the runtime its
+`._gen` target forwards; the binary or runtime lives in a version-mangled repository
 (`io_cocotec_coco_<os>_<arch>__<version>`), so the path names the version in both bzlmod and
 WORKSPACE mode. A pin to the default (1.5.0) leaves the configuration alone, so its outputs land
 next to an unpinned target's; a pin to 1.5.1 does not, which its resolving 1.5.1 without a flag
@@ -45,6 +46,20 @@ configuration_test = analysistest.make(
         "reference": attr.label(mandatory = True, cfg = analysis_test_transition(settings = _DEFAULT)),
     },
     config_settings = _DEFAULT,
+)
+
+def _expect_message_impl(ctx):
+    env = analysistest.begin(ctx)
+    for expected in ctx.attr.expected:
+        asserts.expect_failure(env, expected)
+    return analysistest.end(env)
+
+# A library whose runtime is not the version its generated code came from.
+library_version_mismatch_test = analysistest.make(
+    _expect_message_impl,
+    attrs = {"expected": attr.string_list(mandatory = True)},
+    config_settings = _DEFAULT,
+    expect_failure = True,
 )
 
 def pinned_popili_tests(name, pinned, unpinned, reference):
