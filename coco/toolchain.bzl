@@ -76,7 +76,8 @@ coco_toolchain = rule(
         "popili_version": attr.string(
             doc = (
                 "The version of the `popili` binary, such as \"1.5.8\"; not an alias such as " +
-                "\"stable\". The toolchains rules_coco generates set it; a local distribution is 'local'."
+                "\"stable\". It picks the licence file under `local_user` licensing. The toolchains " +
+                "rules_coco generates set it; a local distribution is 'local'."
             ),
             mandatory = True,
         ),
