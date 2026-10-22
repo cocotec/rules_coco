@@ -19,6 +19,7 @@ the path names the version in both bzlmod and WORKSPACE mode. Shared with e2e/mu
 """
 
 load("@bazel_skylib//lib:unittest.bzl", "asserts")
+load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load("@rules_coco//coco/private:version_resolution.bzl", "version_to_repo_suffix")  # buildifier: disable=bzl-visibility
 
 def popili_evidence(target):
@@ -28,11 +29,16 @@ def popili_evidence(target):
         target: The target under test.
 
     Returns:
-        The popili a run action executes, or the text of a test's or binary's wrapper script.
+        The popili a run action executes, the headers of the runtime a library's `._gen` target
+        forwards, or the text of a test's or binary's wrapper script.
     """
     for action in target.actions:
         if action.mnemonic in ("CocoGenerate", "CocoDiagram"):
             return action.argv[0]
+
+    # After the actions: a coco_generate provides a CcInfo too, of its own generated headers.
+    if CcInfo in target:
+        return " ".join([header.path for header in target[CcInfo].compilation_context.headers.to_list()])
     executable = target[DefaultInfo].files_to_run.executable
     for action in target.actions:
         if executable in action.outputs.to_list():

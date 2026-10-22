@@ -19,13 +19,20 @@ load(":version_resolution.bzl", "version_tuple")
 
 _CC_RUNTIME_BUILD_TEMPLATE = """
 load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_coco//coco/private:cc_runtime.bzl", "coco_cc_runtime_extra_deps")
 
 cc_library(
     name = "runtime",
     hdrs = glob(["coco/*.h"], exclude = ["coco/gmock_helpers.h"]),
     srcs = glob(["coco/src/*.cc"], allow_empty = True) + glob(["coco/*.cc"], allow_empty = True),
-    deps = {deps},
+    deps = [":extra_deps"],
     visibility = ["//visibility:public"],
+)
+
+# Built where unpinned targets are, however many popili versions are pinned.
+coco_cc_runtime_extra_deps(
+    name = "extra_deps",
+    deps = {deps},
 )
 
 cc_library(

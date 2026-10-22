@@ -52,15 +52,18 @@ def popili_pinning_tests(name, alias_pinned, unregistered, current_popili_versio
 
     Args:
         name: Prefix for the tests and the name of the test_suite.
-        alias_pinned: A target pinned with `popili_version = "stable"`.
+        alias_pinned: A dict mapping a short name to a target pinned with `popili_version = "stable"`.
         unregistered: A coco_generate pinned to a version nobody registered (1.99.0).
         current_popili_version: `@rules_coco//coco:current_popili_version`.
     """
-    alias_pin_beats_flag_test(
-        name = name + "_alias_pin_beats_flag",
-        size = "small",
-        target_under_test = alias_pinned,
-    )
+    tests = []
+    for consumer, target in alias_pinned.items():
+        alias_pin_beats_flag_test(
+            name = "%s_alias_pin_beats_flag_%s" % (name, consumer),
+            size = "small",
+            target_under_test = target,
+        )
+        tests.append("%s_alias_pin_beats_flag_%s" % (name, consumer))
     expect_message_test(
         name = name + "_pinned_unregistered",
         size = "small",
@@ -83,11 +86,5 @@ def popili_pinning_tests(name, alias_pinned, unregistered, current_popili_versio
             "set it to %s, the version it stands for." % _STABLE,
         ],
     )
-    native.test_suite(
-        name = name,
-        tests = [name + suffix for suffix in [
-            "_alias_pin_beats_flag",
-            "_pinned_unregistered",
-            "_alias_flag_message_current_popili_version",
-        ]],
-    )
+    tests += [name + "_pinned_unregistered", name + "_alias_flag_message_current_popili_version"]
+    native.test_suite(name = name, tests = tests)

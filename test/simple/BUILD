@@ -40,8 +40,9 @@ coco_fmt_test(
     package = ":base",
 )
 
-# Pinned to the alias `stable`, which the root registers first, so without a flag the pin changes
-# nothing and the library below links the runtime of the same version.
+# Pinned to the alias `stable`, which the root registers first, so without a flag the pins change
+# nothing; the libraries are pinned like the generator they build from, so the runtime they link
+# is the generator's version.
 coco_generate(
     name = "base_cpp",
     language = "cpp",
@@ -53,11 +54,13 @@ coco_generate(
 coco_cc_library(
     name = "base_cc",
     generated_package = ":base_cpp",
+    popili_version = "stable",
 )
 
 coco_cc_test_library(
     name = "base_cc_tst",
     generated_package = ":base_cpp",
+    popili_version = "stable",
     deps = [":base_cc"],
 )
 
