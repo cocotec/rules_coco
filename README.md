@@ -116,7 +116,9 @@ Contact [Cocotec Support](https://cocotec.io/support/) to set this up or discuss
 - `local_acquire`: A license will be acquired on the local machine as part of the build using `COCOTEC_AUTH_TOKEN`.
   This is not compatible with remote execution.
 - `local_user`: The user's existing license on this machine will be reused. This is not compatible with remote
-  execution.
+  execution. Each popili version gets the license file it reads (`licenses_<n>.lic` in popili's data directory, `n`
+  being its licence protocol version); a local or bring-your-own toolchain of unknown version gets the file of the
+  newest protocol version.
 - `token`: The explicitly provided token should be used as `COCOTEC_AUTH_TOKEN`. In this case,
   `--@rules_coco//:license_token` must be set as well. This works with remote execution but it is only recommended when
   using workload identity federation as `COCOTEC_AUTH_TOKEN` is not a secret in that case.
