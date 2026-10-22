@@ -13,9 +13,17 @@
 # limitations under the License.
 
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("@bazel_skylib//rules:common_settings.bzl", "string_list_setting")
 load(":tests.bzl", "coco_test_suite")
 
 package(default_visibility = ["//coco:__pkg__"])
+
+# The version --@rules_coco//:version had outside any pin; set only by the pin transition. See
+# _PINNED_FROM_SETTING in coco.bzl.
+string_list_setting(
+    name = "pinned_from",
+    build_setting_default = [],
+)
 
 # Unit tests for coco.bzl functions
 coco_test_suite(name = "coco_tests")

@@ -39,8 +39,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `coco_architecture_diagram`, `coco_state_diagram` and `coco_counterexample_diagram` gained
   `popili_version`, which selects the registered toolchain of that version (aliases such as `stable`
   allowed) for the target and everything beneath it, including the `coco_package` it reads. A pin
-  wins over `--@rules_coco//:version`, which sets the version for everything unpinned. A
-  `coco_cc_library` built from a pinned `coco_generate` needs no pin of its own.
+  wins over `--@rules_coco//:version`, which sets the version for everything unpinned.
+- `coco_cc_library`, `coco_cc_test_library`, `coco_c_library` and `coco_c_test_library` gained
+  `popili_version`, which selects the runtime the library links and applies to the `coco_generate`
+  targets it builds from, but not to its `deps` or `gmock`. The runtime's extra deps (from
+  `cc_runtime_deps`) are built where unpinned targets are, so they are built once however many
+  versions are pinned, and a binary that also links them directly gets one copy.
 
 ### Changed
 
