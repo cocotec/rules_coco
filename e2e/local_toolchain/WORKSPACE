@@ -19,6 +19,17 @@ coco_local_repositories(
     path = "staged/popili",
 )
 
+# Probe toolchains for :popili_runs_on_host; the foreign one first, like the platforms.
+register_toolchains(
+    "//:probe_foreign",
+    "//:probe_host",
+)
+
+load("@bazel_skylib//:workspace.bzl", "bazel_skylib_workspace")
+
+# Registers the unittest toolchains the analysis test in BUILD.bazel needs.
+bazel_skylib_workspace()
+
 # Load GoogleTest for C++ unit tests
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
