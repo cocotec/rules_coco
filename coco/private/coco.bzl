@@ -21,7 +21,7 @@ load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
 load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load(":common_attrs.bzl", "companion_attrs")
 load(":source_roots.bzl", "leaves_directory", "relative_path", "resolve_source_roots", "source_root_for")
-load(":version_resolution.bzl", "VERSION_FLAG", "resolve_version_alias")
+load(":version_resolution.bzl", "VERSION_FLAG", "license_protocol_version", "resolve_version_alias")
 
 CocoPackageInfo = provider(
     doc = "Information about a Coco package",
@@ -69,7 +69,8 @@ CocoCSharpGeneratedInfo = provider(
 LICENSE_ATTRIBUTES = {
     "_auth_token_path": attr.label(default = Label("//:auth_token_path")),
     "_license_file_fetch": attr.label(default = Label("@io_cocotec_licensing_fetch//:licenses")),
-    "_license_file_local": attr.label(default = Label("@io_cocotec_licensing_local//:licenses")),
+    # Every licenses_<n>.lic found locally; see _local_user_license_file.
+    "_license_files_local": attr.label(default = Label("@io_cocotec_licensing_local//:licenses")),
     "_license_source": attr.label(default = Label("//:license_source")),
     "_license_token": attr.label(default = Label("//:license_token")),
 }
@@ -287,9 +288,22 @@ def _get_license_file_from_toolchain(ctx):
         files = ctx.attr._license_file_fetch[DefaultInfo].files.to_list()
         return files[0] if files else None
     if license_source == "local_user":
-        files = ctx.attr._license_file_local[DefaultInfo].files.to_list()
-        return files[0] if files else None
+        return _local_user_license_file(ctx)
     return None
+
+def _local_user_license_file(ctx):
+    """The user's licence file for the licence protocol version of the toolchain's popili.
+
+    A toolchain whose version is unknown (the local toolchain, a bring-your-own toolchain
+    without `popili_version`) gets the file of the newest protocol version.
+    """
+    name = "licenses_%d.lic" % license_protocol_version(_coco_toolchain(ctx).popili_version)
+    files = [
+        file
+        for file in ctx.attr._license_files_local[DefaultInfo].files.to_list()
+        if file.basename == name
+    ]
+    return files[0] if files else None
 
 def _coco_env(ctx):
     env = {}
