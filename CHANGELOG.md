@@ -94,6 +94,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `local_user` licensing passes each popili version the licence file it reads, instead of the first
+  one found, which popili 1.6 rejects.
 - `coco_cc_library` and `coco_c_library` no longer fail to find generated headers when their
   `coco_generate` is built with a different Popili version, for example through `with_popili_version`,
   nor pick up a copy of them built at another version (an undeclared inclusion, on Windows).
