@@ -245,13 +245,9 @@ outputs and test logs land under `bazel-out/<cpu>-fastbuild-ST-<hash>/` rather t
 and `bazel-testlogs`. In CI, collect test results through the Build Event Protocol
 (`--build_event_json_file`) or from `bazel-out/*/testlogs/**/test.xml`.
 
-`with_popili_version` remains for targets that have no `popili_version` of their own, such as a
-custom rule that resolves the Coco toolchain: it builds the wrapped target and everything beneath
-it with the given version.
-
 To try a version on the whole repository without editing BUILD files, add
-`--@rules_coco//:force_version`: every pin and every `with_popili_version` wrapper is ignored, and
-`--@rules_coco//:version` (or the default when it is unset) applies everywhere, for example
+`--@rules_coco//:force_version`: every pin is ignored, and `--@rules_coco//:version` (or the
+default when it is unset) applies everywhere, for example
 `bazel test --@rules_coco//:force_version --@rules_coco//:version=1.5.1 //...`.
 
 See `e2e/multi_version` for a full example, in both `MODULE.bazel` and `WORKSPACE` form.
