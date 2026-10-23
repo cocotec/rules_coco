@@ -9,7 +9,7 @@ Bazel module extensions for rules_coco.
 <pre>
 coco = use_extension("@rules_coco//coco:extensions.bzl", "coco")
 coco.cc_runtime_deps(<a href="#coco.cc_runtime_deps-deps">deps</a>, <a href="#coco.cc_runtime_deps-version">version</a>)
-coco.local_toolchain(<a href="#coco.local_toolchain-c_runtime">c_runtime</a>, <a href="#coco.local_toolchain-cc_runtime">cc_runtime</a>, <a href="#coco.local_toolchain-popili">popili</a>)
+coco.local_toolchain(<a href="#coco.local_toolchain-c_runtime">c_runtime</a>, <a href="#coco.local_toolchain-cc_runtime">cc_runtime</a>, <a href="#coco.local_toolchain-license_protocol_version">license_protocol_version</a>, <a href="#coco.local_toolchain-popili">popili</a>)
 coco.toolchain(<a href="#coco.toolchain-auth_token_path">auth_token_path</a>, <a href="#coco.toolchain-c">c</a>, <a href="#coco.toolchain-cc">cc</a>, <a href="#coco.toolchain-license_source">license_source</a>, <a href="#coco.toolchain-license_token">license_token</a>, <a href="#coco.toolchain-versions">versions</a>)
 </pre>
 
@@ -41,6 +41,7 @@ Register a Coco toolchain from a popili distribution on the local filesystem, in
 | :------------- | :------------- | :------------- | :------------- | :------------- |
 | <a id="coco.local_toolchain-c_runtime"></a>c_runtime |  Optional path to a dir holding the C runtime 'coco_c/' subtree. Absolute or workspace-relative.   | String | optional |  `""`  |
 | <a id="coco.local_toolchain-cc_runtime"></a>cc_runtime |  Optional path to a dir holding the C++ runtime 'coco/' subtree. Absolute or workspace-relative.   | String | optional |  `""`  |
+| <a id="coco.local_toolchain-license_protocol_version"></a>license_protocol_version |  Optional licence protocol version the local popili reads. See `coco_toolchain`.   | Integer | optional |  `0`  |
 | <a id="coco.local_toolchain-popili"></a>popili |  Path to a dir holding the 'popili' and 'cocotec-licensing-server' binaries. Absolute or workspace-relative.   | String | required |  |
 
 <a id="coco.toolchain"></a>

@@ -118,7 +118,7 @@ Contact [Cocotec Support](https://cocotec.io/support/) to set this up or discuss
 - `local_user`: The user's existing license on this machine will be reused. This is not compatible with remote
   execution. Each popili version gets the license file it reads (`licenses_<n>.lic` in popili's data directory, `n`
   being its licence protocol version); a local or bring-your-own toolchain of unknown version gets the file of the
-  newest protocol version.
+  newest protocol version, unless it sets `license_protocol_version` or (bring your own) `popili_version`.
 - `token`: The explicitly provided token should be used as `COCOTEC_AUTH_TOKEN`. In this case,
   `--@rules_coco//:license_token` must be set as well. This works with remote execution but it is only recommended when
   using workload identity federation as `COCOTEC_AUTH_TOKEN` is not a secret in that case.
@@ -247,6 +247,9 @@ Each path (absolute, or workspace-relative) mirrors the **extracted release arch
 of `popili_<os>_<arch>.zip`, `coco-cpp-runtime.zip`, and `coco-c-runtime.zip` respectively. To use it, run with
 `bazel build --@rules_coco//:version=local //...` (consider a `.bazelrc` `--config`).
 
+Under `local_user` licensing, set `license_protocol_version` when your popili does not read the newest licence
+protocol version, e.g. `license_protocol_version = 6` for popili 1.5.x.
+
 For `WORKSPACE` mode use `coco_local_repositories(path=..., cc_runtime_path=..., c_runtime_path=...)`,
 which behaves the same way: the local toolchain is selected by `--@rules_coco//:version=local` and
 never becomes the default, so a build that does not set the flag reports no matching toolchain for
@@ -284,7 +287,7 @@ coco_toolchain(
     coco = "//path/to:popili",
     cocotec_licensing_server = "//path/to:cocotec-licensing-server",
     # cc_runtime = "//path/to:cpp_runtime",  # optional cc_library, for coco_cc_library
-    # popili_version = "1.5.7",  # optional: the version of this popili, empty when unknown
+    # popili_version = "1.5.8",  # optional, picks the licence file under local_user licensing
 )
 
 toolchain(

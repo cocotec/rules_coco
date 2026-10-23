@@ -28,6 +28,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `coco_toolchain` gained an optional `popili_version` attribute, exposed as the `popili_version` field of the
   toolchain. The toolchains rules_coco generates set it to their Popili version (`local` for a
   local distribution); a bring-your-own toolchain may leave it empty when the version is unknown.
+- `coco_toolchain`, `coco.local_toolchain` and `coco_local_repositories` gained an optional
+  `license_protocol_version`: the licence protocol version the toolchain's Popili reads, which picks
+  its licence file under `local_user`. Set it when that differs from the newest protocol version
+  rules_coco knows of.
 
 ### Changed
 
