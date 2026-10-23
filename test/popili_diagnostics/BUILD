@@ -17,8 +17,8 @@ load("@rules_cc//cc:defs.bzl", "cc_toolchain")
 load("@rules_coco//coco:defs.bzl", "coco_generate", "coco_package", "coco_state_diagram", "coco_verify_test")
 load("@rules_coco//coco/private:licensing.bzl", "fetch_license")  # buildifier: disable=bzl-visibility
 load("@rules_coco//coco/private:version_resolution.bzl", "resolve_version_alias")  # buildifier: disable=bzl-visibility
-load(":bare_coco_rule.bzl", "bare_coco_rule")
-load(":diagnostics_test.bzl", "popili_diagnostics_tests", "unknown_version_test")
+load(":bare_coco_rule.bzl", "bare_coco_rule", "partial_coco_rule")
+load(":diagnostics_test.bzl", "alias_version_test", "popili_diagnostics_tests", "unknown_version_test")
 load(":stub_cc_toolchain.bzl", "stub_cc_toolchain_config")
 
 coco_package(
@@ -119,4 +119,34 @@ unknown_version_test(
     size = "small",
     expected = ["needs a Coco toolchain, but no toolchain of type @rules_coco//coco:toolchain_type resolved."],
     target_under_test = ":bare",
+)
+
+# One with only some of TOOLCHAIN_ATTRIBUTES still gets the full message.
+partial_coco_rule(
+    name = "partial",
+    tags = ["manual"],
+)
+
+unknown_version_test(
+    name = "partial_unknown_version",
+    size = "small",
+    expected = [
+        "needs popili 1.99.0 (set by --@rules_coco//:version), but no registered Coco toolchain provides it.",
+        "Registered popili versions: %s (the default), %s." % (
+            resolve_version_alias("stable"),
+            resolve_version_alias("testing"),
+        ),
+    ],
+    target_under_test = ":partial",
+)
+
+# A custom rule gets the same advice for an alias on the flag.
+alias_version_test(
+    name = "partial_alias_version",
+    size = "small",
+    expected = [
+        "needs popili stable (set by --@rules_coco//:version), but stable is an alias",
+        "set it to %s" % resolve_version_alias("stable"),
+    ],
+    target_under_test = ":partial",
 )

@@ -4,8 +4,9 @@ The resolved toolchain's binary lives in a version-mangled repository
 (`io_cocotec_coco_<os>_<arch>__<suffix>`), so its path is enough to tell which popili a
 target would use, and the toolchain's `popili_version` field must agree with it. The rule resolves
 `@rules_coco//coco:toolchain_type` itself, in its own configuration, so it sees exactly what
-a real popili-running rule in that configuration would see -- including the effect of a
-`with_popili_version` transition above it.
+a real popili-running rule in that configuration would see. It has no `popili_version` of its
+own, which is what keeps `with_popili_version` useful: the wrapper is how such a rule is given a
+version. What the real rules do with their pins is asserted by pinned_popili_test.bzl.
 """
 
 # buildifier: disable=bzl-visibility

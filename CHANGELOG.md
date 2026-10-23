@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - WORKSPACE mode now supports multiple Popili versions, like bzlmod already did.
   `coco_repositories(versions = ["1.5.1", "1.5.0"])` registers a toolchain per version, selected
-  with `--@rules_coco//:version=1.5.0` or per target with `with_popili_version`. The first entry is
+  with `--@rules_coco//:version=1.5.0` or per target with `popili_version`. The first entry is
   used when the flag is unset.
 - `coco_repositories` gained `local_popili`, `local_cc_runtime` and `local_c_runtime`, so a Popili
   distribution on the local filesystem can be registered alongside downloaded releases and selected
@@ -32,6 +32,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `license_protocol_version`: the licence protocol version the toolchain's Popili reads, which picks
   its licence file under `local_user`. Set it when that differs from the newest protocol version
   rules_coco knows of.
+- `coco_generate`, `coco_verify_test`, `coco_fmt_test` (and its `<name>.format` companion),
+  `coco_architecture_diagram`, `coco_state_diagram` and `coco_counterexample_diagram` gained
+  `popili_version`, which selects the registered toolchain of that version (aliases such as `stable`
+  allowed) for the target and everything beneath it, including the `coco_package` it reads. A pin
+  wins over `--@rules_coco//:version`, which sets the version for everything unpinned. A
+  `coco_cc_library` built from a pinned `coco_generate` needs no pin of its own.
 
 ### Changed
 

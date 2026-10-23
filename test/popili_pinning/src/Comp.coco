@@ -1,0 +1,15 @@
+import unqualified Runnable
+
+@runtime(.MultiThreaded)
+component Comp {
+  val client : Provided<Runnable>
+  machine M {
+    state Stopped {
+      client.begin() = setNextState(Started)
+    }
+
+    state Started {
+      client.stop() = setNextState(Stopped)
+    }
+  }
+}
