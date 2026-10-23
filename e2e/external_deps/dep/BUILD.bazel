@@ -1,10 +1,23 @@
 # The "external" coco package depended on by the root module's app package.
 
-load("@rules_coco//coco:defs.bzl", "coco_package")
+load("@rules_coco//coco:cc.bzl", "coco_cc_library")
+load("@rules_coco//coco:defs.bzl", "coco_generate", "coco_package")
 
 coco_package(
     name = "base",
     srcs = glob(["src/**/*.coco"]),
     package = "Coco.toml",
+    visibility = ["//visibility:public"],
+)
+
+coco_generate(
+    name = "base_cpp",
+    language = "cpp",
+    package = ":base",
+)
+
+coco_cc_library(
+    name = "base_cc",
+    generated_package = ":base_cpp",
     visibility = ["//visibility:public"],
 )
