@@ -471,8 +471,9 @@ When enabled, any target depending on this package (such as `coco_generate`) wil
 
 #### Where Generated Code Goes
 
-`coco_generate` writes all generated code, including test code and mocks, into the directory containing `Coco.toml`.
-Each file keeps its path relative to its source root (`package.sources` or `package.testSources` in `Coco.toml`).
+`coco_generate` writes all generated code, including test code and mocks, below a directory of its own, at the path of
+the directory containing `Coco.toml` (see [Including Generated Headers](#including-generated-headers)). Each file
+keeps its path relative to its source root (`package.sources` or `package.testSources` in `Coco.toml`).
 With `Coco.toml` in `pkg` and `sources = ["src", "interfaces"]`:
 
 | Source                        | Include the generated header as |
@@ -538,10 +539,6 @@ cc_library(
     ],
 )
 ```
-
-The generated files are written below a directory of the `coco_generate`'s own
-(`bazel-bin/<package>/_coco/<name>/`), so include them by their path in the workspace, such as
-`#include "my/package/Foo.h"`, not by their path in `bazel-bin`.
 
 Alternatively these steps can be combined using `coco_cc_library`:
 
@@ -638,6 +635,31 @@ coco_generate(
 | `generator.cpp.flatFileHierarchy`           | `cpp_flat_file_hierarchy`           |
 | `generator.cpp.regeneratePackages`          | `cpp_regenerate_packages`           |
 | `generator.csharp.regeneratePackages`       | `csharp_regenerate_packages`        |
+
+#### Including Generated Headers
+
+Each `coco_generate` writes its files below a directory of its own, `bazel-bin/<package>/_coco/<name>/`, and makes
+that directory an include path. Below it, the files go under `include_prefix`, which is also the path they are
+included by. For `src/Foo.coco` in a package with `Coco.toml` in `pkg`:
+
+| `coco_generate` attribute  | Include the generated header as |
+| -------------------------- | ------------------------------- |
+| none (the default)         | `#include "pkg/Foo.h"`          |
+| `include_prefix = "motor"` | `#include "motor/Foo.h"`        |
+| `include_prefix = ""`      | `#include "Foo.h"`              |
+
+For a package in another repository, `pkg` is its path within that repository, not below `external/`.
+
+Whatever the prefix, an entry in the `includes` of a `coco_cc_library` or `coco_c_library` naming the directory
+containing `Coco.toml` applies to the generated files: `includes = ["pkg"]` from the parent of `pkg` makes
+`#include "Foo.h"` work too.
+
+`include_prefix` overrides `generator.cpp.includePrefix` and `generator.c.includePrefix` in `Coco.toml` for the
+package's own generated code. Packages depending on it still include its headers with the `includePrefix` in its
+`Coco.toml`, so set both to the same value; those packages then need no `includes`.
+
+> [!TIP]
+> On Windows, the generated paths are long for deeply nested packages. Give deep packages a short `include_prefix`.
 
 #### C# Code Generation
 

@@ -23,7 +23,7 @@ load(
     "PATH_CASE_DEFAULTS",
 )
 load(":cc_runtime_deps.bzl", "collect_cc_runtime_extra_deps", "normalize_cc_runtime_extra_deps")
-load(":coco.bzl", "FILE_NAME_MANGLER_STYLES", "compute_output_paths", "mangle_name", "module_path_for", "workspace_dirname")
+load(":coco.bzl", "FILE_NAME_MANGLER_STYLES", "compute_output_paths", "generated_include_dir", "mangle_name", "module_path_for", "workspace_dirname")
 load(":common_repositories.bzl", "coco_download", "download_prefix", "find_local_license_path")
 load(":known_shas.bzl", "FILE_KEY_TO_SHA")
 load(":platforms.bzl", "COCO_TOOLCHAIN_PLATFORMS", "archive_platform", "platform_binary_ext")
@@ -337,6 +337,42 @@ def _workspace_dirname_test_impl(ctx):
     return unittest.end(env)
 
 workspace_dirname_test = unittest.make(_workspace_dirname_test_impl)
+
+def _generated_include_dir_test_impl(ctx):
+    env = unittest.begin(ctx)
+
+    # The default prefix, the Coco.toml directory's workspace path: the root stands for the
+    # workspace, so every include maps to its own path below it.
+    asserts.equals(env, "test/pkg", generated_include_dir("test/pkg", "test/pkg", "test/pkg"))
+    asserts.equals(env, "test/pkg", generated_include_dir("test/pkg/.", "test/pkg", "test/pkg"))
+    asserts.equals(env, "test", generated_include_dir("test", "test/pkg", "test/pkg"))
+    asserts.equals(env, "test/other", generated_include_dir("test/other", "test/pkg", "test/pkg"))
+    asserts.equals(env, "", generated_include_dir("", "test/pkg", "test/pkg"))
+
+    # A prefix ending like the Coco.toml directory: the root stands for the directory above it.
+    asserts.equals(env, "", generated_include_dir("test/pkg", "test/pkg/sub", "sub"))
+    asserts.equals(env, "sub", generated_include_dir("test/pkg/sub", "test/pkg/sub", "sub"))
+    asserts.equals(env, "other", generated_include_dir("test/pkg/other", "test/pkg/sub", "sub"))
+    asserts.equals(env, "", generated_include_dir("test/pkg/sub/..", "test/pkg/sub", "sub"))
+    asserts.equals(env, None, generated_include_dir("test", "test/pkg/sub", "sub"))
+
+    # "": the root stands for the Coco.toml directory only.
+    asserts.equals(env, "", generated_include_dir("test/pkg/sub", "test/pkg/sub", ""))
+    asserts.equals(env, "api", generated_include_dir("test/pkg/sub/api", "test/pkg/sub", ""))
+    asserts.equals(env, None, generated_include_dir("test/pkg", "test/pkg/sub", ""))
+
+    # An unrelated prefix: only the Coco.toml directory and below.
+    asserts.equals(env, "motor", generated_include_dir("test/pkg", "test/pkg", "motor"))
+    asserts.equals(env, "motor/api", generated_include_dir("test/pkg/api", "test/pkg", "motor"))
+    asserts.equals(env, None, generated_include_dir("test", "test/pkg", "motor"))
+
+    # Includes that leave the workspace never match.
+    asserts.equals(env, None, generated_include_dir("../elsewhere", "", ""))
+    asserts.equals(env, None, generated_include_dir("../elsewhere", "test/pkg", "test/pkg"))
+
+    return unittest.end(env)
+
+generated_include_dir_test = unittest.make(_generated_include_dir_test_impl)
 
 # Tests for source_roots.bzl. Paths here are relative to the Coco.toml directory.
 
@@ -1629,6 +1665,7 @@ def coco_test_suite(name):
         name + "_unit",
         module_path_for_test,
         workspace_dirname_test,
+        generated_include_dir_test,
 
         # source_roots.bzl tests
         relative_path_test,

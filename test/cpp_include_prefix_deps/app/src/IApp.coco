@@ -1,0 +1,13 @@
+import unqualified IBase
+
+struct Report {
+  var status : Status
+}
+
+port IApp {
+  function getReport() : Report
+
+  machine {
+    getReport() = Report{ status = Status.OK }
+  }
+}
