@@ -20,8 +20,10 @@ load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
 load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load(":common_attrs.bzl", "companion_attrs")
+load(":platforms.bzl", "COCO_TOOLCHAIN_PLATFORMS")
 load(":source_roots.bzl", "leaves_directory", "relative_path", "resolve_source_roots", "source_root_for")
-load(":version_resolution.bzl", "VERSION_FLAG", "license_protocol_version", "resolve_version_alias")
+load(":version_registry.bzl", "CocoVersionRegistryInfo")
+load(":version_resolution.bzl", "LOCAL_VERSION", "VERSION_FLAG", "license_protocol_version", "resolve_version_alias")
 
 CocoPackageInfo = provider(
     doc = "Information about a Coco package",
@@ -77,18 +79,42 @@ LICENSE_ATTRIBUTES = {
     "_license_token": attr.label(default = Label("//:license_token")),
 }
 
-COCO_TOOLCHAIN_TYPE = "@rules_coco//coco:toolchain_type"
+COCO_TOOLCHAIN_TYPE_LABEL = "@rules_coco//coco:toolchain_type"
+
+# Optional only so that `_coco_toolchain` can replace Bazel's generic "No matching toolchains
+# found" with a message naming the version and the registered ones; every rule declaring it still
+# needs a Coco toolchain.
+COCO_TOOLCHAIN_TYPE = config_common.toolchain_type(COCO_TOOLCHAIN_TYPE_LABEL, mandatory = False)
 
 # Test rules resolve popili on the `test` exec group, where Bazel runs the test action. Declaring
 # the group replaces Bazel's default one, so where it exists (Bazel 9+) it also carries the default
 # test toolchain type, which keeps tests on an execution platform matching the target platform, as
 # Bazel does by default. WORKSPACE mode gets @bazel_features from Bazel 8's WORKSPACE suffix, which
 # may predate the flag, hence getattr.
-_DEFAULT_TEST_TOOLCHAINS = [
-    config_common.toolchain_type("@bazel_tools//tools/test:default_test_toolchain_type", mandatory = False),
-] if getattr(bazel_features.toolchains, "has_default_test_toolchain_type", False) else []
+_DEFAULT_TEST_TOOLCHAIN_TYPE = "@bazel_tools//tools/test:default_test_toolchain_type"
 
-COCO_TEST_EXEC_GROUPS = {"test": exec_group(toolchains = [COCO_TOOLCHAIN_TYPE] + _DEFAULT_TEST_TOOLCHAINS)}
+# Whether Bazel keeps a test on an execution platform matching its target platform (Bazel 9+).
+TESTS_FOLLOW_TARGET_PLATFORM = getattr(bazel_features.toolchains, "has_default_test_toolchain_type", False)
+
+_DEFAULT_TEST_TOOLCHAINS = [
+    config_common.toolchain_type(_DEFAULT_TEST_TOOLCHAIN_TYPE, mandatory = False),
+] if TESTS_FOLLOW_TARGET_PLATFORM else []
+
+# Passed to rule() by test rules, as `**COCO_TEST_RULE_ARGS`. The `platform` fragment comes with
+# the exec group because `_coco_toolchain` reads it to name the test's target platform.
+COCO_TEST_RULE_ARGS = {
+    "exec_groups": {"test": exec_group(toolchains = [COCO_TOOLCHAIN_TYPE] + _DEFAULT_TEST_TOOLCHAINS)},
+    "fragments": ["platform"],
+}
+
+# What a rule needs for `_coco_toolchain`'s full message: the configured version and the registry.
+TOOLCHAIN_ATTRIBUTES = {
+    "_version": attr.label(default = Label("//:version")),
+    "_version_registry": attr.label(
+        default = Label("@coco_toolchains//:registry"),
+        providers = [CocoVersionRegistryInfo],
+    ),
+}
 
 def _popili_version_transition_impl(_settings, attr):
     """Transition implementation for per-target popili version selection.
@@ -180,10 +206,166 @@ with_popili_version = rule(
 
 # License files are now obtained from the toolchain, not passed as attributes
 
+def _resolves_on_test_exec_group(ctx):
+    # Every test rule has a `test` exec group; only those with COCO_TEST_RULE_ARGS resolve popili on it.
+    return "test" in ctx.exec_groups and COCO_TOOLCHAIN_TYPE_LABEL in ctx.exec_groups["test"].toolchains
+
 def _coco_toolchain(ctx):
-    if "test" in ctx.exec_groups:
-        return ctx.exec_groups["test"].toolchains[COCO_TOOLCHAIN_TYPE]
-    return ctx.toolchains[COCO_TOOLCHAIN_TYPE]
+    """Returns the resolved Coco toolchain, failing with a specific message when there is none."""
+    if _resolves_on_test_exec_group(ctx):
+        toolchain = ctx.exec_groups["test"].toolchains[COCO_TOOLCHAIN_TYPE_LABEL]
+    else:
+        toolchain = ctx.toolchains[COCO_TOOLCHAIN_TYPE_LABEL]
+    if toolchain == None:
+        fail(_missing_toolchain_message(ctx))
+    return toolchain
+
+def _configured_version(ctx):
+    """Returns the popili version this target's configuration asks for and where it came from.
+
+    Returns:
+        A (version, source) pair: the value of `--@rules_coco//:version`, or "" for the default,
+        and a phrase for messages such as "set by --@rules_coco//:version" or "the default".
+    """
+    version = ctx.attr._version[BuildSettingInfo].value
+    if version:
+        return version, "set by --%s" % VERSION_FLAG
+    return "", "the default"
+
+def _describe_registered_versions(registry):
+    if not registry.versions:
+        return "none"
+    described = []
+    for version in registry.versions:
+        if version == registry.versions[0] and version != LOCAL_VERSION:
+            described.append("%s (the default)" % version)
+        else:
+            described.append(version)
+    return ", ".join(described)
+
+def _register_versions_hint(what):
+    return (
+        "Register %s with coco.toolchain(versions = [...]) in MODULE.bazel or " % what +
+        "coco_repositories(versions = [...]) in WORKSPACE."
+    )
+
+_REGISTER_LOCAL_HINT = (
+    "Register a popili distribution from the local filesystem with coco.local_toolchain(popili = ...) " +
+    "in MODULE.bazel or coco_local_repositories(path = ...) / coco_repositories(local_popili = ...) in WORKSPACE."
+)
+
+def _missing_popili_message(label, version, source, registry, test_target_platform = None):
+    """Words the failure of a rule whose Coco toolchain did not resolve.
+
+    Decided after toolchain resolution, so it never second-guesses resolution: the registry is
+    consulted only to say what is registered and what to do about it.
+
+    Args:
+        label: The failing target's label.
+        version: The configured version ("" for the default), as `_configured_version` returns it.
+        source: Where the version came from, as `_configured_version` phrases it.
+        registry: The hub's `CocoVersionRegistryInfo` (or any struct with its fields).
+        test_target_platform: For a test that lost popili to the execution platform Bazel runs
+            tests on, its target platform, as `_test_target_platform` returns it; else None.
+
+    Returns:
+        The message to fail with.
+    """
+    registered = "Registered popili versions: %s." % _describe_registered_versions(registry)
+    published = ", ".join(["%s/%s" % platform for platform in COCO_TOOLCHAIN_PLATFORMS])
+
+    if version == LOCAL_VERSION:
+        if LOCAL_VERSION not in registry.versions:
+            return (
+                "%s needs the local popili (%s), but no local Coco toolchain is registered. %s %s" %
+                (label, source, registered, _REGISTER_LOCAL_HINT)
+            )
+        if test_target_platform:
+            return (
+                "%s needs the local popili (%s), which only runs on the host platform (%s), but Bazel " %
+                (label, source, ", ".join([str(constraint) for constraint in registry.host_constraints])) +
+                "runs a test on an execution platform matching the test's target platform (%s), and " % test_target_platform +
+                "no registered execution platform both matches it and is the host. Build the test for the " +
+                "host platform (--platforms=@platforms//host), with the host registered as an execution " +
+                "platform (--extra_execution_platforms=@platforms//host), or select a published release, which runs " +
+                "on %s. %s" % (published, registered)
+            )
+        return (
+            "%s needs the local popili (%s), but it only runs on the host platform (%s) and no " %
+            (label, source, ", ".join([str(constraint) for constraint in registry.host_constraints])) +
+            "registered execution platform is the host. Register the host as an execution platform " +
+            "(--extra_execution_platforms=@platforms//host), or select a published release, which runs " +
+            "on %s. %s" % (published, registered)
+        )
+
+    if not version:
+        if not registry.versions or registry.versions[0] == LOCAL_VERSION:
+            return (
+                "%s needs the default popili version, but none is registered: the local popili never " % label +
+                "becomes the default and is selected only with --%s=%s. %s %s" %
+                (VERSION_FLAG, LOCAL_VERSION, registered, _register_versions_hint("a version"))
+            )
+        version = registry.versions[0]
+
+    # The hub's config_settings match version numbers only; transitions resolve aliases, the flag does not.
+    resolved = resolve_version_alias(version)
+    if resolved != version:
+        return (
+            "%s needs popili %s (%s), but %s is an alias, which --%s does not resolve: set it to %s, " %
+            (label, version, source, version, VERSION_FLAG, resolved) +
+            "the version it stands for. %s" % registered +
+            ("" if resolved in registry.versions else " " + _register_versions_hint(resolved))
+        )
+
+    if version not in registry.versions:
+        return (
+            "%s needs popili %s (%s), but no registered Coco toolchain provides it. %s %s " %
+            (label, version, source, registered, _register_versions_hint("it")) +
+            "A bring-your-own coco_toolchain is selected by a version only when its toolchain() has " +
+            "target_settings for that version."
+        )
+
+    if test_target_platform:
+        return (
+            "%s needs popili %s (%s), which is registered, but Bazel runs a test on an execution platform " %
+            (label, version, source) +
+            "matching the test's target platform (%s), and no registered execution platform both " % test_target_platform +
+            "matches it and can run popili, which is published for %s. Build the test for one of these, " % published +
+            "register an execution platform that matches the target platform and is one of these " +
+            "(--extra_execution_platforms), or bring your own coco_toolchain for such a platform. %s" % registered
+        )
+
+    return (
+        "%s needs popili %s (%s), which is registered, but none of the registered execution platforms " %
+        (label, version, source) +
+        "can run it: popili is published for %s. Register an execution platform of one of these " % published +
+        "(--extra_execution_platforms), or bring your own coco_toolchain for the execution platform you " +
+        "have. %s" % registered
+    )
+
+def _test_target_platform(ctx):
+    """The target platform of a test that lost popili to Bazel's choice of test platform, else None.
+
+    The `test` exec group takes the execution platform resolving the most of its toolchains, so a
+    resolved default test toolchain without a Coco toolchain means that no execution platform the
+    test may run on (by default, those matching its target platform) can run popili.
+    """
+    if not _resolves_on_test_exec_group(ctx) or not _DEFAULT_TEST_TOOLCHAINS:
+        return None
+    if ctx.exec_groups["test"].toolchains[_DEFAULT_TEST_TOOLCHAIN_TYPE] == None:
+        return None
+    return str(ctx.fragments.platform.platform)
+
+def _missing_toolchain_message(ctx):
+    # A custom rule may declare COCO_TOOLCHAIN_TYPE without TOOLCHAIN_ATTRIBUTES, which the full message needs.
+    if not hasattr(ctx.attr, "_version_registry"):
+        return (
+            "%s needs a Coco toolchain, but no toolchain of type %s resolved." %
+            (ctx.label, COCO_TOOLCHAIN_TYPE_LABEL)
+        )
+    version, source = _configured_version(ctx)
+    registry = ctx.attr._version_registry[CocoVersionRegistryInfo]
+    return _missing_popili_message(ctx.label, version, source, registry, _test_target_platform(ctx))
 
 def _runtime_path(file, is_test):
     return file.short_path if is_test else file.path
@@ -274,6 +456,8 @@ def _get_license_file_from_toolchain(ctx):
     CLI override via --@rules_coco//:license_source flag.
     """
 
+    # Even with the flag set, so a missing toolchain fails here rather than as an empty fetch.
+    _coco_toolchain(ctx)
     license_source = _get_license_source(ctx)
     if license_source == "local_acquire":
         files = ctx.attr._license_file_fetch[DefaultInfo].files.to_list()
@@ -411,6 +595,7 @@ def _create_coco_wrapper_script(ctx, package, arguments):
 # These are implementation details and should not be used by end users
 create_coco_wrapper_script = _create_coco_wrapper_script
 coco_runfiles = _coco_runfiles
+coco_toolchain_or_fail = _coco_toolchain
 run_coco = _run_coco
 coco_startup_args = _coco_startup_args
 coco_env = _coco_env
@@ -491,6 +676,9 @@ def _require_coco_toml(file, attr):
 
 def _coco_package_impl(ctx):
     _require_coco_toml(ctx.file.package, "package")
+
+    # Without typecheck nothing below reads the toolchain.
+    _coco_toolchain(ctx)
     package_file = ctx.file.package
     dep_package_files = depset(
         direct = [dep[CocoPackageInfo].package_file for dep in ctx.attr.deps],
@@ -551,7 +739,7 @@ def _coco_package_impl(ctx):
 
 _coco_package = rule(
     implementation = _coco_package_impl,
-    attrs = dict(LICENSE_ATTRIBUTES.items() + {
+    attrs = dict(LICENSE_ATTRIBUTES.items() + TOOLCHAIN_ATTRIBUTES.items() + {
         "deps": attr.label_list(
             providers = [CocoPackageInfo],
             doc = "Other coco_package targets this package depends on.",
@@ -683,7 +871,7 @@ def _coco_package_verify(ctx):
 
 _coco_verify_test = rule(
     implementation = _coco_package_verify,
-    attrs = dict(LICENSE_ATTRIBUTES.items() + {
+    attrs = dict(LICENSE_ATTRIBUTES.items() + TOOLCHAIN_ATTRIBUTES.items() + {
         "package": attr.label(
             providers = [CocoPackageInfo],
             mandatory = True,
@@ -692,7 +880,7 @@ _coco_verify_test = rule(
         "_verification_backend": attr.label(default = Label("//:verification_backend")),
     }.items()),
     test = True,
-    exec_groups = COCO_TEST_EXEC_GROUPS,
+    **COCO_TEST_RULE_ARGS
 )
 
 def _coco_verify_test_macro_impl(name, visibility, **kwargs):
@@ -1092,6 +1280,7 @@ def _add_outputs(ctx, headers, sources, mock_headers, mock_sources, config, path
     _declare_language_outputs(ctx, headers, sources, mock_headers, mock_sources, config, path_builder, module_path)
 
 def _coco_package_generate_impl(ctx):
+    _coco_toolchain(ctx)
     if ctx.attr.language == "c" and ctx.attr.mocks:
         fail("mocks = True is not supported for language = \"c\": popili does not generate C mocks", attr = "mocks")
 
@@ -1220,7 +1409,7 @@ def _generated_headers_cc_info(headers, include_root):
 
 _coco_generate = rule(
     implementation = _coco_package_generate_impl,
-    attrs = dict(LICENSE_ATTRIBUTES.items() + {
+    attrs = dict(LICENSE_ATTRIBUTES.items() + TOOLCHAIN_ATTRIBUTES.items() + {
         # C output path options
         "c_file_name_mangler": attr.string(
             default = "Unaltered",
@@ -1471,7 +1660,7 @@ created that exposes the generated test sources and headers.""",
 )
 
 def _popili_version_alias_impl(ctx):
-    toolchain = ctx.toolchains["@rules_coco//coco:toolchain_type"]
+    toolchain = _coco_toolchain(ctx)
     return [
         toolchain,
         platform_common.TemplateVariableInfo({
@@ -1484,9 +1673,9 @@ def _popili_version_alias_impl(ctx):
     ]
 
 _popili_version_alias = rule(
-    attrs = LICENSE_ATTRIBUTES,
+    attrs = dict(LICENSE_ATTRIBUTES.items() + TOOLCHAIN_ATTRIBUTES.items()),
     implementation = _popili_version_alias_impl,
-    toolchains = ["@rules_coco//coco:toolchain_type"],
+    toolchains = [COCO_TOOLCHAIN_TYPE],
 )
 
 def popili_version_alias(name, **kwargs):
@@ -1514,6 +1703,7 @@ coco_cc_gen = _coco_cc_gen
 
 # Exported for testing
 mangle_name = _mangle_name
+missing_popili_message = _missing_popili_message
 compute_output_paths = _compute_output_paths
 module_path_for = _module_path_for
 workspace_dirname = _workspace_dirname
