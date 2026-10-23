@@ -1,0 +1,9 @@
+[workspace]
+members = ["inherits"]
+
+[language]
+standard = "1.2"
+profiles = ["C++"]
+
+[generator.cpp]
+includePrefix = "ws"

@@ -25,6 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `coco_cc_library`, `coco_c_library` and their test-library variants accept `library_rule`, the rule or macro
   that compiles the library, for projects that wrap `cc_library` in a macro of their own. The default is
   rules_cc's `cc_library`.
+- `coco_generate` attribute `include_prefix`, mirroring `generator.cpp.includePrefix` / `generator.c.includePrefix`
+  in `Coco.toml` like the other generator settings. Set it to the package's effective value, including one inherited
+  from a workspace or received through `exportConfig`; the default `""` is popili's default too. Not allowed for C#.
 
 ### Changed
 
@@ -57,27 +60,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   target platform, including when cross-compiling with `--platforms`. Before, bzlmod required the
   target platform to match the host; WORKSPACE mode never had the constraint.
 - **Breaking:** `coco_generate` now writes all generated code, test code and mocks included, below a directory of
-  its own, `bazel-bin/<package>/_coco/<name>/`, at the path of the directory containing `Coco.toml` within the
-  workspace, instead of below the package's source root in `bazel-bin`. `coco_cc_library` and `coco_c_library`
-  add that directory to the include path. Each file keeps its path relative to its own source root, so
-  `src/Foo.coco` in a package `pkg` is now included as `#include "pkg/Foo.h"` rather than
-  `#include "pkg/src/Foo.h"`. For a package in another repository that path is its path within that repository:
-  `@dep//pkg` is included as `#include "pkg/Foo.h"`, not `#include "external/dep+/pkg/Foo.h"`. To migrate:
+  its own, `bazel-bin/<package>/_coco/<name>/`, and generated headers are included the way popili's own generated
+  code includes them: by module path below the source root, behind the package's `includePrefix` if it has one.
+  `pkg/src/Foo.coco` is included as `#include "Foo.h"` rather than `#include "pkg/src/Foo.h"`, wherever the package
+  lives, and as `#include "motor/Foo.h"` if its `Coco.toml` sets `includePrefix = "motor"`. rules_coco no longer
+  passes `--include-prefix` to popili. To migrate:
 
+  - in hand-written code, include generated headers as `"Foo.h"` instead of `"pkg/src/Foo.h"`, or as
+    `"<includePrefix>/Foo.h"` when the package's `Coco.toml` sets one. To keep `#include "pkg/src/Foo.h"`, set
+    `include_prefix` and `includePrefix` to `"pkg/src"`;
+  - set `include_prefix` on every `coco_generate` whose package has a non-empty effective `includePrefix`;
+  - remove `includes` entries that only made generated headers reachable. `includes` no longer applies below the
+    generated files' include root, so a nested one such as `includes = ["pkg/sub"]` becomes part of the include,
+    `#include "sub/Bar.h"`;
+  - drop the package directory from `public_hdrs` path suffixes (`"src/IApi.h"` becomes `"IApi.h"` or
+    `"sub/IApi.h"`). A suffix with a directory now matches whole path components of the header's include path, so
+    `"api/IApi.h"` no longer selects `xapi/IApi.h`;
   - replace a plain `cc_library` compiling a `coco_generate`'s sources by `coco_cc_library` or `coco_c_library`,
     passing a wrapper of `cc_library` as `library_rule` if you use one;
-  - on Windows, run `bazel clean` once, so that files left at the old paths cannot be included by mistake;
+  - update paths to generated C# files, now `bazel-bin/<package>/_coco/<name>/<module path>.cs`;
+  - on Windows, run `bazel clean` once, so that files left at the old paths cannot be included by mistake.
 
-  and remove the source root from:
-
-  - `#include`s of generated headers, e.g. `"pkg/src/Foo.h"` becomes `"pkg/Foo.h"` and `"pkg/src/sub/Bar.h"`
-    becomes `"pkg/sub/Bar.h"`;
-  - `includes` on libraries of dependency packages, e.g. `includes = ["middle/src"]` becomes
-    `includes = ["middle"]`;
-  - `public_hdrs` path suffixes, e.g. `"src/IApi.h"` becomes `"pkg/IApi.h"` or just `"IApi.h"`;
-  - paths to generated C# files, which also gain the `_coco/<name>/` prefix.
-
-  Two `coco_generate` targets over one `coco_package` no longer conflict.
+  Two `coco_generate` targets over one `coco_package` no longer conflict, and generated paths are shorter, which
+  helps against Windows path length limits.
 
 ### Removed
 

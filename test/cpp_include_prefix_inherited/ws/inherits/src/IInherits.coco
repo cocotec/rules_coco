@@ -1,0 +1,12 @@
+enum Level {
+  case LOW
+  case HIGH
+}
+
+port IInherits {
+  function getLevel() : Level
+
+  machine {
+    getLevel() = Level.LOW
+  }
+}

@@ -1,0 +1,12 @@
+enum Mode {
+  case IDLE
+  case BUSY
+}
+
+port IExporter {
+  function getMode() : Mode
+
+  machine {
+    getMode() = Mode.IDLE
+  }
+}

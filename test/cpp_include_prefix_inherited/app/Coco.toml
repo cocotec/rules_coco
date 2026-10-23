@@ -1,0 +1,11 @@
+[package]
+name = "app"
+sources = ["src"]
+
+[language]
+standard = "1.2"
+profiles = ["C++"]
+
+[dependencies]
+inherits = "*"
+receiver = "*"

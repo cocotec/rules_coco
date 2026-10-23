@@ -1,0 +1,6 @@
+[package]
+name = "receiver"
+sources = ["src"]
+
+[dependencies]
+exporter = "*"

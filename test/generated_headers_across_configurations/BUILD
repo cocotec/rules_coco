@@ -40,8 +40,6 @@ with_popili_version(
 coco_cc_library(
     name = "base_cc",
     generated_package = ":stable_cpp",
-    # The generated files sit at the package root, as the source root `src` is stripped.
-    includes = ["."],
 )
 
 cc_test(
@@ -52,8 +50,7 @@ cc_test(
 
 # A project's own wrapper of cc_library compiles the generate through library_rule. It builds
 # base_cpp in this configuration too, beside the copy beneath stable_cpp, which the compiles above
-# must not pick up even without a sandbox. Without `includes`, the headers are included by their
-# path in the workspace.
+# must not pick up even without a sandbox.
 coco_cc_library(
     name = "wrapped_cc",
     generated_package = ":base_cpp",

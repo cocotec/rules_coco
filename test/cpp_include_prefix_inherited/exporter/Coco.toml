@@ -1,0 +1,11 @@
+[package]
+name = "exporter"
+sources = ["src"]
+exportConfig = true
+
+[language]
+standard = "1.2"
+profiles = ["C++"]
+
+[generator.cpp]
+includePrefix = "exported"

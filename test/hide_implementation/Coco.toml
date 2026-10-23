@@ -11,4 +11,5 @@ defaultLanguage = "C++"
 
 [generator.cpp]
 componentStyle = "HideImplementation"
+includePrefix = "hide_implementation"
 generateMocks = "GMock"

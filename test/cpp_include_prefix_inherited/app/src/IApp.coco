@@ -1,0 +1,15 @@
+import unqualified IInherits
+import unqualified IReceiver
+
+struct Status {
+  var level : Level
+  var reading : Signal
+}
+
+port IApp {
+  function getStatus() : Status
+
+  machine {
+    getStatus() = Status{ level = Level.LOW, reading = Signal.OFF }
+  }
+}

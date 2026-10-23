@@ -20,7 +20,7 @@ load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
 load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load(":common_attrs.bzl", "companion_attrs")
-load(":source_roots.bzl", "relative_path", "resolve_source_roots", "source_root_for")
+load(":source_roots.bzl", "leaves_directory", "relative_path", "resolve_source_roots", "source_root_for")
 load(":version_resolution.bzl", "VERSION_FLAG", "resolve_version_alias")
 
 CocoPackageInfo = provider(
@@ -51,6 +51,7 @@ CocoCcGeneratedInfo = provider(
     doc = "Generated C/C++ code from a Coco package",
     fields = {
         "headers": "Generated header files as a depset",
+        "include_prefix": "The package's effective includePrefix: the directory below include_root holding its files, and the first component of their include paths",
         "include_root": "The directory the generated files' include paths are relative to, as an exec path",
         "sources": "Generated implementation files as a depset",
         "test_headers": "Generated test/mock header files as a depset",
@@ -834,23 +835,6 @@ def _join_path(components):
     """Join non-empty path components with "/"."""
     return "/".join([c for c in components if c])
 
-def _workspace_dirname(short_path):
-    """The directory of a file's short path, relative to the root of its own repository.
-
-    Unlike File.dirname, this drops the bin dir of a generated file and the prefix of a file in
-    another repository: external/<repo>/, or ../<repo>/ with --experimental_sibling_repository_layout.
-
-    Args:
-        short_path: A File.short_path, e.g. "pkg/Coco.toml" or "../dep+/pkg/Coco.toml"
-
-    Returns:
-        The directory, e.g. "pkg", or "" for the repository root
-    """
-    segments = short_path.split("/")
-    if segments[0] == "..":
-        segments = segments[2:]
-    return "/".join(segments[:-1])
-
 def _output_file_names(base_name, config):
     """Compute the four output file names for an already-mangled base name.
 
@@ -1054,7 +1038,7 @@ def _coco_package_generate_impl(ctx):
     srcs = info.direct_srcs
     test_srcs = info.direct_test_srcs
     package_dir = info.package_file.dirname
-    workspace_dir = _workspace_dirname(info.package_file.short_path)
+    include_prefix = _include_prefix(ctx)
 
     headers = []
     sources = []
@@ -1063,13 +1047,14 @@ def _coco_package_generate_impl(ctx):
     test_headers = []
     test_sources = []
 
-    # Generated files go below an include root of this target's own, at the package directory's
-    # path in its repository, so "<workspace dir>/Foo.h" can't resolve to the same files built in
-    # another configuration or by another coco_generate, as it would below a bin dir root.
+    # Generated files go below an include root of this target's own, at the include prefix, so
+    # "<include prefix>/Foo.h" can't resolve to the same files built in another configuration or by
+    # another coco_generate, as it would below a bin dir root. popili writes files by module path
+    # and only puts the prefix in the #include strings, so --output is the root plus the prefix.
     output_prefix = _join_path(["_coco", ctx.label.name])
     include_root = _join_path([ctx.bin_dir.path, ctx.label.workspace_root, ctx.label.package, output_prefix])
     config = _build_language_config(ctx, ctx.attr.language)
-    path_builder = _make_path_builder(ctx, _join_path([output_prefix, workspace_dir]))
+    path_builder = _make_path_builder(ctx, _join_path([output_prefix, include_prefix]))
 
     # Get the list of packages to regenerate based on language
     regenerate_pkgs = {
@@ -1095,7 +1080,7 @@ def _coco_package_generate_impl(ctx):
 
     # Test code and mocks land beside the regular code. --test-output is passed explicitly rather than
     # relying on popili defaulting it to --output.
-    generated_dir = paths.join(include_root, workspace_dir)
+    generated_dir = _join_path([include_root, include_prefix])
     arguments = [
         "generate-%s" % ctx.attr.language,
         "--output",
@@ -1105,13 +1090,6 @@ def _coco_package_generate_impl(ctx):
         "--output-empty-files",
         "--output-runtime=false",
     ]
-    if ctx.attr.language == "cpp" or ctx.attr.language == "c":
-        # Make all include paths absolute within the workspace to avoid the need for includes
-        arguments += [
-            "--include-prefix",
-            workspace_dir,
-        ]
-
     all_outputs = headers + sources
     all_test_outputs = test_headers + test_sources
 
@@ -1127,6 +1105,7 @@ def _coco_package_generate_impl(ctx):
     if ctx.attr.language in ("cpp", "c"):
         lang_provider = CocoCcGeneratedInfo(
             headers = depset(headers),
+            include_prefix = include_prefix,
             include_root = include_root,
             sources = depset(sources),
             test_headers = depset(test_headers),
@@ -1146,6 +1125,16 @@ def _coco_package_generate_impl(ctx):
         ),
         lang_provider,
     ]
+
+def _include_prefix(ctx):
+    """The validated include_prefix attribute: the package's effective includePrefix, "" by default."""
+    prefix = ctx.attr.include_prefix
+    if prefix and ctx.attr.language == "csharp":
+        fail("include_prefix is not supported for language = \"csharp\": C# has no include prefix", attr = "include_prefix")
+    if prefix and (paths.normalize(prefix) != prefix or paths.is_absolute(prefix) or leaves_directory(prefix)):
+        fail("include_prefix must be a normalised relative path within the include root, such as \"my/pkg\", " +
+             "not \"%s\"" % prefix, attr = "include_prefix")
+    return prefix
 
 _coco_generate = rule(
     implementation = _coco_package_generate_impl,
@@ -1223,6 +1212,15 @@ _coco_generate = rule(
             default = [],
             doc = "Other coco_package targets to regenerate with this target's C# generator settings.",
         ),
+        "include_prefix": attr.string(
+            doc = "Must match the package's effective `generator.cpp.includePrefix` (C++) or " +
+                  "`generator.c.includePrefix` (C): the value in its Coco.toml, or else the one it inherits from " +
+                  "its workspace or receives from a dependency with `exportConfig = true`. Default `\"\"`, " +
+                  "popili's default. Generated headers are included as `<include_prefix>/<path below the source " +
+                  "root>`, the way popili's own generated code includes them: `#include \"Foo.h\"` by default, " +
+                  "`#include \"motor/Foo.h\"` for `\"motor\"`. A mismatch fails when compiling this package's " +
+                  "generated code, with the header not found under the Coco.toml prefix. Not allowed for C#.",
+        ),
         "language": attr.string(
             mandatory = True,
             values = ["cpp", "c", "csharp"],
@@ -1266,6 +1264,24 @@ _coco_test_outputs = rule(
 def coco_test_outputs_name(name):
     return "%s.tst" % name
 
+def _header_matches(include_path, pattern):
+    """Whether a public_hdrs pattern selects the header included as include_path.
+
+    A bare file name matches the header's file name. A pattern with a directory matches whole path
+    components at the end of the include path: "api/IApi.h" matches "core/api/IApi.h", but neither
+    "core/xapi/IApi.h" nor "api/MyIApi.h".
+
+    Args:
+        include_path: The header's path relative to its include root, e.g. "core/api/IApi.h"
+        pattern: A public_hdrs entry
+
+    Returns:
+        True if the pattern selects the header
+    """
+    if "/" not in pattern:
+        return paths.basename(include_path) == pattern
+    return include_path == pattern or include_path.endswith("/" + pattern)
+
 def _coco_cc_gen_impl(ctx):
     """Extracts generated C/C++ sources and headers, providing CcInfo for headers.
 
@@ -1289,31 +1305,16 @@ def _coco_cc_gen_impl(ctx):
         public_hdrs = []
         private_hdrs = []
         for h in all_headers:
-            matched = False
-            for p in patterns:
-                if "/" in p:
-                    if h.short_path.endswith(p):
-                        matched = True
-                        break
-                elif h.basename == p:
-                    matched = True
-                    break
-            if matched:
+            include_path = relative_path(h.path, gen_info.include_root)
+            if [p for p in patterns if _header_matches(include_path, p)]:
                 public_hdrs.append(h)
             else:
                 private_hdrs.append(h)
 
-    # Export the generate's include root, and the library's `includes` below it, which cc_library
-    # only applies below its own bin dir. Below the root, paths are relative to the repository root,
-    # as for the generated files.
-    root = gen_info.include_root
+    # Export the generate's include root, from which the generated code includes its headers.
     compilation_context = cc_common.create_compilation_context(
         headers = depset(public_hdrs),
-        quote_includes = depset([root]),
-        includes = depset([
-            _join_path([root, ctx.label.package, include])
-            for include in ctx.attr.includes
-        ]),
+        quote_includes = depset([gen_info.include_root]),
     )
 
     return [
@@ -1325,9 +1326,6 @@ _coco_cc_gen = rule(
     implementation = _coco_cc_gen_impl,
     attrs = {
         "all_hdrs_public": attr.bool(default = True),
-        "includes": attr.string_list(
-            doc = "The consuming cc_library's `includes`, applied below the generated files' include root too.",
-        ),
         "package": attr.label(
             providers = [CocoCcGeneratedInfo],
             mandatory = True,
@@ -1336,7 +1334,7 @@ _coco_cc_gen = rule(
             default = [],
             doc = "Header names to make public (when all_hdrs_public is False). " +
                   "Use bare filenames (e.g., 'ISensor.h') to match by name, or " +
-                  "path suffixes (e.g., 'sensors/ISensor.h') to disambiguate.",
+                  "path suffixes of whole components of the include path (e.g., 'sensors/ISensor.h') to disambiguate.",
         ),
         "use_test_outputs": attr.bool(default = False, doc = "If True, extract test/mock outputs instead of regular outputs"),
     },
@@ -1424,4 +1422,4 @@ coco_cc_gen = _coco_cc_gen
 mangle_name = _mangle_name
 compute_output_paths = _compute_output_paths
 module_path_for = _module_path_for
-workspace_dirname = _workspace_dirname
+header_matches = _header_matches

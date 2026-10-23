@@ -56,7 +56,6 @@ def coco_library(
         _coco_cc_gen(
             name = gen_name,
             package = pkg,
-            includes = kwargs.get("includes", []),
             all_hdrs_public = (public_hdrs == None),
             public_hdrs = public_hdrs if public_hdrs != None else [],
             **companion_attrs(kwargs, extra_tags = ["manual"])
@@ -112,7 +111,6 @@ def coco_test_library(
         _coco_cc_gen(
             name = gen_name,
             package = pkg,
-            includes = kwargs.get("includes", []),
             use_test_outputs = True,
             all_hdrs_public = (public_hdrs == None),
             public_hdrs = public_hdrs if public_hdrs != None else [],

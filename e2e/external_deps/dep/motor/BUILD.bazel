@@ -18,7 +18,5 @@ coco_generate(
 coco_cc_library(
     name = "motor_cc",
     generated_package = ":motor_cpp",
-    # Maps to motor/, the package's path in this repository, below the generate's include root.
-    includes = ["."],
     visibility = ["//visibility:public"],
 )

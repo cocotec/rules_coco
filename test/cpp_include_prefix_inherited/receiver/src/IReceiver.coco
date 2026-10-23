@@ -1,0 +1,16 @@
+import unqualified IExporter
+
+enum Signal {
+  case OFF
+  case ON
+}
+
+port IReceiver {
+  function getMode() : Mode
+  function getSignal() : Signal
+
+  machine {
+    getMode() = Mode.BUSY
+    getSignal() = Signal.ON
+  }
+}

@@ -40,6 +40,7 @@ with_popili_version(
 
 coco_generate(
     name = "hide_implementation_test_cpp",
+    include_prefix = "hide_implementation",
     language = "cpp",
     mocks = True,
     package = ":hide_implementation_test_testing",

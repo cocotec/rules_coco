@@ -15,6 +15,7 @@
 load("@rules_cc//cc:defs.bzl", "cc_test")
 load("@rules_coco//coco:cc.bzl", "coco_cc_library", "coco_cc_test_library")
 load("@rules_coco//coco:defs.bzl", "coco_generate", "coco_package", "coco_verify_test")
+load("//test/source_roots:scenario.bzl", "generate_flags_test")
 
 coco_package(
     name = "base",
@@ -32,6 +33,12 @@ coco_generate(
     language = "cpp",
     mocks = True,
     package = ":base",
+)
+
+# Coco.toml beside the BUILD file: the generated files land directly below the include root.
+generate_flags_test(
+    name = "base_cpp_flags_test",
+    target_under_test = ":base_cpp",
 )
 
 coco_cc_library(
