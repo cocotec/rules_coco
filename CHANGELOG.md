@@ -40,6 +40,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `coco_cc_library`, `coco_cc_test_library`, `coco_c_library` and `coco_c_test_library` gained
   `popili_version`, which selects the runtime the library links and applies to the `coco_generate`
   targets it builds from, but not to its `deps` or `gmock`.
+- `--@rules_coco//:force_version` makes `--@rules_coco//:version` (or the default when it is unset)
+  apply to every target, ignoring every `popili_version` pin and `with_popili_version` wrapper, to
+  try a Popili version on a whole repository without editing BUILD files.
 
 ### Changed
 

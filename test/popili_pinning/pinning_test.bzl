@@ -6,10 +6,12 @@ off the action it would run, whose popili lives in a version-mangled repository
 (`io_cocotec_coco_<os>_<arch>__<version>`), off its `$(POPILI)` make variable, or off the headers
 of the runtime it forwards. Every pinned consumer is checked under a flag naming a version nobody
 registered, where only its pin can make it resolve; that pins share or leave the configuration of
-unpinned targets is asserted per consumer by e2e/multi_version, which registers two versions to
-choose between, and the transition's decisions by the unit tests of `pin_transition_settings`. An
-unpinned target keeps the configuration it has without any transition. The flag itself takes no
-aliases: `--@rules_coco//:version=stable` fails saying which version to name.
+unpinned targets, and that a forced build ignores them, is asserted per consumer by
+e2e/multi_version, which registers two versions to choose between, and the transition's decisions
+by the unit tests of `pin_transition_settings`. An unpinned target keeps the configuration it has
+without any transition. The flag itself takes no aliases: `--@rules_coco//:version=stable` fails
+saying which version to name. Under `--@rules_coco//:force_version` even a pin to a version nobody
+registered is ignored, and the flag's version is reported as forced.
 Every test that compares bin dirs fixes the flags of both sides, so the suite holds whatever the
 command line sets.
 """
@@ -20,6 +22,7 @@ load(":output_root.bzl", "output_root")
 load(":popili_evidence.bzl", "assert_popili_version")
 
 _VERSION_FLAG = str(Label("@rules_coco//:version"))
+_FORCE_FLAG = str(Label("@rules_coco//:force_version"))
 _SOURCE_SETTING = str(Label("@rules_coco//:_version_source"))
 
 _STABLE = resolve_version_alias("stable")
@@ -35,7 +38,7 @@ _VERSION_ATTRS = {"version": attr.string(mandatory = True)}
 pin_beats_flag_test = analysistest.make(
     _resolves_impl,
     attrs = _VERSION_ATTRS,
-    config_settings = {_VERSION_FLAG: "1.99.0"},
+    config_settings = {_VERSION_FLAG: "1.99.0", _FORCE_FLAG: False},
 )
 
 def _reference(ctx):
@@ -54,17 +57,30 @@ def _same_configuration_under(settings):
     """A test that its target, under `settings`, lands in the bin dir of `reference` under `settings`."""
     return analysistest.make(_same_configuration_impl, attrs = _reference_attrs(settings), config_settings = settings)
 
-_DEFAULT = {_VERSION_FLAG: ""}
+_DEFAULT = {_VERSION_FLAG: "", _FORCE_FLAG: False}
 
 # Names the version stable stands for. Also sets the source setting, which no command line does,
 # so both sides' analysis_test_transition changes some option even when the command line names
 # that version, and neither stays in the unmarked configuration.
-_CONCRETE = {_VERSION_FLAG: _STABLE, _SOURCE_SETTING: "pin"}
+_CONCRETE = {_VERSION_FLAG: _STABLE, _FORCE_FLAG: False, _SOURCE_SETTING: "pin"}
+
+_FORCED = {_VERSION_FLAG: _STABLE, _FORCE_FLAG: True}
 
 # Compared with a reference that has no transition at all: the target's own transition changed
 # nothing, so its output paths are the ones a target without a transition has.
 default_configuration_unchanged_test = _same_configuration_under(_DEFAULT)
 concrete_configuration_unchanged_test = _same_configuration_under(_CONCRETE)
+
+def _forced_pin_ignored_impl(ctx):
+    env = analysistest.begin(ctx)
+    target = analysistest.target_under_test(env)
+    assert_popili_version(env, target, _STABLE)
+    asserts.equals(env, output_root(_reference(ctx)), output_root(target), "bin dir of a pinned target under --force_version")
+    return analysistest.end(env)
+
+# Forced, the pin transition changes nothing, so the target resolves stable where a target without
+# a transition does under the same settings.
+forced_pin_ignored_test = analysistest.make(_forced_pin_ignored_impl, attrs = _reference_attrs(_FORCED), config_settings = _FORCED)
 
 def _expect_message_impl(ctx):
     env = analysistest.begin(ctx)
@@ -80,10 +96,18 @@ expect_message_test = analysistest.make(
     expect_failure = True,
 )
 
+# The flag names a version nobody registered and the pin names one that is: forced, the flag wins.
+forced_flag_beats_pin_test = analysistest.make(
+    _expect_message_impl,
+    attrs = _MESSAGE_ATTRS,
+    config_settings = {_FORCE_FLAG: True, _VERSION_FLAG: "1.99.0"},
+    expect_failure = True,
+)
+
 alias_flag_message_test = analysistest.make(
     _expect_message_impl,
     attrs = _MESSAGE_ATTRS,
-    config_settings = {_VERSION_FLAG: "stable"},
+    config_settings = {_VERSION_FLAG: "stable", _FORCE_FLAG: False},
     expect_failure = True,
 )
 
@@ -118,13 +142,14 @@ def _unpinned_tests(name, unpinned, current_popili_version, untransitioned):
     tests.append("%s_alias_flag_message_current_popili_version" % name)
     return tests
 
-def popili_pinning_tests(name, pinned, unregistered, unpinned, current_popili_version, untransitioned):
+def popili_pinning_tests(name, pinned, unregistered, unregistered_diagram, unpinned, current_popili_version, untransitioned):
     """Declares the pin tests and a test_suite over them.
 
     Args:
         name: Prefix for the tests and the name of the test_suite.
         pinned: A dict mapping a short name to a target pinned with `popili_version = "stable"`.
         unregistered: A coco_generate pinned to a version nobody registered (1.99.0).
+        unregistered_diagram: A coco_state_diagram pinned to 1.99.0.
         unpinned: A dict mapping a short name to an unpinned target that resolves popili:
             `generate` (a coco_generate over a package of its own), `verify_test`, `package` (a
             coco_package with typecheck = True) and `cc_runtime` (`@rules_coco//coco:cc_runtime`).
@@ -141,6 +166,19 @@ def popili_pinning_tests(name, pinned, unregistered, unpinned, current_popili_ve
         )
         tests.append("%s_pin_beats_flag_%s" % (name, consumer))
 
+    # Forced, the flag names a version nobody registered and wins over the pin.
+    forced_flag_beats_pin_test(
+        name = "%s_forced_flag_beats_pin" % name,
+        size = "small",
+        target_under_test = pinned["generate"],
+        expected = [
+            # The package shares the forced configuration and fails first.
+            ":base needs popili 1.99.0 (forced by --@rules_coco//:force_version), but no registered Coco toolchain provides it.",
+            "Registered popili versions: %s (the default), %s." % (_STABLE, resolve_version_alias("testing")),
+        ],
+    )
+    tests.append("%s_forced_flag_beats_pin" % name)
+
     expect_message_test(
         name = "%s_pinned_unregistered" % name,
         size = "small",
@@ -152,7 +190,16 @@ def popili_pinning_tests(name, pinned, unregistered, unpinned, current_popili_ve
             "coco.toolchain(versions = [...])",
         ],
     )
-    tests.append("%s_pinned_unregistered" % name)
+
+    # A diagram, not `unregistered`: forced, it would share a configuration with the stable-pinned
+    # generate and write the same files.
+    forced_pin_ignored_test(
+        name = "%s_forced_rescues_unregistered_pin" % name,
+        size = "small",
+        target_under_test = unregistered_diagram,
+        reference = untransitioned,
+    )
+    tests += ["%s_pinned_unregistered" % name, "%s_forced_rescues_unregistered_pin" % name]
     tests += _unpinned_tests(name, unpinned, current_popili_version, untransitioned)
 
     native.test_suite(name = name, tests = tests)

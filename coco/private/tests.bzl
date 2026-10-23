@@ -23,7 +23,7 @@ load(
     "PATH_CASE_DEFAULTS",
 )
 load(":cc_runtime_deps.bzl", "collect_cc_runtime_extra_deps", "normalize_cc_runtime_extra_deps")
-load(":coco.bzl", "FILE_NAME_MANGLER_STYLES", "compute_output_paths", "effective_version", "generated_include_dir", "library_version_conflict", "library_version_mismatch_message", "mangle_name", "missing_popili_message", "module_path_for", "pin_transition_settings", "version_source", "workspace_dirname")
+load(":coco.bzl", "FILE_NAME_MANGLER_STYLES", "compute_output_paths", "effective_version", "generated_include_dir", "library_version_conflict", "library_version_mismatch_message", "mangle_name", "missing_popili_message", "module_path_for", "pin_transition_settings", "version_source", "workspace_dirname", "wrapper_transition_settings")
 load(":common_repositories.bzl", "coco_download", "download_prefix", "find_local_license_paths", "is_license_file_name")
 load(":known_shas.bzl", "FILE_KEY_TO_SHA")
 load(":license_versions.bzl", "LICENSE_PROTOCOL_VERSIONS")
@@ -1541,6 +1541,14 @@ def _version_source_test(ctx):
     asserts.equals(env, "pinned by popili_version on a target above it", version_source("1.5.1", "", PINNED_SOURCE))
     return unittest.end(env)
 
+def _version_source_forced_test(ctx):
+    """Forced, the flag is named whatever pin there is, and an empty flag is the forced default."""
+    env = unittest.begin(ctx)
+    asserts.equals(env, "forced by --@rules_coco//:force_version", version_source("1.5.1", "1.5.0", PINNED_SOURCE, True))
+    asserts.equals(env, "forced by --@rules_coco//:force_version", version_source("1.5.1", "", "", True))
+    asserts.equals(env, "the default, forced by --@rules_coco//:force_version", version_source("", "stable", "", True))
+    return unittest.end(env)
+
 def _effective_version_test(ctx):
     """The flag when set, else the first registered version unless it is local, else nothing."""
     env = unittest.begin(ctx)
@@ -1598,6 +1606,26 @@ def _pin_transition_settings_default_test(ctx):
     # local is never the default, so a pin to it always sets the flag unless the flag says local.
     asserts.equals(env, {VERSION_FLAG: "local", VERSION_SOURCE_SETTING: PINNED_SOURCE}, pin_transition_settings("local", "", ["local"]))
     asserts.equals(env, {}, pin_transition_settings("local", "local", ["local"]))
+    return unittest.end(env)
+
+def _pin_transition_settings_forced_test(ctx):
+    """Forced, a pin changes nothing, whether the flag is set, empty, an alias or equal to the pin."""
+    env = unittest.begin(ctx)
+    asserts.equals(env, {}, pin_transition_settings("1.5.1", "", _REGISTERED, True))
+    asserts.equals(env, {}, pin_transition_settings("1.5.1", "1.5.0", _REGISTERED, True))
+    asserts.equals(env, {}, pin_transition_settings("1.5.1", "1.5.1", _REGISTERED, True))
+    asserts.equals(env, {}, pin_transition_settings("stable", "1.5.0", _REGISTERED, True))
+    asserts.equals(env, {}, pin_transition_settings("1.5.1", "stable", _REGISTERED, True))
+    asserts.equals(env, {}, pin_transition_settings("", "1.5.0", _REGISTERED, True))
+    return unittest.end(env)
+
+def _wrapper_transition_settings_test(ctx):
+    """The wrapper sets the flag to its version with aliases resolved, except when forced."""
+    env = unittest.begin(ctx)
+    asserts.equals(env, {VERSION_FLAG: "1.5.1"}, wrapper_transition_settings("1.5.1", False))
+    asserts.equals(env, {VERSION_FLAG: resolve_version_alias("stable")}, wrapper_transition_settings("stable", False))
+    asserts.equals(env, {}, wrapper_transition_settings("", False))
+    asserts.equals(env, {}, wrapper_transition_settings("1.5.1", True))
     return unittest.end(env)
 
 # Tests for library_version_mismatch_message
@@ -1662,6 +1690,9 @@ library_version_mismatch_unpinned_test = unittest.make(_library_version_mismatch
 
 version_source_test = unittest.make(_version_source_test)
 effective_version_test = unittest.make(_effective_version_test)
+version_source_forced_test = unittest.make(_version_source_forced_test)
+pin_transition_settings_forced_test = unittest.make(_pin_transition_settings_forced_test)
+wrapper_transition_settings_test = unittest.make(_wrapper_transition_settings_test)
 pin_transition_settings_unpinned_test = unittest.make(_pin_transition_settings_unpinned_test)
 pin_transition_settings_pinned_test = unittest.make(_pin_transition_settings_pinned_test)
 pin_transition_settings_alias_test = unittest.make(_pin_transition_settings_alias_test)
@@ -2410,6 +2441,9 @@ def coco_test_suite(name):
         pin_transition_settings_alias_test,
         pin_transition_settings_already_pinned_test,
         pin_transition_settings_default_test,
+        version_source_forced_test,
+        pin_transition_settings_forced_test,
+        wrapper_transition_settings_test,
 
         # toolchain_hub_entries tests
         hub_entries_single_version_test,
