@@ -1603,7 +1603,21 @@ def _toolchain_build_version_test(ctx):
 
     return unittest.end(env)
 
+def _toolchain_build_license_protocol_version_test(ctx):
+    """A coco_toolchain records a licence protocol version only when it is given one."""
+    env = unittest.begin(ctx)
+
+    build = BUILD_for_coco_toolchain("toolchain", popili_version = "local", license_protocol_version = 6)
+    asserts.true(env, "\n    license_protocol_version = 6," in build, "protocol version missing: %s" % build)
+
+    for unset in [None, 0]:
+        build = BUILD_for_coco_toolchain("toolchain", popili_version = "local", license_protocol_version = unset)
+        asserts.true(env, "license_protocol_version" not in build, "no protocol version expected: %s" % build)
+
+    return unittest.end(env)
+
 toolchain_build_version_test = unittest.make(_toolchain_build_version_test)
+toolchain_build_license_protocol_version_test = unittest.make(_toolchain_build_license_protocol_version_test)
 
 # Tests for normalize_cc_runtime_extra_deps
 
@@ -1973,6 +1987,7 @@ def coco_test_suite(name):
 
         # BUILD_for_coco_toolchain tests
         toolchain_build_version_test,
+        toolchain_build_license_protocol_version_test,
 
         # normalize_cc_runtime_extra_deps tests
         normalize_extra_deps_list_applies_to_all_test,

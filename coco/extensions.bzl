@@ -78,6 +78,7 @@ def _toolchain_tag_impl(ctx):
             popili = local_tag.popili,
             cc_runtime = local_tag.cc_runtime,
             c_runtime = local_tag.c_runtime,
+            license_protocol_version = local_tag.license_protocol_version,
         )
 
     declare_coco_toolchains(
@@ -163,6 +164,10 @@ _local_toolchain_tag = tag_class(
         "cc_runtime": attr.string(
             doc = "Optional path to a dir holding the C++ runtime 'coco/' subtree. Absolute or workspace-relative.",
             default = "",
+        ),
+        "license_protocol_version": attr.int(
+            doc = "Optional licence protocol version the local popili reads. See `coco_toolchain`.",
+            default = 0,
         ),
         "popili": attr.string(
             doc = "Path to a dir holding the 'popili' and 'cocotec-licensing-server' binaries. Absolute or workspace-relative.",

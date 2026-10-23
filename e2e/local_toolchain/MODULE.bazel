@@ -20,11 +20,9 @@ bazel_dep(name = "platforms", version = "1.1.0")
 bazel_dep(name = "rules_cc", version = "0.2.18")
 bazel_dep(name = "googletest", version = "1.17.0.bcr.2")
 
-coco = use_extension("@rules_coco//coco:extensions.bzl", "coco")
-coco.local_toolchain(
-    cc_runtime = "staged/cpp-runtime",
-    popili = "staged/popili",
-)
+# coco.local_toolchain for ./staged, written by stage.py with the licence protocol version
+# the staged popili reads.
+include("//staged:coco.MODULE.bazel")
 
 # Probe toolchains for :popili_runs_on_host; the foreign one first, like the platforms.
 register_toolchains(

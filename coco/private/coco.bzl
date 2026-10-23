@@ -294,10 +294,12 @@ def _get_license_file_from_toolchain(ctx):
 def _local_user_license_file(ctx):
     """The user's licence file for the licence protocol version of the toolchain's popili.
 
-    A toolchain whose version is unknown (the local toolchain, a bring-your-own toolchain
-    without `popili_version`) gets the file of the newest protocol version.
+    The toolchain's `license_protocol_version` when set, else the one its `popili_version`
+    reads. A toolchain whose version is unknown (the local toolchain, a bring-your-own
+    toolchain without `popili_version`) gets the file of the newest protocol version.
     """
-    name = "licenses_%d.lic" % license_protocol_version(_coco_toolchain(ctx).popili_version)
+    toolchain = _coco_toolchain(ctx)
+    name = "licenses_%d.lic" % (toolchain.license_protocol_version or license_protocol_version(toolchain.popili_version))
     files = [
         file
         for file in ctx.attr._license_files_local[DefaultInfo].files.to_list()
