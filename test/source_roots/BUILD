@@ -15,7 +15,7 @@
 # Packages with several or non-default source roots, one fixture directory per scenario; see scenario.bzl.
 # Root inference itself is covered by the unit tests in //coco/private:coco_tests.
 
-load("@rules_coco//coco:defs.bzl", "coco_package")
+load("@rules_coco//coco:defs.bzl", "coco_generate", "coco_package")
 load(":scenario.bzl", "generate_flags_test", "package_failure_test", "source_root_scenario")
 
 # sources = ["src", "interfaces"]: module paths are relative to each file's own root, so both roots' files
@@ -41,11 +41,56 @@ source_root_scenario(
     test_srcs = glob(["test_root/test/**/*.coco"]),
 )
 
-# Everything, test code and mocks included, is written below the directory containing Coco.toml.
+# Everything, test code and mocks included, is written directly below the include root: the package
+# has no includePrefix, so --output is the root itself, and no prefix is passed to popili.
 generate_flags_test(
     name = "test_root_flags_test",
-    include_prefix = "test/source_roots/test_root",
     target_under_test = ":test_root_cpp",
+)
+
+# include_prefix may not leave the generate's include root.
+coco_generate(
+    name = "test_root_escaping_cpp",
+    include_prefix = "../test_root",
+    language = "cpp",
+    package = ":test_root",
+    tags = ["manual"],
+)
+
+package_failure_test(
+    name = "test_root_escaping_test",
+    expected_message = "include_prefix must be a normalised relative path within the include root",
+    target_under_test = ":test_root_escaping_cpp",
+)
+
+# "." is normalised and relative, but names no directory.
+coco_generate(
+    name = "test_root_dot_prefix_cpp",
+    include_prefix = ".",
+    language = "cpp",
+    package = ":test_root",
+    tags = ["manual"],
+)
+
+package_failure_test(
+    name = "test_root_dot_prefix_test",
+    expected_message = "include_prefix must be a normalised relative path within the include root",
+    target_under_test = ":test_root_dot_prefix_cpp",
+)
+
+# C# has no include prefix.
+coco_generate(
+    name = "test_root_csharp_prefix",
+    include_prefix = "x",
+    language = "csharp",
+    package = ":test_root",
+    tags = ["manual"],
+)
+
+package_failure_test(
+    name = "test_root_csharp_prefix_test",
+    expected_message = "include_prefix is not supported for language = \"csharp\"",
+    target_under_test = ":test_root_csharp_prefix",
 )
 
 # sources = ["src", "../outside_root_shared"]: a root outside the Coco.toml directory. Module paths are

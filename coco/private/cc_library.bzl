@@ -40,8 +40,9 @@ def coco_library(
         hdrs: Additional header files
         deps: Additional dependencies
         public_hdrs: List of generated header names to make public, or None for all.
-                        Use bare filenames (e.g., 'ISensor.h') to match by name, or
-                        path suffixes (e.g., 'sensors/ISensor.h') to disambiguate.
+                        Use bare filenames (e.g., 'ISensor.h') to match by name, or trailing parts
+                        of the include path (e.g., 'sensors/ISensor.h') to disambiguate. An entry
+                        that matches no header is an error.
         library_rule: The rule or macro that compiles the library, called with cc_library's
                       attributes. None means rules_cc's cc_library.
         **kwargs: Additional arguments passed to library_rule
@@ -50,24 +51,21 @@ def coco_library(
         fail("Cannot specify both generated_package and generated_packages")
     packages = generated_packages if generated_packages else [generated_package]
 
-    gen_targets = []
-    for i, pkg in enumerate(packages):
-        gen_name = name + "._gen" if len(packages) == 1 else name + "._gen_%d" % i
-        _coco_cc_gen(
-            name = gen_name,
-            package = pkg,
-            includes = kwargs.get("includes", []),
-            all_hdrs_public = (public_hdrs == None),
-            public_hdrs = public_hdrs if public_hdrs != None else [],
-            **companion_attrs(kwargs, extra_tags = ["manual"])
-        )
-        gen_targets.append(gen_name)
+    gen_name = name + "._gen"
+    _coco_cc_gen(
+        name = gen_name,
+        library = name,
+        packages = packages,
+        all_hdrs_public = (public_hdrs == None),
+        public_hdrs = public_hdrs if public_hdrs != None else [],
+        **companion_attrs(kwargs, extra_tags = ["manual"])
+    )
 
     (library_rule or cc_library)(
         name = name,
-        srcs = srcs + gen_targets,
+        srcs = srcs + [gen_name],
         hdrs = hdrs,
-        deps = deps + gen_targets + [runtime],
+        deps = deps + [gen_name, runtime],
         **kwargs
     )
 
@@ -94,8 +92,9 @@ def coco_test_library(
         hdrs: Additional header files
         deps: Additional dependencies
         public_hdrs: List of generated test header names to make public, or None for all.
-                        Use bare filenames (e.g., 'RunnableMock.h') to match by name, or
-                        path suffixes (e.g., 'runnable/RunnableMock.h') to disambiguate.
+                        Use bare filenames (e.g., 'RunnableMock.h') to match by name, or trailing
+                        parts of the include path (e.g., 'runnable/RunnableMock.h') to disambiguate.
+                        An entry that matches no header is an error.
         gmock: The GoogleTest/GoogleMock library to use (default: @googletest//:gtest).
                Set to None to omit gmock dependency.
         library_rule: The rule or macro that compiles the library, called with cc_library's
@@ -106,26 +105,23 @@ def coco_test_library(
         fail("Cannot specify both generated_package and generated_packages")
     packages = generated_packages if generated_packages else [generated_package]
 
-    gen_targets = []
-    for i, pkg in enumerate(packages):
-        gen_name = name + "._gen" if len(packages) == 1 else name + "._gen_%d" % i
-        _coco_cc_gen(
-            name = gen_name,
-            package = pkg,
-            includes = kwargs.get("includes", []),
-            use_test_outputs = True,
-            all_hdrs_public = (public_hdrs == None),
-            public_hdrs = public_hdrs if public_hdrs != None else [],
-            **companion_attrs(kwargs, extra_tags = ["manual"])
-        )
-        gen_targets.append(gen_name)
+    gen_name = name + "._gen"
+    _coco_cc_gen(
+        name = gen_name,
+        library = name,
+        packages = packages,
+        use_test_outputs = True,
+        all_hdrs_public = (public_hdrs == None),
+        public_hdrs = public_hdrs if public_hdrs != None else [],
+        **companion_attrs(kwargs, extra_tags = ["manual"])
+    )
 
     gmock_deps = [gmock] if gmock else []
 
     (library_rule or cc_library)(
         name = name,
-        srcs = srcs + gen_targets,
+        srcs = srcs + [gen_name],
         hdrs = hdrs,
-        deps = deps + gen_targets + gmock_deps + [runtime],
+        deps = deps + [gen_name] + gmock_deps + [runtime],
         **kwargs
     )

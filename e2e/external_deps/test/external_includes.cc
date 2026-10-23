@@ -1,7 +1,5 @@
 #include "IApp.h"
 #include "IBase.h"
-#include "motor/IMotor.h"
-// Through the `includes` of @coco_dep//motor:motor_cc.
 #include "IMotor.h"
 
 int main() {

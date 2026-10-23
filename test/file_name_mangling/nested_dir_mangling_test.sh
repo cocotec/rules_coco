@@ -8,9 +8,8 @@
 
 set -uo pipefail
 
-# Generated includes are relative to the generate's include root, below which the files sit.
-readonly INCLUDE_PREFIX="test/file_name_mangling"
-readonly GEN_DIR="test/file_name_mangling/_coco/file_name_mangling_test_cpp/${INCLUDE_PREFIX}"
+# Generated includes are relative to the generate's include root, where the files sit (no includePrefix).
+readonly GEN_DIR="test/file_name_mangling/_coco/file_name_mangling_test_cpp"
 status=0
 
 fail() {
@@ -33,7 +32,7 @@ impl="$(find "${GEN_DIR}" -name "dims.cc" -print -quit 2>/dev/null)"
 if [[ -z "${impl}" ]]; then
   fail "could not find the generated dims.cc under ${GEN_DIR}"
 else
-  expected="#include \"${INCLUDE_PREFIX}/geometry/dims.h\""
+  expected='#include "geometry/dims.h"'
   if ! grep -qF "${expected}" "${impl}"; then
     fail "expected ${impl} to contain ${expected}; got: $(grep -m1 'dims.h' "${impl}")"
   fi

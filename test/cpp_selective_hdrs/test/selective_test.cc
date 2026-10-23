@@ -1,7 +1,7 @@
 #include "gtest/gtest.h"
 
 // IPublicApi.h is in hdrs (public) because it was listed in public_hdrs.
-#include "test/cpp_selective_hdrs/IPublicApi.h"
+#include "IPublicApi.h"
 
 // InternalComp.h is NOT included here — it's in srcs (private) because it
 // was not listed in public_hdrs. Attempting to include it from a downstream

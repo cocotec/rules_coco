@@ -1,7 +1,7 @@
 #include "gtest/gtest.h"
 
-// IPublicApi.h is public because it was selected via path suffix "cpp_path_hdrs/IPublicApi.h"
-#include "test/cpp_path_hdrs/IPublicApi.h"
+// IPublicApi.h is public because it was selected via the path suffix "api/IPublicApi.h"
+#include "api/IPublicApi.h"
 
 TEST(CppPathHdrsTest, PublicApiSelectedByPathSuffix) {
     PathApiStatus status = PathApiStatus::OK;
