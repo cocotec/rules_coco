@@ -1,8 +1,8 @@
 #include "gtest/gtest.h"
 
-#include "test/cpp_with_deps/app/IApp.h"
-#include "test/cpp_with_deps/middle/IMiddle.h"
-#include "test/cpp_with_deps/base/IBase.h"
+#include "IApp.h"
+#include "IMiddle.h"
+#include "IBase.h"
 
 TEST(CppWithDepsTest, TestEnumFromBasePackage) {
   // Level 1: Test that we can use the Status enum from the base package

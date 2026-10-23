@@ -17,9 +17,9 @@
 #include <string>
 
 // Public headers must be usable on their own.
-#include "test/hide_implementation/App.h"
-#include "test/hide_implementation/Relay.h"
-#include "test/hide_implementation/Switch.h"
+#include "App.h"
+#include "Relay.h"
+#include "Switch.h"
 
 TEST(HideImplementation, AppCompilesAndLinks) {
   App app;

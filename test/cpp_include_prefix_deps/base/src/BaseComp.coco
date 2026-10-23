@@ -1,0 +1,10 @@
+import unqualified IBase
+
+@runtime(.MultiThreaded)
+component BaseComp {
+  val api : Provided<IBase>
+
+  machine {
+    api.getStatus() = Status.OK
+  }
+}

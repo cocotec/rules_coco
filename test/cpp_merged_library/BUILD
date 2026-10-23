@@ -60,3 +60,26 @@ cc_test(
         "@googletest//:gtest_main",
     ],
 )
+
+# public_hdrs selects across the merged packages: each entry here matches a header of one package
+# only, which is fine as long as it matches one of the library's.
+coco_cc_library(
+    name = "hardware_api_lib",
+    generated_packages = [
+        ":sensors_cpp",
+        ":actuators_cpp",
+    ],
+    public_hdrs = [
+        "ISensor.h",
+        "IActuator.h",
+    ],
+)
+
+cc_test(
+    name = "public_hdrs_unit",
+    srcs = ["test/merged_test.cc"],
+    deps = [
+        ":hardware_api_lib",
+        "@googletest//:gtest_main",
+    ],
+)

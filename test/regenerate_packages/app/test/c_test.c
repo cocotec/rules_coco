@@ -3,9 +3,9 @@
 
 // This should work because app_c regenerates base with .hh extension
 // Regenerated files are placed in the app package's output directory
-#include "test/regenerate_packages/app/IBase.hh"
-#include "test/regenerate_packages/app/geometry/Dims.hh"
-#include "test/regenerate_packages/app/IApp.hh"
+#include "app/IBase.hh"
+#include "app/geometry/Dims.hh"
+#include "app/IApp.hh"
 
 int main(void) {
   // Test that we can use types from the regenerated base package

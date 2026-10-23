@@ -471,21 +471,30 @@ When enabled, any target depending on this package (such as `coco_generate`) wil
 
 #### Where Generated Code Goes
 
-`coco_generate` writes all generated code, including test code and mocks, into the directory containing `Coco.toml`.
-Each file keeps its path relative to its source root (`package.sources` or `package.testSources` in `Coco.toml`).
-With `Coco.toml` in `pkg` and `sources = ["src", "interfaces"]`:
+`coco_generate` writes all generated code, including test code and mocks, to a directory of its own:
 
-| Source                        | Include the generated header as |
-| ----------------------------- | ------------------------------- |
-| `pkg/src/Foo.coco`            | `#include "pkg/Foo.h"`          |
-| `pkg/interfaces/api/Bar.coco` | `#include "pkg/api/Bar.h"`      |
+```
+bazel-bin/<package path>/_coco/<generate name>/<includePrefix>/<path below the source root>
+```
+
+`<package path>` is the directory of the `BUILD` file declaring the `coco_generate` (below `external/<repo>/` for
+another repository) and `<generate name>` is its `name`. Every library built from the target gets the part up to
+the name as a quote include directory, so a header is included by what follows it: the package's `includePrefix`,
+empty by default, then the path of its source relative to its source root. That is how popili's own generated code
+includes it, so hand-written code includes it the same way and `coco_cc_library` and `coco_c_library` need no
+`includes` for generated headers.
+
+With `coco_generate(name = "motor_cpp")` in `hw/motor/BUILD`, `sources = ["src"]` and `includePrefix = "motor"`,
+`hw/motor/src/Foo.coco` becomes `bazel-bin/hw/motor/_coco/motor_cpp/motor/Foo.h`, included as
+`#include "motor/Foo.h"`. Mirror `includePrefix` on the `coco_generate` with `include_prefix`, like the other
+settings under [Output Paths](#output-paths).
 
 `outputDirectory` and `testOutputDirectory` in `Coco.toml` are ignored. If one package is generated for several
 languages, give each `coco_generate` different file extensions (see [Output Paths](#output-paths)) so that their
 files do not clash.
 
 > [!NOTE]
-> rules_coco 0.3 wrote generated code below the source root instead (`#include "pkg/src/Foo.h"`). See the
+> rules_coco 0.3 included generated headers by the path of their source file (`#include "pkg/src/Foo.h"`). See the
 > [changelog](CHANGELOG.md) for how to update your include paths.
 
 To predict these paths, `coco_package` needs the source roots. If all `srcs` (or `test_srcs`) are below one
@@ -533,10 +542,6 @@ coco_cc_library(
     generated_package = ":my_package_cc_src",
 )
 ```
-
-The generated files are written below a directory of the `coco_generate`'s own
-(`bazel-bin/<package>/_coco/<name>/`), which the library adds to the include path, so include them by their path
-in the workspace, such as `#include "my/package/Foo.h"`, not by their path in `bazel-bin`.
 
 If your project wraps `cc_library` in a macro of its own, for example to add default `copts`, pass it as
 `library_rule` and `coco_cc_library` calls it instead of rules_cc's `cc_library`, with the same attributes:
@@ -604,6 +609,7 @@ If you see these errors then you need to make sure that the `BUILD` files contai
 headerFileExtension = ".hpp"
 implementationFileExtension = ".cpp"
 fileNameMangler = "LowerUnderscore"
+includePrefix = "motor"
 ```
 
 Then this would require the following in your `BUILD` file:
@@ -616,6 +622,7 @@ coco_generate(
     cpp_header_file_extension = ".hpp",        # Must match Coco.toml
     cpp_implementation_file_extension = ".cpp", # Must match Coco.toml
     cpp_file_name_mangler = "LowerUnderscore", # Must match Coco.toml
+    include_prefix = "motor",                  # Must match Coco.toml
 )
 ```
 
@@ -627,6 +634,7 @@ coco_generate(
 | `generator.c.implementationFilePrefix`      | `c_implementation_file_prefix`      |
 | `generator.c.fileNameMangler`               | `c_file_name_mangler`               |
 | `generator.c.flatFileHierarchy`             | `c_flat_file_hierarchy`             |
+| `generator.c.includePrefix`                 | `include_prefix`                    |
 | `generator.c.regeneratePackages`            | `c_regenerate_packages`             |
 | `generator.cpp.headerFileExtension`         | `cpp_header_file_extension`         |
 | `generator.cpp.implementationFileExtension` | `cpp_implementation_file_extension` |
@@ -634,8 +642,30 @@ coco_generate(
 | `generator.cpp.implementationFilePrefix`    | `cpp_implementation_file_prefix`    |
 | `generator.cpp.fileNameMangler`             | `cpp_file_name_mangler`             |
 | `generator.cpp.flatFileHierarchy`           | `cpp_flat_file_hierarchy`           |
+| `generator.cpp.includePrefix`               | `include_prefix`                    |
 | `generator.cpp.regeneratePackages`          | `cpp_regenerate_packages`           |
 | `generator.csharp.regeneratePackages`       | `csharp_regenerate_packages`        |
+
+Mirror the package's _effective_ value: the one in its own `Coco.toml`, or else the one it inherits from its
+workspace's `Coco.toml` or receives from a dependency with `exportConfig = true` (see the popili documentation
+on `includePrefix`). A wrong `include_prefix` fails when compiling the package's own generated code, as popili
+wrote its includes with the `Coco.toml` value:
+
+```
+fatal error: 'motor/Foo.h' file not found
+```
+
+The path in the message names the value to set. Keep the two equal even for a package nothing depends on yet: a
+small package may compile despite a mismatch, as its sources find headers in their own directory, and the packages
+that later depend on it fail instead.
+
+Two unrelated packages may both have `src/Types.coco`. Hand-written code including `"Types.h"` gets the copy from
+whichever include directory comes first on the compiler's command line. Generated code finds its own package's copy,
+as the including file's directory is searched first, but with `includeGuardStyle = "IncludeGuard"` both copies share
+the guard `TYPES_H`, so a file that reaches both through generated headers silently loses the second. Give one of the
+packages an `includePrefix`. The same holds for a dependency regenerated through `regeneratePackages` under the same
+prefix as the original: link only one copy. A hand-written `Foo.h` beside a `.cc` file shadows a generated one, for
+the same reason. `shortenIncludes = "SameDirectory"` does not work across packages; leave it unset.
 
 #### C# Code Generation
 
@@ -650,6 +680,9 @@ coco_generate(
     package = ":my_package",
 )
 ```
+
+The generated files are written to `bazel-bin/<package path>/_coco/<generate name>/<path below the source root>`,
+see [Where Generated Code Goes](#where-generated-code-goes).
 
 **Note:** C# code generation produces `.cs` files but does not include compilation support. Bazel's C# rules are currently too primitive to provide a good integration. The generated C# files can be consumed by other build systems or IDEs.
 

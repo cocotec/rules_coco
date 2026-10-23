@@ -1,7 +1,7 @@
 #ifndef SENSOR_WRAPPER_H
 #define SENSOR_WRAPPER_H
 
-#include "test/cpp_mixed_library/ISensor.h"
+#include "ISensor.h"
 
 // Hand-written wrapper around the Coco-generated ISensor types.
 // Demonstrates that hand-written code can include generated headers

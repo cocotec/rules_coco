@@ -8,11 +8,13 @@ profiles = ["C++", "C"]
 
 [generator.cpp]
 headerFileExtension = ".hpp"
+includePrefix = "app"
 regeneratePackages = ["base"]
 runtimeHeaderFileExtension = ".h"
 
 [generator.c]
 headerFileExtension = ".hh"
+includePrefix = "app"
 regeneratePackages = ["base"]
 runtimeHeaderFileExtension = ".h"
 

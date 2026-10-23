@@ -1,4 +1,4 @@
-import unqualified IPublicApi
+import unqualified api.IPublicApi
 
 @runtime(.MultiThreaded)
 external component InternalComp {
