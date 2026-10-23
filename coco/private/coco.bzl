@@ -20,7 +20,7 @@ load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
 load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load(":common_attrs.bzl", "companion_attrs")
-load(":source_roots.bzl", "relative_path", "resolve_source_roots", "source_root_for")
+load(":source_roots.bzl", "leaves_directory", "relative_path", "resolve_source_roots", "source_root_for")
 load(":version_resolution.bzl", "VERSION_FLAG", "resolve_version_alias")
 
 CocoPackageInfo = provider(
@@ -51,7 +51,9 @@ CocoCcGeneratedInfo = provider(
     doc = "Generated C/C++ code from a Coco package",
     fields = {
         "headers": "Generated header files as a depset",
+        "include_prefix": "The directory below include_root holding the files generated for package_dir, and the prefix of their includes",
         "include_root": "The directory the generated files' include paths are relative to, as an exec path",
+        "package_dir": "The directory containing the package's Coco.toml, relative to the root of its repository",
         "sources": "Generated implementation files as a depset",
         "test_headers": "Generated test/mock header files as a depset",
         "test_sources": "Generated test/mock implementation files as a depset",
@@ -933,6 +935,35 @@ def _module_path_for(src, package_dir, root_output_dir):
 
     return stem.split("/")
 
+def _generated_include_dir(include_dir, package_dir, include_prefix):
+    """Where a directory lies below a coco_generate's include root, if generated files can lie below it.
+
+    The files generated for the package in package_dir lie below <root>/<include_prefix>. Where
+    include_prefix and package_dir end in the same directories, the root also stands for the
+    directories above them: with the default prefix, package_dir itself, the root stands for the
+    workspace, so every directory maps.
+
+    Args:
+        include_dir: A directory, e.g. a cc_library's include, relative to the same root as package_dir
+        package_dir: Directory containing the package's Coco.toml
+        include_prefix: The generate's include prefix
+
+    Returns:
+        The directory relative to the include root, "" for the root itself, or None when it is
+        not at or below the directory the root stands for
+    """
+    prefix = [s for s in include_prefix.split("/") if s]
+    anchor = [s for s in package_dir.split("/") if s]
+    for _ in range(min(len(prefix), len(anchor))):
+        if prefix[-1] != anchor[-1]:
+            break
+        prefix = prefix[:-1]
+        anchor = anchor[:-1]
+    relative = relative_path(include_dir, "/".join(anchor))
+    if leaves_directory(relative):
+        return None
+    return _join_path(prefix + [relative])
+
 def _build_language_config(ctx, language):
     """Build configuration struct for code generation.
 
@@ -1055,6 +1086,7 @@ def _coco_package_generate_impl(ctx):
     test_srcs = info.direct_test_srcs
     package_dir = info.package_file.dirname
     workspace_dir = _workspace_dirname(info.package_file.short_path)
+    include_prefix = _include_prefix(ctx, workspace_dir)
 
     headers = []
     sources = []
@@ -1063,13 +1095,14 @@ def _coco_package_generate_impl(ctx):
     test_headers = []
     test_sources = []
 
-    # Generated files go below an include root of this target's own, at the package directory's
-    # path in its repository, so "<workspace dir>/Foo.h" can't resolve to the same files built in
-    # another configuration or by another coco_generate, as it would below a bin dir root.
+    # Generated files go below an include root of this target's own, at the include prefix (by
+    # default the package directory's path in its repository), so "<include prefix>/Foo.h" can't resolve to
+    # the same files built in another configuration or by another coco_generate, as it would below
+    # a bin dir root.
     output_prefix = _join_path(["_coco", ctx.label.name])
     include_root = _join_path([ctx.bin_dir.path, ctx.label.workspace_root, ctx.label.package, output_prefix])
     config = _build_language_config(ctx, ctx.attr.language)
-    path_builder = _make_path_builder(ctx, _join_path([output_prefix, workspace_dir]))
+    path_builder = _make_path_builder(ctx, _join_path([output_prefix, include_prefix]))
 
     # Get the list of packages to regenerate based on language
     regenerate_pkgs = {
@@ -1095,7 +1128,7 @@ def _coco_package_generate_impl(ctx):
 
     # Test code and mocks land beside the regular code. --test-output is passed explicitly rather than
     # relying on popili defaulting it to --output.
-    generated_dir = paths.join(include_root, workspace_dir)
+    generated_dir = _join_path([include_root, include_prefix])
     arguments = [
         "generate-%s" % ctx.attr.language,
         "--output",
@@ -1106,10 +1139,10 @@ def _coco_package_generate_impl(ctx):
         "--output-runtime=false",
     ]
     if ctx.attr.language == "cpp" or ctx.attr.language == "c":
-        # Make all include paths absolute within the workspace to avoid the need for includes
+        # Always passed, even when empty, so that one in Coco.toml cannot apply instead.
         arguments += [
             "--include-prefix",
-            workspace_dir,
+            include_prefix,
         ]
 
     all_outputs = headers + sources
@@ -1128,7 +1161,9 @@ def _coco_package_generate_impl(ctx):
         lang_providers = [
             CocoCcGeneratedInfo(
                 headers = depset(headers),
+                include_prefix = include_prefix,
                 include_root = include_root,
+                package_dir = workspace_dir,
                 sources = depset(sources),
                 test_headers = depset(test_headers),
                 test_sources = depset(test_sources),
@@ -1149,6 +1184,16 @@ def _coco_package_generate_impl(ctx):
             files = depset(all_outputs),
         ),
     ] + lang_providers
+
+def _include_prefix(ctx, workspace_dir):
+    """The include_prefix attribute, or by default the Coco.toml directory's path in its repository."""
+    if not ctx.attr.include_prefix_set:
+        return workspace_dir
+    prefix = ctx.attr.include_prefix
+    if prefix and (paths.normalize(prefix) != prefix or paths.is_absolute(prefix) or leaves_directory(prefix)):
+        fail("include_prefix must be a normalised relative path within the include root, such as \"my/pkg\", " +
+             "not \"%s\"" % prefix, attr = "include_prefix")
+    return prefix
 
 def _generated_headers_cc_info(headers, include_root):
     """A CcInfo declaring generated headers, includable through their include root. Compiles nothing."""
@@ -1232,6 +1277,18 @@ _coco_generate = rule(
             providers = [CocoPackageInfo],
             default = [],
             doc = "Other coco_package targets to regenerate with this target's C# generator settings.",
+        ),
+        "include_prefix": attr.string(
+            doc = "The path generated files are included by, such as `\"motor\"` for `#include \"motor/Foo.h\"`. " +
+                  "Defaults to the path of the directory containing Coco.toml in its repository. Set a short " +
+                  "prefix to shorten generated paths, or `\"\"` to include generated files by bare name. " +
+                  "It overrides `generator.cpp.includePrefix` and `generator.c.includePrefix` in Coco.toml for " +
+                  "this package's own generated code. Packages depending on this one still include its headers " +
+                  "with the `includePrefix` in its Coco.toml, so set both to the same value; those packages then " +
+                  "need no `includes`.",
+        ),
+        "include_prefix_set": attr.bool(
+            doc = "Whether include_prefix was given; set by the coco_generate macro, as an unset string reads as \"\".",
         ),
         "language": attr.string(
             mandatory = True,
@@ -1317,15 +1374,21 @@ def _coco_cc_gen_impl(ctx):
 
     # Export the generate's include root, and the library's `includes` below it, which cc_library
     # only applies below its own bin dir. Below the root, paths are relative to the repository root,
-    # as for the generated files.
+    # as for the generated files. Includes no generated file can lie below are dropped.
     root = gen_info.include_root
+    includes = []
+    for include in ctx.attr.includes:
+        include_dir = _generated_include_dir(
+            _join_path([ctx.label.package, include]),
+            gen_info.package_dir,
+            gen_info.include_prefix,
+        )
+        if include_dir != None:
+            includes.append(_join_path([root, include_dir]))
     compilation_context = cc_common.create_compilation_context(
         headers = depset(public_hdrs),
         quote_includes = depset([root]),
-        includes = depset([
-            _join_path([root, ctx.label.package, include])
-            for include in ctx.attr.includes
-        ]),
+        includes = depset(includes),
     )
 
     return [
@@ -1355,10 +1418,12 @@ _coco_cc_gen = rule(
 )
 
 def _coco_generate_macro_impl(name, visibility, **kwargs):
-    # Generator attrs are inherited from _coco_generate and forwarded via kwargs.
+    # Generator attrs are inherited from _coco_generate and forwarded via kwargs. Inherited attrs
+    # are None when not set, which tells an unset include_prefix from "".
     _coco_generate(
         name = name,
         visibility = visibility,
+        include_prefix_set = kwargs.get("include_prefix") != None,
         **kwargs
     )
 
@@ -1384,6 +1449,7 @@ section (e.g., [generator.cpp] for C++, [generator.c] for C).
 
 Alongside the main code-generation target, a companion `<name>.tst` target is
 created that exposes the generated test sources and headers.""",
+    attrs = {"include_prefix_set": None},
     inherit_attrs = _coco_generate,
     implementation = _coco_generate_macro_impl,
 )
@@ -1435,3 +1501,4 @@ mangle_name = _mangle_name
 compute_output_paths = _compute_output_paths
 module_path_for = _module_path_for
 workspace_dirname = _workspace_dirname
+generated_include_dir = _generated_include_dir

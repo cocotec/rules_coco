@@ -38,7 +38,7 @@ def _generate_flags_test_impl(ctx):
         return analysistest.end(env)
     argv = actions[0].argv
     target = analysistest.target_under_test(env).label
-    output = "/".join([ctx.bin_dir.path, target.package, "_coco", target.name, ctx.attr.include_prefix])
+    output = "/".join([c for c in [ctx.bin_dir.path, target.package, "_coco", target.name, ctx.attr.include_prefix] if c])
     asserts.equals(env, output, _flag_value(argv, "--output"), "--output")
     asserts.equals(env, output, _flag_value(argv, "--test-output"), "--test-output")
     asserts.equals(env, ctx.attr.include_prefix, _flag_value(argv, "--include-prefix"), "--include-prefix")

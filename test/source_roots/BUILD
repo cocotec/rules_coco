@@ -15,7 +15,10 @@
 # Packages with several or non-default source roots, one fixture directory per scenario; see scenario.bzl.
 # Root inference itself is covered by the unit tests in //coco/private:coco_tests.
 
-load("@rules_coco//coco:defs.bzl", "coco_package")
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
+load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_coco//coco:cc.bzl", "coco_cc_library", "coco_cc_test_library")
+load("@rules_coco//coco:defs.bzl", "coco_generate", "coco_package")
 load(":scenario.bzl", "generate_flags_test", "package_failure_test", "source_root_scenario")
 
 # sources = ["src", "interfaces"]: module paths are relative to each file's own root, so both roots' files
@@ -41,11 +44,112 @@ source_root_scenario(
     test_srcs = glob(["test_root/test/**/*.coco"]),
 )
 
-# Everything, test code and mocks included, is written below the directory containing Coco.toml.
+# Everything, test code and mocks included, is written below the include prefix, by default the path
+# of the directory containing Coco.toml.
 generate_flags_test(
     name = "test_root_flags_test",
     include_prefix = "test/source_roots/test_root",
     target_under_test = ":test_root_cpp",
+)
+
+# The generated files of test_root under each include_prefix, included as the generated code includes
+# them. Each generate has an include root of its own, so they do not conflict.
+cc_library(
+    name = "test_root_includes",
+    srcs = ["includes/default.cc"],
+    deps = [":test_root_cc_tst"],
+)
+
+# include_prefix = "": bare names.
+coco_generate(
+    name = "test_root_bare_cpp",
+    include_prefix = "",
+    language = "cpp",
+    mocks = True,
+    package = ":test_root",
+)
+
+generate_flags_test(
+    name = "test_root_bare_flags_test",
+    include_prefix = "",
+    target_under_test = ":test_root_bare_cpp",
+)
+
+coco_cc_library(
+    name = "test_root_bare_cc",
+    generated_package = ":test_root_bare_cpp",
+)
+
+coco_cc_test_library(
+    name = "test_root_bare_cc_tst",
+    generated_package = ":test_root_bare_cpp",
+    deps = [":test_root_bare_cc"],
+)
+
+cc_library(
+    name = "test_root_bare_includes",
+    srcs = ["includes/bare.cc"],
+    deps = [":test_root_bare_cc_tst"],
+)
+
+# A short include_prefix shortens the generated paths: --output is <include root>/motor. `includes`
+# relative to this package map below the generate's include root, so the files can be included by
+# bare name too.
+coco_generate(
+    name = "test_root_motor_cpp",
+    include_prefix = "motor",
+    language = "cpp",
+    mocks = True,
+    package = ":test_root",
+)
+
+generate_flags_test(
+    name = "test_root_motor_flags_test",
+    include_prefix = "motor",
+    target_under_test = ":test_root_motor_cpp",
+)
+
+coco_cc_library(
+    name = "test_root_motor_cc",
+    generated_package = ":test_root_motor_cpp",
+    includes = ["test_root"],
+)
+
+coco_cc_test_library(
+    name = "test_root_motor_cc_tst",
+    generated_package = ":test_root_motor_cpp",
+    includes = ["test_root"],
+    deps = [":test_root_motor_cc"],
+)
+
+cc_library(
+    name = "test_root_motor_includes",
+    srcs = ["includes/motor.cc"],
+    deps = [":test_root_motor_cc_tst"],
+)
+
+# include_prefix may not leave the generate's include root.
+coco_generate(
+    name = "test_root_escaping_cpp",
+    include_prefix = "../test_root",
+    language = "cpp",
+    package = ":test_root",
+    tags = ["manual"],
+)
+
+package_failure_test(
+    name = "test_root_escaping_test",
+    expected_message = "include_prefix must be a normalised relative path within the include root",
+    target_under_test = ":test_root_escaping_cpp",
+)
+
+build_test(
+    name = "include_prefix_build_test",
+    targets = [
+        ":test_root_includes",
+        ":test_root_bare_includes",
+        ":test_root_motor_includes",
+    ],
 )
 
 # sources = ["src", "../outside_root_shared"]: a root outside the Coco.toml directory. Module paths are

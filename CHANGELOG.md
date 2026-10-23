@@ -22,6 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `coco_package` attributes `source_roots` and `test_source_roots`, mirroring `package.sources` and
   `package.testSources` in `Coco.toml`. They are inferred from `srcs`/`test_srcs` when omitted; set them when a
   package has several source roots or all sources sit in a subdirectory of the root.
+- `coco_generate` attribute `include_prefix`, the path generated headers are included by: `include_prefix = "motor"`
+  gives `#include "motor/Foo.h"`, and `""` gives `#include "Foo.h"`. Use it to keep generated paths short (Windows
+  limits path length) or to include generated headers by bare name.
 
 ### Changed
 
@@ -54,25 +57,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   target platform, including when cross-compiling with `--platforms`. Before, bzlmod required the
   target platform to match the host; WORKSPACE mode never had the constraint.
 - **Breaking:** `coco_generate` now writes all generated code, test code and mocks included, below a directory of
-  its own, `bazel-bin/<package>/_coco/<name>/`, at the path of the directory containing `Coco.toml` within the
-  workspace, instead of below the package's source root in `bazel-bin`. It provides a `CcInfo` with the generated
-  headers and that directory as an include path. Each file keeps its path relative to its own source root, so
-  `src/Foo.coco` in a package `pkg` is now included as `#include "pkg/Foo.h"` rather than
-  `#include "pkg/src/Foo.h"`. For a package in another repository that path is its path within that repository:
-  `@dep//pkg` is included as `#include "pkg/Foo.h"`, not `#include "external/dep+/pkg/Foo.h"`. To migrate:
+  its own, `bazel-bin/<package>/_coco/<name>/`. Generated headers are still included by the path of the directory
+  containing `Coco.toml`, but without the source root: `pkg/src/Foo.coco` is now included as `#include "pkg/Foo.h"`
+  rather than `#include "pkg/src/Foo.h"`. For a package in another repository that path is its path within that
+  repository: `@dep//pkg` is included as `#include "pkg/Foo.h"`, not `#include "external/dep+/pkg/Foo.h"`. To migrate:
 
+  - remove the source root from `#include`s of generated headers, from `includes` on libraries of dependency
+    packages (`includes = ["middle/src"]` becomes `includes = ["middle"]`) and from `public_hdrs` path suffixes;
   - list the `coco_generate` in the `deps` of a plain `cc_library` compiling its sources, as well as in its `srcs`
     (`coco_cc_library` and `coco_c_library` do this themselves);
-  - on Windows, run `bazel clean` once, so that files left at the old paths cannot be included by mistake;
-
-  and remove the source root from:
-
-  - `#include`s of generated headers, e.g. `"pkg/src/Foo.h"` becomes `"pkg/Foo.h"` and `"pkg/src/sub/Bar.h"`
-    becomes `"pkg/sub/Bar.h"`;
-  - `includes` on libraries of dependency packages, e.g. `includes = ["middle/src"]` becomes
-    `includes = ["middle"]`;
-  - `public_hdrs` path suffixes, e.g. `"src/IApi.h"` becomes `"pkg/IApi.h"` or just `"IApi.h"`;
-  - paths to generated C# files, which also gain the `_coco/<name>/` prefix.
+  - update paths to generated C# files, which also gain the `_coco/<name>/` prefix;
+  - on Windows, run `bazel clean` once, so that files left at the old paths cannot be included by mistake.
 
   Two `coco_generate` targets over one `coco_package` no longer conflict.
 
