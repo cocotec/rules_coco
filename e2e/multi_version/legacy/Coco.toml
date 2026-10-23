@@ -8,3 +8,6 @@ profiles = ["C++"]
 
 [generator]
 defaultLanguage = "C++"
+
+[generator.cpp]
+generateMocks = "GMock"

@@ -15,8 +15,53 @@
 """Shared implementation for coco_cc_library and coco_c_library macros."""
 
 load("@rules_cc//cc:defs.bzl", "cc_library")
-load(":coco.bzl", _coco_cc_gen = "coco_cc_gen")
+load(":coco.bzl", _coco_cc_gen = "coco_cc_gen", _coco_cc_pin = "coco_cc_pin")
 load(":common_attrs.bzl", "companion_attrs")
+
+def _generated_targets(name, runtime, packages, popili_version, public_hdrs, kwargs, use_test_outputs = False):
+    """Declares the targets that feed the generated packages, with the runtime, to the cc_library.
+
+    One _coco_cc_pin at the library's `popili_version` (beneath which the generators and the
+    runtime are analysed, and which checks they share one version), and per package a _coco_cc_gen
+    in the library's configuration.
+
+    Args:
+        name: The name of the library.
+        runtime: The Coco runtime label (cc_runtime or c_runtime).
+        packages: The coco_generate targets.
+        popili_version: The library's pin, "" for none.
+        public_hdrs: As for the library.
+        kwargs: The library's kwargs, for the common attrs and `includes`.
+        use_test_outputs: Whether to take the generated test/mock outputs.
+
+    Returns:
+        The _coco_cc_gen targets, for the cc_library's srcs and deps.
+    """
+    pin_name = name + "._pin"
+    _coco_cc_pin(
+        name = pin_name,
+        library = name,
+        packages = packages,
+        popili_version = popili_version,
+        runtime = runtime,
+        **companion_attrs(kwargs, extra_tags = ["manual"])
+    )
+    gen_targets = []
+    for i, pkg in enumerate(packages):
+        gen_name = name + "._gen" if len(packages) == 1 else name + "._gen_%d" % i
+        _coco_cc_gen(
+            name = gen_name,
+            package = pkg,
+            pinned = pin_name,
+            popili_version = popili_version,
+            includes = kwargs.get("includes", []),
+            use_test_outputs = use_test_outputs,
+            all_hdrs_public = (public_hdrs == None),
+            public_hdrs = public_hdrs if public_hdrs != None else [],
+            **companion_attrs(kwargs, extra_tags = ["manual"])
+        )
+        gen_targets.append(gen_name)
+    return gen_targets
 
 def coco_library(
         name,
@@ -27,6 +72,7 @@ def coco_library(
         hdrs = [],
         deps = [],
         public_hdrs = None,
+        popili_version = "",
         **kwargs):
     """Creates a C/C++ library from Coco-generated code.
 
@@ -41,30 +87,22 @@ def coco_library(
         public_hdrs: List of generated header names to make public, or None for all.
                         Use bare filenames (e.g., 'ISensor.h') to match by name, or
                         path suffixes (e.g., 'sensors/ISensor.h') to disambiguate.
+        popili_version: The popili version whose runtime the library links, also applied to the
+                        generators beneath it; "" for the configured version.
         **kwargs: Additional arguments passed to cc_library
     """
     if generated_package and generated_packages:
         fail("Cannot specify both generated_package and generated_packages")
     packages = generated_packages if generated_packages else [generated_package]
 
-    gen_targets = []
-    for i, pkg in enumerate(packages):
-        gen_name = name + "._gen" if len(packages) == 1 else name + "._gen_%d" % i
-        _coco_cc_gen(
-            name = gen_name,
-            package = pkg,
-            includes = kwargs.get("includes", []),
-            all_hdrs_public = (public_hdrs == None),
-            public_hdrs = public_hdrs if public_hdrs != None else [],
-            **companion_attrs(kwargs, extra_tags = ["manual"])
-        )
-        gen_targets.append(gen_name)
+    gen_targets = _generated_targets(name, runtime, packages, popili_version, public_hdrs, kwargs)
 
+    # The runtime comes with gen_targets, at the library's popili_version.
     cc_library(
         name = name,
         srcs = srcs + gen_targets,
         hdrs = hdrs,
-        deps = deps + gen_targets + [runtime],
+        deps = deps + gen_targets,
         **kwargs
     )
 
@@ -78,6 +116,7 @@ def coco_test_library(
         deps = [],
         public_hdrs = None,
         gmock = "@googletest//:gtest",
+        popili_version = "",
         **kwargs):
     """Creates a C/C++ test library from Coco-generated test code.
 
@@ -94,32 +133,23 @@ def coco_test_library(
                         path suffixes (e.g., 'runnable/RunnableMock.h') to disambiguate.
         gmock: The GoogleTest/GoogleMock library to use (default: @googletest//:gtest).
                Set to None to omit gmock dependency.
+        popili_version: The popili version whose runtime the library links, also applied to the
+                        generators beneath it; "" for the configured version.
         **kwargs: Additional arguments passed to cc_library
     """
     if generated_package and generated_packages:
         fail("Cannot specify both generated_package and generated_packages")
     packages = generated_packages if generated_packages else [generated_package]
 
-    gen_targets = []
-    for i, pkg in enumerate(packages):
-        gen_name = name + "._gen" if len(packages) == 1 else name + "._gen_%d" % i
-        _coco_cc_gen(
-            name = gen_name,
-            package = pkg,
-            includes = kwargs.get("includes", []),
-            use_test_outputs = True,
-            all_hdrs_public = (public_hdrs == None),
-            public_hdrs = public_hdrs if public_hdrs != None else [],
-            **companion_attrs(kwargs, extra_tags = ["manual"])
-        )
-        gen_targets.append(gen_name)
+    gen_targets = _generated_targets(name, runtime, packages, popili_version, public_hdrs, kwargs, use_test_outputs = True)
 
     gmock_deps = [gmock] if gmock else []
 
+    # gmock and deps stay in the library's configuration; only the runtime follows popili_version.
     cc_library(
         name = name,
         srcs = srcs + gen_targets,
         hdrs = hdrs,
-        deps = deps + gen_targets + gmock_deps + [runtime],
+        deps = deps + gen_targets + gmock_deps,
         **kwargs
     )
