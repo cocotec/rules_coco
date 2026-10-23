@@ -47,12 +47,6 @@ cc_library(
 )
 """
 
-# Known license file version suffixes to check for
-KNOWN_VERSION_SUFFIXES = [
-    "_6",
-    "",
-]
-
 def _determine_product_name(versions):
     """Determines the product name based on versions in use.
 
@@ -107,19 +101,22 @@ def coco_download(version, archive):
         sha256 = FILE_KEY_TO_SHA.get(key) or "",
     )
 
-def _get_all_license_paths(ctx, version_suffix):
-    """Returns all possible license file paths in priority order.
+def _path_separator(ctx):
+    """The host's path separator; host OS, not target platform."""
+    return "\\" if "windows" in ctx.os.name else "/"
 
-    Checks both modern (Popili, >= 1.5.0) and legacy (Coco Platform, < 1.5.0) paths
-    in popili's data directory: $POPILI_DATA or $COCO_PLATFORM_DATA if set, else the
-    per-user one. Returns paths in priority order: Popili first, then Coco Platform.
+def _license_directories(ctx):
+    """Returns the directories popili may keep its license files in, in priority order.
+
+    Popili's data directory is $POPILI_DATA or $COCO_PLATFORM_DATA if set, else the
+    per-user one: the modern Popili (>= 1.5.0) directory first, then the legacy Coco
+    Platform (< 1.5.0) one.
 
     Args:
         ctx: Repository context
-        version_suffix: Version suffix for the license file (e.g., "_6" or "")
 
     Returns:
-        List of possible license file paths to check
+        A list of directory path strings.
     """
     home = ctx.os.environ.get("HOME")
     appdata = ctx.os.environ.get("APPDATA")
@@ -127,11 +124,11 @@ def _get_all_license_paths(ctx, version_suffix):
     # Host OS, not target platform
     is_windows = "windows" in ctx.os.name
     is_mac = "os x" in ctx.os.name or "mac" in ctx.os.name
-    sep = "\\" if is_windows else "/"
+    sep = _path_separator(ctx)
 
     data = ctx.os.environ.get("POPILI_DATA") or ctx.os.environ.get("COCO_PLATFORM_DATA")
     if data:
-        return ["%s%slicenses%s.lic" % (data, sep, version_suffix)]
+        return [data]
 
     if is_mac:
         parents = [home and home + "/Library/Application Support"]
@@ -144,7 +141,7 @@ def _get_all_license_paths(ctx, version_suffix):
         products = ["popili", "coco_platform"]
 
     return [
-        "%s%s%s%slicenses%s.lic" % (parent, sep, product, sep, version_suffix)
+        "%s%s%s" % (parent, sep, product)
         for parent in parents
         if parent  # Unset env var would show up as "None" in the path
         for product in products
@@ -326,67 +323,69 @@ _coco_fetch_license_repository = repository_rule(
     local = True,
 )
 
-def _repository_path_exists(ctx, path_str):
-    """Checks whether a path exists on disk, via the repository context."""
-    return ctx.path(path_str).exists
+def _repository_list_directory(ctx, directory):
+    """Lists the entries of a directory via the repository context; empty if there is none."""
+    path = ctx.path(directory)
+    if not path.exists or not path.is_dir:
+        return []
+    return [entry.basename for entry in path.readdir()]
 
-def find_local_license_path(ctx, path_exists = _repository_path_exists):
-    """Finds the locally installed license file, if there is one.
-
-    Checks both modern (Popili, >= 1.5.0) and legacy (Coco Platform, < 1.5.0)
-    license file locations, for every known version suffix. Suffixes are tried
-    in KNOWN_VERSION_SUFFIXES order, and within each suffix the Popili path
-    takes priority over the legacy Coco Platform one.
+def is_license_file_name(basename):
+    """Whether a file name is a license file of some licence protocol version, `licenses_<n>.lic`.
 
     Args:
-        ctx: Repository context, used to build the candidate paths.
-        path_exists: Callable taking (ctx, path string) and returning whether
-            that path exists. Injectable so that this can be unit tested.
+        basename: A file name, without its directory.
 
     Returns:
-        The first candidate path that exists, or None if none of them do.
+        True when `n` is a positive number without leading zeros.
     """
-    for suffix in KNOWN_VERSION_SUFFIXES:
-        # Try each path until we find one that exists
-        for path_str in _get_all_license_paths(ctx, suffix):
-            if path_exists(ctx, path_str):
-                return path_str
+    if not basename.startswith("licenses_") or not basename.endswith(".lic"):
+        return False
+    protocol = basename[len("licenses_"):-len(".lic")]
+    return protocol.isdigit() and not protocol.startswith("0")
 
-    return None
+def find_local_license_paths(ctx, list_directory = _repository_list_directory):
+    """Finds the locally installed license files of every licence protocol version.
+
+    Lists popili's license directories for `licenses_<n>.lic` files, whatever `n`; for each
+    file name, the Popili directory takes priority over the legacy Coco Platform one.
+
+    Args:
+        ctx: Repository context, used to find the directories.
+        list_directory: Callable taking (ctx, directory string) and returning the names
+            of its entries, or an empty list when it does not exist. Injectable so that
+            this can be unit tested.
+
+    Returns:
+        A dict from file name to path string.
+    """
+    sep = _path_separator(ctx)
+    found = {}
+    for directory in _license_directories(ctx):
+        for basename in sorted(list_directory(ctx, directory)):
+            if is_license_file_name(basename) and basename not in found:
+                found[basename] = directory + sep + basename
+    return found
 
 def _coco_symlink_license_repository_impl(ctx):
     """Creates a repository to symlink to locally installed licenses.
 
-    Checks both modern (Popili, >= 1.5.0) and legacy (Coco Platform, < 1.5.0)
-    license file locations. Prioritizes Popili paths but falls back to legacy paths
-    for backward compatibility.
+    `:licenses` holds every `licenses_<n>.lic` found in popili's data directory, each
+    under its own name, and is empty when there is none. The rules pick the one of
+    their popili's licence protocol version (see license_versions.bzl).
     """
     ctx.file("WORKSPACE", "")
-    build_content = None
+    found = find_local_license_paths(ctx)
+    for basename, path_str in found.items():
+        ctx.symlink(ctx.path(path_str), basename)
 
-    license_path = find_local_license_path(ctx)
-    if license_path != None:
-        file = ctx.path(license_path)
-        ctx.symlink(file, file.basename)
-        build_content = """
+    ctx.file("BUILD", """
 filegroup(
     name = "licenses",
-    srcs = ["%s"],
+    srcs = %s,
     visibility = ["//visibility:public"],
 )
-""" % (file.basename)
-
-    if build_content == None:
-        # Create a stub repository that will fail only if actually used
-        build_content = """
-filegroup(
-    name = "licenses",
-    srcs = [],
-    visibility = ["//visibility:public"],
-)
-"""
-
-    ctx.file("BUILD", build_content)
+""" % json.encode(sorted(found.keys())))
 
 _coco_symlink_license_repository = repository_rule(
     attrs = {},

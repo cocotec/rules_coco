@@ -437,7 +437,8 @@ def declare_coco_toolchains(
       license_token: Default license token for every toolchain.
       auth_token_path: Default auth token file path for every toolchain.
       local: None, or a struct with `popili`, `cc_runtime` and `c_runtime` path fields
-        describing a popili distribution on the local filesystem.
+        describing a popili distribution on the local filesystem, and the
+        `license_protocol_version` its popili reads (0 if unknown).
       hub_name: The name of the hub repository to create.
     """
     coco_preferences_repository(name = "io_cocotec_coco_preferences")
@@ -505,6 +506,7 @@ def declare_coco_toolchains(
             path = local.popili,
             cc_runtime_label = cc_runtime_label,
             c_runtime_label = c_runtime_label,
+            license_protocol_version = local.license_protocol_version,
             license_source = license_source,
             license_token = license_token,
             auth_token_path = auth_token_path,
