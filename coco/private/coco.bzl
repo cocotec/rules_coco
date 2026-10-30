@@ -53,6 +53,7 @@ CocoCcGeneratedInfo = provider(
     fields = {
         "headers": "Generated header files as a depset",
         "include_root": "The directory the generated files' include paths are relative to, as an exec path",
+        "popili_version": "The version of the popili that generated the code, as its toolchain declares it; \"\" when unknown",
         "sources": "Generated implementation files as a depset",
         "test_headers": "Generated test/mock header files as a depset",
         "test_sources": "Generated test/mock implementation files as a depset",
@@ -105,6 +106,7 @@ COCO_TEST_RULE_ARGS = {
 
 # What a rule needs for `_coco_toolchain`'s full message: the configured version and the registry.
 TOOLCHAIN_ATTRIBUTES = {
+    "_pinned_from": attr.label(default = Label("//coco/private:pinned_from")),
     "_version": attr.label(default = Label("//:version")),
     "_version_registry": attr.label(
         default = Label("@coco_toolchains//:registry"),
@@ -144,55 +146,93 @@ def _effective_version(version, registered_versions):
         return registered_versions[0]
     return ""
 
-def _pin_transition_settings(pin, version, registered_versions):
+# The value `--@rules_coco//:version` had outside any pin, as a one-element list inside a pin and
+# empty outside one; only the pin transitions set it. It lets the runtime's extra deps go back to
+# the configuration of unpinned targets, so a binary that also links them gets one copy, and
+# messages tell a version set by a pin above a target from one set on the command line.
+_PINNED_FROM_SETTING = str(Label("//coco/private:pinned_from"))
+
+def _pin_transition_settings(pin, version, registered_versions, pinned_from = []):
     """Decides what a popili-resolving rule's transition changes.
 
     Args:
         pin: The target's `popili_version`, "" when unpinned or the rule has none.
         version: The value of `--@rules_coco//:version` in the incoming configuration.
         registered_versions: The hub's registered versions in registration order.
+        pinned_from: The incoming `pinned_from` setting: `[outer version]` inside a pin, else `[]`.
 
     Returns:
         The dict the transition returns: `{}` without a pin or when the pin (aliases resolved)
         is the version the incoming configuration effectively asks for, so the configuration and
-        its output paths are shared; else the version flag set to the resolved pin.
+        its output paths are shared; the configuration outside any pin when the pin is the version
+        that one effectively asks for; else the version flag set to the resolved pin, recording
+        the version outside any pin.
     """
     if not pin:
         return {}
     resolved = resolve_version_alias(pin)
     if resolved == _effective_version(version, registered_versions):
         return {}
-    return {VERSION_FLAG: resolved}
+    outer = pinned_from[0] if pinned_from else version
+    if resolved == _effective_version(outer, registered_versions):
+        return {VERSION_FLAG: outer, _PINNED_FROM_SETTING: []}
+    return {VERSION_FLAG: resolved, _PINNED_FROM_SETTING: [outer]}
 
 def _popili_version_pin_impl(settings, attr):
     return _pin_transition_settings(
         getattr(attr, "popili_version", ""),
         settings[VERSION_FLAG],
         settings[_REGISTERED_VERSIONS_SETTING],
+        settings[_PINNED_FROM_SETTING],
     )
 
 popili_version_pin = transition(
     implementation = _popili_version_pin_impl,
-    inputs = [VERSION_FLAG, _REGISTERED_VERSIONS_SETTING],
-    outputs = [VERSION_FLAG],
+    inputs = [VERSION_FLAG, _REGISTERED_VERSIONS_SETTING, _PINNED_FROM_SETTING],
+    outputs = [VERSION_FLAG, _PINNED_FROM_SETTING],
 )
 
-def _popili_version_transition_impl(_settings, attr):
+def _unpin_transition_settings(version, pinned_from):
+    """The settings of the configuration outside any pin, given a configuration's.
+
+    Args:
+        version: The value of `--@rules_coco//:version` in the incoming configuration.
+        pinned_from: The incoming `pinned_from` setting.
+
+    Returns:
+        The dict the transition returns: the version outside any pin and no record of a pin.
+    """
+    return {VERSION_FLAG: pinned_from[0] if pinned_from else version, _PINNED_FROM_SETTING: []}
+
+def _popili_version_unpin_impl(settings, _attr):
+    return _unpin_transition_settings(settings[VERSION_FLAG], settings[_PINNED_FROM_SETTING])
+
+# For what a pinned target builds but popili does not affect, such as the runtime's extra deps:
+# analysed where unpinned targets are, so it is built once however many versions are pinned.
+popili_version_unpin = transition(
+    implementation = _popili_version_unpin_impl,
+    inputs = [VERSION_FLAG, _PINNED_FROM_SETTING],
+    outputs = [VERSION_FLAG, _PINNED_FROM_SETTING],
+)
+
+def _popili_version_transition_impl(settings, attr):
     """Transition implementation for per-target popili version selection.
 
     If the target specifies a version attribute, transition to that version.
     Version aliases (like "stable") are resolved to actual version numbers.
-    Otherwise, keep the current configuration's version setting.
+    Otherwise, keep the current configuration's version setting. Like a pin, it records the
+    version outside any pin.
     """
     if hasattr(attr, "version") and attr.version:
         resolved_version = resolve_version_alias(attr.version)
-        return {VERSION_FLAG: resolved_version}
+        pinned_from = settings[_PINNED_FROM_SETTING] or [settings[VERSION_FLAG]]
+        return {VERSION_FLAG: resolved_version, _PINNED_FROM_SETTING: pinned_from}
     return {}
 
 _popili_version_transition = transition(
     implementation = _popili_version_transition_impl,
-    inputs = [],
-    outputs = [VERSION_FLAG],
+    inputs = [VERSION_FLAG, _PINNED_FROM_SETTING],
+    outputs = [VERSION_FLAG, _PINNED_FROM_SETTING],
 )
 
 # Export for use in cc.bzl
@@ -283,28 +323,48 @@ def _coco_toolchain(ctx):
         fail(_missing_toolchain_message(ctx))
     return toolchain
 
-def _version_source(version, pin):
+def _version_source(version, pin, pinned_from = None):
     """Words where a target's configured popili version came from.
 
-    A pin on a target above reaches this target only through the flag it sets, so a target
-    without a pin of its own words a version it did not choose as set by the flag.
+    A target without a pin of its own tells the flag on the command line from a pin on a target
+    above it by `pinned_from`, which only a pin sets. A custom rule without that attribute cannot
+    tell them apart, so the phrase then names both.
 
     Args:
         version: The value of `--@rules_coco//:version` in the target's configuration.
         pin: The target's `popili_version`, "" when it has none.
+        pinned_from: The `pinned_from` setting in the target's configuration, or None when the
+            rule cannot read it.
 
     Returns:
-        A phrase interpolated as "(%s)" in `_missing_popili_message`: "pinned by popili_version"
-        (naming the pin as written when it is an alias), "set by --@rules_coco//:version", or
-        "the default".
+        A phrase interpolated as "(%s)" in messages: "pinned by popili_version" (naming the pin
+        as written when it is an alias), "pinned by a target above it", "set by
+        --@rules_coco//:version", "set by --@rules_coco//:version or a popili_version pin above
+        it" when `pinned_from` is unknown, or "the default".
     """
     if pin:
         if pin == version:
             return "pinned by popili_version"
         return "pinned by popili_version = %r" % pin
+    if pinned_from:
+        return "pinned by a target above it"
     if version:
+        if pinned_from == None:
+            return "set by --%s or a popili_version pin above it" % VERSION_FLAG
         return "set by --%s" % VERSION_FLAG
     return "the default"
+
+def _version_source_of(ctx):
+    """Where this target's configured popili version came from, as `_version_source` words it.
+
+    Reads what a rule with TOOLCHAIN_ATTRIBUTES has; a custom rule may lack `_pinned_from`.
+    """
+    pinned_from = getattr(ctx.attr, "_pinned_from", None)
+    return _version_source(
+        ctx.attr._version[BuildSettingInfo].value,
+        getattr(ctx.attr, "popili_version", ""),
+        pinned_from[BuildSettingInfo].value if pinned_from else None,
+    )
 
 def _describe_registered_versions(registry):
     if not registry.versions:
@@ -329,7 +389,7 @@ _REGISTER_LOCAL_HINT = (
     "in MODULE.bazel or coco_local_repositories(path = ...) / coco_repositories(local_popili = ...) in WORKSPACE."
 )
 
-def _missing_popili_message(label, version, registry, pin = "", test_target_platform = None):
+def _missing_popili_message(label, version, registry, source = None, test_target_platform = None):
     """Words the failure of a rule whose Coco toolchain did not resolve.
 
     Decided after toolchain resolution, so it never second-guesses resolution: the registry is
@@ -340,14 +400,16 @@ def _missing_popili_message(label, version, registry, pin = "", test_target_plat
         version: The value of `--@rules_coco//:version` in the target's configuration, "" for
             the default.
         registry: The hub's `CocoVersionRegistryInfo` (or any struct with its fields).
-        pin: The target's `popili_version`, "" when it has none.
+        source: Where the version came from, as `_version_source` words it; None words a set
+            version as set by the flag.
         test_target_platform: For a test that lost popili to the execution platform Bazel runs
             tests on, its target platform, as `_test_target_platform` returns it; else None.
 
     Returns:
         The message to fail with.
     """
-    source = _version_source(version, pin)
+    if source == None:
+        source = _version_source(version, "", [])
     registered = "Registered popili versions: %s." % _describe_registered_versions(registry)
 
     if version == LOCAL_VERSION:
@@ -440,8 +502,8 @@ def _missing_toolchain_message(ctx):
         ctx.label,
         ctx.attr._version[BuildSettingInfo].value,
         ctx.attr._version_registry[CocoVersionRegistryInfo],
-        getattr(ctx.attr, "popili_version", ""),
-        _test_target_platform(ctx),
+        source = _version_source_of(ctx),
+        test_target_platform = _test_target_platform(ctx),
     )
 
 def _runtime_path(file, is_test):
@@ -1312,7 +1374,7 @@ def _add_outputs(ctx, headers, sources, mock_headers, mock_sources, config, path
     _declare_language_outputs(ctx, headers, sources, mock_headers, mock_sources, config, path_builder, module_path)
 
 def _coco_package_generate_impl(ctx):
-    _coco_toolchain(ctx)
+    toolchain = _coco_toolchain(ctx)
     if ctx.attr.language == "c" and ctx.attr.mocks:
         fail("mocks = True is not supported for language = \"c\": popili does not generate C mocks", attr = "mocks")
 
@@ -1391,6 +1453,7 @@ def _coco_package_generate_impl(ctx):
         lang_provider = CocoCcGeneratedInfo(
             headers = depset(headers),
             include_root = include_root,
+            popili_version = getattr(toolchain, "popili_version", ""),
             sources = depset(sources),
             test_headers = depset(test_headers),
             test_sources = depset(test_sources),
@@ -1553,11 +1616,119 @@ def _header_matches(include_path, pattern):
     """Whether a public_hdrs entry, a file name or whole trailing components of the include path, selects the header."""
     return include_path == pattern or include_path.endswith("/" + pattern)
 
+def _library_version_mismatch_message(library, library_version, library_source, generator, generator_version):
+    """Words the failure of a library whose runtime and generated code come from different popili versions.
+
+    Args:
+        library: The label of the coco_cc_library or coco_c_library.
+        library_version: The popili version of the runtime the library links, as its toolchain declares it.
+        library_source: Where the library's configured version came from, as `_version_source` phrases it.
+        generator: The label of the coco_generate the library builds from.
+        generator_version: The popili version that generated the code, as its toolchain declares it.
+
+    Returns:
+        The message to fail with.
+    """
+    return (
+        "%s links the Coco runtime of popili %s (%s), but builds from %s, generated by popili %s. " %
+        (library, library_version, library_source, generator, generator_version) +
+        "A library and the code it builds from must come from the same popili version: give %s " % library +
+        "popili_version = %r, or pin %s to %s, or leave %s unpinned so that it follows the library." %
+        (generator_version, generator, library_version, generator)
+    )
+
+def _library_generators_mismatch_message(library, generated):
+    """Words the failure of a library whose generated code comes from more than one popili version.
+
+    Args:
+        library: The label of the coco_cc_library or coco_c_library.
+        generated: A (label, version) pair per coco_generate the library builds from, with the
+            popili version that generated its code.
+
+    Returns:
+        The message to fail with.
+    """
+    return (
+        "%s builds from code generated by more than one popili version: %s. " %
+        (library, ", ".join(["%s (popili %s)" % (generator, version) for generator, version in generated])) +
+        "A library and the code it builds from must come from the same popili version: pin these " +
+        "coco_generate targets to the same version, or build each version into a library of its own."
+    )
+
+def _library_version_conflict(library, library_version, library_source, generated):
+    """Checks that a library and all the code it builds from come from one popili version.
+
+    A version that is "" (a bring-your-own toolchain declaring none) matches anything, but
+    generators that do declare one must still agree among themselves.
+
+    Args:
+        library: The label of the coco_cc_library or coco_c_library.
+        library_version: The popili version of the runtime the library links, as its toolchain
+            declares it.
+        library_source: Where the library's configured version came from, as `_version_source`
+            phrases it.
+        generated: A (label, version) pair per coco_generate the library builds from, in order, with
+            the popili version that generated its code.
+
+    Returns:
+        The message to fail with, or None when they agree.
+    """
+    versioned = [(generator, version) for generator, version in generated if version]
+    if library_version:
+        for generator, version in versioned:
+            if version != library_version:
+                return _library_version_mismatch_message(library, library_version, library_source, generator, version)
+    elif len({version: None for _, version in versioned}) > 1:
+        return _library_generators_mismatch_message(library, versioned)
+    return None
+
+def _coco_cc_pin_impl(ctx):
+    """Checks a library's generated code against the runtime of the library's popili version.
+
+    Analysed at the library's `popili_version`, so the generators beneath it follow that pin
+    unless they have one of their own, and the runtime it forwards is the pinned version's.
+    """
+    toolchain = _coco_toolchain(ctx)
+    conflict = _library_version_conflict(
+        ctx.label.same_package_label(ctx.attr.library),
+        getattr(toolchain, "popili_version", ""),
+        _version_source_of(ctx),
+        [(package.label, package[CocoCcGeneratedInfo].popili_version) for package in ctx.attr.packages],
+    )
+    if conflict:
+        fail(conflict)
+    return [ctx.attr.runtime[CcInfo]]
+
+# Runs no actions: only the runtime is built at the library's pin. The library compiles the
+# generated code in its own configuration, through _coco_cc_gen. One per library, so that it sees
+# every generator the library builds from.
+_coco_cc_pin = rule(
+    implementation = _coco_cc_pin_impl,
+    attrs = dict(TOOLCHAIN_ATTRIBUTES.items() + POPILI_VERSION_ATTRIBUTES.items() + {
+        "library": attr.string(
+            mandatory = True,
+            doc = "The name of the library in this package, for messages.",
+        ),
+        "packages": attr.label_list(
+            providers = [CocoCcGeneratedInfo],
+            mandatory = True,
+            doc = "The coco_generate targets the library builds from.",
+        ),
+        "runtime": attr.label(
+            providers = [CcInfo],
+            mandatory = True,
+            doc = "The Coco runtime the library links: //coco:cc_runtime or //coco:c_runtime.",
+        ),
+    }.items()),
+    cfg = popili_version_pin,
+    toolchains = [COCO_TOOLCHAIN_TYPE],
+)
+
 def _coco_cc_gen_impl(ctx):
-    """Extracts the generated C/C++ sources and headers of a library's packages, providing CcInfo for headers.
+    """Extracts the generated C/C++ sources and headers of a library's packages, providing CcInfo for headers and the runtime.
 
     Returns DefaultInfo with sources (+ private headers) for cc_library srcs,
-    and CcInfo with public headers for cc_library deps.
+    and CcInfo with public headers and the runtime for cc_library deps.
     """
     all_headers = []
     sources = []
@@ -1601,7 +1772,11 @@ def _coco_cc_gen_impl(ctx):
 
     return [
         DefaultInfo(files = depset(sources + private_hdrs)),
-        CcInfo(compilation_context = compilation_context),
+        # Direct, as when the runtime was in the library's own deps, for layering_check.
+        cc_common.merge_cc_infos(direct_cc_infos = [
+            CcInfo(compilation_context = compilation_context),
+            ctx.attr.pinned[CcInfo],
+        ]),
     ]
 
 # One per library, so that public_hdrs is checked against all its packages at once.
@@ -1616,8 +1791,17 @@ _coco_cc_gen = rule(
         "packages": attr.label_list(
             providers = [CocoCcGeneratedInfo],
             mandatory = True,
-            doc = "The coco_generate targets the library builds from.",
+            # The library's _coco_cc_pin applies the same transition with the same popili_version,
+            # so these are the coco_generate targets it checked, analysed once.
+            cfg = popili_version_pin,
+            doc = "The coco_generate targets the library builds from, analysed at the library's popili_version.",
         ),
+        "pinned": attr.label(
+            providers = [CcInfo],
+            mandatory = True,
+            doc = "The library's _coco_cc_pin, for the runtime and the version check.",
+        ),
+        "popili_version": attr.string(doc = "The library's popili_version, for the transition on `packages`."),
         "public_hdrs": attr.string_list(
             default = [],
             doc = "Header names to make public (when all_hdrs_public is False). " +
@@ -1707,11 +1891,16 @@ def popili_version_alias(name, **kwargs):
 
 # Exported for use by cc.bzl and c.bzl
 coco_cc_gen = _coco_cc_gen
+coco_cc_pin = _coco_cc_pin
 
 # Exported for testing
 mangle_name = _mangle_name
 missing_popili_message = _missing_popili_message
 pin_transition_settings = _pin_transition_settings
+version_source = _version_source
+unpin_transition_settings = _unpin_transition_settings
 effective_version = _effective_version
+library_version_mismatch_message = _library_version_mismatch_message
+library_version_conflict = _library_version_conflict
 compute_output_paths = _compute_output_paths
 module_path_for = _module_path_for
