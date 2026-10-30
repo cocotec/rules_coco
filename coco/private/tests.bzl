@@ -24,7 +24,7 @@ load(
 )
 load(":cc_runtime_deps.bzl", "collect_cc_runtime_extra_deps", "normalize_cc_runtime_extra_deps")
 load(":coco.bzl", "FILE_NAME_MANGLER_STYLES", "compute_output_paths", "mangle_name", "module_path_for", "package_relative_dir")
-load(":common_repositories.bzl", "download_prefix", "find_local_license_path")
+load(":common_repositories.bzl", "coco_download", "download_prefix", "find_local_license_path")
 load(":known_shas.bzl", "FILE_KEY_TO_SHA")
 load(":platforms.bzl", "COCO_TOOLCHAIN_PLATFORMS", "archive_platform", "platform_binary_ext")
 load(":source_roots.bzl", "infer_source_root", "leaves_directory", "normalize_root", "relative_path", "resolve_source_roots", "source_root_for")
@@ -906,6 +906,21 @@ def _coco_toolchain_download_unknown_version_test(ctx):
 
     return unittest.end(env)
 
+def _coco_download_runtime_test(ctx):
+    """Runtime archives are verified against known_shas.bzl, and unknown versions go unverified."""
+    env = unittest.begin(ctx)
+
+    for archive in ["coco-cpp-runtime.zip", "coco-c-runtime.zip"]:
+        download = coco_download("1.5.7", archive)
+        asserts.equals(env, "https://dl.cocotec.io/popili/archive/1.5.7/" + archive, download.url)
+        asserts.equals(env, FILE_KEY_TO_SHA["1.5.7/" + archive], download.sha256)
+
+        download = coco_download("9.9.9", archive)
+        asserts.equals(env, "https://dl.cocotec.io/popili/archive/9.9.9/" + archive, download.url)
+        asserts.equals(env, "", download.sha256)
+
+    return unittest.end(env)
+
 coco_toolchain_download_url_test = unittest.make(_coco_toolchain_download_url_test)
 coco_toolchain_download_sha_matches_known_shas_test = unittest.make(_coco_toolchain_download_sha_matches_known_shas_test)
 coco_toolchain_download_all_platforms_verified_test = unittest.make(_coco_toolchain_download_all_platforms_verified_test)
@@ -913,6 +928,7 @@ coco_toolchain_download_version_aliases_verified_test = unittest.make(_coco_tool
 coco_toolchain_download_prerelease_test = unittest.make(_coco_toolchain_download_prerelease_test)
 coco_toolchain_download_unknown_version_test = unittest.make(_coco_toolchain_download_unknown_version_test)
 coco_toolchain_download_covers_every_platform_test = unittest.make(_coco_toolchain_download_covers_every_platform_test)
+coco_download_runtime_test = unittest.make(_coco_download_runtime_test)
 
 # Tests for resolve_version_alias
 
@@ -1212,10 +1228,56 @@ def _hub_entries_local_alongside_versions_test(ctx):
 
     return unittest.end(env)
 
+def _hub_unknown_version_test(ctx):
+    """A version with no known_shas.bzl entry registers like any other (forward compatibility).
+
+    Nothing on the way from the registration to the hub consults rules_coco's tables, so a
+    release newer than this rules_coco gets its toolchains, default and config_setting.
+    """
+    env = unittest.begin(ctx)
+
+    version = "1.99.0"
+    asserts.false(
+        env,
+        any([key.startswith(version + "/") for key in FILE_KEY_TO_SHA]),
+        "%s must be unknown to known_shas.bzl for this test to mean anything" % version,
+    )
+
+    versions, error = resolve_versions([version])
+    asserts.equals(env, None, error)
+    asserts.equals(env, [version], versions)
+
+    entries = toolchain_hub_entries(versions)
+    asserts.equals(env, 2 * len(COCO_TOOLCHAIN_PLATFORMS), len(entries.toolchain_names))
+    asserts.equals(env, {version: "1_99_0"}, entries.version_suffixes)
+    label = "@io_cocotec_coco_linux_x86_64__1_99_0//:toolchain_impl"
+    asserts.equals(env, label, entries.toolchain_labels["linux_x86_64__1_99_0"])
+    asserts.equals(env, label, entries.toolchain_labels["linux_x86_64__default"])
+    asserts.equals(
+        env,
+        ["@coco_toolchains//:version_1_99_0"],
+        entries.target_settings["linux_x86_64__1_99_0"],
+    )
+
+    build = render_toolchain_hub_build(entries)
+    asserts.true(
+        env,
+        '"@rules_coco//:version": "1.99.0"' in build,
+        "version config_setting missing: %s" % build,
+    )
+    asserts.true(
+        env,
+        'toolchain = "%s"' % label in build,
+        "toolchain for the unknown version missing: %s" % build,
+    )
+
+    return unittest.end(env)
+
 hub_entries_single_version_test = unittest.make(_hub_entries_single_version_test)
 hub_entries_default_is_first_version_only_test = unittest.make(_hub_entries_default_is_first_version_only_test)
 hub_entries_local_only_test = unittest.make(_hub_entries_local_only_test)
 hub_entries_local_alongside_versions_test = unittest.make(_hub_entries_local_alongside_versions_test)
+hub_unknown_version_test = unittest.make(_hub_unknown_version_test)
 
 # Tests for render_toolchain_hub_build
 
@@ -1621,6 +1683,7 @@ def coco_test_suite(name):
         coco_toolchain_download_prerelease_test,
         coco_toolchain_download_unknown_version_test,
         coco_toolchain_download_covers_every_platform_test,
+        coco_download_runtime_test,
 
         # resolve_version_alias tests
         resolve_version_alias_known_alias_test,
@@ -1645,6 +1708,7 @@ def coco_test_suite(name):
         hub_entries_default_is_first_version_only_test,
         hub_entries_local_only_test,
         hub_entries_local_alongside_versions_test,
+        hub_unknown_version_test,
 
         # render_toolchain_hub_build tests
         hub_build_labels_test,
