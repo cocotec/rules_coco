@@ -15,10 +15,11 @@
 """Internal C++ runtime rule implementation."""
 
 load("@rules_cc//cc:defs.bzl", "CcInfo")
+load("//coco/private:coco.bzl", "COCO_TOOLCHAIN_TYPE", "TOOLCHAIN_ATTRIBUTES", "coco_toolchain_or_fail")
 
 def _coco_cc_runtime_impl(ctx):
     """Helper rule that provides the C++ runtime from the toolchain."""
-    toolchain = ctx.toolchains["@rules_coco//coco:toolchain_type"]
+    toolchain = coco_toolchain_or_fail(ctx)
     if not toolchain.cc_runtime:
         fail("C++ runtime not available. Did you enable cc=True in coco.toolchain()?")
 
@@ -27,8 +28,8 @@ def _coco_cc_runtime_impl(ctx):
 
 coco_cc_runtime = rule(
     implementation = _coco_cc_runtime_impl,
-    attrs = {},
-    toolchains = ["@rules_coco//coco:toolchain_type"],
+    attrs = TOOLCHAIN_ATTRIBUTES,
+    toolchains = [COCO_TOOLCHAIN_TYPE],
     doc = """Internal helper rule that provides the C++ runtime from the Coco toolchain.
 
     This rule is not part of the public API and should not be used directly.

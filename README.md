@@ -252,8 +252,8 @@ protocol version, e.g. `license_protocol_version = 6` for popili 1.5.x.
 
 For `WORKSPACE` mode use `coco_local_repositories(path=..., cc_runtime_path=..., c_runtime_path=...)`,
 which behaves the same way: the local toolchain is selected by `--@rules_coco//:version=local` and
-never becomes the default, so a build that does not set the flag reports no matching toolchain for
-`@rules_coco//coco:toolchain_type`.
+never becomes the default, so a build that does not set the flag fails, saying that no default popili
+version is registered.
 
 To register a local distribution _alongside_ downloaded releases, pass it to `coco_repositories`
 instead, and switch between them with the version flag:

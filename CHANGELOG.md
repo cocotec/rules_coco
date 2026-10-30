@@ -44,9 +44,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `coco.toolchain` are unaffected and still get `stable` with both runtimes.
 - **Breaking:** the local toolchain registered by `coco_local_repositories()` in WORKSPACE mode is
   now selected by `--@rules_coco//:version=local` and is no longer active by default, matching the
-  bzlmod `coco.local_toolchain` tag. Builds that do not set the flag will report
-  `No matching toolchains found for @rules_coco//coco:toolchain_type`. Add
-  `common --@rules_coco//:version=local` to your `.bazelrc`.
+  bzlmod `coco.local_toolchain` tag. Builds that do not set the flag fail with a message explaining
+  how to select it. Add `common --@rules_coco//:version=local` to your `.bazelrc`.
 - **Breaking:** the generated per-platform repositories are now version-mangled, matching bzlmod:
   `io_cocotec_coco_<os>_<arch>` became `io_cocotec_coco_<os>_<arch>__<version>`, and the local one
   became `io_cocotec_coco_local` (previously `coco_local`). The `io_cocotec_coco_<os>_<arch>_toolchains`
@@ -93,6 +92,10 @@ root>.cs`;
 
   Two `coco_generate` targets over one `coco_package` no longer conflict, and generated paths are shorter, which
   helps against Windows path length limits.
+
+- Improved diagnostics when no Popili toolchain matches: instead of Bazel's generic
+  `No matching toolchains found` error, the build now says which Popili version was requested, which
+  versions are registered, and how to fix it.
 
 ### Removed
 
