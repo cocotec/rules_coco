@@ -1,4 +1,6 @@
-load("@rules_coco//coco:defs.bzl", "coco_package", "coco_verify_test")
+load("@rules_cc//cc:defs.bzl", "cc_test")
+load("@rules_coco//coco:cc.bzl", "coco_cc_library")
+load("@rules_coco//coco:defs.bzl", "coco_generate", "coco_package", "coco_verify_test")
 
 coco_package(
     name = "app",
@@ -11,4 +13,27 @@ coco_package(
 coco_verify_test(
     name = "app_verify",
     package = ":app",
+)
+
+coco_generate(
+    name = "app_cpp",
+    language = "cpp",
+    package = ":app",
+)
+
+coco_cc_library(
+    name = "app_cc",
+    generated_package = ":app_cpp",
+    deps = ["@coco_dep//:base_cc"],
+)
+
+# Generated headers of packages in @coco_dep are included by their path in that repository, not
+# below external/coco_dep+/.
+cc_test(
+    name = "external_includes_test",
+    srcs = ["test/external_includes.cc"],
+    deps = [
+        ":app_cc",
+        "@coco_dep//motor:motor_cc",
+    ],
 )
