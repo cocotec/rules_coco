@@ -72,7 +72,8 @@ def coco_repositories(
         cc_runtime_extra_deps = [],
         local_popili = None,
         local_cc_runtime = None,
-        local_c_runtime = None):
+        local_c_runtime = None,
+        local_license_protocol_version = 0):
     """Sets up Coco toolchain repositories for WORKSPACE mode.
 
     Register several versions to build different targets against different Popili
@@ -111,6 +112,8 @@ def coco_repositories(
         `coco/` subtree. Required to build `coco_cc_library` against `local_popili`.
       local_c_runtime: Optional path to a directory holding the local C runtime `coco_c/`
         subtree. Required to build `coco_c_library` against `local_popili`.
+      local_license_protocol_version: Optional licence protocol version `local_popili`
+        reads. See `coco_toolchain`.
     """
     if native.existing_rule(DEFAULT_HUB_NAME) != None:
         fail(
@@ -122,10 +125,11 @@ def coco_repositories(
     if version != None and versions != None:
         fail("coco_repositories(): pass either `version` or `versions`, not both.")
 
-    if (local_cc_runtime or local_c_runtime) and not local_popili:
+    if (local_cc_runtime or local_c_runtime or local_license_protocol_version) and not local_popili:
         fail(
-            "coco_repositories(): `local_cc_runtime` and `local_c_runtime` describe the " +
-            "runtimes of a local popili distribution, so they require `local_popili`.",
+            "coco_repositories(): `local_cc_runtime`, `local_c_runtime` and " +
+            "`local_license_protocol_version` describe a local popili distribution, so " +
+            "they require `local_popili`.",
         )
 
     if versions == None:
@@ -160,6 +164,7 @@ def coco_repositories(
             popili = local_popili,
             cc_runtime = local_cc_runtime or "",
             c_runtime = local_c_runtime or "",
+            license_protocol_version = local_license_protocol_version,
         )
 
     declare_coco_toolchains(
@@ -183,7 +188,8 @@ def coco_local_repositories(
         *,
         license_source = "",
         license_token = "",
-        auth_token_path = ""):
+        auth_token_path = "",
+        license_protocol_version = 0):
     """Sets up Coco toolchain repositories from a local popili path (WORKSPACE mode).
 
     Use this to point the rules at a popili distribution already present on the local
@@ -205,12 +211,15 @@ def coco_local_repositories(
       license_source: Optional default license source mode. See `coco_repositories`.
       license_token: Optional default license token.
       auth_token_path: Optional auth token file path.
+      license_protocol_version: Optional licence protocol version the local popili reads.
+        See `coco_toolchain`.
     """
     coco_repositories(
         versions = [],
         local_popili = path,
         local_cc_runtime = cc_runtime_path,
         local_c_runtime = c_runtime_path,
+        local_license_protocol_version = license_protocol_version,
         license_source = license_source,
         license_token = license_token,
         auth_token_path = auth_token_path,

@@ -94,6 +94,11 @@ bzl_library(
 )
 
 bzl_library(
+    name = "license_versions_bzl",
+    srcs = ["license_versions.bzl"],
+)
+
+bzl_library(
     name = "cc_runtime_deps_bzl",
     srcs = ["cc_runtime_deps.bzl"],
     deps = [":version_resolution_bzl"],
@@ -123,7 +128,10 @@ bzl_library(
 bzl_library(
     name = "version_resolution_bzl",
     srcs = ["version_resolution.bzl"],
-    deps = [":version_aliases_bzl"],
+    deps = [
+        ":license_versions_bzl",
+        ":version_aliases_bzl",
+    ],
 )
 
 bzl_library(
@@ -179,6 +187,7 @@ bzl_library(
         ":diagram_bzl",
         ":format_bzl",
         ":known_shas_bzl",
+        ":license_versions_bzl",
         ":licensing_bzl",
         ":platforms_bzl",
         ":repositories_bzl",

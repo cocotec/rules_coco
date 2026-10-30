@@ -25,6 +25,7 @@ def _coco_toolchain_impl(ctx):
         license_token = ctx.attr.license_token,
         auth_token_path = ctx.attr.auth_token_path,
         popili_version = ctx.attr.popili_version,
+        license_protocol_version = ctx.attr.license_protocol_version,
     )
     return toolchain
 
@@ -56,6 +57,15 @@ coco_toolchain = rule(
             doc = "The location of the `cocotec-licensing-server` binary. Can be a direct source or a filegroup containing one item.",
             allow_single_file = True,
             mandatory = True,
+        ),
+        "license_protocol_version": attr.int(
+            doc = (
+                "The licence protocol version the `popili` binary reads, `n` in `licenses_<n>.lic`, " +
+                "which picks its licence file under `local_user` licensing. Optional: 0 derives it from " +
+                "`popili_version`, or takes the newest protocol version rules_coco knows of when that is " +
+                "unknown. Set it when the popili reads a different protocol version than that."
+            ),
+            default = 0,
         ),
         "license_source": attr.string(
             doc = "The license source mode for this toolchain. Can be 'local_user', 'local_acquire', 'token', 'action_environment', or 'action_file'. If not specified, defaults to 'local_user'. Can be overridden via --@rules_coco//:license_source flag.",
