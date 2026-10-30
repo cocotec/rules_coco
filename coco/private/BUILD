@@ -23,6 +23,8 @@ package(default_visibility = ["//coco:__pkg__"])
 string_list_setting(
     name = "pinned_from",
     build_setting_default = [],
+    # Read through TOOLCHAIN_ATTRIBUTES, by rules in any package.
+    visibility = ["//visibility:public"],
 )
 
 # Unit tests for coco.bzl functions
