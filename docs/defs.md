@@ -9,7 +9,7 @@ Public API for Coco package rules and code generation.
 <pre>
 load("@rules_coco//coco:defs.bzl", "CocoWorkspaceInfo")
 
-CocoWorkspaceInfo(<a href="#CocoWorkspaceInfo-files">files</a>)
+CocoWorkspaceInfo(<a href="#CocoWorkspaceInfo-files">files</a>, <a href="#CocoWorkspaceInfo-popili_versions">popili_versions</a>)
 </pre>
 
 Information about a Coco workspace root whose shared settings flow down to member packages
@@ -19,6 +19,7 @@ Information about a Coco workspace root whose shared settings flow down to membe
 | Name  | Description |
 | :------------- | :------------- |
 | <a id="CocoWorkspaceInfo-files"></a>files |  Coco.toml files a member must ship: this workspace's root manifest plus any parent workspaces    |
+| <a id="CocoWorkspaceInfo-popili_versions"></a>popili_versions |  The popili versions every member package is claimed to work with, aliases resolved, the parent's when this workspace sets none; [] when unconstrained    |
 
 
 <a id="coco_counterexample_diagram"></a>
@@ -307,7 +308,7 @@ coco_fmt_test to check formatting. Packages may depend on other packages via
 | <a id="coco_package-features"></a>features |  <a href="https://bazel.build/reference/be/common-definitions#common.features">Inherited rule attribute</a>   | List of strings | optional |  `None`  |
 | <a id="coco_package-package"></a>package |  Label pointing to the Coco.toml file for this package.   | <a href="https://bazel.build/concepts/labels">Label</a> | required |  |
 | <a id="coco_package-package_metadata"></a>package_metadata |  <a href="https://bazel.build/reference/be/common-definitions#common.package_metadata">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a>; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
-| <a id="coco_package-popili_versions"></a>popili_versions |  The popili versions this package is compatible with, such as `["1.5.0", "1.5.1"]`. Aliases such as `"stable"` are allowed. A target that runs another popili version on this package fails; under `--@rules_coco//:force_version` this is a warning instead. The local toolchain satisfies the list only when it names `"local"` and when `--@rules_coco//:version=local` is passed. The package itself is built with the version selected for it (via the default, the flag, or a consumer's pin) when the list has it, otherwise with the **first** listed release that is registered. Empty (the default) allows any version.   | List of strings | optional |  `None`  |
+| <a id="coco_package-popili_versions"></a>popili_versions |  The popili versions this package is compatible with, such as `["1.5.0", "1.5.1"]`. Aliases such as `"stable"` are allowed. A target that runs another popili version on this package fails; under `--@rules_coco//:force_version` this is a warning instead. The local toolchain satisfies the list only when it names `"local"` and when `--@rules_coco//:version=local` is passed. The package itself is built with the version selected for it (via the default, the flag, or a consumer's pin) when the list has it, otherwise with the **first** listed release that is registered. Empty (the default) inherits the list of its `workspace`, if any. A list of its own must include every version the workspace lists: a member may support more versions than its workspace, never fewer.   | List of strings | optional |  `None`  |
 | <a id="coco_package-restricted_to"></a>restricted_to |  <a href="https://bazel.build/reference/be/common-definitions#common.restricted_to">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a>; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
 | <a id="coco_package-source_roots"></a>source_roots |  Directories, relative to Coco.toml, that hold the .coco sources. Must match Coco.toml package.sources. When empty, the common directory of `srcs` is used, which is right whenever all sources sit directly below a single root. Set it when there are several roots, or when every source is in a subdirectory of the root.   | List of strings | optional |  `None`  |
 | <a id="coco_package-tags"></a>tags |  <a href="https://bazel.build/reference/be/common-definitions#common.tags">Inherited rule attribute</a>   | List of strings; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
@@ -416,8 +417,8 @@ verification does not pass.
 load("@rules_coco//coco:defs.bzl", "coco_workspace")
 
 coco_workspace(*, <a href="#coco_workspace-name">name</a>, <a href="#coco_workspace-compatible_with">compatible_with</a>, <a href="#coco_workspace-deprecation">deprecation</a>, <a href="#coco_workspace-exec_compatible_with">exec_compatible_with</a>, <a href="#coco_workspace-exec_properties">exec_properties</a>,
-               <a href="#coco_workspace-features">features</a>, <a href="#coco_workspace-package_metadata">package_metadata</a>, <a href="#coco_workspace-parent">parent</a>, <a href="#coco_workspace-restricted_to">restricted_to</a>, <a href="#coco_workspace-tags">tags</a>, <a href="#coco_workspace-target_compatible_with">target_compatible_with</a>,
-               <a href="#coco_workspace-testonly">testonly</a>, <a href="#coco_workspace-toolchains">toolchains</a>, <a href="#coco_workspace-visibility">visibility</a>, <a href="#coco_workspace-workspace">workspace</a>)
+               <a href="#coco_workspace-features">features</a>, <a href="#coco_workspace-package_metadata">package_metadata</a>, <a href="#coco_workspace-parent">parent</a>, <a href="#coco_workspace-popili_versions">popili_versions</a>, <a href="#coco_workspace-restricted_to">restricted_to</a>, <a href="#coco_workspace-tags">tags</a>,
+               <a href="#coco_workspace-target_compatible_with">target_compatible_with</a>, <a href="#coco_workspace-testonly">testonly</a>, <a href="#coco_workspace-toolchains">toolchains</a>, <a href="#coco_workspace-visibility">visibility</a>, <a href="#coco_workspace-workspace">workspace</a>)
 </pre>
 
 Declares a Coco workspace root.
@@ -438,6 +439,7 @@ packages. Reference this target from a coco_package's `workspace` attribute.
 | <a id="coco_workspace-features"></a>features |  <a href="https://bazel.build/reference/be/common-definitions#common.features">Inherited rule attribute</a>   | List of strings | optional |  `None`  |
 | <a id="coco_workspace-package_metadata"></a>package_metadata |  <a href="https://bazel.build/reference/be/common-definitions#common.package_metadata">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a>; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
 | <a id="coco_workspace-parent"></a>parent |  An enclosing coco_workspace, when this workspace is nested inside another   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  `None`  |
+| <a id="coco_workspace-popili_versions"></a>popili_versions |  The popili versions every member package is known to work with, such as `["1.5.0", "1.5.1"]`; aliases such as `"stable"` are allowed. Empty (the default) inherits the `parent`'s list, if any. Member packages without `popili_versions` of their own inherit the list and are checked against it like a package that lists it. A member or nested workspace with a list of its own must include every version listed here, otherwise it fails: a member may support more versions than its workspace, never fewer.   | List of strings | optional |  `None`  |
 | <a id="coco_workspace-restricted_to"></a>restricted_to |  <a href="https://bazel.build/reference/be/common-definitions#common.restricted_to">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a>; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
 | <a id="coco_workspace-tags"></a>tags |  <a href="https://bazel.build/reference/be/common-definitions#common.tags">Inherited rule attribute</a>   | List of strings; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
 | <a id="coco_workspace-target_compatible_with"></a>target_compatible_with |  <a href="https://bazel.build/reference/be/common-definitions#common.target_compatible_with">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a> | optional |  `None`  |

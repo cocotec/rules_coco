@@ -46,6 +46,7 @@ CocoWorkspaceInfo = provider(
     doc = "Information about a Coco workspace root whose shared settings flow down to member packages",
     fields = {
         "files": "Coco.toml files a member must ship: this workspace's root manifest plus any parent workspaces",
+        "popili_versions": "The popili versions every member package is claimed to work with, aliases resolved, the parent's when this workspace sets none; [] when unconstrained",
     },
 )
 
@@ -645,13 +646,33 @@ def _package_versions_conflict(label, version, source, package, versions, forced
             remedies = ["pin %s to one of those with popili_version" % label, add]
     return head if forced else head + " " + _or_list(remedies)
 
-def _own_package_versions_message(label, version, source, versions, effective, toolchain_label, registry, forced = False):
+def _inherited_versions_conflict(label, versions, inherited, inherited_label, relation):
+    """The message a coco_package or coco_workspace fails with when its own popili_versions leave out a version its workspace claims, else None.
+
+    Args:
+        label: The target's label.
+        versions: Its own `popili_versions`, aliases resolved; `[]` inherits and never conflicts.
+        inherited: The effective `popili_versions` of its workspace or parent, aliases resolved.
+        inherited_label: That workspace's label.
+        relation: The edge the list comes down, for the message: "workspace" or "parent".
+    """
+    missing = [version for version in inherited if version not in versions]
+    if not versions or not missing:
+        return None
+    return (
+        "%s's popili_versions (%s) leave out %s, which its %s %s claims for every member package: %s. " +
+        "A member may support more versions than its workspace, never fewer: add the missing ones, " +
+        "sharing the list through a .bzl constant, or drop popili_versions to inherit them."
+    ) % (label, ", ".join(versions), ", ".join(missing), relation, inherited_label, ", ".join(inherited))
+
+def _own_package_versions_message(label, version, source, versions, effective, toolchain_label, registry, forced = False, inherited_from = None):
     """The message a coco_package gets when the toolchain it resolved is not in its own popili_versions, else None.
 
-    Unforced, its transition gave it a listed release whenever one is registered, so only two
+    Unforced, its transition gave it a listed release whenever one is registered, so only three
     causes remain: a bring-your-own toolchain, which serves every target, is another version than
-    the configuration asks for, or one no hub registered; or no listed release is registered,
-    `local` aside, which the transition never picks.
+    the configuration asks for, or one no hub registered; no listed release is registered, `local`
+    aside, which the transition never picks; or the list is inherited from its workspace, which its
+    transition cannot see.
 
     Args:
         label: The package's label.
@@ -664,6 +685,8 @@ def _own_package_versions_message(label, version, source, versions, effective, t
         registry: The hub's `CocoVersionRegistryInfo`.
         forced: The value of `--@rules_coco//:force_version` in the package's configuration; the
             message then names no remedy, since the package only warns.
+        inherited_from: The label of the workspace `versions` are inherited from, None when they
+            are the package's own.
 
     Returns:
         The message to fail with (or, forced, to warn with), or None when the version is listed.
@@ -672,26 +695,34 @@ def _own_package_versions_message(label, version, source, versions, effective, t
         return None
     listed = ", ".join(versions)
     runs = _describe_popili(version)
-    head = "%s gets %s (%s), which its popili_versions do not list: %s." % (label, runs, source, listed)
+
+    # Every cause names the list where it is written, which is where a version is added.
+    if inherited_from:
+        its_list = "the popili_versions it inherits from its workspace %s" % inherited_from
+        the_list = "the popili_versions %s inherits from its workspace %s" % (label, inherited_from)
+    else:
+        its_list = "its popili_versions"
+        the_list = "%s's popili_versions" % label
+    head = "%s gets %s (%s), which %s do not list: %s." % (label, runs, source, its_list, listed)
     if forced:
         return head
 
     # A hub toolchain is always the version asked for, and a registered one.
     if version != effective or version not in registry.versions:
         return (
-            "%s gets %s from the bring-your-own coco_toolchain %s, which serves every target, but its " % (label, runs, toolchain_label) +
-            "popili_versions do not list it: %s. Add %s to its popili_versions, or bring a toolchain of one of those versions." %
-            (listed, version)
+            "%s gets %s from the bring-your-own coco_toolchain %s, which serves every target, but %s " % (label, runs, toolchain_label, its_list) +
+            "do not list it: %s. Add %s to %s, or bring a toolchain of one of those versions." %
+            (listed, version, its_list)
         )
     if not _first_registered(versions, registry.versions):
         releases = [listed_version for listed_version in versions if listed_version != LOCAL_VERSION]
         remedies = []
         if LOCAL_VERSION in versions and LOCAL_VERSION in registry.versions:
-            what = "No release among %s's popili_versions (%s) is registered, and the local popili is only ever selected explicitly" % (label, listed)
+            what = "No release among %s (%s) is registered, and the local popili is only ever selected explicitly" % (the_list, listed)
             remedies.append("select the local popili with --%s=%s or a popili_version pin above it" % (VERSION_FLAG, LOCAL_VERSION))
         else:
-            what = "None of %s's popili_versions (%s) is registered" % (label, listed)
-        remedies.append("add %s to its popili_versions" % version)
+            what = "None of %s (%s) is registered" % (the_list, listed)
+        remedies.append("add %s to %s" % (version, its_list))
         if releases:
             remedies.append(_register_versions_phrase("one of %s" % ", ".join(releases)))
         if LOCAL_VERSION in versions and LOCAL_VERSION not in registry.versions:
@@ -699,6 +730,11 @@ def _own_package_versions_message(label, version, source, versions, effective, t
         return (
             "%s, so it gets %s (%s), which it does not list. Registered popili versions: %s. " %
             (what, runs, source, _describe_registered_versions(registry)) + _or_list(remedies)
+        )
+    if inherited_from:
+        return (
+            head + " Build it beneath a target pinned to one of those, set --%s to one, or write the list on " % VERSION_FLAG +
+            "the package itself, which then builds with the first registered one."
         )
 
     # Not reached: its transition gave it a listed version.
@@ -1094,17 +1130,30 @@ def _require_coco_toml(file, attr):
 def _coco_package_impl(ctx):
     _require_coco_toml(ctx.file.package, "package")
 
+    # The effective list: the package's own, else its workspace's. Only the own list reaches the
+    # package's transition, which cannot see the workspace.
+    own_versions = [resolve_version_alias(version) for version in ctx.attr.popili_versions]
+    popili_versions = own_versions
+    inherited_from = None
+    if ctx.attr.workspace:
+        workspace = ctx.attr.workspace[CocoWorkspaceInfo]
+        conflict = _inherited_versions_conflict(ctx.label, own_versions, workspace.popili_versions, ctx.attr.workspace.label, "workspace")
+        if conflict:
+            fail(conflict)
+        if not own_versions:
+            popili_versions = workspace.popili_versions
+            inherited_from = ctx.attr.workspace.label
+
     # Resolved also without typecheck: a package always needs a toolchain, and its own list and its
     # deps' lists are checked against it at analysis, whether or not anything runs popili on it.
     toolchain = _resolved_coco_toolchain(ctx)
     forced = ctx.attr._force_version[BuildSettingInfo].value
     registry = ctx.attr._version_registry[CocoVersionRegistryInfo]
-    popili_versions = [resolve_version_alias(version) for version in ctx.attr.popili_versions]
 
     # Its own transition only ever pins it to the first registered release it lists, so any other
     # version was selected above it; that one it cannot tell from a pin above it to the same.
     version = ctx.attr._version[BuildSettingInfo].value
-    source = _version_source_of(ctx, self_pin = bool(popili_versions) and version == _first_registered(popili_versions, registry.versions))
+    source = _version_source_of(ctx, self_pin = bool(own_versions) and version == _first_registered(own_versions, registry.versions))
     own = _own_package_versions_message(
         ctx.label,
         toolchain.popili_version,
@@ -1114,6 +1163,7 @@ def _coco_package_impl(ctx):
         toolchain.label,
         registry,
         forced,
+        inherited_from = inherited_from,
     )
     if own and not forced:
         fail(own)
@@ -1129,7 +1179,9 @@ def _coco_package_impl(ctx):
     # Direct deps only: a dep listing this version, or none, is analysed with it and has checked
     # its own deps; one that does not list it fails here.
     deps_popili_versions = [(dep.label, dep[CocoPackageInfo].popili_versions) for dep in ctx.attr.deps]
-    _report_package_versions_conflicts(ctx, toolchain, deps_popili_versions, of_dep = True, source = source, own_versions = popili_versions, registry = registry)
+
+    # Only an own list steers the package's build, so only it can name a version to build with.
+    _report_package_versions_conflicts(ctx, toolchain, deps_popili_versions, of_dep = True, source = source, own_versions = own_versions, registry = registry)
     package_file = ctx.file.package
     dep_package_files = depset(
         direct = [dep[CocoPackageInfo].package_file for dep in ctx.attr.deps],
@@ -1210,7 +1262,9 @@ _coco_package = rule(
                   "names `\"local\"` and when `--@rules_coco//:version=local` is passed. The " +
                   "package itself is built with the version selected for it (via the default, " +
                   "the flag, or a consumer's pin) when the list has it, otherwise with " +
-                  "the **first** listed release that is registered. Empty (the default) allows any version.",
+                  "the **first** listed release that is registered. Empty (the default) inherits " +
+                  "the list of its `workspace`, if any. A list of its own must include every version " +
+                  "the workspace lists: a member may support more versions than its workspace, never fewer.",
         ),
         "source_roots": attr.string_list(
             doc = "Directories, relative to Coco.toml, that hold the .coco sources. Must match " +
@@ -1269,13 +1323,20 @@ def _coco_workspace_impl(ctx):
     _require_coco_toml(ctx.file.workspace, "workspace")
 
     parent_transitive = []
+    popili_versions = [resolve_version_alias(version) for version in ctx.attr.popili_versions]
     if ctx.attr.parent:
-        parent_transitive.append(ctx.attr.parent[CocoWorkspaceInfo].files)
+        parent = ctx.attr.parent[CocoWorkspaceInfo]
+        parent_transitive.append(parent.files)
+        conflict = _inherited_versions_conflict(ctx.label, popili_versions, parent.popili_versions, ctx.attr.parent.label, "parent")
+        if conflict:
+            fail(conflict)
+        popili_versions = popili_versions or parent.popili_versions
     files = depset(direct = [ctx.file.workspace], transitive = parent_transitive)
 
     return [
         CocoWorkspaceInfo(
             files = files,
+            popili_versions = popili_versions,
         ),
         DefaultInfo(files = files),
     ]
@@ -1286,6 +1347,14 @@ _coco_workspace = rule(
         "parent": attr.label(
             providers = [CocoWorkspaceInfo],
             doc = "An enclosing coco_workspace, when this workspace is nested inside another",
+        ),
+        "popili_versions": attr.string_list(
+            doc = "The popili versions every member package is known to work with, such as " +
+                  "`[\"1.5.0\", \"1.5.1\"]`; aliases such as `\"stable\"` are allowed. Empty (the default) " +
+                  "inherits the `parent`'s list, if any. Member packages without `popili_versions` of their " +
+                  "own inherit the list and are checked against it like a package that lists it. A member or " +
+                  "nested workspace with a list of its own must include every version listed here, otherwise " +
+                  "it fails: a member may support more versions than its workspace, never fewer.",
         ),
         "workspace": attr.label(
             mandatory = True,
@@ -2209,6 +2278,7 @@ unpin_transition_settings = _unpin_transition_settings
 effective_version = _effective_version
 library_version_mismatch_message = _library_version_mismatch_message
 library_version_conflict = _library_version_conflict
+inherited_versions_conflict = _inherited_versions_conflict
 package_versions_conflict = _package_versions_conflict
 common_version = _common_version
 package_transition_settings = _package_transition_settings
