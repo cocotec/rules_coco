@@ -2,7 +2,7 @@
 
 // Include the generated header directly — this works because generated
 // headers are in hdrs (public) of the coco_cc_library.
-#include "test/cpp_mixed_library/ISensor.h"
+#include "ISensor.h"
 
 // Include the hand-written header — also public via hdrs of the library.
 #include "test/cpp_mixed_library/handwritten/sensor_wrapper.h"

@@ -15,6 +15,7 @@
 load("@rules_cc//cc:defs.bzl", "cc_test")
 load("@rules_coco//coco:cc.bzl", "coco_cc_library")
 load("@rules_coco//coco:defs.bzl", "coco_generate", "coco_package")
+load("//test/source_roots:scenario.bzl", "package_failure_test")
 
 coco_package(
     name = "path_hdrs",
@@ -28,14 +29,14 @@ coco_generate(
     package = ":path_hdrs",
 )
 
-# Use path-suffix matching instead of bare basename to select public headers.
-# This is the disambiguation syntax: "cpp_path_hdrs/IPublicApi.h" matches by path suffix
-# rather than just the filename, avoiding ambiguity when multiple files share
-# a basename in different directories.
+# Select public headers by path suffix instead of bare file name, to disambiguate files sharing a
+# name in different directories. The suffix matches whole components of the header's include path
+# (its path below the include root, prefix included): "api/IPublicApi.h" matches api/IPublicApi.h but
+# not xapi/IPublicApi.h or api/MyIPublicApi.h.
 coco_cc_library(
     name = "path_hdrs_lib",
     generated_package = ":path_hdrs_cpp",
-    public_hdrs = ["cpp_path_hdrs/IPublicApi.h"],
+    public_hdrs = ["api/IPublicApi.h"],
 )
 
 cc_test(
@@ -45,4 +46,19 @@ cc_test(
         ":path_hdrs_lib",
         "@googletest//:gtest_main",
     ],
+)
+
+# A suffix that selects no header is an error, not a silently private header: here one written
+# against the include paths of 0.3, which began with the package directory.
+coco_cc_library(
+    name = "stale_suffix_lib",
+    generated_package = ":path_hdrs_cpp",
+    public_hdrs = ["cpp_path_hdrs/api/IPublicApi.h"],
+    tags = ["manual"],
+)
+
+package_failure_test(
+    name = "stale_suffix_test",
+    expected_message = "//test/cpp_path_hdrs:stale_suffix_lib: \"cpp_path_hdrs/api/IPublicApi.h\" matches none of the generated headers",
+    target_under_test = ":stale_suffix_lib._gen",
 )

@@ -39,8 +39,9 @@ def coco_cc_library(
     - ["ISensor.h", "Types.h"]: only listed headers are public, rest are private
     - []: no generated headers are public (all private)
 
-    Use bare filenames to match by name, or path suffixes (e.g., "sensors/ISensor.h")
-    to disambiguate when multiple generated files share a name.
+    An entry matches a header by file name, or by a trailing part of its include path, such as
+    "sensors/ISensor.h", when several headers share a name. An entry that matches no header is
+    an error.
 
     Args:
         name: The name of the library
@@ -89,6 +90,10 @@ def coco_cc_test_library(
     - None (default): all generated test headers are public
     - ["RunnableMock.h"]: only listed headers are public, rest are private
     - []: no generated test headers are public (all private)
+
+    An entry matches a header by file name, or by a trailing part of its include path, such as
+    "runnable/RunnableMock.h", when several headers share a name. An entry that matches no
+    header is an error.
 
     Args:
         name: The name of the test library

@@ -22,6 +22,5 @@ coco_generate(
 coco_cc_library(
     name = "external_package_cc",
     generated_package = ":external_package_cpp",
-    includes = ["."],
     visibility = ["//visibility:public"],
 )
