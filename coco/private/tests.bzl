@@ -23,7 +23,7 @@ load(
     "PATH_CASE_DEFAULTS",
 )
 load(":cc_runtime_deps.bzl", "collect_cc_runtime_extra_deps", "normalize_cc_runtime_extra_deps")
-load(":coco.bzl", "FILE_NAME_MANGLER_STYLES", "compute_output_paths", "effective_version", "header_matches", "library_version_conflict", "library_version_mismatch_message", "mangle_name", "missing_popili_message", "module_path_for", "pin_transition_settings", "unpin_transition_settings")
+load(":coco.bzl", "FILE_NAME_MANGLER_STYLES", "compute_output_paths", "effective_version", "header_matches", "library_version_conflict", "library_version_mismatch_message", "mangle_name", "missing_popili_message", "module_path_for", "pin_transition_settings", "unpin_transition_settings", "version_source")
 load(":common_repositories.bzl", "coco_download", "download_prefix", "find_local_license_paths", "is_license_file_name")
 load(":known_shas.bzl", "FILE_KEY_TO_SHA")
 load(":license_versions.bzl", "LICENSE_PROTOCOL_VERSIONS")
@@ -1431,7 +1431,7 @@ def _missing_popili_alias_test(ctx):
 def _missing_popili_pinned_version_test(ctx):
     """A pin names the attribute as the source, and an alias pin is named as written."""
     env = unittest.begin(ctx)
-    message = missing_popili_message("//a:gen", "1.99.0", _REGISTRY, pin = "1.99.0")
+    message = missing_popili_message("//a:gen", "1.99.0", _REGISTRY, source = version_source("1.99.0", "1.99.0"))
     _assert_mentions(
         env,
         message,
@@ -1439,7 +1439,7 @@ def _missing_popili_pinned_version_test(ctx):
         absent = ["--@rules_coco//:version"],
     )
     stable = resolve_version_alias("stable")
-    message = missing_popili_message("//a:gen", stable, _REGISTRY, pin = "stable")
+    message = missing_popili_message("//a:gen", stable, _REGISTRY, source = version_source(stable, "stable"))
     _assert_mentions(env, message, ["//a:gen needs popili %s (pinned by popili_version = \"stable\"), but no registered" % stable])
     return unittest.end(env)
 
@@ -1490,6 +1490,21 @@ missing_popili_local_only_test = unittest.make(_missing_popili_local_only_test)
 missing_popili_empty_registry_test = unittest.make(_missing_popili_empty_registry_test)
 missing_popili_alias_test = unittest.make(_missing_popili_alias_test)
 missing_popili_test_platform_test = unittest.make(_missing_popili_test_platform_test)
+
+def _version_source_test(ctx):
+    """pinned_from tells a pin above the target from the flag; a rule that cannot read it names both."""
+    env = unittest.begin(ctx)
+    asserts.equals(env, "pinned by popili_version", version_source("1.99.0", "1.99.0", [""]))
+    asserts.equals(env, "pinned by popili_version = \"stable\"", version_source("1.5.1", "stable", []))
+    asserts.equals(env, "pinned by a target above it", version_source("1.99.0", "", [""]))
+    asserts.equals(env, "pinned by a target above it", version_source("1.99.0", "", ["1.5.0"]))
+    asserts.equals(env, "set by --@rules_coco//:version", version_source("1.99.0", "", []))
+    asserts.equals(env, "set by --@rules_coco//:version or a popili_version pin above it", version_source("1.99.0", ""))
+    asserts.equals(env, "the default", version_source("", "", []))
+    asserts.equals(env, "the default", version_source("", ""))
+    return unittest.end(env)
+
+version_source_test = unittest.make(_version_source_test)
 
 # Tests for effective_version and pin_transition_settings
 
@@ -2360,6 +2375,7 @@ def coco_test_suite(name):
         missing_popili_empty_registry_test,
         missing_popili_alias_test,
         missing_popili_test_platform_test,
+        version_source_test,
 
         # library_version_mismatch_message tests
         library_version_mismatch_pinned_test,

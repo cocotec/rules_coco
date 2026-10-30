@@ -111,7 +111,7 @@ def _unpinned_tests(name, unpinned, current_popili_version, untransitioned):
         size = "small",
         target_under_test = current_popili_version,
         expected = [
-            "needs popili stable (set by --@rules_coco//:version or a popili_version pin above it), but stable is an alias",
+            "needs popili stable (set by --@rules_coco//:version), but stable is an alias",
             "set it to %s, the version it stands for." % _STABLE,
         ],
     )
@@ -147,7 +147,7 @@ def popili_pinning_tests(name, pinned, unregistered, unpinned, current_popili_ve
         target_under_test = unregistered,
         expected = [
             # The package beneath the pin requires a toolchain too and fails first, in the pinned configuration.
-            ":base needs popili 1.99.0 (set by --@rules_coco//:version or a popili_version pin above it), but no registered Coco toolchain provides it.",
+            ":base needs popili 1.99.0 (pinned by a target above it), but no registered Coco toolchain provides it.",
             "Registered popili versions: %s (the default), %s." % (_STABLE, resolve_version_alias("testing")),
             "coco.toolchain(versions = [...])",
         ],

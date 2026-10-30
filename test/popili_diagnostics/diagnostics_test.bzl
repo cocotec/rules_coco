@@ -111,7 +111,7 @@ def popili_diagnostics_tests(name, registered_versions, targets, test_targets = 
             size = "small",
             target_under_test = target,
             expected = [
-                "needs popili 1.99.0 (set by --@rules_coco//:version or a popili_version pin above it), but no registered Coco toolchain provides it.",
+                "needs popili 1.99.0 (set by --@rules_coco//:version), but no registered Coco toolchain provides it.",
                 registered,
                 "coco.toolchain(versions = [...])",
                 "target_settings",
@@ -122,7 +122,7 @@ def popili_diagnostics_tests(name, registered_versions, targets, test_targets = 
             size = "small",
             target_under_test = target,
             expected = [
-                "needs popili stable (set by --@rules_coco//:version or a popili_version pin above it), but stable is an alias",
+                "needs popili stable (set by --@rules_coco//:version), but stable is an alias",
                 "set it to ",
                 registered,
             ],
@@ -132,7 +132,7 @@ def popili_diagnostics_tests(name, registered_versions, targets, test_targets = 
             size = "small",
             target_under_test = target,
             expected = [
-                "needs the local popili (set by --@rules_coco//:version or a popili_version pin above it), but no local Coco toolchain is registered.",
+                "needs the local popili (set by --@rules_coco//:version), but no local Coco toolchain is registered.",
                 registered,
                 "coco.local_toolchain(popili = ...)",
             ],
