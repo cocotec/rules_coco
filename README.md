@@ -249,10 +249,6 @@ outputs and test logs land under `bazel-out/<cpu>-fastbuild-ST-<hash>/` rather t
 and `bazel-testlogs`. In CI, collect test results through the Build Event Protocol
 (`--build_event_json_file`) or from `bazel-out/*/testlogs/**/test.xml`.
 
-`with_popili_version` remains for targets that have no `popili_version` of their own, such as a
-custom rule that resolves the Coco toolchain: it builds the wrapped target and everything beneath
-it with the given version.
-
 See `e2e/multi_version` for a full example, in both `MODULE.bazel` and `WORKSPACE` form.
 
 ### Using a local toolchain
