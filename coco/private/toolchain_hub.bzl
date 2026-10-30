@@ -95,6 +95,23 @@ config_setting(
 )
 """.format(version_flag = VERSION_FLAG)
 
+_REGISTRY_LOAD = """load("@rules_coco//coco/private:version_registry.bzl", "coco_registered_versions", "coco_version_registry")
+"""
+
+_REGISTRY_TEMPLATE = """
+coco_registered_versions(
+    name = "registered_versions",
+    build_setting_default = {versions},
+    visibility = ["//visibility:public"],
+)
+
+coco_version_registry(
+    name = "registry",
+    registered_versions = ":registered_versions",
+    visibility = ["//visibility:public"],
+)
+"""
+
 # What the extension registers when no module in the dependency graph declares
 # coco.toolchain. rules_coco's own MODULE.bazel declares the same as a dev dependency, so it
 # never reaches consumers, and developing rules_coco uses the configuration a consumer
@@ -257,7 +274,8 @@ def toolchain_hub_entries(versions, has_local = False, hub_name = DEFAULT_HUB_NA
 
     Returns:
       A struct with `toolchain_names`, `toolchain_labels`, `exec_compatible_with`,
-      `target_settings`, `version_suffixes` and `has_local` fields. An
+      `target_settings`, `version_suffixes` and `has_local` fields, plus `registered_versions`
+      (the versions followed by `local` when registered) for the registry targets. An
       `exec_compatible_with` value is a list of constraint labels, or for the local toolchain
       the `HOST_CONSTRAINTS` expression the hub's BUILD file loads.
     """
@@ -307,13 +325,15 @@ def toolchain_hub_entries(versions, has_local = False, hub_name = DEFAULT_HUB_NA
         target_settings = target_settings,
         version_suffixes = version_suffixes,
         has_local = has_local,
+        registered_versions = versions + ([LOCAL_VERSION] if has_local else []),
     )
 
 def render_toolchain_hub_build(entries):
     """Renders the hub repository's BUILD file.
 
-    The result deliberately uses only native rules and `@platforms`, so the hub stays
-    loadable before bazel_skylib has been fetched in WORKSPACE mode.
+    The result uses only native rules, `@platforms` and rules_coco's own
+    `version_registry.bzl`, which loads nothing, so the hub stays loadable before
+    bazel_skylib has been fetched in WORKSPACE mode.
 
     Args:
       entries: A struct as returned by `toolchain_hub_entries`.
@@ -343,8 +363,10 @@ def render_toolchain_hub_build(entries):
         for name in entries.toolchain_names
     ])
 
-    prelude = _HOST_CONSTRAINTS_LOAD if entries.has_local else ""
-    return prelude + config_settings + "\n" + toolchains
+    registry = _REGISTRY_TEMPLATE.format(versions = repr(entries.registered_versions))
+
+    prelude = (_HOST_CONSTRAINTS_LOAD if entries.has_local else "") + _REGISTRY_LOAD
+    return prelude + config_settings + "\n" + toolchains + registry
 
 def _coco_toolchain_hub_impl(repository_ctx):
     """Implementation of the coco toolchain hub repository rule."""
