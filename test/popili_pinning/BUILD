@@ -20,7 +20,8 @@ load(":pinning_test.bzl", "popili_pinning_tests")
 # Which popili each rule runs with a pin is asserted per rule by e2e/multi_version, which has two
 # versions to choose between; here only what needs the root's registration is checked.
 
-# Pinned to a version nobody registered; reached only by the analysis test.
+# Pinned to a version nobody registered; reached only by the analysis tests. In this package, so
+# that forced into the configuration of //test/simple:base_cpp it does not write that target's files.
 coco_generate(
     name = "unregistered_cpp",
     language = "cpp",

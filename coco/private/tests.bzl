@@ -1424,6 +1424,17 @@ def _missing_popili_pinned_version_test(ctx):
     _assert_mentions(env, message, ["//a:gen needs popili %s (pinned by popili_version = \"stable\"), but no registered" % stable])
     return unittest.end(env)
 
+def _missing_popili_forced_test(ctx):
+    """Forced, the flag is named whatever pin there is, and an empty flag is the forced default."""
+    env = unittest.begin(ctx)
+    message = missing_popili_message("//a:gen", "1.99.0", _REGISTRY, source = version_source("1.99.0", "1.5.0", [], forced = True))
+    _assert_mentions(env, message, ["//a:gen needs popili 1.99.0 (forced by --@rules_coco//:force_version), but no registered"], absent = ["pinned"])
+    message = missing_popili_message("//a:gen", "1.99.0", _REGISTRY, source = version_source("1.99.0", "", [], forced = True))
+    _assert_mentions(env, message, ["//a:gen needs popili 1.99.0 (forced by --@rules_coco//:force_version), but no registered"])
+    message = missing_popili_message("//a:gen", "", _REGISTRY, source = version_source("", "stable", [], forced = True))
+    _assert_mentions(env, message, ["//a:gen needs popili 1.5.0 (the default, forced by --@rules_coco//:force_version)"])
+    return unittest.end(env)
+
 def _missing_popili_test_platform_test(ctx):
     """A test whose target platform no popili-capable execution platform matches says so."""
     env = unittest.begin(ctx)
@@ -1471,6 +1482,7 @@ missing_popili_local_only_test = unittest.make(_missing_popili_local_only_test)
 missing_popili_empty_registry_test = unittest.make(_missing_popili_empty_registry_test)
 missing_popili_alias_test = unittest.make(_missing_popili_alias_test)
 missing_popili_test_platform_test = unittest.make(_missing_popili_test_platform_test)
+missing_popili_forced_test = unittest.make(_missing_popili_forced_test)
 
 def _version_source_test(ctx):
     """pinned_from tells a pin above the target from the flag; a rule that cannot read it names both."""
@@ -1554,11 +1566,11 @@ def _pin_transition_settings_default_test(ctx):
 def _pin_transition_settings_nested_test(ctx):
     """A pin inside a pin keeps the outermost version; one back to it returns to that configuration."""
     env = unittest.begin(ctx)
-    asserts.equals(env, {}, pin_transition_settings("1.5.1", "1.5.1", _REGISTERED, [""]))
-    asserts.equals(env, _pinned("1.5.1", ""), pin_transition_settings("1.5.1", "local", _REGISTERED + ["local"], [""]))
+    asserts.equals(env, {}, pin_transition_settings("1.5.1", "1.5.1", _REGISTERED, pinned_from = [""]))
+    asserts.equals(env, _pinned("1.5.1", ""), pin_transition_settings("1.5.1", "local", _REGISTERED + ["local"], pinned_from = [""]))
     unpinned = {VERSION_FLAG: "", _PINNED_FROM: []}
-    asserts.equals(env, unpinned, pin_transition_settings("1.5.0", "1.5.1", _REGISTERED, [""]))
-    asserts.equals(env, {VERSION_FLAG: "1.5.0", _PINNED_FROM: []}, pin_transition_settings("1.5.0", "1.5.1", _REGISTERED, ["1.5.0"]))
+    asserts.equals(env, unpinned, pin_transition_settings("1.5.0", "1.5.1", _REGISTERED, pinned_from = [""]))
+    asserts.equals(env, {VERSION_FLAG: "1.5.0", _PINNED_FROM: []}, pin_transition_settings("1.5.0", "1.5.1", _REGISTERED, pinned_from = ["1.5.0"]))
     return unittest.end(env)
 
 def _unpin_transition_settings_test(ctx):
@@ -1567,6 +1579,17 @@ def _unpin_transition_settings_test(ctx):
     asserts.equals(env, {VERSION_FLAG: "", _PINNED_FROM: []}, unpin_transition_settings("1.5.1", [""]))
     asserts.equals(env, {VERSION_FLAG: "1.5.0", _PINNED_FROM: []}, unpin_transition_settings("1.5.1", ["1.5.0"]))
     asserts.equals(env, {VERSION_FLAG: "1.5.1", _PINNED_FROM: []}, unpin_transition_settings("1.5.1", []))
+    return unittest.end(env)
+
+def _pin_transition_settings_forced_test(ctx):
+    """Forced, a pin changes nothing, whether the flag is set, empty, an alias or equal to the pin."""
+    env = unittest.begin(ctx)
+    asserts.equals(env, {}, pin_transition_settings("1.5.1", "", _REGISTERED, True))
+    asserts.equals(env, {}, pin_transition_settings("1.5.1", "1.5.0", _REGISTERED, True))
+    asserts.equals(env, {}, pin_transition_settings("1.5.1", "1.5.1", _REGISTERED, True))
+    asserts.equals(env, {}, pin_transition_settings("stable", "1.5.0", _REGISTERED, True))
+    asserts.equals(env, {}, pin_transition_settings("1.5.1", "stable", _REGISTERED, True))
+    asserts.equals(env, {}, pin_transition_settings("", "1.5.0", _REGISTERED, True))
     return unittest.end(env)
 
 # Tests for library_version_mismatch_message
@@ -1629,6 +1652,7 @@ library_version_conflict_generators_test = unittest.make(_library_version_confli
 library_version_mismatch_pinned_test = unittest.make(_library_version_mismatch_pinned_test)
 library_version_mismatch_unpinned_test = unittest.make(_library_version_mismatch_unpinned_test)
 effective_version_test = unittest.make(_effective_version_test)
+pin_transition_settings_forced_test = unittest.make(_pin_transition_settings_forced_test)
 pin_transition_settings_unpinned_test = unittest.make(_pin_transition_settings_unpinned_test)
 pin_transition_settings_pinned_test = unittest.make(_pin_transition_settings_pinned_test)
 pin_transition_settings_alias_test = unittest.make(_pin_transition_settings_alias_test)
@@ -2356,6 +2380,7 @@ def coco_test_suite(name):
         missing_popili_alias_test,
         missing_popili_test_platform_test,
         version_source_test,
+        missing_popili_forced_test,
 
         # library_version_mismatch_message tests
         library_version_mismatch_pinned_test,
@@ -2373,6 +2398,7 @@ def coco_test_suite(name):
         pin_transition_settings_default_test,
         pin_transition_settings_nested_test,
         unpin_transition_settings_test,
+        pin_transition_settings_forced_test,
 
         # toolchain_hub_entries tests
         hub_entries_single_version_test,
