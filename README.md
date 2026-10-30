@@ -550,6 +550,77 @@ coco_cc_library(
 > Your Coco.toml file must set `generator.cpp.runtimeHeaderFileExtension` to `.h` if you use a custom value for
 > `generator.cpp.headerFileExtension`.
 
+##### Test Code and Mocks
+
+`coco_generate` exposes the production code only. The generated test code, from the package's `test_srcs`, and the
+mocks are exposed by the companion target `<name>.tst` that `coco_generate` creates alongside it. To get mocks, set
+`mocks = True` on the `coco_generate` and `generateMocks = "GMock"` under `[generator.cpp]` in `Coco.toml`; as with the
+other generator settings, the two must agree. popili then writes `<File>Mock.h` and `<File>Mock.cc` next to each
+`<File>.h`, with a GoogleMock class `<Component>Mock` for each external component.
+
+`coco_cc_test_library` compiles the test code and mocks, adding the Coco C++ runtime and GoogleTest. Give it a
+dependency on the library of the production code, whose headers the mocks include:
+
+```starlark
+load("@rules_cc//cc:defs.bzl", "cc_test")
+load("@rules_coco//coco:cc.bzl", "coco_cc_library", "coco_cc_test_library")
+load("@rules_coco//coco:defs.bzl", "coco_generate", "coco_package")
+
+coco_package(
+    name = "example",
+    srcs = glob(["src/**/*.coco"]),
+    package = "Coco.toml",
+)
+
+coco_generate(
+    name = "example_cc_src",
+    language = "cpp",
+    mocks = True,
+    package = ":example",
+)
+
+coco_cc_library(
+    name = "example_cc",
+    generated_package = ":example_cc_src",
+)
+
+coco_cc_test_library(
+    name = "example_cc_tst",
+    generated_package = ":example_cc_src",
+    deps = [":example_cc"],
+)
+
+cc_test(
+    name = "example_test",
+    srcs = ["test/example_test.cc"],
+    deps = [":example_cc_tst"],
+)
+```
+
+With this `BUILD` file and `Coco.toml` in `example/`, and `example/src/Example.coco` declaring
+`external component ExampleComponent`, the test includes the generated mock header (see
+[Where Generated Code Goes](#where-generated-code-goes)) and uses the mock like any GoogleMock class:
+
+```cpp
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
+
+#include "example/ExampleMock.h"
+
+TEST(ExampleTest, CallsProcess) {
+  ExampleComponentMock mock;
+  EXPECT_CALL(mock, client_process()).Times(1);
+  mock.client_process();
+}
+```
+
+GoogleTest is `@googletest//:gtest` by default; set `gmock` to the label your repository uses, and add
+`bazel_dep(name = "googletest", ...)` to your `MODULE.bazel`, as rules_coco does not depend on it itself. `public_hdrs`
+restricts which generated test headers the library exports. To compile the test code with a plain `cc_library`
+instead, put `:example_cc_src.tst` in its `srcs` and depend on the production library and GoogleTest.
+
+The [`e2e/smoke`](e2e/smoke) scenario is a complete, tested example of this setup.
+
 #### C Code Generation
 
 To generate C code:
