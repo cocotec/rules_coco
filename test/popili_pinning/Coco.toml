@@ -1,0 +1,6 @@
+[package]
+name = "dependent"
+sources = ["src"]
+
+[language]
+standard = "1.2"

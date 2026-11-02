@@ -32,6 +32,7 @@ CocoPackageInfo = provider(
         "direct_test_srcs": "The .coco files that are direct test_sources of this package only",
         "name": "The name of the package",
         "package_file": "The Coco.toml file for this package",
+        "popili_versions": "The popili versions this package is compatible with, aliases resolved ([] when unconstrained)",
         "source_roots": "Directories relative to the Coco.toml directory that hold this package's sources (`sources` in Coco.toml)",
         "srcs": "All .coco files that are sources of this package or any of its transitive dependencies",
         "test_source_roots": "Directories relative to the Coco.toml directory that hold this package's test sources (`testSources` in Coco.toml)",
@@ -197,6 +198,68 @@ popili_version_pin = transition(
     outputs = [VERSION_FLAG, _PINNED_FROM_SETTING],
 )
 
+def _satisfies_popili_versions(version, versions):
+    """Whether a toolchain declaring `version` satisfies a package's `popili_versions` (aliases resolved).
+
+    An empty list is unconstrained; the local toolchain satisfies a list only when it names `local`.
+    """
+    return not versions or version in versions
+
+def _first_registered(versions, registered_versions):
+    """The first of `versions` (aliases resolved) that is a registered release, else None.
+
+    `local` is skipped: like the default, a package's own transition never picks the local popili,
+    which only runs on the host; it is only ever selected explicitly.
+    """
+    for version in versions:
+        if version != LOCAL_VERSION and version in registered_versions:
+            return version
+    return None
+
+def _package_transition_settings(versions, version, registered_versions, forced = False, pinned_from = []):
+    """Decides what a coco_package's own transition changes, so that it is analysed with a version it lists.
+
+    Args:
+        versions: The package's `popili_versions` as written, aliases allowed.
+        version: The value of `--@rules_coco//:version` in the incoming configuration.
+        registered_versions: The hub's registered versions in registration order.
+        forced: The value of `--@rules_coco//:force_version` in the incoming configuration.
+        pinned_from: The incoming `pinned_from` setting: `[outer version]` inside a pin, else `[]`.
+
+    Returns:
+        The dict the transition returns: `{}` when forced (the self-pin is off), when the list is
+        empty, when the flag is an alias (the package then fails saying so, like every target),
+        when the version the incoming configuration effectively asks for satisfies the list, or
+        when no listed release is registered (the package then fails saying so); else what a pin
+        to the first registered listed release returns, never `local`, so that the standalone
+        build and a consumer pinned to that version analyse the package once.
+    """
+    if forced or not versions or resolve_version_alias(version) != version:
+        return {}
+    resolved = [resolve_version_alias(listed) for listed in versions]
+    if _satisfies_popili_versions(_effective_version(version, registered_versions), resolved):
+        return {}
+    first = _first_registered(resolved, registered_versions)
+    if not first:
+        return {}
+    return _pin_transition_settings(first, version, registered_versions, pinned_from = pinned_from)
+
+def _package_self_pin_impl(settings, attr):
+    return _package_transition_settings(
+        attr.popili_versions,
+        settings[VERSION_FLAG],
+        settings[_REGISTERED_VERSIONS_SETTING],
+        settings[FORCE_VERSION_FLAG],
+        pinned_from = settings[_PINNED_FROM_SETTING],
+    )
+
+# Analyses a coco_package with a version its popili_versions list, when the configuration's is not.
+_package_self_pin = transition(
+    implementation = _package_self_pin_impl,
+    inputs = [VERSION_FLAG, FORCE_VERSION_FLAG, _REGISTERED_VERSIONS_SETTING, _PINNED_FROM_SETTING],
+    outputs = [VERSION_FLAG, _PINNED_FROM_SETTING],
+)
+
 def _unpin_transition_settings(version, pinned_from):
     """The settings of the configuration outside any pin, given a configuration's.
 
@@ -228,24 +291,29 @@ def _resolves_on_test_exec_group(ctx):
     # the rule's toolchains.
     return "test" in ctx.exec_groups and COCO_TOOLCHAIN_TYPE_LABEL in ctx.exec_groups["test"].toolchains
 
-def _coco_toolchain(ctx):
-    """Returns the resolved Coco toolchain.
-
-    Fails with a specific message when there is none, or when the toolchain declares another popili
-    version than the target asks for, which only a bring-your-own toolchain can do.
-    """
+def _resolved_coco_toolchain(ctx):
+    """Returns the resolved Coco toolchain, failing with a specific message when there is none."""
     if _resolves_on_test_exec_group(ctx):
         toolchain = ctx.exec_groups["test"].toolchains[COCO_TOOLCHAIN_TYPE_LABEL]
     else:
         toolchain = ctx.toolchains[COCO_TOOLCHAIN_TYPE_LABEL]
     if toolchain == None:
         fail(_missing_toolchain_message(ctx))
+    return toolchain
+
+def _coco_toolchain(ctx):
+    """Returns the resolved Coco toolchain.
+
+    Fails with a specific message when there is none, or when the toolchain declares another popili
+    version than the target asks for, which only a bring-your-own toolchain can do.
+    """
+    toolchain = _resolved_coco_toolchain(ctx)
     conflict = _toolchain_version_conflict(ctx, toolchain)
     if conflict:
         fail(conflict)
     return toolchain
 
-def _version_source(version, pin, pinned_from = None, forced = False):
+def _version_source(version, pin, pinned_from = None, forced = False, self_pin = False):
     """Words where a target's configured popili version came from.
 
     A target without a pin of its own tells the flag on the command line from a pin on a target
@@ -258,11 +326,14 @@ def _version_source(version, pin, pinned_from = None, forced = False):
         pinned_from: The `pinned_from` setting in the target's configuration, or None when the
             rule cannot read it.
         forced: The value of `--@rules_coco//:force_version` in the target's configuration.
+        self_pin: Whether the target is a coco_package whose own transition may have pinned it to
+            this version, which it does like a target above it would; the two cannot be told apart.
 
     Returns:
         A phrase interpolated as "(%s)" in messages: "forced by --@rules_coco//:force_version"
         (with "the default, " in front when the version flag is empty), "pinned by popili_version"
-        (naming the pin as written when it is an alias), "pinned by a target above it", "set by
+        (naming the pin as written when it is an alias), "pinned by a target above it" (or "pinned
+        by its popili_versions or a target above it" with `self_pin`), "set by
         --@rules_coco//:version", "set by --@rules_coco//:version or a popili_version pin above
         it" when `pinned_from` is unknown, or "the default".
     """
@@ -275,6 +346,8 @@ def _version_source(version, pin, pinned_from = None, forced = False):
             return "pinned by popili_version"
         return "pinned by popili_version = %r" % pin
     if pinned_from:
+        if self_pin:
+            return "pinned by its popili_versions or a target above it"
         return "pinned by a target above it"
     if version:
         if pinned_from == None:
@@ -282,11 +355,12 @@ def _version_source(version, pin, pinned_from = None, forced = False):
         return "set by --%s" % VERSION_FLAG
     return "the default"
 
-def _version_source_of(ctx):
+def _version_source_of(ctx, self_pin = False):
     """Where this target's configured popili version came from, as `_version_source` words it.
 
     Reads what a rule with TOOLCHAIN_ATTRIBUTES has; a custom rule may lack `_pinned_from` and
-    `_force_version`.
+    `_force_version`. `self_pin` is for a coco_package whose own transition may have pinned it to
+    this version.
     """
     pinned_from = getattr(ctx.attr, "_pinned_from", None)
     force = getattr(ctx.attr, "_force_version", None)
@@ -295,6 +369,7 @@ def _version_source_of(ctx):
         getattr(ctx.attr, "popili_version", ""),
         pinned_from[BuildSettingInfo].value if pinned_from else None,
         force[BuildSettingInfo].value if force else False,
+        self_pin = self_pin,
     )
 
 def _describe_registered_versions(registry):
@@ -309,16 +384,25 @@ def _describe_registered_versions(registry):
             described.append(version)
     return ", ".join(described)
 
-def _register_versions_hint(what):
+def _register_versions_phrase(what):
     return (
-        "Register %s with coco.toolchain(versions = [...]) in MODULE.bazel or " % what +
-        "coco_repositories(versions = [...]) in WORKSPACE."
+        "register %s with coco.toolchain(versions = [...]) in MODULE.bazel or " % what +
+        "coco_repositories(versions = [...]) in WORKSPACE"
     )
 
-_REGISTER_LOCAL_HINT = (
-    "Register a popili distribution from the local filesystem with coco.local_toolchain(popili = ...) " +
-    "in MODULE.bazel or coco_local_repositories(path = ...) / coco_repositories(local_popili = ...) in WORKSPACE."
+def _sentence(phrase):
+    """Capitalises a phrase and ends it with a full stop."""
+    return phrase[0].upper() + phrase[1:] + "."
+
+def _register_versions_hint(what):
+    return _sentence(_register_versions_phrase(what))
+
+_REGISTER_LOCAL_PHRASE = (
+    "register a popili distribution from the local filesystem with coco.local_toolchain(popili = ...) " +
+    "in MODULE.bazel or coco_local_repositories(path = ...) / coco_repositories(local_popili = ...) in WORKSPACE"
 )
+
+_REGISTER_LOCAL_HINT = _sentence(_REGISTER_LOCAL_PHRASE)
 
 def _missing_popili_message(label, version, registry, source = None, test_target_platform = None):
     """Words the failure of a rule whose Coco toolchain did not resolve.
@@ -452,6 +536,10 @@ def _requested_version(pin, version, forced = False):
         return resolve_version_alias(pin)
     return version
 
+def _describe_popili(version):
+    """Words a popili version in a message: "the local popili" or "popili <version>"."""
+    return "the local popili" if version == LOCAL_VERSION else "popili %s" % version
+
 def _toolchain_version_mismatch_message(label, version, source, toolchain_label, toolchain_version):
     """Words the failure of a rule whose resolved Coco toolchain is another popili version than it asked for.
 
@@ -469,20 +557,21 @@ def _toolchain_version_mismatch_message(label, version, source, toolchain_label,
     Returns:
         The message to fail with.
     """
-    needs = "the local popili" if version == LOCAL_VERSION else "popili %s" % version
     return (
         "%s needs %s (%s), but the bring-your-own coco_toolchain %s, which serves every target, is popili %s. " %
-        (label, needs, source, toolchain_label, toolchain_version) +
+        (label, _describe_popili(version), source, toolchain_label, toolchain_version) +
         "With a bring-your-own toolchain, popili_version pins and --%s must name %s or be left out." %
         (VERSION_FLAG, toolchain_version)
     )
 
-def _toolchain_version_conflict(ctx, toolchain):
+def _toolchain_version_conflict(ctx, toolchain, source = None):
     """The message a target fails with when its toolchain is another popili version than it asked for, else None.
 
-    A target asking for no version in particular takes whatever toolchain resolves. A custom rule
-    declaring COCO_TOOLCHAIN_TYPE without TOOLCHAIN_ATTRIBUTES cannot be checked, and one without
-    `_force_version` is checked as unforced.
+    A target asking for no version in particular takes whatever toolchain resolves. A coco_package
+    is no exception, whatever its `popili_versions` list: the flag and pins name a version as they
+    do for every target. A custom rule declaring COCO_TOOLCHAIN_TYPE without TOOLCHAIN_ATTRIBUTES
+    cannot be checked, and one without `_force_version` is checked as unforced. `source` words
+    where the version came from, `_version_source_of(ctx)` when None.
     """
     if not hasattr(ctx.attr, "_version_registry"):
         return None
@@ -497,10 +586,201 @@ def _toolchain_version_conflict(ctx, toolchain):
     return _toolchain_version_mismatch_message(
         ctx.label,
         requested,
-        _version_source_of(ctx),
+        source or _version_source_of(ctx),
         toolchain.label,
         toolchain.popili_version,
     )
+
+def _or_list(phrases):
+    """Joins remedies as "a, b, or c", capitalised and ending in a full stop."""
+    return _sentence(phrases[0] if len(phrases) == 1 else ", ".join(phrases[:-1]) + ", or " + phrases[-1])
+
+def _package_versions_conflict(label, version, source, package, versions, forced = False, of_dep = False, pinned_above = False, common = None):
+    """The message a target fails with when it runs a popili version a coco_package does not list in popili_versions, else None.
+
+    An empty list is unconstrained. Matching is exact: aliases are resolved when the list is read off
+    the attribute, and the local toolchain satisfies a list only when it names `local`. A package's
+    own list is checked by `_own_package_versions_message`.
+
+    Args:
+        label: The failing target's label.
+        version: The popili version the resolved toolchain declares.
+        source: Where the target's configured version came from, as `_version_source` words it.
+        package: The label of the coco_package whose list is checked: one the target reads, or a
+            direct dep of one.
+        versions: That package's `popili_versions`, aliases resolved.
+        forced: The value of `--@rules_coco//:force_version` in the target's configuration; the
+            message then names no remedy, since the caller only warns.
+        of_dep: Whether `label` is a coco_package and `package` one of its direct deps.
+        pinned_above: Whether a `popili_version` pin on a target above `label` set the version, so
+            that a pin on `label` itself would part it from that target.
+        common: With `of_dep`, a registered release that `label`'s own list and every list of its
+            deps name, which it could build with instead; else None.
+
+    Returns:
+        The message to fail with, or None when the version is listed.
+    """
+    if _satisfies_popili_versions(version, versions):
+        return None
+    listed = ", ".join(versions)
+    runs = _describe_popili(version)
+    add = "add %s to the popili_versions of %s" % (version, package)
+    if of_dep:
+        head = "%s gets %s (%s), but the popili_versions of its dep %s do not list it: %s." % (label, runs, source, package, listed)
+        if common:
+            # The package lists `version`, so its own transition left it: reordering the list alone
+            # changes nothing unless `version` leaves it too, whatever selected `version`.
+            remedies = [
+                "build %s with %s, which its popili_versions and those of its deps all list, " % (label, common) +
+                "by listing it first and leaving %s out of its popili_versions, or by selecting it with a pin above it or --%s" % (version, VERSION_FLAG),
+                add,
+            ]
+        else:
+            remedies = ["make the popili_versions of %s list only versions %s lists too" % (label, package), add]
+    else:
+        head = "%s runs %s (%s) on %s, whose popili_versions do not list it: %s." % (label, runs, source, package, listed)
+        if pinned_above:
+            remedies = ["change the popili_version pin above %s to one of those" % label, add]
+        else:
+            remedies = ["pin %s to one of those with popili_version" % label, add]
+    return head if forced else head + " " + _or_list(remedies)
+
+def _own_package_versions_message(label, version, source, versions, effective, toolchain_label, registry, forced = False):
+    """The message a coco_package gets when the toolchain it resolved is not in its own popili_versions, else None.
+
+    Unforced, its transition gave it a listed release whenever one is registered, so only two
+    causes remain: a bring-your-own toolchain, which serves every target, is another version than
+    the configuration asks for, or one no hub registered; or no listed release is registered,
+    `local` aside, which the transition never picks.
+
+    Args:
+        label: The package's label.
+        version: The popili version the resolved toolchain declares.
+        source: Where the package's configured version came from, as `_version_source` words it.
+        versions: The package's `popili_versions`, aliases resolved.
+        effective: The version its configuration effectively asks for, as `_effective_version`
+            gives it.
+        toolchain_label: The resolved toolchain's label.
+        registry: The hub's `CocoVersionRegistryInfo`.
+        forced: The value of `--@rules_coco//:force_version` in the package's configuration; the
+            message then names no remedy, since the package only warns.
+
+    Returns:
+        The message to fail with (or, forced, to warn with), or None when the version is listed.
+    """
+    if _satisfies_popili_versions(version, versions):
+        return None
+    listed = ", ".join(versions)
+    runs = _describe_popili(version)
+    head = "%s gets %s (%s), which its popili_versions do not list: %s." % (label, runs, source, listed)
+    if forced:
+        return head
+
+    # A hub toolchain is always the version asked for, and a registered one.
+    if version != effective or version not in registry.versions:
+        return (
+            "%s gets %s from the bring-your-own coco_toolchain %s, which serves every target, but its " % (label, runs, toolchain_label) +
+            "popili_versions do not list it: %s. Add %s to its popili_versions, or bring a toolchain of one of those versions." %
+            (listed, version)
+        )
+    if not _first_registered(versions, registry.versions):
+        releases = [listed_version for listed_version in versions if listed_version != LOCAL_VERSION]
+        remedies = []
+        if LOCAL_VERSION in versions and LOCAL_VERSION in registry.versions:
+            what = "No release among %s's popili_versions (%s) is registered, and the local popili is only ever selected explicitly" % (label, listed)
+            remedies.append("select the local popili with --%s=%s or a popili_version pin above it" % (VERSION_FLAG, LOCAL_VERSION))
+        else:
+            what = "None of %s's popili_versions (%s) is registered" % (label, listed)
+        remedies.append("add %s to its popili_versions" % version)
+        if releases:
+            remedies.append(_register_versions_phrase("one of %s" % ", ".join(releases)))
+        if LOCAL_VERSION in versions and LOCAL_VERSION not in registry.versions:
+            remedies.append(_REGISTER_LOCAL_PHRASE + " and select it with --%s=%s" % (VERSION_FLAG, LOCAL_VERSION))
+        return (
+            "%s, so it gets %s (%s), which it does not list. Registered popili versions: %s. " %
+            (what, runs, source, _describe_registered_versions(registry)) + _or_list(remedies)
+        )
+
+    # Not reached: its transition gave it a listed version.
+    return head
+
+def _common_version(versions, dep_lists, registered_versions):
+    """The first registered release in `versions` that every list in `dep_lists` names, else None.
+
+    Args:
+        versions: A coco_package's own `popili_versions`, aliases resolved.
+        dep_lists: Its direct deps' `popili_versions`, aliases resolved.
+        registered_versions: The hub's registered versions.
+    """
+    for candidate in versions:
+        if candidate != LOCAL_VERSION and candidate in registered_versions and all([
+            _satisfies_popili_versions(candidate, dep_versions)
+            for dep_versions in dep_lists
+        ]):
+            return candidate
+    return None
+
+def _report_package_versions_conflicts(ctx, toolchain, lists, of_dep = False, source = None, own_versions = None, registry = None):
+    """Fails when `toolchain` is not in one of `lists`; under --@rules_coco//:force_version it warns instead.
+
+    Args:
+        ctx: The rule context.
+        toolchain: The resolved Coco toolchain.
+        lists: (package label, popili_versions) pairs: the packages a target reads, or a
+            coco_package's direct deps.
+        of_dep: Whether `ctx` is a coco_package and `lists` hold its direct deps'.
+        source: Where the version came from, as `_version_source` words it; worked out from `ctx`
+            when None and a list conflicts.
+        own_versions: With `of_dep`, the package's own `popili_versions`, aliases resolved, so
+            that a conflict can name a release it and every dep list; else None.
+        registry: With `own_versions`, the hub's `CocoVersionRegistryInfo`.
+
+    A custom rule without `_force_version` is checked as unforced, and one without `_version` has
+    its version worded as configured.
+    """
+    force = getattr(ctx.attr, "_force_version", None)
+    forced = force[BuildSettingInfo].value if force else False
+    pinned_from = getattr(ctx.attr, "_pinned_from", None)
+    pinned_above = bool(pinned_from and pinned_from[BuildSettingInfo].value) and not getattr(ctx.attr, "popili_version", "")
+    common = None
+    for package, versions in lists:
+        if _satisfies_popili_versions(toolchain.popili_version, versions):
+            continue
+        if source == None:
+            source = _version_source_of(ctx) if hasattr(ctx.attr, "_version") else "as configured"
+        if own_versions and not common:
+            common = _common_version(own_versions, [dep_versions for _, dep_versions in lists], registry.versions)
+        conflict = _package_versions_conflict(
+            ctx.label,
+            toolchain.popili_version,
+            source,
+            package,
+            versions,
+            forced,
+            of_dep,
+            pinned_above = pinned_above,
+            common = common,
+        )
+        if forced:
+            print(conflict)  # buildifier: disable=print
+        else:
+            fail(conflict)
+
+def _check_package_versions(ctx, packages):
+    """Checks the popili this target runs against the `popili_versions` of the coco_packages it reads.
+
+    Called once per popili-running rule. Their deps' lists need no check here: a package listing
+    this version is analysed with it, as is one with no list, and has checked its deps' lists
+    against it itself. The toolchain is resolved first, so that a missing toolchain fails with its
+    own message even when `packages` is empty, and returned for the rule to use.
+    """
+    toolchain = _coco_toolchain(ctx)
+    _report_package_versions_conflicts(
+        ctx,
+        toolchain,
+        [(package.label, package[CocoPackageInfo].popili_versions) for package in packages],
+    )
+    return toolchain
 
 def _runtime_path(file, is_test):
     return file.short_path if is_test else file.path
@@ -728,6 +1008,7 @@ def _create_coco_wrapper_script(ctx, package, arguments):
 
 # Export helper functions for use by other private modules (e.g., format.bzl, diagram.bzl)
 # These are implementation details and should not be used by end users
+check_package_versions = _check_package_versions
 create_coco_wrapper_script = _create_coco_wrapper_script
 coco_runfiles = _coco_runfiles
 coco_toolchain_or_fail = _coco_toolchain
@@ -736,11 +1017,12 @@ coco_startup_args = _coco_startup_args
 coco_env = _coco_env
 get_license_file_from_toolchain = _get_license_file_from_toolchain
 
-def _run_typecheck(ctx, package, srcs, test_srcs):
+def _run_typecheck(ctx, toolchain, package, srcs, test_srcs):
     """Run typecheck and produce a marker file on success.
 
     Args:
         ctx: Rule context
+        toolchain: The resolved Coco toolchain
         package: Struct with package_file and dep_package_files fields
         srcs: Source files depset
         test_srcs: Test source files depset
@@ -762,13 +1044,13 @@ def _run_typecheck(ctx, package, srcs, test_srcs):
     license_file = _get_license_file_from_toolchain(ctx)
     inputs_direct = [
         package.package_file,
-        _coco_toolchain(ctx).preferences_file,
+        toolchain.preferences_file,
     ]
     if license_file:
         inputs_direct.append(license_file)
 
     # Create wrapper script that runs typecheck and creates marker on success
-    coco_path = _coco_toolchain(ctx).coco.path
+    coco_path = toolchain.coco.path
     is_windows = _is_windows(ctx)
     if is_windows:
         coco_path = coco_path.replace("/", "\\")
@@ -795,7 +1077,7 @@ def _run_typecheck(ctx, package, srcs, test_srcs):
 
     ctx.actions.run(
         executable = script,
-        tools = [_coco_toolchain(ctx).coco, script],
+        tools = [toolchain.coco, script],
         mnemonic = "CocoTypecheck",
         progress_message = "Typechecking %s" % ctx.label.name,
         inputs = depset(direct = inputs_direct, transitive = [srcs, test_srcs, package.dep_package_files, package.workspace_files]),
@@ -812,8 +1094,42 @@ def _require_coco_toml(file, attr):
 def _coco_package_impl(ctx):
     _require_coco_toml(ctx.file.package, "package")
 
-    # Without typecheck nothing below reads the toolchain.
-    _coco_toolchain(ctx)
+    # Resolved also without typecheck: a package always needs a toolchain, and its own list and its
+    # deps' lists are checked against it at analysis, whether or not anything runs popili on it.
+    toolchain = _resolved_coco_toolchain(ctx)
+    forced = ctx.attr._force_version[BuildSettingInfo].value
+    registry = ctx.attr._version_registry[CocoVersionRegistryInfo]
+    popili_versions = [resolve_version_alias(version) for version in ctx.attr.popili_versions]
+
+    # Its own transition only ever pins it to the first registered release it lists, so any other
+    # version was selected above it; that one it cannot tell from a pin above it to the same.
+    version = ctx.attr._version[BuildSettingInfo].value
+    source = _version_source_of(ctx, self_pin = bool(popili_versions) and version == _first_registered(popili_versions, registry.versions))
+    own = _own_package_versions_message(
+        ctx.label,
+        toolchain.popili_version,
+        source,
+        popili_versions,
+        _effective_version(version, registry.versions),
+        toolchain.label,
+        registry,
+        forced,
+    )
+    if own and not forced:
+        fail(own)
+
+    # Forced, a bring-your-own toolchain of another version fails here, before the warning; a list
+    # naming the toolchain's version does not excuse the flag or a pin naming another.
+    conflict = _toolchain_version_conflict(ctx, toolchain, source)
+    if conflict:
+        fail(conflict)
+    if own:
+        print(own)  # buildifier: disable=print
+
+    # Direct deps only: a dep listing this version, or none, is analysed with it and has checked
+    # its own deps; one that does not list it fails here.
+    deps_popili_versions = [(dep.label, dep[CocoPackageInfo].popili_versions) for dep in ctx.attr.deps]
+    _report_package_versions_conflicts(ctx, toolchain, deps_popili_versions, of_dep = True, source = source, own_versions = popili_versions, registry = registry)
     package_file = ctx.file.package
     dep_package_files = depset(
         direct = [dep[CocoPackageInfo].package_file for dep in ctx.attr.deps],
@@ -848,7 +1164,7 @@ def _coco_package_impl(ctx):
             dep_package_files = dep_package_files,
             workspace_files = workspace_files,
         )
-        typecheck_marker = _run_typecheck(ctx, package_struct, srcs, test_srcs)
+        typecheck_marker = _run_typecheck(ctx, toolchain, package_struct, srcs, test_srcs)
 
     # Build the list of files for DefaultInfo
     default_files_direct = [package_file]
@@ -862,6 +1178,7 @@ def _coco_package_impl(ctx):
             dep_package_files = dep_package_files,
             direct_srcs = depset(ctx.files.srcs),
             direct_test_srcs = depset(ctx.files.test_srcs),
+            popili_versions = popili_versions,
             source_roots = source_roots,
             srcs = srcs,
             test_source_roots = test_source_roots,
@@ -874,6 +1191,7 @@ def _coco_package_impl(ctx):
 
 _coco_package = rule(
     implementation = _coco_package_impl,
+    cfg = _package_self_pin,
     attrs = dict(LICENSE_ATTRIBUTES.items() + TOOLCHAIN_ATTRIBUTES.items() + {
         "deps": attr.label_list(
             providers = [CocoPackageInfo],
@@ -883,6 +1201,16 @@ _coco_package = rule(
             mandatory = True,
             allow_single_file = [".toml"],
             doc = "Label pointing to the Coco.toml file for this package.",
+        ),
+        "popili_versions": attr.string_list(
+            doc = "The popili versions this package is compatible with, such as " +
+                  "`[\"1.5.0\", \"1.5.1\"]`. Aliases such as `\"stable\"` are allowed. A target that runs " +
+                  "another popili version on this package fails; under `--@rules_coco//:force_version` " +
+                  "this is a warning instead. The local toolchain satisfies the list only when it " +
+                  "names `\"local\"` and when `--@rules_coco//:version=local` is passed. The " +
+                  "package itself is built with the version selected for it (via the default, " +
+                  "the flag, or a consumer's pin) when the list has it, otherwise with " +
+                  "the **first** listed release that is registered. Empty (the default) allows any version.",
         ),
         "source_roots": attr.string_list(
             doc = "Directories, relative to Coco.toml, that hold the .coco sources. Must match " +
@@ -985,6 +1313,8 @@ packages. Reference this target from a coco_package's `workspace` attribute.""",
 )
 
 def _coco_package_verify(ctx):
+    _check_package_versions(ctx, [ctx.attr.package])
+
     # Build the verify command arguments
     arguments = [
         "verify",
@@ -1370,7 +1700,6 @@ def _add_outputs(ctx, headers, sources, mock_headers, mock_sources, config, path
     _declare_language_outputs(ctx, headers, sources, mock_headers, mock_sources, config, path_builder, module_path)
 
 def _coco_package_generate_impl(ctx):
-    toolchain = _coco_toolchain(ctx)
     if ctx.attr.language == "c" and ctx.attr.mocks:
         fail("mocks = True is not supported for language = \"c\": popili does not generate C mocks", attr = "mocks")
 
@@ -1404,6 +1733,7 @@ def _coco_package_generate_impl(ctx):
         "cpp": ctx.attr.cpp_regenerate_packages,
         "csharp": ctx.attr.csharp_regenerate_packages,
     }.get(ctx.attr.language, [])
+    toolchain = _check_package_versions(ctx, [package] + regenerate_pkgs)
 
     # Regenerated packages' files go into this package's output directory (using this package's
     # generator settings), with module paths relative to their own source roots.
@@ -1879,6 +2209,10 @@ unpin_transition_settings = _unpin_transition_settings
 effective_version = _effective_version
 library_version_mismatch_message = _library_version_mismatch_message
 library_version_conflict = _library_version_conflict
+package_versions_conflict = _package_versions_conflict
+common_version = _common_version
+package_transition_settings = _package_transition_settings
+own_package_versions_message = _own_package_versions_message
 toolchain_version_mismatch_message = _toolchain_version_mismatch_message
 compute_output_paths = _compute_output_paths
 module_path_for = _module_path_for

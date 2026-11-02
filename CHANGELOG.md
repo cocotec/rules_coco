@@ -48,6 +48,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `--@rules_coco//:force_version` makes `--@rules_coco//:version` (or the default when it is unset)
   apply to every target, ignoring every `popili_version` pin, to try a Popili version on a whole
   repository without editing BUILD files.
+- a `coco_package` can now list `popili_versions` it is compatible with. A target that runs another
+  version on the package, or on one of its transitive deps that has a list, fails.
+  `--@rules_coco//:force_version` turns that into a warning. The
+  local toolchain is accepted only by a list that names `local`. When the version a package would
+  get is not in its list, it is typechecked with the first listed release that is registered
+  instead, never `local`; when none is, it fails saying so.
 
 ### Changed
 

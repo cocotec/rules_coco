@@ -30,19 +30,24 @@ def popili_evidence(target):
 
     Returns:
         The popili a run action executes, the headers of the runtime a library's `._gen` target
-        forwards, or the text of a test's or binary's wrapper script.
+        forwards, or the text of a test's or binary's wrapper script or of a package's typecheck
+        script.
     """
+    typecheck_script = None
     for action in target.actions:
         if action.mnemonic in ("CocoGenerate", "CocoDiagram"):
             return action.argv[0]
+        if action.mnemonic == "CocoTypecheck":
+            typecheck_script = action.argv[0]
 
     # After the actions: a coco_generate provides a CcInfo too, of its own generated headers.
     if CcInfo in target:
         return " ".join([header.path for header in target[CcInfo].compilation_context.headers.to_list()])
     executable = target[DefaultInfo].files_to_run.executable
     for action in target.actions:
-        if executable in action.outputs.to_list():
-            return action.content
+        for output in action.outputs.to_list():
+            if output == executable or output.path == typecheck_script:
+                return action.content
     fail("%s runs no popili action and writes no wrapper script" % target.label)
 
 def assert_popili_version(env, target, version):

@@ -1,0 +1,6 @@
+[package]
+name = "listing"
+sources = ["src"]
+
+[language]
+standard = "1.2"

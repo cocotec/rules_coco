@@ -239,10 +239,38 @@ coco_verify_test(
 )
 ```
 
+A `coco_package` can list the popili versions it is compatible with:
+
+```starlark
+coco_package(
+    name = "modern",
+    srcs = ["modern/src/Example.coco"],
+    package = "modern/Coco.toml",
+    popili_versions = ["1.5.1"], # only popili 1.5.1 may be used with this package
+)
+```
+
+A target that runs another version on the package fails, saying which pin to set or which version
+to add to the list. Matching is exact after alias resolution: `"stable"` gives the most recent
+stable version that your rules_coco version is aware of. Add `"local"` to the list for the local
+toolchain. A package checks the lists of its `deps` itself, whether or not it typechecks, and they
+check theirs, so the list of every transitive dep is checked too. Under
+`--@rules_coco//:force_version` (see below) the check only warns.
+
+The list also steers the package's own build (`bazel build //:modern`, or beneath a consumer): it
+keeps the version it would get (the default, the flag, or a consumer's pin) when its list has it,
+and otherwise is analysed and typechecked with the first listed release that is registered, so
+order only matters then; `local` is never picked, only selected explicitly. A consumer pinned to the
+version the standalone build uses shares the package with it, so it is typechecked once. When no
+listed release is registered, the package fails saying which versions to register. A
+bring-your-own toolchain serves every target, so the list must name its version, and the flag and
+pins must still name that version or be left out. Under `--@rules_coco//:force_version` the package
+follows the forced version like everything else.
+
 Everything without a pin uses the default, or the version `--@rules_coco//:version` selects, for
 example `bazel build --@rules_coco//:version=1.5.1 //...`. The flag takes a concrete version (or
 `local`); aliases such as `stable` are for pins only. A pin wins over the flag, unless
-`--@rules_coco//:force_version` is set (below).
+`--@rules_coco//:force_version` is set (see below).
 
 A pin equal to the version the build uses anyway (the flag, or the default when the flag is unset)
 costs nothing. A target pinned to any other version is built in a configuration of its own, so its

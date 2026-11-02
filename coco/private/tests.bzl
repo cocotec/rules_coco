@@ -23,7 +23,7 @@ load(
     "PATH_CASE_DEFAULTS",
 )
 load(":cc_runtime_deps.bzl", "collect_cc_runtime_extra_deps", "normalize_cc_runtime_extra_deps")
-load(":coco.bzl", "FILE_NAME_MANGLER_STYLES", "compute_output_paths", "effective_version", "library_version_conflict", "library_version_mismatch_message", "mangle_name", "missing_popili_message", "module_path_for", "pin_transition_settings", "toolchain_version_mismatch_message", "unpin_transition_settings", "version_source")
+load(":coco.bzl", "FILE_NAME_MANGLER_STYLES", "common_version", "compute_output_paths", "effective_version", "library_version_conflict", "library_version_mismatch_message", "mangle_name", "missing_popili_message", "module_path_for", "own_package_versions_message", "package_transition_settings", "package_versions_conflict", "pin_transition_settings", "toolchain_version_mismatch_message", "unpin_transition_settings", "version_source")
 load(":common_repositories.bzl", "coco_download", "download_prefix", "find_local_license_paths", "is_license_file_name")
 load(":known_shas.bzl", "FILE_KEY_TO_SHA")
 load(":license_versions.bzl", "LICENSE_PROTOCOL_VERSIONS")
@@ -1488,6 +1488,7 @@ def _version_source_test(ctx):
     asserts.equals(env, "pinned by popili_version = \"stable\"", version_source("1.5.1", "stable", []))
     asserts.equals(env, "pinned by a target above it", version_source("1.99.0", "", [""]))
     asserts.equals(env, "pinned by a target above it", version_source("1.99.0", "", ["1.5.0"]))
+    asserts.equals(env, "pinned by its popili_versions or a target above it", version_source("1.99.0", "", ["1.5.0"], self_pin = True))
     asserts.equals(env, "set by --@rules_coco//:version", version_source("1.99.0", "", []))
     asserts.equals(env, "set by --@rules_coco//:version or a popili_version pin above it", version_source("1.99.0", ""))
     asserts.equals(env, "the default", version_source("", "", []))
@@ -1589,6 +1590,80 @@ def _pin_transition_settings_forced_test(ctx):
     asserts.equals(env, {}, pin_transition_settings("", "1.5.0", _REGISTERED, True))
     return unittest.end(env)
 
+# Tests for the package's own transition
+
+def _package_transition_settings_test(ctx):
+    """Nothing to do when the effective version satisfies the list, nothing is registered or forced; else the first registered entry."""
+    env = unittest.begin(ctx)
+    asserts.equals(env, {}, package_transition_settings([], "", _REGISTERED), "an empty list")
+    asserts.equals(env, {}, package_transition_settings(["1.5.1", "1.5.0"], "", _REGISTERED), "the default is listed")
+    asserts.equals(env, {}, package_transition_settings(["1.5.1"], "1.5.1", _REGISTERED), "the flag is listed")
+    asserts.equals(env, {}, package_transition_settings(["1.5.1", "local"], "local", _REGISTERED + ["local"]), "local, listed")
+    asserts.equals(env, _pinned("1.5.1", "local"), package_transition_settings(["1.5.1"], "local", _REGISTERED + ["local"]), "local, unlisted, like any version")
+    asserts.equals(env, _pinned("1.5.1", "1.5.0"), package_transition_settings(["local", "1.5.1"], "1.5.0", _REGISTERED + ["local"]), "local is never picked, even listed first")
+    asserts.equals(env, {}, package_transition_settings(["local"], "", _REGISTERED + ["local"]), "only local: the package says to select it")
+    asserts.equals(env, {}, package_transition_settings(["1.99.0"], "", _REGISTERED), "none registered: the package says so")
+    asserts.equals(env, {}, package_transition_settings(["1.5.1"], "", _REGISTERED, True), "forced")
+    asserts.equals(env, {}, package_transition_settings(["1.5.1"], "stable", _REGISTERED), "an alias on the flag: the package fails like every target")
+    asserts.equals(env, _pinned("1.5.1", ""), package_transition_settings(["1.99.0", "1.5.1"], "", _REGISTERED), "the first registered entry, aliases resolved")
+    stable = resolve_version_alias("stable")
+    asserts.equals(env, _pinned(stable, ""), package_transition_settings(["stable"], "", ["1.5.0", stable]), "an alias in the list")
+    asserts.equals(env, {VERSION_FLAG: "", _PINNED_FROM: []}, package_transition_settings(["1.5.0"], "1.5.1", _REGISTERED, pinned_from = [""]), "beneath a pin to an unlisted version: back where the standalone build is")
+    return unittest.end(env)
+
+package_transition_settings_test = unittest.make(_package_transition_settings_test)
+
+def _own_package_versions_message_test(ctx):
+    """A listed version agrees; otherwise a bring-your-own toolchain or an unregistered list is named with its remedy, forced without one."""
+    env = unittest.begin(ctx)
+    own = own_package_versions_message
+    asserts.equals(env, None, own("//a:pkg", "1.5.0", "the default", [], "1.5.0", "//tc", _REGISTRY), "an empty list is unconstrained")
+    asserts.equals(env, None, own("//a:pkg", "1.5.0", "the default", ["1.5.0", "1.99.0"], "1.5.0", "//tc", _REGISTRY))
+    asserts.equals(env, None, own("//a:pkg", "local", "set by --@rules_coco//:version", ["1.99.0", "local"], "local", "//tc", _REGISTRY), "local, listed")
+    asserts.equals(
+        env,
+        "//a:pkg gets popili 1.5.0 (forced by --@rules_coco//:force_version), which its popili_versions do not list: 1.99.0.",
+        own("//a:pkg", "1.5.0", "forced by --@rules_coco//:force_version", ["1.99.0"], "1.5.0", "//tc", _REGISTRY, forced = True),
+        "forced, the package warns, so no remedy",
+    )
+    asserts.equals(
+        env,
+        "//a:pkg gets popili 1.6.0 from the bring-your-own coco_toolchain //tc, which serves every target, but its " +
+        "popili_versions do not list it: 1.5.1. Add 1.6.0 to its popili_versions, or bring a toolchain of one of those versions.",
+        own("//a:pkg", "1.6.0", "pinned by its popili_versions or a target above it", ["1.5.1"], "1.5.1", "//tc", _REGISTRY),
+        "bring-your-own, also where its own transition pinned a registered version",
+    )
+    asserts.equals(
+        env,
+        "None of //a:pkg's popili_versions (1.99.0, 1.98.0) is registered, so it gets popili 1.5.0 (the default), which it does not list. " +
+        "Registered popili versions: 1.5.0 (the default), 1.5.1. Add 1.5.0 to its popili_versions, or register one of 1.99.0, 1.98.0 " +
+        "with coco.toolchain(versions = [...]) in MODULE.bazel or coco_repositories(versions = [...]) in WORKSPACE.",
+        own("//a:pkg", "1.5.0", "the default", ["1.99.0", "1.98.0"], "1.5.0", "//tc", _REGISTRY),
+    )
+    asserts.equals(
+        env,
+        "No release among //a:pkg's popili_versions (local) is registered, and the local popili is only ever selected explicitly, " +
+        "so it gets popili 1.5.0 (the default), which it does not list. Registered popili versions: 1.5.0 (the default), 1.5.1, local. " +
+        "Select the local popili with --@rules_coco//:version=local or a popili_version pin above it, or add 1.5.0 to its popili_versions.",
+        own("//a:pkg", "1.5.0", "the default", ["local"], "1.5.0", "//tc", _REGISTRY_WITH_LOCAL),
+        "only local, registered",
+    )
+    _assert_mentions(
+        env,
+        own("//a:pkg", "1.5.0", "the default", ["local"], "1.5.0", "//tc", _REGISTRY),
+        ["None of //a:pkg's popili_versions (local) is registered", "or register a popili distribution from the local filesystem with coco.local_toolchain"],
+        absent = ["coco.toolchain(versions"],
+    )
+    _assert_mentions(
+        env,
+        own("//a:pkg", "1.5.8", "the default", ["1.6.0"], "", "//tc", struct(versions = [])),
+        ["from the bring-your-own coco_toolchain //tc"],
+        absent = ["register"],
+    )
+    return unittest.end(env)
+
+own_package_versions_message_test = unittest.make(_own_package_versions_message_test)
+
 # Tests for library_version_mismatch_message
 
 def _library_version_mismatch_pinned_test(ctx):
@@ -1630,6 +1705,57 @@ def _library_version_conflict_library_test(ctx):
     message = library_version_conflict("//a:lib", "1.5.0", "the default", [("//a:g1", "1.5.0"), ("//a:g2", "1.5.1"), ("//a:g3", "1.5.2")])
     asserts.equals(env, library_version_mismatch_message("//a:lib", "1.5.0", "the default", "//a:g2", "1.5.1"), message)
     return unittest.end(env)
+
+# Tests for the check of the popili a target runs against its package's popili_versions
+
+def _package_versions_conflict_test(ctx):
+    """An empty list or a listed version agree, local only when listed; anything else is named with a remedy, except forced."""
+    env = unittest.begin(ctx)
+    asserts.equals(env, None, package_versions_conflict("//a:gen", "1.5.1", "the default", "//a:pkg", []), "an empty list is unconstrained")
+    asserts.equals(env, None, package_versions_conflict("//a:gen", "1.5.1", "the default", "//a:pkg", ["1.5.0", "1.5.1"]))
+    asserts.equals(env, None, package_versions_conflict("//a:gen", "local", "set by --@rules_coco//:version", "//a:pkg", ["1.5.0", "local"]), "local, listed")
+    asserts.equals(
+        env,
+        "//a:gen runs the local popili (set by --@rules_coco//:version) on //a:pkg, whose popili_versions do not list it: 1.5.0. " +
+        "Pin //a:gen to one of those with popili_version, or add local to the popili_versions of //a:pkg.",
+        package_versions_conflict("//a:gen", "local", "set by --@rules_coco//:version", "//a:pkg", ["1.5.0"]),
+        "local, unlisted",
+    )
+    asserts.equals(
+        env,
+        "//a:gen runs popili 1.5.1 (pinned by popili_version) on //a:pkg, whose popili_versions do not list it: 1.5.0, 1.5.2. " +
+        "Pin //a:gen to one of those with popili_version, or add 1.5.1 to the popili_versions of //a:pkg.",
+        package_versions_conflict("//a:gen", "1.5.1", "pinned by popili_version", "//a:pkg", ["1.5.0", "1.5.2"]),
+    )
+    _assert_mentions(
+        env,
+        package_versions_conflict("//a:gen", "1.5.1", "pinned by a target above it", "//a:pkg", ["1.5.0"], pinned_above = True),
+        ["Change the popili_version pin above //a:gen to one of those, or add 1.5.1"],
+        absent = ["Pin //a:gen"],
+    )
+    asserts.equals(
+        env,
+        "//a:pkg gets popili 1.5.1 (the default), but the popili_versions of its dep //b:pkg do not list it: 1.5.0. " +
+        "Make the popili_versions of //a:pkg list only versions //b:pkg lists too, or add 1.5.1 to the popili_versions of //b:pkg.",
+        package_versions_conflict("//a:pkg", "1.5.1", "the default", "//b:pkg", ["1.5.0"], of_dep = True),
+        "a dep's list",
+    )
+    _assert_mentions(
+        env,
+        package_versions_conflict("//a:pkg", "1.5.1", "pinned by its popili_versions or a target above it", "//b:pkg", ["1.5.8"], of_dep = True, common = "1.5.8"),
+        ["Build //a:pkg with 1.5.8, which its popili_versions and those of its deps all list, by listing it first and leaving 1.5.1 out of its popili_versions, or by selecting it"],
+    )
+    asserts.equals(env, "1.5.0", common_version(["local", "1.99.0", "1.5.1", "1.5.0"], [["1.5.0"], []], _REGISTRY.versions), "the first registered release every dep lists, never local")
+    asserts.equals(env, None, common_version(["1.5.1"], [["1.5.0"]], _REGISTRY.versions), "none in common")
+    asserts.equals(
+        env,
+        "//a:gen runs popili 1.5.1 (forced by --@rules_coco//:force_version) on //a:pkg, whose popili_versions do not list it: 1.5.0.",
+        package_versions_conflict("//a:gen", "1.5.1", "forced by --@rules_coco//:force_version", "//a:pkg", ["1.5.0"], forced = True),
+        "forced, the caller warns, so no remedy",
+    )
+    return unittest.end(env)
+
+package_versions_conflict_test = unittest.make(_package_versions_conflict_test)
 
 # Tests for the check of a bring-your-own toolchain's version against the version a target asks for
 
@@ -2385,6 +2511,8 @@ def coco_test_suite(name):
         library_version_mismatch_unpinned_test,
         library_version_conflict_agree_test,
         library_version_conflict_library_test,
+        own_package_versions_message_test,
+        package_versions_conflict_test,
 
         # bring-your-own toolchain version check tests
         toolchain_version_mismatch_test,
@@ -2399,6 +2527,7 @@ def coco_test_suite(name):
         pin_transition_settings_nested_test,
         unpin_transition_settings_test,
         pin_transition_settings_forced_test,
+        package_transition_settings_test,
 
         # toolchain_hub_entries tests
         hub_entries_single_version_test,
