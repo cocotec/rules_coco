@@ -31,7 +31,7 @@ register_toolchains(
 
 load("@bazel_skylib//:workspace.bzl", "bazel_skylib_workspace")
 
-# Registers the unittest toolchains the analysis test in BUILD.bazel needs.
+# Registers the unittest toolchains the analysis tests in BUILD.bazel need.
 bazel_skylib_workspace()
 
 # Load GoogleTest for C++ unit tests
