@@ -11,6 +11,9 @@ and `WORKSPACE` mode.
 - `--@rules_coco//:version=<v>` and the `with_popili_version` transition select another registered
   version — in WORKSPACE mode as well as under bzlmod.
 - Code generation and `coco_cc_library` work against version-specific toolchains and runtimes.
+- `coco_verify_test` and `coco_fmt_test` name the popili of the execution platform the test runs
+  on (`test_platform_test.bzl`), checked with a foreign target platform and the host as the first
+  execution platform. Bazel 9+ only: Bazel 8 does not tie tests to the target platform.
 
 ## Structure
 
@@ -20,6 +23,7 @@ e2e/multi_version/
 ├── WORKSPACE                  # Registers the same two versions (WORKSPACE mode)
 ├── BUILD.bazel                # Version-selection assertions + per-version packages
 ├── popili_version_report.bzl  # Rule asserting which popili the toolchain resolves to
+├── test_platform_test.bzl     # Analysis test: a test's wrapper names popili for the test's platform
 ├── modern/                    # Package built against popili 1.5.0
 ├── legacy/                    # Package built against popili 1.5.1
 └── flexible/                  # Package built against the default version

@@ -23,6 +23,11 @@ coco_repositories(
     ],
 )
 
+load("@bazel_skylib//:workspace.bzl", "bazel_skylib_workspace")
+
+# Registers the unittest toolchains the analysis tests in BUILD.bazel need.
+bazel_skylib_workspace()
+
 # Load GoogleTest for C++ unit tests (if needed)
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 

@@ -16,6 +16,7 @@
 
 load(
     "//coco/private:coco.bzl",
+    "COCO_TEST_RULE_ARGS",
     "COCO_TOOLCHAIN_TYPE",
     "CocoPackageInfo",
     "LICENSE_ATTRIBUTES",
@@ -82,9 +83,7 @@ To skip this test for specific targets, use standard Bazel tags:
     ```
 """,
     test = True,
-    toolchains = [
-        COCO_TOOLCHAIN_TYPE,
-    ],
+    **COCO_TEST_RULE_ARGS
 )
 
 def _coco_fmt_binary_impl(ctx):
