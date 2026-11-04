@@ -109,6 +109,9 @@ root>.cs`;
 - Improved diagnostics when no Popili toolchain matches: instead of Bazel's generic
   `No matching toolchains found` error, the build now says which Popili version was requested, which
   versions are registered, and how to fix it.
+- A bring-your-own `coco_toolchain`, registered as documented, serves every target, so a target pinned
+  with `popili_version`, or built with `--@rules_coco//:version` set, to another version than its
+  `popili_version` now fails, naming both versions.
 
 ### Removed
 

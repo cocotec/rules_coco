@@ -119,7 +119,6 @@ def popili_diagnostics_tests(name, registered_versions, targets, test_targets = 
                 "needs popili 1.99.0 (set by --@rules_coco//:version), but no registered Coco toolchain provides it.",
                 registered,
                 "coco.toolchain(versions = [...])",
-                "target_settings",
             ],
         )
         alias_version_test(

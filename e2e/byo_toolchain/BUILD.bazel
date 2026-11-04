@@ -1,6 +1,9 @@
-# Verifies a Coco package using the bring-your-own coco_toolchain.
+# Verifies a Coco package using the bring-your-own coco_toolchain, and checks that a target asking
+# for another popili version than the toolchain provides fails (see byo_version_test.bzl).
 
-load("@rules_coco//coco:defs.bzl", "coco_package", "coco_verify_test")
+load("@rules_coco//coco:defs.bzl", "coco_generate", "coco_package", "coco_verify_test")
+load("//popili_dist:bin/version.bzl", "POPILI_VERSION")
+load(":byo_version_test.bzl", "UNPROVIDED_VERSION", "byo_version_tests")
 
 coco_package(
     name = "byo_toolchain",
@@ -11,4 +14,27 @@ coco_package(
 coco_verify_test(
     name = "byo_toolchain_verify",
     package = ":byo_toolchain",
+)
+
+# Pinned to the version the toolchain provides, which therefore serves it.
+coco_verify_test(
+    name = "byo_toolchain_pinned_verify",
+    package = ":byo_toolchain",
+    popili_version = POPILI_VERSION,
+)
+
+# Pinned to another version than //tools:byo_popili provides, which serves it all the same and fails the build.
+coco_generate(
+    name = "unprovided_cpp",
+    language = "cpp",
+    package = ":byo_toolchain",
+    popili_version = UNPROVIDED_VERSION,
+    tags = ["manual"],
+)
+
+byo_version_tests(
+    name = "byo_version",
+    pinned = ":byo_toolchain_pinned_verify",
+    staged_version = POPILI_VERSION,
+    unprovided = ":unprovided_cpp",
 )

@@ -23,7 +23,7 @@ load(
     "PATH_CASE_DEFAULTS",
 )
 load(":cc_runtime_deps.bzl", "collect_cc_runtime_extra_deps", "normalize_cc_runtime_extra_deps")
-load(":coco.bzl", "FILE_NAME_MANGLER_STYLES", "compute_output_paths", "effective_version", "library_version_conflict", "library_version_mismatch_message", "mangle_name", "missing_popili_message", "module_path_for", "pin_transition_settings", "unpin_transition_settings", "version_source")
+load(":coco.bzl", "FILE_NAME_MANGLER_STYLES", "compute_output_paths", "effective_version", "library_version_conflict", "library_version_mismatch_message", "mangle_name", "missing_popili_message", "module_path_for", "pin_transition_settings", "toolchain_version_mismatch_message", "unpin_transition_settings", "version_source")
 load(":common_repositories.bzl", "coco_download", "download_prefix", "find_local_license_paths", "is_license_file_name")
 load(":known_shas.bzl", "FILE_KEY_TO_SHA")
 load(":license_versions.bzl", "LICENSE_PROTOCOL_VERSIONS")
@@ -1287,10 +1287,8 @@ def _missing_popili_unregistered_version_test(ctx):
             "Registered popili versions: 1.5.0 (the default), 1.5.1.",
             "coco.toolchain(versions = [...])",
             "coco_repositories(versions = [...])",
-            "bring-your-own coco_toolchain",
-            "target_settings",
         ],
-        absent = ["execution platform"],
+        absent = ["execution platform", "target_settings"],
     )
     return unittest.end(env)
 
@@ -1632,6 +1630,23 @@ def _library_version_conflict_library_test(ctx):
     message = library_version_conflict("//a:lib", "1.5.0", "the default", [("//a:g1", "1.5.0"), ("//a:g2", "1.5.1"), ("//a:g3", "1.5.2")])
     asserts.equals(env, library_version_mismatch_message("//a:lib", "1.5.0", "the default", "//a:g2", "1.5.1"), message)
     return unittest.end(env)
+
+# Tests for the check of a bring-your-own toolchain's version against the version a target asks for
+
+def _toolchain_version_mismatch_test(ctx):
+    """Names the toolchain and both versions, and says which version pins and the flag may name."""
+    env = unittest.begin(ctx)
+    message = toolchain_version_mismatch_message("//a:gen", "1.5.1", version_source("1.5.1", "1.5.1", []), "//tools:byo_popili", "1.5.3")
+    asserts.equals(
+        env,
+        "//a:gen needs popili 1.5.1 (pinned by popili_version), but the bring-your-own coco_toolchain " +
+        "//tools:byo_popili, which serves every target, is popili 1.5.3. With a bring-your-own toolchain, " +
+        "popili_version pins and --@rules_coco//:version must name 1.5.3 or be left out.",
+        message,
+    )
+    return unittest.end(env)
+
+toolchain_version_mismatch_test = unittest.make(_toolchain_version_mismatch_test)
 
 library_version_conflict_agree_test = unittest.make(_library_version_conflict_agree_test)
 library_version_conflict_library_test = unittest.make(_library_version_conflict_library_test)
@@ -2370,6 +2385,9 @@ def coco_test_suite(name):
         library_version_mismatch_unpinned_test,
         library_version_conflict_agree_test,
         library_version_conflict_library_test,
+
+        # bring-your-own toolchain version check tests
+        toolchain_version_mismatch_test,
 
         # effective_version and pin_transition_settings tests
         effective_version_test,

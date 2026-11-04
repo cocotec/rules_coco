@@ -21,9 +21,12 @@ def _coco_toolchain_impl(ctx):
     if version != LOCAL_VERSION and version_tuple(version) == None:
         fail(
             "%s: popili_version must be the version of the popili binary, such as \"1.5.8\", not %r: " % (ctx.label, version) +
-            "an alias such as \"stable\" moves when rules_coco is upgraded.",
+            "rules_coco checks it against the version every target asks for, and an alias such as " +
+            "\"stable\" moves when rules_coco is upgraded.",
         )
     toolchain = platform_common.ToolchainInfo(
+        # Names the toolchain in messages about the popili version it provides.
+        label = ctx.label,
         coco = ctx.file.coco,
         cocotec_licensing_server = ctx.file.cocotec_licensing_server,
         preferences_file = ctx.file.preferences_file,
@@ -86,8 +89,9 @@ coco_toolchain = rule(
         "popili_version": attr.string(
             doc = (
                 "The version of the `popili` binary, such as \"1.5.8\"; not an alias such as " +
-                "\"stable\". It picks the licence file under `local_user` licensing. The toolchains " +
-                "rules_coco generates set it; a local distribution is 'local'."
+                "\"stable\". It picks the licence file under `local_user` licensing, and every target " +
+                "this toolchain serves must ask for this version, or for none in particular. The " +
+                "toolchains rules_coco generates set it; a local distribution is 'local'."
             ),
             mandatory = True,
         ),

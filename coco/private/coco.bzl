@@ -229,13 +229,20 @@ def _resolves_on_test_exec_group(ctx):
     return "test" in ctx.exec_groups and COCO_TOOLCHAIN_TYPE_LABEL in ctx.exec_groups["test"].toolchains
 
 def _coco_toolchain(ctx):
-    """Returns the resolved Coco toolchain, failing with a specific message when there is none."""
+    """Returns the resolved Coco toolchain.
+
+    Fails with a specific message when there is none, or when the toolchain declares another popili
+    version than the target asks for, which only a bring-your-own toolchain can do.
+    """
     if _resolves_on_test_exec_group(ctx):
         toolchain = ctx.exec_groups["test"].toolchains[COCO_TOOLCHAIN_TYPE_LABEL]
     else:
         toolchain = ctx.toolchains[COCO_TOOLCHAIN_TYPE_LABEL]
     if toolchain == None:
         fail(_missing_toolchain_message(ctx))
+    conflict = _toolchain_version_conflict(ctx, toolchain)
+    if conflict:
+        fail(conflict)
     return toolchain
 
 def _version_source(version, pin, pinned_from = None, forced = False):
@@ -379,10 +386,8 @@ def _missing_popili_message(label, version, registry, source = None, test_target
 
     if version not in registry.versions:
         return (
-            "%s needs popili %s (%s), but no registered Coco toolchain provides it. %s %s " %
-            (label, version, source, registered, _register_versions_hint("it")) +
-            "A bring-your-own coco_toolchain is selected by a version only when its toolchain() has " +
-            "target_settings for that version."
+            "%s needs popili %s (%s), but no registered Coco toolchain provides it. %s %s" %
+            (label, version, source, registered, _register_versions_hint("it"))
         )
 
     if test_target_platform:
@@ -428,6 +433,73 @@ def _missing_toolchain_message(ctx):
         ctx.attr._version_registry[CocoVersionRegistryInfo],
         source = _version_source_of(ctx),
         test_target_platform = _test_target_platform(ctx),
+    )
+
+def _requested_version(pin, version, forced = False):
+    """The popili version a target asks for by name, "" when it asks for none in particular.
+
+    Args:
+        pin: The target's `popili_version`, "" when unpinned or the rule has none.
+        version: The value of `--@rules_coco//:version` in the target's configuration.
+        forced: The value of `--@rules_coco//:force_version` in the target's configuration.
+
+    Returns:
+        The pin with aliases resolved, unless forced, which ignores every pin; else the flag, which
+        a pin above the target set when it is not the command line's; "" when neither names a
+        version and the target takes the default, whatever toolchain provides it.
+    """
+    if pin and not forced:
+        return resolve_version_alias(pin)
+    return version
+
+def _toolchain_version_mismatch_message(label, version, source, toolchain_label, toolchain_version):
+    """Words the failure of a rule whose resolved Coco toolchain is another popili version than it asked for.
+
+    Only a bring-your-own toolchain gets here: the hub's toolchain() entries carry target_settings
+    on the version flag, so each resolves for its own version only, whereas a bring-your-own one,
+    registered without target_settings as the README shows, serves every target.
+
+    Args:
+        label: The failing target's label.
+        version: The popili version the target asked for by name, as `_requested_version` returns it.
+        source: Where that version came from, as `_version_source` words it.
+        toolchain_label: The label of the resolved `coco_toolchain`.
+        toolchain_version: The `popili_version` the resolved toolchain declares.
+
+    Returns:
+        The message to fail with.
+    """
+    needs = "the local popili" if version == LOCAL_VERSION else "popili %s" % version
+    return (
+        "%s needs %s (%s), but the bring-your-own coco_toolchain %s, which serves every target, is popili %s. " %
+        (label, needs, source, toolchain_label, toolchain_version) +
+        "With a bring-your-own toolchain, popili_version pins and --%s must name %s or be left out." %
+        (VERSION_FLAG, toolchain_version)
+    )
+
+def _toolchain_version_conflict(ctx, toolchain):
+    """The message a target fails with when its toolchain is another popili version than it asked for, else None.
+
+    A target asking for no version in particular takes whatever toolchain resolves. A custom rule
+    declaring COCO_TOOLCHAIN_TYPE without TOOLCHAIN_ATTRIBUTES cannot be checked, and one without
+    `_force_version` is checked as unforced.
+    """
+    if not hasattr(ctx.attr, "_version_registry"):
+        return None
+    force = getattr(ctx.attr, "_force_version", None)
+    requested = _requested_version(
+        getattr(ctx.attr, "popili_version", ""),
+        ctx.attr._version[BuildSettingInfo].value,
+        force[BuildSettingInfo].value if force else False,
+    )
+    if not requested or requested == toolchain.popili_version:
+        return None
+    return _toolchain_version_mismatch_message(
+        ctx.label,
+        requested,
+        _version_source_of(ctx),
+        toolchain.label,
+        toolchain.popili_version,
     )
 
 def _runtime_path(file, is_test):
@@ -1807,5 +1879,6 @@ unpin_transition_settings = _unpin_transition_settings
 effective_version = _effective_version
 library_version_mismatch_message = _library_version_mismatch_message
 library_version_conflict = _library_version_conflict
+toolchain_version_mismatch_message = _toolchain_version_mismatch_message
 compute_output_paths = _compute_output_paths
 module_path_for = _module_path_for

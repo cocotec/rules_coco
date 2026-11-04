@@ -325,6 +325,22 @@ toolchain(
 )
 ```
 
+Use this when one `popili`, built in your repository, should run every target. A `toolchain()` without
+`target_settings` or constraints, like the one above, matches every target, so it replaces rules_coco's own
+toolchains and no pin or flag can select another one. Register only one such toolchain, since one registered after
+it would never be selected; in `WORKSPACE`, register it before calling `coco_repositories`.
+
+`popili_version` is the version of the `popili` binary the toolchain points at, such as `"1.5.8"`; an alias such
+as `"stable"` is rejected. It picks the licence file under `local_user` licensing, and every target must ask for
+that version or for none in particular. A target pinned to another version, or built with
+`--@rules_coco//:version` set to another version, fails instead of running this `popili`:
+
+```
+@@//a:gen needs popili 1.5.1 (pinned by popili_version), but the bring-your-own coco_toolchain @@//tools:my_popili, which serves every target, is popili 1.5.8. ...
+```
+
+See `e2e/byo_toolchain`.
+
 ### Using an older C++ compiler (Boost libraries)
 
 Most users can skip this section. The Coco C++ runtime compiles cleanly on any toolchain that supports C++11 or

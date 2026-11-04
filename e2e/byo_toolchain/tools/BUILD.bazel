@@ -1,9 +1,12 @@
-# A bring-your-own coco_toolchain pointing at //popili_dist binaries.
+# A bring-your-own coco_toolchain pointing at the //popili_dist binaries.
 # register_toolchains lives in MODULE.bazel.
 
 load("@rules_coco//coco:toolchain.bzl", "coco_toolchain")
 load("//popili_dist:bin/version.bzl", "POPILI_VERSION")
 
+# The toolchain every build here runs. Its toolchain() has no target_settings, so it is selected
+# whatever popili version a build asks for; rules_coco then checks that version against the one
+# declared here, and a target asking for another one fails (see //:byo_version).
 coco_toolchain(
     name = "byo_popili",
     coco = "//popili_dist:popili",
@@ -17,5 +20,15 @@ toolchain(
     name = "byo_popili_tc",
     toolchain = ":byo_popili",
     toolchain_type = "@rules_coco//coco:toolchain_type",
+    visibility = ["//visibility:public"],
+)
+
+# Declared with an alias, which coco_toolchain rejects (see //:byo_version).
+coco_toolchain(
+    name = "alias_popili",
+    coco = "//popili_dist:popili",
+    cocotec_licensing_server = "//popili_dist:licensing_server",
+    popili_version = "stable",
+    tags = ["manual"],
     visibility = ["//visibility:public"],
 )
