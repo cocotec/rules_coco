@@ -17,6 +17,7 @@
 load("@bazel_features//:features.bzl", "bazel_features")
 load("@bazel_skylib//lib:paths.bzl", "paths")
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
+load("@platforms//host:constraints.bzl", "HOST_CONSTRAINTS")
 load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
 load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load(":common_attrs.bzl", "companion_attrs")
@@ -103,6 +104,20 @@ COCO_TEST_RULE_ARGS = {
     ])},
     "fragments": ["platform"],
 } if TESTS_FOLLOW_TARGET_PLATFORM else {
+    "toolchains": [COCO_TOOLCHAIN_TYPE],
+}
+
+# rule() kwargs for executable rules, which `bazel run` executes on the host: on Bazel 9+ the (optional)
+# default test toolchain type makes the default exec group prefer an execution platform matching the
+# target platform (the host, for a plain `bazel run`) over the first one with popili; Bazel 8 has no
+# such type, so there the rule's actions are constrained to the host's OS and CPU instead.
+COCO_RUN_RULE_ARGS = {
+    "toolchains": [
+        COCO_TOOLCHAIN_TYPE,
+        config_common.toolchain_type(_DEFAULT_TEST_TOOLCHAIN_TYPE, mandatory = False),
+    ],
+} if TESTS_FOLLOW_TARGET_PLATFORM else {
+    "exec_compatible_with": HOST_CONSTRAINTS,
     "toolchains": [COCO_TOOLCHAIN_TYPE],
 }
 
@@ -2335,7 +2350,9 @@ def popili_rule(implementation, attrs = {}, package = False, test = False, execu
             runs, like `coco_generate` does, and `run` and `script` pass the package to popili.
         test: Whether the rule is a test (`rule(test = True)`), which runs popili from its runfiles.
         executable: Whether the rule is an executable (`rule(executable = True)`), such as a
-            formatter to `bazel run`, which runs popili from its runfiles like a test.
+            formatter to `bazel run`, which runs popili from its runfiles like a test. It gets the
+            popili of the platform `bazel run` executes it on: on Bazel 9+ an execution platform
+            matching the target platform is preferred, on Bazel 8 the rule is constrained to the host.
         doc: The rule's documentation, as for `rule()`.
         provides: The providers the rule promises, as for `rule()`.
 
@@ -2370,7 +2387,7 @@ def popili_rule(implementation, attrs = {}, package = False, test = False, execu
         provides = provides,
         test = test,
         executable = executable,
-        **(COCO_TEST_RULE_ARGS if test else {"toolchains": [COCO_TOOLCHAIN_TYPE]})
+        **(COCO_TEST_RULE_ARGS if test else COCO_RUN_RULE_ARGS if executable else {"toolchains": [COCO_TOOLCHAIN_TYPE]})
     )
 
 # Exported for use by cc.bzl and c.bzl

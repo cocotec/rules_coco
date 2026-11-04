@@ -166,6 +166,9 @@ root>.cs`;
   fails with `could not open the directory ...` under Bazel's sandbox.
 - On Bazel 9, `coco_verify_test` and `coco_fmt_test` could run a popili built for a different execution platform
   than the test's.
+- The `.format` binary of `coco_fmt_test` names the popili of the platform `bazel run` executes it on
+  instead of the first execution platform with a popili: on Bazel 9 an execution platform matching the
+  target platform is preferred, on Bazel 8 the rule is constrained to the host.
 - Popili releases newer than your rules_coco can now be used with the C and C++ rules. Their
   downloads are not checksum-verified.
 
