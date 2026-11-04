@@ -91,7 +91,8 @@ toolchain(
     toolchain_type = ":exec_platform_probe_type",
 )
 
-# Fails if the local toolchain resolves for :foreign, which the test lists before the host.
+# Fails if the local toolchain resolves for :foreign, which the test lists before the host, or
+# is not registered as popili "local".
 popili_exec_platform(
     name = "popili_exec_platform",
     tags = ["manual"],
@@ -101,5 +102,6 @@ popili_exec_platform_test(
     name = "popili_runs_on_host",
     size = "small",
     expected = "host",
+    expected_version = "local",
     target_under_test = ":popili_exec_platform",
 )

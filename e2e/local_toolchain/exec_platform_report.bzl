@@ -1,4 +1,4 @@
-"""Asserts which execution platform popili-running rules resolve to.
+"""Asserts which execution platform popili-running rules resolve to, and which popili.
 
 Starlark cannot see a rule's own execution platform, so a probe toolchain type tells it
 apart: one probe toolchain is constrained to the foreign platform, the fallback to none.
@@ -13,8 +13,11 @@ launcher of Bazel 9's coverage helper on Windows, which then needs a C++ toolcha
 load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts")
 
 PopiliExecPlatformInfo = provider(
-    doc = "The execution platform the Coco toolchain resolved for, as named by the probe.",
-    fields = {"exec_platform": "The exec_platform of the resolved probe toolchain."},
+    doc = "The execution platform the Coco toolchain resolved for, as named by the probe, and its version.",
+    fields = {
+        "exec_platform": "The exec_platform of the resolved probe toolchain.",
+        "popili_version": "The `popili_version` of the resolved Coco toolchain.",
+    },
 )
 
 def _exec_platform_probe_impl(ctx):
@@ -31,10 +34,11 @@ exec_platform_probe = rule(
 def _popili_exec_platform_impl(ctx):
     return [PopiliExecPlatformInfo(
         exec_platform = ctx.toolchains["//:exec_platform_probe_type"].exec_platform,
+        popili_version = ctx.toolchains["@rules_coco//coco:toolchain_type"].popili_version,
     )]
 
 popili_exec_platform = rule(
-    doc = "Reports the execution platform popili would run on.",
+    doc = "Reports the execution platform popili would run on, and which popili.",
     implementation = _popili_exec_platform_impl,
     toolchains = [
         "@rules_coco//coco:toolchain_type",
@@ -44,12 +48,9 @@ popili_exec_platform = rule(
 
 def _popili_exec_platform_test_impl(ctx):
     env = analysistest.begin(ctx)
-    asserts.equals(
-        env,
-        ctx.attr.expected,
-        analysistest.target_under_test(env)[PopiliExecPlatformInfo].exec_platform,
-        "execution platform the Coco toolchain resolved for",
-    )
+    info = analysistest.target_under_test(env)[PopiliExecPlatformInfo]
+    asserts.equals(env, ctx.attr.expected, info.exec_platform, "execution platform the Coco toolchain resolved for")
+    asserts.equals(env, ctx.attr.expected_version, info.popili_version, "popili_version of the Coco toolchain")
     return analysistest.end(env)
 
 popili_exec_platform_test = analysistest.make(
@@ -57,6 +58,10 @@ popili_exec_platform_test = analysistest.make(
     attrs = {
         "expected": attr.string(
             doc = "The exec_platform of the probe toolchain expected to resolve alongside the Coco toolchain.",
+            mandatory = True,
+        ),
+        "expected_version": attr.string(
+            doc = "The `popili_version` the resolved Coco toolchain must carry.",
             mandatory = True,
         ),
     },

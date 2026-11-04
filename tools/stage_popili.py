@@ -64,11 +64,14 @@ def _download_and_extract(base_url, archive, dest, tmp_dir):
 
 def stage(dest_dir, binary_subdir="popili", with_cpp_runtime=False, force=False):
     """Stages popili binaries under dest_dir/<binary_subdir> (+ cpp-runtime if asked).
+
+    Returns the staged popili version.
     """
+    version = stable_version()
     binary_dir = os.path.join(dest_dir, binary_subdir)
     if os.path.isdir(binary_dir) and not force:
         print(f"{binary_dir} already present; skipping (pass force=True to refresh).")
-        return
+        return version
 
     # Never remove dest_dir itself.
     shutil.rmtree(binary_dir, ignore_errors=True)
@@ -77,17 +80,17 @@ def stage(dest_dir, binary_subdir="popili", with_cpp_runtime=False, force=False)
         shutil.rmtree(runtime_dir, ignore_errors=True)
     os.makedirs(dest_dir, exist_ok=True)
 
-    version = stable_version()
     base_url = f"https://dl.cocotec.io/popili/archive/{version}"
     _download_and_extract(base_url, popili_archive(), binary_dir, dest_dir)
     if with_cpp_runtime:
         _download_and_extract(base_url, "coco-cpp-runtime.zip", runtime_dir, dest_dir)
 
     print(f"Staged popili {version} into {dest_dir}")
+    return version
 
 
 def main(dest_dir, binary_subdir="popili", with_cpp_runtime=False):
-    """CLI entrypoint for the e2e stage.py shims; adds a --force flag."""
+    """CLI entrypoint for the e2e stage.py shims; adds a --force flag. Returns the staged version."""
     parser = argparse.ArgumentParser(description="Stage a popili toolchain for an e2e test.")
     parser.add_argument("--force", action="store_true", help="Re-download even if already staged.")
-    stage(dest_dir, binary_subdir=binary_subdir, with_cpp_runtime=with_cpp_runtime, force=parser.parse_args().force)
+    return stage(dest_dir, binary_subdir=binary_subdir, with_cpp_runtime=with_cpp_runtime, force=parser.parse_args().force)
