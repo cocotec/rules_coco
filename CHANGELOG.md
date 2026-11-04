@@ -54,6 +54,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   local toolchain is accepted only by a list that names `local`. When the version a package would
   get is not in its list, it is typechecked with the first listed release that is registered
   instead, never `local`; when none is, it fails saying so.
+- `CocoPackageInfo` is exported from `@rules_coco//coco:defs.bzl`, like `CocoWorkspaceInfo`.
 - `coco_workspace` gained `popili_versions` too: the versions every member works with. Members
   without a list of their own inherit it, through nested workspaces' `parent` as well, and are
   checked against it. A member or nested workspace with its own list must include every version
@@ -125,6 +126,8 @@ root>.cs`;
 
 ### Removed
 
+- **Breaking:** `@rules_coco//coco:current_popili_version` and the `$(POPILI)` and
+  `$(POPILI_STARTUP_ARGS)` make variables it provided are removed.
 - **Breaking:** `with_popili_version` is removed. Set `popili_version` on the targets that run Popili
   instead (`coco_generate`, `coco_verify_test`, `coco_fmt_test`, the diagram rules), and on a
   `coco_cc_library` or `coco_c_library` for the runtime it links; the `coco_package` beneath a

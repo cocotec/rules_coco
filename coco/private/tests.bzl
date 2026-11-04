@@ -23,7 +23,7 @@ load(
     "PATH_CASE_DEFAULTS",
 )
 load(":cc_runtime_deps.bzl", "collect_cc_runtime_extra_deps", "normalize_cc_runtime_extra_deps")
-load(":coco.bzl", "FILE_NAME_MANGLER_STYLES", "common_version", "compute_output_paths", "effective_version", "inherited_versions_conflict", "library_version_conflict", "library_version_mismatch_message", "mangle_name", "missing_popili_message", "module_path_for", "own_package_versions_message", "package_transition_settings", "package_versions_conflict", "pin_transition_settings", "toolchain_version_mismatch_message", "unpin_transition_settings", "version_source")
+load(":coco.bzl", "FILE_NAME_MANGLER_STYLES", "common_version", "compute_output_paths", "effective_version", "inherited_versions_conflict", "library_version_conflict", "library_version_mismatch_message", "mangle_name", "missing_popili_message", "module_path_for", "own_package_versions_message", "package_transition_settings", "package_versions_conflict", "pin_transition_settings", "popili_rule_reserved_attribute", "toolchain_version_mismatch_message", "unpin_transition_settings", "version_source")
 load(":common_repositories.bzl", "coco_download", "download_prefix", "find_local_license_paths", "is_license_file_name")
 load(":known_shas.bzl", "FILE_KEY_TO_SHA")
 load(":license_versions.bzl", "LICENSE_PROTOCOL_VERSIONS")
@@ -1497,6 +1497,18 @@ def _version_source_test(ctx):
 
 version_source_test = unittest.make(_version_source_test)
 
+def _popili_rule_reserved_attribute_test(ctx):
+    """popili_rule keeps the pin, the private attributes it adds and, when it adds one, `package` for itself."""
+    env = unittest.begin(ctx)
+    asserts.equals(env, None, popili_rule_reserved_attribute({}, False))
+    asserts.equals(env, None, popili_rule_reserved_attribute({"flags": None, "package": None, "_backend": None}, False))
+    asserts.equals(env, "package", popili_rule_reserved_attribute({"flags": None, "package": None}, True))
+    asserts.equals(env, "popili_version", popili_rule_reserved_attribute({"popili_version": None}, False))
+    asserts.equals(env, "_version", popili_rule_reserved_attribute({"_backend": None, "_version": None}, True))
+    return unittest.end(env)
+
+popili_rule_reserved_attribute_test = unittest.make(_popili_rule_reserved_attribute_test)
+
 # Tests for effective_version and pin_transition_settings
 
 def _effective_version_test(ctx):
@@ -2541,6 +2553,7 @@ def coco_test_suite(name):
         missing_popili_alias_test,
         missing_popili_test_platform_test,
         version_source_test,
+        popili_rule_reserved_attribute_test,
         missing_popili_forced_test,
 
         # library_version_mismatch_message tests

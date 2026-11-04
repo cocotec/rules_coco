@@ -85,7 +85,7 @@ alias_flag_message_test = analysistest.make(
     expect_failure = True,
 )
 
-def popili_pinning_tests(name, alias_pinned, unregistered, listing_package, listing_package_consumer, dependent_package, current_popili_version):
+def popili_pinning_tests(name, alias_pinned, unregistered, listing_package, listing_package_consumer, dependent_package, custom_rule):
     """Declares the pin tests and a test_suite over them.
 
     Args:
@@ -97,7 +97,7 @@ def popili_pinning_tests(name, alias_pinned, unregistered, listing_package, list
         listing_package_consumer: An unpinned target that runs popili on `listing_package`.
         dependent_package: A coco_package without `popili_versions` or a typecheck, depending on
             `listing_package`.
-        current_popili_version: `@rules_coco//coco:current_popili_version`.
+        custom_rule: An unpinned target of a rule defined with `popili_rule`.
     """
     tests = []
     for consumer, target in alias_pinned.items():
@@ -175,9 +175,9 @@ def popili_pinning_tests(name, alias_pinned, unregistered, listing_package, list
 
     # The other consumers get this message in test/popili_diagnostics.
     alias_flag_message_test(
-        name = name + "_alias_flag_message_current_popili_version",
+        name = name + "_alias_flag_message_custom_rule",
         size = "small",
-        target_under_test = current_popili_version,
+        target_under_test = custom_rule,
         expected = [
             "needs popili stable (set by --@rules_coco//:version), but stable is an alias",
             "set it to %s, the version it stands for." % _STABLE,
@@ -192,6 +192,6 @@ def popili_pinning_tests(name, alias_pinned, unregistered, listing_package, list
         "_forced_package_versions_warns",
         "_self_pin",
         "_forced_self_pin_off",
-        "_alias_flag_message_current_popili_version",
+        "_alias_flag_message_custom_rule",
     ]]
     native.test_suite(name = name, tests = tests)

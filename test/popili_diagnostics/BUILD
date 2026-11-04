@@ -114,7 +114,7 @@ popili_diagnostics_tests(
     test_targets = ["verify_test"],
 )
 
-# A custom rule without TOOLCHAIN_ATTRIBUTES gets a simpler message rather than a crash.
+# A hand-written rule without TOOLCHAIN_ATTRIBUTES gets a simpler message rather than a crash.
 bare_coco_rule(
     name = "bare",
     tags = ["manual"],
@@ -123,6 +123,9 @@ bare_coco_rule(
 unknown_version_test(
     name = "bare_unknown_version",
     size = "small",
-    expected = ["needs a Coco toolchain, but no toolchain of type @rules_coco//coco:toolchain_type resolved."],
+    expected = [
+        "needs a Coco toolchain, but no toolchain of type @rules_coco//coco:toolchain_type resolved. " +
+        "Only rules_coco's own rules choose the version with popili_version",
+    ],
     target_under_test = ":bare",
 )
