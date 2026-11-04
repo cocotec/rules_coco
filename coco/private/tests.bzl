@@ -23,7 +23,7 @@ load(
     "PATH_CASE_DEFAULTS",
 )
 load(":cc_runtime_deps.bzl", "collect_cc_runtime_extra_deps", "normalize_cc_runtime_extra_deps")
-load(":coco.bzl", "FILE_NAME_MANGLER_STYLES", "common_version", "compute_output_paths", "effective_version", "library_version_conflict", "library_version_mismatch_message", "mangle_name", "missing_popili_message", "module_path_for", "own_package_versions_message", "package_transition_settings", "package_versions_conflict", "pin_transition_settings", "toolchain_version_mismatch_message", "unpin_transition_settings", "version_source")
+load(":coco.bzl", "FILE_NAME_MANGLER_STYLES", "common_version", "compute_output_paths", "effective_version", "inherited_versions_conflict", "library_version_conflict", "library_version_mismatch_message", "mangle_name", "missing_popili_message", "module_path_for", "own_package_versions_message", "package_transition_settings", "package_versions_conflict", "pin_transition_settings", "toolchain_version_mismatch_message", "unpin_transition_settings", "version_source")
 load(":common_repositories.bzl", "coco_download", "download_prefix", "find_local_license_paths", "is_license_file_name")
 load(":known_shas.bzl", "FILE_KEY_TO_SHA")
 load(":license_versions.bzl", "LICENSE_PROTOCOL_VERSIONS")
@@ -1660,6 +1660,26 @@ def _own_package_versions_message_test(ctx):
         ["from the bring-your-own coco_toolchain //tc"],
         absent = ["register"],
     )
+    asserts.equals(
+        env,
+        "//a:pkg gets popili 1.5.1 (the default), which the popili_versions it inherits from its workspace //a:ws do not list: 1.5.0. " +
+        "Build it beneath a target pinned to one of those, set --@rules_coco//:version to one, or write the list " +
+        "on the package itself, which then builds with the first registered one.",
+        own("//a:pkg", "1.5.1", "the default", ["1.5.0"], "1.5.1", "//tc", _REGISTRY, inherited_from = "//a:ws"),
+        "a list inherited from its workspace, which does not steer the build",
+    )
+    _assert_mentions(
+        env,
+        own("//a:pkg", "1.5.3", "the default", ["1.5.0"], "1.5.3", "//tc", _REGISTRY, inherited_from = "//a:ws"),
+        ["Add 1.5.3 to the popili_versions it inherits from its workspace //a:ws, or bring"],
+        absent = ["to its popili_versions"],
+    )
+    asserts.equals(
+        env,
+        "//a:pkg gets popili 1.5.1 (forced by --@rules_coco//:force_version), which the popili_versions it inherits from its workspace //a:ws do not list: 1.5.0.",
+        own("//a:pkg", "1.5.1", "forced by --@rules_coco//:force_version", ["1.5.0"], "1.5.1", "//tc", _REGISTRY, forced = True, inherited_from = "//a:ws"),
+        "forced, the warning names the workspace too",
+    )
     return unittest.end(env)
 
 own_package_versions_message_test = unittest.make(_own_package_versions_message_test)
@@ -1756,6 +1776,23 @@ def _package_versions_conflict_test(ctx):
     return unittest.end(env)
 
 package_versions_conflict_test = unittest.make(_package_versions_conflict_test)
+
+def _inherited_versions_conflict_test(ctx):
+    """An own list may add to the workspace's, never leave one of its versions out; an empty list inherits."""
+    env = unittest.begin(ctx)
+    asserts.equals(env, None, inherited_versions_conflict("//a:pkg", [], ["1.5.0"], "//a:ws", "workspace"), "inherits")
+    asserts.equals(env, None, inherited_versions_conflict("//a:pkg", ["1.5.0"], [], "//a:ws", "workspace"), "an unconstrained workspace")
+    asserts.equals(env, None, inherited_versions_conflict("//a:pkg", ["1.5.1", "1.5.0"], ["1.5.0"], "//a:ws", "workspace"), "more than the workspace")
+    asserts.equals(
+        env,
+        "//a:inner's popili_versions (1.5.1) leave out 1.5.0, 1.4.0, which its parent //a:outer claims for every member package: 1.5.0, 1.5.1, 1.4.0. " +
+        "A member may support more versions than its workspace, never fewer: add the missing ones, " +
+        "sharing the list through a .bzl constant, or drop popili_versions to inherit them.",
+        inherited_versions_conflict("//a:inner", ["1.5.1"], ["1.5.0", "1.5.1", "1.4.0"], "//a:outer", "parent"),
+    )
+    return unittest.end(env)
+
+inherited_versions_conflict_test = unittest.make(_inherited_versions_conflict_test)
 
 # Tests for the check of a bring-your-own toolchain's version against the version a target asks for
 
@@ -2513,6 +2550,7 @@ def coco_test_suite(name):
         library_version_conflict_library_test,
         own_package_versions_message_test,
         package_versions_conflict_test,
+        inherited_versions_conflict_test,
 
         # bring-your-own toolchain version check tests
         toolchain_version_mismatch_test,

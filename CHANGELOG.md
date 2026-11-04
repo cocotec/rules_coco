@@ -54,6 +54,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   local toolchain is accepted only by a list that names `local`. When the version a package would
   get is not in its list, it is typechecked with the first listed release that is registered
   instead, never `local`; when none is, it fails saying so.
+- `coco_workspace` gained `popili_versions` too: the versions every member works with. Members
+  without a list of their own inherit it, through nested workspaces' `parent` as well, and are
+  checked against it. A member or nested workspace with its own list must include every version
+  the workspace lists; it may support more, never fewer.
 
 ### Changed
 

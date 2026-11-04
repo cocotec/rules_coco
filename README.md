@@ -267,6 +267,36 @@ bring-your-own toolchain serves every target, so the list must name its version,
 pins must still name that version or be left out. Under `--@rules_coco//:force_version` the package
 follows the forced version like everything else.
 
+A `coco_workspace` claims versions for all of its members with the same attribute. A member
+without `popili_versions` of its own inherits the workspace's list, through nested workspaces'
+`parent` as well, and is checked against it; only a list written on the package itself steers the
+version the package is built with, though, since a transition cannot read another target. A member
+built on its own at a version outside an inherited list fails, naming the fix: select a listed
+version with `--@rules_coco//:version`, in `.bazelrc` for the whole repository, or write the list
+on the package. A member or nested workspace with a list of its own must include every version
+the workspace lists: it may support more, never fewer. To add a version, share the list through
+a `.bzl` constant:
+
+```starlark
+# popili_versions.bzl
+WORKSPACE_POPILI_VERSIONS = ["1.5.0", "1.5.1"]
+
+# BUILD
+coco_workspace(
+    name = "workspace",
+    popili_versions = WORKSPACE_POPILI_VERSIONS,
+    workspace = "Coco.toml",
+)
+
+coco_package(
+    name = "modern",
+    srcs = ["modern/src/Example.coco"],
+    package = "modern/Coco.toml",
+    popili_versions = WORKSPACE_POPILI_VERSIONS + ["1.6.0"],
+    workspace = ":workspace",
+)
+```
+
 Everything without a pin uses the default, or the version `--@rules_coco//:version` selects, for
 example `bazel build --@rules_coco//:version=1.5.1 //...`. The flag takes a concrete version (or
 `local`); aliases such as `stable` are for pins only. A pin wins over the flag, unless
