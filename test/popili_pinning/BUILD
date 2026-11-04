@@ -18,8 +18,9 @@ load(":pinning_test.bzl", "popili_pinning_tests")
 
 # The root registers `stable` and `testing`, so //test/simple pins its coco_generate and its
 # libraries to the alias `stable`, which the transitions have to resolve for anything to build.
-# Which popili each rule runs with a pin is asserted per rule by e2e/multi_version, which has two
-# versions to choose between; here only what needs the root's registration is checked.
+# Which popili each public rule runs with a pin is asserted per rule by e2e/multi_version, which
+# has two versions to choose between; here only what needs the root's registration is checked, and
+# the pin of the private popili_rule.
 
 # Pinned to a version nobody registered; reached only by the analysis tests. In this package, so
 # that forced into the configuration of //test/simple:base_cpp it does not write that target's files.
@@ -63,8 +64,10 @@ popili_pinning_tests(
     alias_pinned = {
         "cc_library": "//test/simple:base_cc._gen",
         "generate": "//test/simple:base_cpp",
+        "popili_rule_action": "//test/simple:base_component_diagram",
+        "popili_rule_binary": "//test/simple:base_typecheck_binary",
     },
-    current_popili_version = "@rules_coco//coco:current_popili_version",
+    custom_rule = "//test/simple:base_typecheck",
     dependent_package = ":dependent",
     listing_package = ":listing",
     listing_package_consumer = ":listing_verify",

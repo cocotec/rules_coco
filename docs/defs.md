@@ -2,6 +2,38 @@
 
 Public API for Coco package rules and code generation.
 
+<a id="CocoPackageInfo"></a>
+
+## CocoPackageInfo
+
+<pre>
+load("@rules_coco//coco:defs.bzl", "CocoPackageInfo")
+
+CocoPackageInfo(<a href="#CocoPackageInfo-dep_package_files">dep_package_files</a>, <a href="#CocoPackageInfo-direct_srcs">direct_srcs</a>, <a href="#CocoPackageInfo-direct_test_srcs">direct_test_srcs</a>, <a href="#CocoPackageInfo-name">name</a>, <a href="#CocoPackageInfo-package_file">package_file</a>,
+                <a href="#CocoPackageInfo-popili_versions">popili_versions</a>, <a href="#CocoPackageInfo-source_roots">source_roots</a>, <a href="#CocoPackageInfo-srcs">srcs</a>, <a href="#CocoPackageInfo-test_source_roots">test_source_roots</a>, <a href="#CocoPackageInfo-test_srcs">test_srcs</a>, <a href="#CocoPackageInfo-typecheck_marker">typecheck_marker</a>,
+                <a href="#CocoPackageInfo-workspace_files">workspace_files</a>)
+</pre>
+
+Information about a Coco package
+
+**FIELDS**
+
+| Name  | Description |
+| :------------- | :------------- |
+| <a id="CocoPackageInfo-dep_package_files"></a>dep_package_files |  All Coco.toml files for all transitive dependencies    |
+| <a id="CocoPackageInfo-direct_srcs"></a>direct_srcs |  The .coco files that are direct sources of this package only    |
+| <a id="CocoPackageInfo-direct_test_srcs"></a>direct_test_srcs |  The .coco files that are direct test_sources of this package only    |
+| <a id="CocoPackageInfo-name"></a>name |  The name of the package    |
+| <a id="CocoPackageInfo-package_file"></a>package_file |  The Coco.toml file for this package    |
+| <a id="CocoPackageInfo-popili_versions"></a>popili_versions |  The popili versions this package is compatible with, aliases resolved ([] when unconstrained)    |
+| <a id="CocoPackageInfo-source_roots"></a>source_roots |  Directories relative to the Coco.toml directory that hold this package's sources (`sources` in Coco.toml)    |
+| <a id="CocoPackageInfo-srcs"></a>srcs |  All .coco files that are sources of this package or any of its transitive dependencies    |
+| <a id="CocoPackageInfo-test_source_roots"></a>test_source_roots |  Directories relative to the Coco.toml directory that hold this package's test sources (`testSources` in Coco.toml)    |
+| <a id="CocoPackageInfo-test_srcs"></a>test_srcs |  All .coco files that are test_sources of this package or any of its transitive dependencies    |
+| <a id="CocoPackageInfo-typecheck_marker"></a>typecheck_marker |  Marker file indicating typecheck passed (or None if typecheck disabled)    |
+| <a id="CocoPackageInfo-workspace_files"></a>workspace_files |  Coco.toml files for any enclosing workspaces of this package or its transitive dependencies    |
+
+
 <a id="CocoWorkspaceInfo"></a>
 
 ## CocoWorkspaceInfo

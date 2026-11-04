@@ -309,11 +309,19 @@ and `bazel-testlogs`. In CI, collect test results through the Build Event Protoc
 (`--build_event_json_file`) or from `bazel-out/*/testlogs/**/test.xml`.
 
 To try a version on the whole repository without editing BUILD files, add
-`--@rules_coco//:force_version`: every pin is ignored, and `--@rules_coco//:version` (or the
-default when it is unset) applies everywhere, for example
+`--@rules_coco//:force_version`: every `popili_version` pin is ignored, and
+`--@rules_coco//:version` (or the default when it is unset) applies everywhere, for example
 `bazel test --@rules_coco//:force_version --@rules_coco//:version=1.5.1 //...`.
 
 See `e2e/multi_version` for a full example, in both `MODULE.bazel` and `WORKSPACE` form.
+
+#### Custom rules
+
+rules_coco has no public API for rules of your own that run popili. A hand-written rule that
+declares `@rules_coco//coco:toolchain_type` gets no `popili_version`, is not reached by
+`--@rules_coco//:force_version` when it transitions the version flag itself, and the fields of the
+toolchain it resolves are not a stable interface. `CocoPackageInfo` is public for rules that only
+read a package's files.
 
 ### Using a local toolchain
 

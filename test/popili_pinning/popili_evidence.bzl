@@ -29,13 +29,14 @@ def popili_evidence(target):
         target: The target under test.
 
     Returns:
-        The popili a run action executes, the headers of the runtime a library's `._gen` target
+        The popili a run action executes (rules_coco's generate and diagram actions, or a
+        `popili_rule`'s `run` under its default mnemonic), the headers of the runtime a library's `._gen` target
         forwards, or the text of a test's or binary's wrapper script or of a package's typecheck
         script.
     """
     typecheck_script = None
     for action in target.actions:
-        if action.mnemonic in ("CocoGenerate", "CocoDiagram"):
+        if action.mnemonic in ("CocoGenerate", "CocoDiagram", "Popili"):
             return action.argv[0]
         if action.mnemonic == "CocoTypecheck":
             typecheck_script = action.argv[0]

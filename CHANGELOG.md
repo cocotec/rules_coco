@@ -54,6 +54,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   local toolchain is accepted only by a list that names `local`. When the version a package would
   get is not in its list, it is typechecked with the first listed release that is registered
   instead, never `local`; when none is, it fails saying so.
+- `CocoPackageInfo` is exported from `@rules_coco//coco:defs.bzl`, like `CocoWorkspaceInfo`.
 - `coco_workspace` gained `popili_versions` too: the versions every member works with. Members
   without a list of their own inherit it, through nested workspaces' `parent` as well, and are
   checked against it. A member or nested workspace with its own list must include every version
@@ -125,6 +126,8 @@ root>.cs`;
 
 ### Removed
 
+- **Breaking:** `@rules_coco//coco:current_popili_version` and the `$(POPILI)` and
+  `$(POPILI_STARTUP_ARGS)` make variables it provided are removed.
 - **Breaking:** `with_popili_version` is removed. Set `popili_version` on the targets that run Popili
   instead (`coco_generate`, `coco_verify_test`, `coco_fmt_test`, the diagram rules), and on a
   `coco_cc_library` or `coco_c_library` for the runtime it links; the `coco_package` beneath a
@@ -163,6 +166,9 @@ root>.cs`;
   fails with `could not open the directory ...` under Bazel's sandbox.
 - On Bazel 9, `coco_verify_test` and `coco_fmt_test` could run a popili built for a different execution platform
   than the test's.
+- The `.format` binary of `coco_fmt_test` names the popili of the platform `bazel run` executes it on
+  instead of the first execution platform with a popili: on Bazel 9 an execution platform matching the
+  target platform is preferred, on Bazel 8 the rule is constrained to the host.
 - Popili releases newer than your rules_coco can now be used with the C and C++ rules. Their
   downloads are not checksum-verified.
 

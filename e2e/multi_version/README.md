@@ -28,6 +28,8 @@ and `WORKSPACE` mode.
 - `coco_verify_test` and `coco_fmt_test` name the popili of the execution platform the test runs
   on (`test_platform_test.bzl`), checked with a foreign target platform and the host as the first
   execution platform. Bazel 9+ only: Bazel 8 does not tie tests to the target platform.
+- The `.format` binary of `coco_fmt_test` names the host's popili, checked with a foreign platform
+  as the first execution platform.
 - A build without a matching toolchain fails with rules_coco's own message (the shared
   `popili_diagnostics_tests` from `@rules_coco//test/popili_diagnostics:diagnostics_test.bzl`).
 
@@ -39,7 +41,7 @@ e2e/multi_version/
 ├── WORKSPACE                  # Registers the same two versions (WORKSPACE mode)
 ├── BUILD.bazel                # Per-version packages, pins and the assertions
 ├── pinned_popili_test.bzl     # Analysis tests: which popili a pinned/unpinned target runs
-├── test_platform_test.bzl     # Analysis test: a test's wrapper names popili for the test's platform
+├── test_platform_test.bzl     # Analysis tests: a test's or binary's wrapper names popili for its platform
 ├── stub_cc_toolchain.bzl      # Analysis-only C++ toolchain for the foreign platform of that test
 ├── modern/                    # Package whose targets are pinned to popili 1.5.0
 ├── legacy/                    # Package whose targets are pinned to popili 1.5.1; its code and mocks feed cc_tests

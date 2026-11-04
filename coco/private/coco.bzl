@@ -17,6 +17,7 @@
 load("@bazel_features//:features.bzl", "bazel_features")
 load("@bazel_skylib//lib:paths.bzl", "paths")
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
+load("@platforms//host:constraints.bzl", "HOST_CONSTRAINTS")
 load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
 load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load(":common_attrs.bzl", "companion_attrs")
@@ -103,6 +104,20 @@ COCO_TEST_RULE_ARGS = {
     ])},
     "fragments": ["platform"],
 } if TESTS_FOLLOW_TARGET_PLATFORM else {
+    "toolchains": [COCO_TOOLCHAIN_TYPE],
+}
+
+# rule() kwargs for executable rules, which `bazel run` executes on the host: on Bazel 9+ the (optional)
+# default test toolchain type makes the default exec group prefer an execution platform matching the
+# target platform (the host, for a plain `bazel run`) over the first one with popili; Bazel 8 has no
+# such type, so there the rule's actions are constrained to the host's OS and CPU instead.
+COCO_RUN_RULE_ARGS = {
+    "toolchains": [
+        COCO_TOOLCHAIN_TYPE,
+        config_common.toolchain_type(_DEFAULT_TEST_TOOLCHAIN_TYPE, mandatory = False),
+    ],
+} if TESTS_FOLLOW_TARGET_PLATFORM else {
+    "exec_compatible_with": HOST_CONSTRAINTS,
     "toolchains": [COCO_TOOLCHAIN_TYPE],
 }
 
@@ -509,8 +524,10 @@ def _missing_toolchain_message(ctx):
     # A custom rule may declare COCO_TOOLCHAIN_TYPE without TOOLCHAIN_ATTRIBUTES, which the full message needs.
     if not hasattr(ctx.attr, "_version_registry"):
         return (
-            "%s needs a Coco toolchain, but no toolchain of type %s resolved." %
-            (ctx.label, COCO_TOOLCHAIN_TYPE_LABEL)
+            "%s needs a Coco toolchain, but no toolchain of type %s resolved. " %
+            (ctx.label, COCO_TOOLCHAIN_TYPE_LABEL) +
+            "Only rules_coco's own rules choose the version with popili_version and say which " +
+            "versions are registered."
         )
     return _missing_popili_message(
         ctx.label,
@@ -2225,44 +2242,152 @@ created that exposes the generated test sources and headers.""",
     implementation = _coco_generate_macro_impl,
 )
 
-def _popili_version_alias_impl(ctx):
-    toolchain = _coco_toolchain(ctx)
-    return [
-        toolchain,
-        platform_common.TemplateVariableInfo({
-            "POPILI": toolchain.coco.short_path,
-            "POPILI_STARTUP_ARGS": " ".join(_coco_startup_args(ctx, None, True)),
-        }),
-        DefaultInfo(
-            runfiles = ctx.runfiles(transitive_files = _coco_runfiles(ctx, None, True)),
-        ),
-    ]
+# What every rule made by popili_rule has before the author's own attributes.
+_POPILI_RULE_ATTRIBUTES = dict(LICENSE_ATTRIBUTES.items() + TOOLCHAIN_ATTRIBUTES.items() + POPILI_VERSION_ATTRIBUTES.items())
 
-_popili_version_alias = rule(
-    attrs = dict(LICENSE_ATTRIBUTES.items() + TOOLCHAIN_ATTRIBUTES.items()),
-    implementation = _popili_version_alias_impl,
-    cfg = popili_version_pin,
-    toolchains = [COCO_TOOLCHAIN_TYPE],
-)
+def _popili_rule_reserved_attribute(attrs, package):
+    """The first name in `attrs` that `popili_rule` defines itself, else None.
 
-def popili_version_alias(name, **kwargs):
-    """Creates a target that provides access to the Coco toolchain via template variables.
-
-    This rule creates template variables that can be used in genrules or other rules
-    to access popili and its startup arguments:
-    - $(POPILI): Path to the popili executable
-    - $(POPILI_STARTUP_ARGS): Standard startup arguments for popili
-
-    This is typically used for custom build rules that need direct access to the
-    Coco toolchain.
+    Pure, for the unit tests. Only the names the factory adds are reserved; an author's own
+    private attributes (leading underscore) are welcome.
 
     Args:
-        name: Name of the alias target
-        **kwargs: Additional Bazel arguments (e.g., visibility, tags)
+        attrs: The rule author's attribute dict.
+        package: Whether the factory adds the `package` attribute.
     """
-    _popili_version_alias(
-        name = name,
-        **kwargs
+    for name in attrs:
+        if name in _POPILI_RULE_ATTRIBUTES or (package and name == "package"):
+            return name
+    return None
+
+def _popili_handle(ctx, toolchain, package, from_runfiles):
+    """The `popili` argument of a popili_rule implementation: what the rule may use of the toolchain.
+
+    Args:
+        ctx: The rule context.
+        toolchain: The resolved Coco toolchain.
+        package: The coco_package target the factory's `package` attribute holds, or None.
+        from_runfiles: Whether the rule is a test or executable, which runs popili from its
+            runfiles rather than in an action.
+
+    Returns:
+        A struct with `version`, `executable`, `package` (with the attribute), and `run` for a
+        rule or `script` and `runfiles` for a test or executable.
+    """
+
+    def run(arguments, outputs, inputs = [], mnemonic = "Popili", progress_message = None):
+        ctx.actions.run(
+            executable = toolchain.coco,
+            tools = [toolchain.coco],
+            env = _coco_env(ctx),
+            mnemonic = mnemonic,
+            progress_message = progress_message or "Running popili for %s" % ctx.label,
+            inputs = depset(
+                direct = inputs if type(inputs) == "list" else [],
+                transitive = [_coco_runfiles(ctx, package, False)] + ([inputs] if type(inputs) == "depset" else []),
+            ),
+            outputs = outputs,
+            arguments = _coco_startup_args(ctx, package, False) + arguments,
+        )
+
+    def script(arguments):
+        return _create_coco_wrapper_script(ctx, package, arguments)
+
+    members = {
+        "executable": toolchain.coco,
+        "version": toolchain.popili_version,
+    }
+    if package:
+        members["package"] = package[CocoPackageInfo]
+    if from_runfiles:
+        members["runfiles"] = _coco_runfiles(ctx, package, True)
+        members["script"] = script
+    else:
+        members["run"] = run
+    return struct(**members)
+
+def popili_rule(implementation, attrs = {}, package = False, test = False, executable = False, doc = "", provides = []):
+    """Defines a rule that runs popili, with the plumbing rules_coco's own rules have.
+
+    The rule takes `popili_version` and resolves the Coco toolchain like `coco_generate` does: a
+    pin wins over `--@rules_coco//:version` unless `--@rules_coco//:force_version` is set, and a
+    missing toolchain or a version mismatch fails with rules_coco's message. The implementation is
+    called as `implementation(ctx, popili)`, where `popili` is a struct:
+
+    - `version`: the resolved toolchain's popili version, such as `"1.5.1"`, or `"local"`.
+    - `executable`: the popili binary, a `File`. Running it takes the licence and preferences
+      arguments, so use `run` or `script` rather than the file itself.
+    - `package`: with `package = True`, the `CocoPackageInfo` of the `package` attribute.
+    - `run(arguments, outputs, inputs = [], mnemonic = "Popili", progress_message = None)`
+      (rules only): registers an action running popili with `arguments` after the startup
+      arguments, the licence and preferences files, the package's files when there is one, and
+      `inputs` (a list or depset) as inputs.
+    - `script(arguments)` and `runfiles` (tests and executables only): the wrapper script running
+      popili with `arguments` from the runfiles, and the depset of files it needs there.
+      Return `DefaultInfo(executable = popili.script(...), runfiles = ctx.runfiles(transitive_files = popili.runfiles))`.
+
+    ```starlark
+    def _typecheck_test_impl(ctx, popili):
+        return DefaultInfo(
+            executable = popili.script(["typecheck"]),
+            runfiles = ctx.runfiles(transitive_files = popili.runfiles),
+        )
+
+    typecheck_test = popili_rule(
+        implementation = _typecheck_test_impl,
+        package = True,
+        test = True,
+    )
+    ```
+
+    Args:
+        implementation: The function called as `implementation(ctx, popili)`, returning the rule's providers.
+        attrs: The rule's own attributes, as for `rule()`, private ones included. `popili_version`,
+            `package` with `package = True`, and the private attributes the factory adds are its
+            own; using one of their names is an error.
+        package: Whether to add `package`, a mandatory label of the `coco_package` popili runs
+            on. The rule then fails when the package's `popili_versions` do not list the version it
+            runs, like `coco_generate` does, and `run` and `script` pass the package to popili.
+        test: Whether the rule is a test (`rule(test = True)`), which runs popili from its runfiles.
+        executable: Whether the rule is an executable (`rule(executable = True)`), such as a
+            formatter to `bazel run`, which runs popili from its runfiles like a test. It gets the
+            popili of the platform `bazel run` executes it on: on Bazel 9+ an execution platform
+            matching the target platform is preferred, on Bazel 8 the rule is constrained to the host.
+        doc: The rule's documentation, as for `rule()`.
+        provides: The providers the rule promises, as for `rule()`.
+
+    Returns:
+        The rule.
+    """
+    reserved = _popili_rule_reserved_attribute(attrs, package)
+    if reserved:
+        fail("popili_rule defines the attribute %r itself; choose another name" % reserved)
+    if test and executable:
+        fail("popili_rule: a test is executable already; set test or executable, not both")
+    own = dict(_POPILI_RULE_ATTRIBUTES)
+    if package:
+        own["package"] = attr.label(
+            doc = "The coco_package target popili runs on.",
+            mandatory = True,
+            providers = [CocoPackageInfo],
+        )
+
+    def _impl(ctx):
+        if package:
+            toolchain = _check_package_versions(ctx, [ctx.attr.package])
+        else:
+            toolchain = _coco_toolchain(ctx)
+        return implementation(ctx, _popili_handle(ctx, toolchain, ctx.attr.package if package else None, test or executable))
+
+    return rule(
+        implementation = _impl,
+        attrs = dict(own.items() + attrs.items()),
+        cfg = popili_version_pin,
+        doc = doc,
+        provides = provides,
+        test = test,
+        executable = executable,
+        **(COCO_TEST_RULE_ARGS if test else COCO_RUN_RULE_ARGS if executable else {"toolchains": [COCO_TOOLCHAIN_TYPE]})
     )
 
 # Exported for use by cc.bzl and c.bzl
@@ -2271,6 +2396,7 @@ coco_cc_pin = _coco_cc_pin
 
 # Exported for testing
 mangle_name = _mangle_name
+popili_rule_reserved_attribute = _popili_rule_reserved_attribute
 missing_popili_message = _missing_popili_message
 pin_transition_settings = _pin_transition_settings
 version_source = _version_source

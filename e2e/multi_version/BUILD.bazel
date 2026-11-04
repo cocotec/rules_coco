@@ -25,7 +25,7 @@ load(
     "runtime_extra_dep_once_test",
 )
 load(":stub_cc_toolchain.bzl", "stub_cc_toolchain_config")
-load(":test_platform_test.bzl", "test_platform_popili_test")
+load(":test_platform_test.bzl", "run_platform_popili_test", "test_platform_popili_test")
 
 # Which popili a target actually resolves is asserted directly, rather than inferred from a
 # successful verify: every registered version can verify every package here, so the verify
@@ -367,6 +367,14 @@ toolchain(
     ]
     if TESTS_FOLLOW_TARGET_PLATFORM
 ]
+
+# `bazel run` executes a binary on the host, so its wrapper names the host's popili even with a
+# foreign execution platform registered first.
+run_platform_popili_test(
+    name = "modern_fmt_format_popili_runs_on_host",
+    popili_version = "1.5.0",
+    target_under_test = ":modern_fmt.format",
+)
 
 # Unpinned consumers: a pin would win over the flag these tests set.
 popili_diagnostics_tests(

@@ -43,6 +43,12 @@ bzl_library(
     srcs = ["@bazel_tools//tools:bzl_srcs"],
 )
 
+# @platforms//host:constraints.bzl and the generated @host_platform file it loads, as a filegroup.
+bzl_library(
+    name = "platforms_host_bzl_lib",
+    srcs = ["@platforms//host:constraints_lib"],
+)
+
 # Starlark library targets for internal implementation files
 bzl_library(
     name = "common_attrs_bzl",
@@ -55,6 +61,7 @@ bzl_library(
     deps = [
         ":common_attrs_bzl",
         ":platforms_bzl",
+        ":platforms_host_bzl_lib",
         ":source_roots_bzl",
         ":version_registry_bzl",
         ":version_resolution_bzl",

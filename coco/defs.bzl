@@ -16,6 +16,7 @@
 
 load(
     "//coco/private:coco.bzl",
+    _CocoPackageInfo = "CocoPackageInfo",
     _CocoWorkspaceInfo = "CocoWorkspaceInfo",
     _coco_generate = "coco_generate",
     _coco_package = "coco_package",
@@ -42,6 +43,8 @@ load(
 coco_package = _coco_package
 
 coco_workspace = _coco_workspace
+
+CocoPackageInfo = _CocoPackageInfo
 
 CocoWorkspaceInfo = _CocoWorkspaceInfo
 

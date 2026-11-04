@@ -15,7 +15,7 @@
 load("@rules_cc//cc:defs.bzl", "cc_test")
 load("@rules_coco//coco:cc.bzl", "coco_cc_library", "coco_cc_test_library")
 load("@rules_coco//coco:defs.bzl", "coco_fmt_test", "coco_generate", "coco_package", "coco_verify_test")
-load("@rules_shell//shell:sh_test.bzl", "sh_test")
+load(":popili_rules.bzl", "popili_component_diagram", "popili_typecheck", "popili_typecheck_test")
 
 # test/popili_pinning asserts on these targets rather than copying them.
 package(default_visibility = ["//test/popili_pinning:__pkg__"])
@@ -70,13 +70,22 @@ cc_test(
     deps = [":base_cc_tst"],
 )
 
-sh_test(
-    name = "check_make_variables",
-    srcs = ["typecheck.sh"],
-    args = ["$(POPILI) $(POPILI_STARTUP_ARGS)"],
-    data = [
-        ":base",
-        "@rules_coco//coco:current_popili_version",
-    ],
-    toolchains = ["@rules_coco//coco:current_popili_version"],
+# Rules defined with popili_rule. The test is unpinned, so that it follows the flag like the
+# verify test; the action and the binary are pinned like the generator.
+popili_typecheck_test(
+    name = "base_typecheck",
+    package = ":base",
+)
+
+popili_component_diagram(
+    name = "base_component_diagram",
+    component = "Comp",
+    package = ":base",
+    popili_version = "stable",
+)
+
+popili_typecheck(
+    name = "base_typecheck_binary",
+    package = ":base",
+    popili_version = "stable",
 )

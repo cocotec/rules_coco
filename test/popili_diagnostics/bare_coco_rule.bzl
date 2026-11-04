@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""A custom rule that resolves the Coco toolchain without TOOLCHAIN_ATTRIBUTES."""
+"""A hand-written rule that resolves the Coco toolchain without popili_rule, so without TOOLCHAIN_ATTRIBUTES."""
 
 load("@rules_coco//coco/private:coco.bzl", "COCO_TOOLCHAIN_TYPE", "coco_toolchain_or_fail")  # buildifier: disable=bzl-visibility
 

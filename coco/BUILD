@@ -15,13 +15,10 @@
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("//coco/private:c_runtime.bzl", "coco_c_runtime")
 load("//coco/private:cc_runtime.bzl", "coco_cc_runtime")
-load("//coco/private:coco.bzl", "popili_version_alias")
 
 package(default_visibility = ["//visibility:public"])
 
 toolchain_type(name = "toolchain_type")
-
-popili_version_alias(name = "current_popili_version")
 
 coco_c_runtime(name = "c_runtime")
 

@@ -16,8 +16,8 @@
 
 load(
     "//coco/private:coco.bzl",
+    "COCO_RUN_RULE_ARGS",
     "COCO_TEST_RULE_ARGS",
-    "COCO_TOOLCHAIN_TYPE",
     "CocoPackageInfo",
     "LICENSE_ATTRIBUTES",
     "POPILI_VERSION_ATTRIBUTES",
@@ -129,9 +129,7 @@ be used directly.
 """,
     cfg = popili_version_pin,
     executable = True,
-    toolchains = [
-        COCO_TOOLCHAIN_TYPE,
-    ],
+    **COCO_RUN_RULE_ARGS
 )
 
 def _coco_fmt_test_macro_impl(name, visibility, package, popili_version = None, **kwargs):
