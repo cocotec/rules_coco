@@ -25,6 +25,9 @@ load(":version_aliases.bzl", "VERSION_ALIASES")
 # The build setting that selects which registered Coco version a build uses.
 VERSION_FLAG = "@rules_coco//:version"
 
+# The boolean flag that makes VERSION_FLAG apply everywhere, ignoring every `popili_version` pin.
+FORCE_VERSION_FLAG = "@rules_coco//:force_version"
+
 # The toolchain type every Coco toolchain is registered for. Here, in a file that loads nothing
 # from other repositories, so that the hub's BUILD template can use it too.
 TOOLCHAIN_TYPE = "@rules_coco//coco:toolchain_type"
