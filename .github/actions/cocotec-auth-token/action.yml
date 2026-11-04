@@ -1,0 +1,35 @@
+name: Cocotec auth token
+description: >-
+  Sets COCOTEC_AUTH_TOKEN for the rest of the job.
+
+# popili's `github` source fetches a fresh OIDC token each time popili authenticates. Github sometimes seems to reject
+# these requests so to mitigate this we share a single token with all jobs. We suspect this might be caused by the
+# number of parallel test invocations.
+
+inputs:
+  connection-id:
+    description: The identifier of the External Auth Connection on the Popili account site.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        CONNECTION_ID: ${{ inputs.connection-id }}
+      run: |
+        TOKEN_FILE="${RUNNER_TEMP//\\//}/github-oidc-token"
+
+        fetch_token() {
+          curl --fail --silent --show-error --retry 5 --retry-all-errors --max-time 15 \
+            --header "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            --get --data-urlencode "audience=//auth.cocotec.io/federated/$CONNECTION_ID" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL" |
+            jq --join-output --exit-status .value > "$TOKEN_FILE.new" &&
+            mv -f "$TOKEN_FILE.new" "$TOKEN_FILE"
+        }
+
+        fetch_token
+        (while sleep 120; do fetch_token; done) > /dev/null 2>&1 < /dev/null &
+
+        echo "COCOTEC_AUTH_TOKEN={\"external\": {\"connection_id\": \"$CONNECTION_ID\", \"file\": {\"path\": \"$TOKEN_FILE\"}}}" >> "$GITHUB_ENV"

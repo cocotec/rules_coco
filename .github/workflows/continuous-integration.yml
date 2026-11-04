@@ -5,6 +5,9 @@ on:
   push:
     branches:
       - "main"
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
 jobs:
   pre-commit:
     runs-on: ubuntu-latest
@@ -170,25 +173,15 @@ jobs:
       - uses: bazel-contrib/setup-bazel@104e3eea9447cdaa4b00d0fb46191a3985d26ab3 # 0.19.1
         with:
           repository-cache: true
+      - uses: ./.github/actions/cocotec-auth-token
+        with:
+          connection-id: 6143ef52-0286-4d9e-9176-92ab2020bbd3
       - name: Create auth token file for action_file mode
         if: matrix.auth_token_path != ''
-        run: |
-          AUTH_TOKEN="{\"external\": { \
-            \"connection_id\": \"6143ef52-0286-4d9e-9176-92ab2020bbd3\", \
-            \"github\": { \
-              \"url\": \"${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=\${audience}\", \
-              \"authorization\": \"bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}\" \
-            }}}"
-          echo "$AUTH_TOKEN" > ${{ matrix.auth_token_path }}
+        run: echo "$COCOTEC_AUTH_TOKEN" > ${{ matrix.auth_token_path }}
         shell: bash
       - name: Test root workspace
         run: |
-          export COCOTEC_AUTH_TOKEN="{\"external\": { \
-            \"connection_id\": \"6143ef52-0286-4d9e-9176-92ab2020bbd3\", \
-            \"github\": { \
-              \"url\": \"${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=\${audience}\", \
-              \"authorization\": \"bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}\" \
-            }}}"
           bazel test --config=ci --config=${{ matrix.build_system }} \
             --repo_env=COCOTEC_AUTH_TOKEN \
             --color=yes \
@@ -204,13 +197,6 @@ jobs:
           BAZEL_SH: ${{ runner.os == 'Windows' && 'C:\msys64\usr\bin\bash.exe' || '/bin/bash' }}
       - name: Test e2e scenarios
         run: |
-          export COCOTEC_AUTH_TOKEN="{\"external\": { \
-            \"connection_id\": \"6143ef52-0286-4d9e-9176-92ab2020bbd3\", \
-            \"github\": { \
-              \"url\": \"${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=\${audience}\", \
-              \"authorization\": \"bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}\" \
-            }}}"
-
           # Run tests for each e2e scenario (auto-discover subdirectories)
           for dir in e2e/*/; do
             dir=${dir%/}  # Remove trailing slash
