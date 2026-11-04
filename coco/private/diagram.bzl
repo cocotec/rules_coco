@@ -15,17 +15,7 @@
 """Diagram generation support for Coco packages."""
 
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
-load(
-    "//coco/private:coco.bzl",
-    "COCO_TOOLCHAIN_TYPE",
-    "CocoPackageInfo",
-    "LICENSE_ATTRIBUTES",
-    "POPILI_VERSION_ATTRIBUTES",
-    "TOOLCHAIN_ATTRIBUTES",
-    "check_package_versions",
-    "popili_version_pin",
-    "run_coco",
-)
+load("//coco/private:coco.bzl", "popili_rule")
 
 def counterexample_options(decl, assertion = None):
     """Specify counterexample filtering options.
@@ -42,14 +32,11 @@ def counterexample_options(decl, assertion = None):
         assertion = assertion,
     )
 
-def _coco_architecture_diagram_impl(ctx):
+def _coco_architecture_diagram_impl(ctx, popili):
     """Implementation for coco_architecture_diagram rule.
 
     Generates architecture diagrams using `popili graph-component`.
     """
-    package = ctx.attr.package
-    check_package_versions(ctx, [package])
-
     filenames = ctx.attr.component_filenames
     targets = ctx.attr.component_targets
 
@@ -91,20 +78,19 @@ def _coco_architecture_diagram_impl(ctx):
         arguments += ["--output", outputs[i].path]
 
         # Run command for this component
-        run_coco(
-            ctx = ctx,
-            package = package,
-            verb = "Generating architecture diagram for",
-            mnemonic = "CocoDiagram",
+        popili.run(
             arguments = arguments,
             outputs = [outputs[i]],
+            mnemonic = "CocoDiagram",
+            progress_message = "Generating architecture diagram for %s" % popili.package.name,
         )
 
     return [DefaultInfo(files = depset(outputs))]
 
-_coco_architecture_diagram = rule(
+_coco_architecture_diagram = popili_rule(
     implementation = _coco_architecture_diagram_impl,
-    attrs = dict(LICENSE_ATTRIBUTES.items() + TOOLCHAIN_ATTRIBUTES.items() + POPILI_VERSION_ATTRIBUTES.items() + {
+    package = True,
+    attrs = {
         "component_filenames": attr.string_list(
             mandatory = True,
         ),
@@ -135,11 +121,6 @@ _coco_architecture_diagram = rule(
             default = False,
             doc = "Only draw root components. Disabled by default.",
         ),
-        "package": attr.label(
-            providers = [CocoPackageInfo],
-            mandatory = True,
-            doc = "The coco_package target to generate architecture diagrams for.",
-        ),
         "port_names": attr.bool(
             default = False,
             doc = "Show the instance name of each port. Disabled by default.",
@@ -148,18 +129,14 @@ _coco_architecture_diagram = rule(
             default = True,
             doc = "Show the type of each port. Enabled by default.",
         ),
-    }.items()),
-    cfg = popili_version_pin,
-    toolchains = [COCO_TOOLCHAIN_TYPE],
+    },
 )
 
-def _coco_state_diagram_impl(ctx):
+def _coco_state_diagram_impl(ctx, popili):
     """Implementation for coco_state_diagram rule.
 
     Generates state machine diagrams using `popili graph-states`.
     """
-    package = ctx.attr.package
-    check_package_versions(ctx, [package])
 
     # Determine targets to generate
     targets = ctx.attr.targets if ctx.attr.targets else [""]
@@ -195,25 +172,19 @@ def _coco_state_diagram_impl(ctx):
         arguments += ["--output", outputs[i].path]
 
         # Run command for this target
-        run_coco(
-            ctx = ctx,
-            package = package,
-            verb = "Generating state diagram for",
-            mnemonic = "CocoDiagram",
+        popili.run(
             arguments = arguments,
             outputs = [outputs[i]],
+            mnemonic = "CocoDiagram",
+            progress_message = "Generating state diagram for %s" % popili.package.name,
         )
 
     return [DefaultInfo(files = depset(outputs))]
 
-_coco_state_diagram = rule(
+_coco_state_diagram = popili_rule(
     implementation = _coco_state_diagram_impl,
-    attrs = dict(LICENSE_ATTRIBUTES.items() + TOOLCHAIN_ATTRIBUTES.items() + POPILI_VERSION_ATTRIBUTES.items() + {
-        "package": attr.label(
-            providers = [CocoPackageInfo],
-            mandatory = True,
-            doc = "The coco_package target to generate state diagrams for.",
-        ),
+    package = True,
+    attrs = {
         "separate_edges": attr.bool(
             default = False,
             doc = "Lay out each state transition as a separate edge. Disabled by default.",
@@ -223,19 +194,14 @@ _coco_state_diagram = rule(
             doc = "Fully qualified names of state machines/components/ports to diagram " +
                   "(e.g. \"MyComponent.myPort.stateMachine\"). If empty, all state machines are drawn.",
         ),
-    }.items()),
-    cfg = popili_version_pin,
-    toolchains = [COCO_TOOLCHAIN_TYPE],
+    },
 )
 
-def _coco_counterexample_diagram_impl(ctx):
+def _coco_counterexample_diagram_impl(ctx, popili):
     """Implementation for coco_counterexample_diagram rule.
 
     Generates counterexample diagrams using `popili verify --counterexample-svg`.
     """
-    package = ctx.attr.package
-    check_package_versions(ctx, [package])
-
     filenames = ctx.attr.counterexample_filenames
     targets = ctx.attr.counterexample_targets
     assertions = ctx.attr.counterexample_assertions
@@ -279,20 +245,19 @@ def _coco_counterexample_diagram_impl(ctx):
             arguments += ["--counterexample-assertion", assertion]
 
     # Run verification with counterexample generation
-    run_coco(
-        ctx = ctx,
-        package = package,
-        verb = "Generating counterexample diagrams for",
-        mnemonic = "CocoDiagram",
+    popili.run(
         arguments = arguments,
         outputs = outputs,
+        mnemonic = "CocoDiagram",
+        progress_message = "Generating counterexample diagrams for %s" % popili.package.name,
     )
 
     return [DefaultInfo(files = depset(outputs))]
 
-_coco_counterexample_diagram = rule(
+_coco_counterexample_diagram = popili_rule(
     implementation = _coco_counterexample_diagram_impl,
-    attrs = dict(LICENSE_ATTRIBUTES.items() + TOOLCHAIN_ATTRIBUTES.items() + POPILI_VERSION_ATTRIBUTES.items() + {
+    package = True,
+    attrs = {
         "counterexample_assertions": attr.string_list(
             default = [],
         ),
@@ -308,14 +273,8 @@ _coco_counterexample_diagram = rule(
         "draw_title": attr.bool(
             default = True,
         ),
-        "package": attr.label(
-            providers = [CocoPackageInfo],
-            mandatory = True,
-        ),
         "_verification_backend": attr.label(default = Label("//:verification_backend")),
-    }.items()),
-    cfg = popili_version_pin,
-    toolchains = [COCO_TOOLCHAIN_TYPE],
+    },
 )
 
 # Public macros

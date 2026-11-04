@@ -843,13 +843,20 @@ def _runtime_dirname(file, is_test):
     # external-repo deps resolve in the runfiles tree; "." avoids an empty arg.
     return paths.dirname(_runtime_path(file, is_test)) or "."
 
+def _package_info(package):
+    """The CocoPackageInfo of a coco_package target, or `package` itself if it is a struct.
+
+    The struct has CocoPackageInfo's fields: a coco_package's own, before it returns the provider.
+    """
+    return package if hasattr(package, "package_file") else package[CocoPackageInfo]
+
 def _coco_startup_args(ctx, package, is_test):
     """Build startup arguments for popili.
 
     Args:
         ctx: Rule context
-        package: The coco_package target with CocoPackageInfo, a struct with package_file
-                 and dep_package_files fields, or None for base args only
+        package: The coco_package target, a struct with CocoPackageInfo's fields (see
+                 `_package_info`), or None for base args only
         is_test: Whether this is for a test (affects path resolution)
 
     Returns:
@@ -878,20 +885,12 @@ def _coco_startup_args(ctx, package, is_test):
             arguments.append("--override-licenses")
             arguments.append(_runtime_path(license_file, is_test))
     if package:
-        # Support both CocoPackageInfo providers (targets) and structs with the same fields
-        if hasattr(package, "package_file"):
-            # It's a struct
-            package_file = package.package_file
-            dep_package_files = package.dep_package_files
-        else:
-            # It's a target with CocoPackageInfo provider
-            package_file = package[CocoPackageInfo].package_file
-            dep_package_files = package[CocoPackageInfo].dep_package_files
+        info = _package_info(package)
         arguments += [
             "--package",
-            _runtime_dirname(package_file, is_test),
+            _runtime_dirname(info.package_file, is_test),
         ]
-        for dep_file in dep_package_files.to_list():
+        for dep_file in info.dep_package_files.to_list():
             arguments += ["--import-path", _runtime_dirname(dep_file, is_test)]
     return arguments
 
@@ -972,15 +971,16 @@ def _coco_runfiles(ctx, package, is_test):
     if license_file:
         direct.append(license_file)
     if package:
-        direct.append(package[CocoPackageInfo].package_file)
-        transitive.append(package[CocoPackageInfo].srcs)
-        transitive.append(package[CocoPackageInfo].test_srcs)
-        transitive.append(package[CocoPackageInfo].dep_package_files)
-        transitive.append(package[CocoPackageInfo].workspace_files)
+        info = _package_info(package)
+        direct.append(info.package_file)
+        transitive.append(info.srcs)
+        transitive.append(info.test_srcs)
+        transitive.append(info.dep_package_files)
+        transitive.append(info.workspace_files)
 
         # Include typecheck marker if present to ensure codegen waits for typecheck
-        if package[CocoPackageInfo].typecheck_marker:
-            direct.append(package[CocoPackageInfo].typecheck_marker)
+        if info.typecheck_marker:
+            direct.append(info.typecheck_marker)
     return depset(
         direct = direct,
         transitive = transitive,
@@ -1012,29 +1012,47 @@ def _is_windows(ctx):
     """
     return _coco_toolchain(ctx).coco.extension == "exe"
 
-def _create_coco_wrapper_script(ctx, package, arguments):
+def _create_coco_wrapper_script(ctx, package, arguments, marker = None):
     """Creates a platform-specific wrapper script for running Coco commands.
 
     Args:
         ctx: The rule context
-        package: The coco_package target (or None)
+        package: The coco_package target, a struct as `_package_info` takes it, or None
         arguments: List of command arguments (after startup args)
+        marker: None for a test or `bazel run` script, which finds popili and its inputs in its
+            runfiles; else a file for a build action's script to create once popili succeeds,
+            with popili and its inputs at their execution paths
 
     Returns:
         The wrapper script file
     """
-    coco_path = _coco_toolchain(ctx).coco.short_path
+    is_test = marker == None
+    coco_path = _runtime_path(_coco_toolchain(ctx).coco, is_test)
     is_windows = _is_windows(ctx)
     if is_windows:
         coco_path = coco_path.replace("/", "\\")
 
     # Build the full command
-    full_arguments = [coco_path] + _coco_startup_args(ctx, package, True) + arguments
+    full_arguments = [coco_path] + _coco_startup_args(ctx, package, is_test) + arguments
     command = " ".join(full_arguments)
     env = _coco_env(ctx)
 
     # Create platform-specific wrapper script
-    if is_windows:
+    if marker and is_windows:
+        wrapper_script = ctx.actions.declare_file(ctx.label.name + "_typecheck.bat")
+        wrapper_lines = ["@echo off"]
+        for k, v in env.items():
+            wrapper_lines.append("SET %s=\"%s\"" % (k, v))
+        wrapper_lines.append("%s || exit /b 1" % command)
+        wrapper_lines.append("type nul > \"%s\"" % marker.path.replace("/", "\\"))
+    elif marker:
+        wrapper_script = ctx.actions.declare_file(ctx.label.name + "_typecheck.sh")
+        wrapper_lines = ["#!/bin/bash", "set -e"]
+        for k, v in env.items():
+            wrapper_lines.append("export %s=\"%s\"" % (k, v))
+        wrapper_lines.append(command)
+        wrapper_lines.append("touch \"%s\"" % marker.path)
+    elif is_windows:
         wrapper_script = ctx.actions.declare_file(ctx.label.name + "-cmd.bat")
         wrapper_lines = []
         for k, v in env.items():
@@ -1059,85 +1077,31 @@ def _create_coco_wrapper_script(ctx, package, arguments):
 
     return wrapper_script
 
-# Export helper functions for use by other private modules (e.g., format.bzl, diagram.bzl)
-# These are implementation details and should not be used by end users
-check_package_versions = _check_package_versions
-create_coco_wrapper_script = _create_coco_wrapper_script
-coco_runfiles = _coco_runfiles
+# Exported for the runtimes (cc_runtime.bzl, c_runtime.bzl), which resolve the toolchain without
+# running popili. An implementation detail, not for end users; rules that run popili are built
+# with popili_rule below instead.
 coco_toolchain_or_fail = _coco_toolchain
-run_coco = _run_coco
-coco_startup_args = _coco_startup_args
-coco_env = _coco_env
-get_license_file_from_toolchain = _get_license_file_from_toolchain
 
-def _run_typecheck(ctx, toolchain, package, srcs, test_srcs):
+def _run_typecheck(ctx, package):
     """Run typecheck and produce a marker file on success.
 
     Args:
         ctx: Rule context
-        toolchain: The resolved Coco toolchain
-        package: Struct with package_file and dep_package_files fields
-        srcs: Source files depset
-        test_srcs: Test source files depset
+        package: A struct with CocoPackageInfo's fields, as `_package_info` takes it
 
     Returns:
         The typecheck marker file
     """
-
-    # Create a marker file to track typecheck completion
     marker = ctx.actions.declare_file(ctx.label.name + ".typecheck")
-
-    # Build startup arguments using the shared function
-    startup_arguments = _coco_startup_args(ctx, package = package, is_test = False)
-
-    # Build typecheck command arguments
-    typecheck_arguments = ["typecheck"]
-
-    # Collect inputs
-    license_file = _get_license_file_from_toolchain(ctx)
-    inputs_direct = [
-        package.package_file,
-        toolchain.preferences_file,
-    ]
-    if license_file:
-        inputs_direct.append(license_file)
-
-    # Create wrapper script that runs typecheck and creates marker on success
-    coco_path = toolchain.coco.path
-    is_windows = _is_windows(ctx)
-    if is_windows:
-        coco_path = coco_path.replace("/", "\\")
-
-    command = " ".join([coco_path] + startup_arguments + typecheck_arguments)
-    env = _coco_env(ctx)
-
-    if is_windows:
-        script = ctx.actions.declare_file(ctx.label.name + "_typecheck.bat")
-        script_lines = ["@echo off"]
-        for k, v in env.items():
-            script_lines.append("SET %s=\"%s\"" % (k, v))
-        script_lines.append("%s || exit /b 1" % command)
-        script_lines.append("type nul > \"%s\"" % marker.path.replace("/", "\\"))
-    else:
-        script = ctx.actions.declare_file(ctx.label.name + "_typecheck.sh")
-        script_lines = ["#!/bin/bash", "set -e"]
-        for k, v in env.items():
-            script_lines.append("export %s=\"%s\"" % (k, v))
-        script_lines.append(command)
-        script_lines.append("touch \"%s\"" % marker.path)
-
-    ctx.actions.write(output = script, content = "\n".join(script_lines), is_executable = True)
-
+    script = _create_coco_wrapper_script(ctx, package, ["typecheck"], marker = marker)
     ctx.actions.run(
         executable = script,
-        tools = [toolchain.coco, script],
+        tools = [_coco_toolchain(ctx).coco, script],
         mnemonic = "CocoTypecheck",
         progress_message = "Typechecking %s" % ctx.label.name,
-        inputs = depset(direct = inputs_direct, transitive = [srcs, test_srcs, package.dep_package_files, package.workspace_files]),
+        inputs = _coco_runfiles(ctx, package, False),
         outputs = [marker],
-        arguments = [],
     )
-
     return marker
 
 def _require_coco_toml(file, attr):
@@ -1228,12 +1192,14 @@ def _coco_package_impl(ctx):
     # Conditionally run typecheck
     typecheck_marker = None
     if ctx.attr.typecheck:
-        package_struct = struct(
+        typecheck_marker = _run_typecheck(ctx, struct(
             package_file = package_file,
             dep_package_files = dep_package_files,
+            srcs = srcs,
+            test_srcs = test_srcs,
+            typecheck_marker = None,
             workspace_files = workspace_files,
-        )
-        typecheck_marker = _run_typecheck(ctx, toolchain, package_struct, srcs, test_srcs)
+        ))
 
     # Build the list of files for DefaultInfo
     default_files_direct = [package_file]
@@ -1396,59 +1362,6 @@ A workspace's Coco.toml carries shared settings that popili applies to member
 packages. Reference this target from a coco_package's `workspace` attribute.""",
     inherit_attrs = _coco_workspace,
     implementation = _coco_workspace_macro_impl,
-)
-
-def _coco_package_verify(ctx):
-    _check_package_versions(ctx, [ctx.attr.package])
-
-    # Build the verify command arguments
-    arguments = [
-        "verify",
-        "--results-junit",
-        "%%XML_OUTPUT_FILE%%" if _is_windows(ctx) else "$XML_OUTPUT_FILE",
-    ]
-
-    backend = ctx.attr._verification_backend[BuildSettingInfo].value
-    if backend != "":
-        arguments.append("--backend")
-        arguments.append(backend)
-
-    wrapper_script = _create_coco_wrapper_script(ctx, ctx.attr.package, arguments)
-
-    return DefaultInfo(
-        executable = wrapper_script,
-        runfiles = ctx.runfiles(transitive_files = _coco_runfiles(ctx, ctx.attr.package, True)),
-    )
-
-_coco_verify_test = rule(
-    implementation = _coco_package_verify,
-    attrs = dict(LICENSE_ATTRIBUTES.items() + TOOLCHAIN_ATTRIBUTES.items() + POPILI_VERSION_ATTRIBUTES.items() + {
-        "package": attr.label(
-            providers = [CocoPackageInfo],
-            mandatory = True,
-            doc = "The coco_package target to verify.",
-        ),
-        "_verification_backend": attr.label(default = Label("//:verification_backend")),
-    }.items()),
-    cfg = popili_version_pin,
-    test = True,
-    **COCO_TEST_RULE_ARGS
-)
-
-def _coco_verify_test_macro_impl(name, visibility, **kwargs):
-    _coco_verify_test(
-        name = name,
-        visibility = visibility,
-        **kwargs
-    )
-
-coco_verify_test = macro(
-    doc = """Creates a test that runs Coco verification on a package.
-
-Executes `popili verify` on the specified coco_package, failing the test if
-verification does not pass.""",
-    inherit_attrs = _coco_verify_test,
-    implementation = _coco_verify_test_macro_impl,
 )
 
 # The file name mangler styles rules_coco implements.
@@ -2367,7 +2280,7 @@ def popili_rule(implementation, attrs = {}, package = False, test = False, execu
     own = dict(_POPILI_RULE_ATTRIBUTES)
     if package:
         own["package"] = attr.label(
-            doc = "The coco_package target popili runs on.",
+            doc = "The coco_package target this rule runs popili on.",
             mandatory = True,
             providers = [CocoPackageInfo],
         )
@@ -2389,6 +2302,49 @@ def popili_rule(implementation, attrs = {}, package = False, test = False, execu
         executable = executable,
         **(COCO_TEST_RULE_ARGS if test else COCO_RUN_RULE_ARGS if executable else {"toolchains": [COCO_TOOLCHAIN_TYPE]})
     )
+
+def _coco_package_verify(ctx, popili):
+    # Build the verify command arguments
+    arguments = [
+        "verify",
+        "--results-junit",
+        "%%XML_OUTPUT_FILE%%" if _is_windows(ctx) else "$XML_OUTPUT_FILE",
+    ]
+
+    backend = ctx.attr._verification_backend[BuildSettingInfo].value
+    if backend != "":
+        arguments.append("--backend")
+        arguments.append(backend)
+
+    return DefaultInfo(
+        executable = popili.script(arguments),
+        runfiles = ctx.runfiles(transitive_files = popili.runfiles),
+    )
+
+_coco_verify_test = popili_rule(
+    implementation = _coco_package_verify,
+    attrs = {
+        "_verification_backend": attr.label(default = Label("//:verification_backend")),
+    },
+    package = True,
+    test = True,
+)
+
+def _coco_verify_test_macro_impl(name, visibility, **kwargs):
+    _coco_verify_test(
+        name = name,
+        visibility = visibility,
+        **kwargs
+    )
+
+coco_verify_test = macro(
+    doc = """Creates a test that runs Coco verification on a package.
+
+Executes `popili verify` on the specified coco_package, failing the test if
+verification does not pass.""",
+    inherit_attrs = _coco_verify_test,
+    implementation = _coco_verify_test_macro_impl,
+)
 
 # Exported for use by cc.bzl and c.bzl
 coco_cc_gen = _coco_cc_gen
