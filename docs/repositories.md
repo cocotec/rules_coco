@@ -10,7 +10,7 @@ Public API for Coco repository rules.
 load("@rules_coco//coco:repositories.bzl", "coco_local_repositories")
 
 coco_local_repositories(<a href="#coco_local_repositories-path">path</a>, <a href="#coco_local_repositories-cc_runtime_path">cc_runtime_path</a>, <a href="#coco_local_repositories-c_runtime_path">c_runtime_path</a>, *, <a href="#coco_local_repositories-license_source">license_source</a>, <a href="#coco_local_repositories-license_token">license_token</a>,
-                        <a href="#coco_local_repositories-auth_token_path">auth_token_path</a>)
+                        <a href="#coco_local_repositories-auth_token_path">auth_token_path</a>, <a href="#coco_local_repositories-license_protocol_version">license_protocol_version</a>)
 </pre>
 
 Sets up Coco toolchain repositories from a local popili path (WORKSPACE mode).
@@ -36,6 +36,7 @@ instead.
 | <a id="coco_local_repositories-license_source"></a>license_source |  Optional default license source mode. See `coco_repositories`.   |  `""` |
 | <a id="coco_local_repositories-license_token"></a>license_token |  Optional default license token.   |  `""` |
 | <a id="coco_local_repositories-auth_token_path"></a>auth_token_path |  Optional auth token file path.   |  `""` |
+| <a id="coco_local_repositories-license_protocol_version"></a>license_protocol_version |  Optional licence protocol version the local popili reads. See `coco_toolchain`.   |  `0` |
 
 
 <a id="coco_repositories"></a>
@@ -46,7 +47,8 @@ instead.
 load("@rules_coco//coco:repositories.bzl", "coco_repositories")
 
 coco_repositories(<a href="#coco_repositories-version">version</a>, *, <a href="#coco_repositories-versions">versions</a>, <a href="#coco_repositories-c">c</a>, <a href="#coco_repositories-cc">cc</a>, <a href="#coco_repositories-license_source">license_source</a>, <a href="#coco_repositories-license_token">license_token</a>, <a href="#coco_repositories-auth_token_path">auth_token_path</a>,
-                  <a href="#coco_repositories-cc_runtime_extra_deps">cc_runtime_extra_deps</a>, <a href="#coco_repositories-local_popili">local_popili</a>, <a href="#coco_repositories-local_cc_runtime">local_cc_runtime</a>, <a href="#coco_repositories-local_c_runtime">local_c_runtime</a>)
+                  <a href="#coco_repositories-cc_runtime_extra_deps">cc_runtime_extra_deps</a>, <a href="#coco_repositories-local_popili">local_popili</a>, <a href="#coco_repositories-local_cc_runtime">local_cc_runtime</a>, <a href="#coco_repositories-local_c_runtime">local_c_runtime</a>,
+                  <a href="#coco_repositories-local_license_protocol_version">local_license_protocol_version</a>)
 </pre>
 
 Sets up Coco toolchain repositories for WORKSPACE mode.
@@ -74,5 +76,6 @@ keyword-only.
 | <a id="coco_repositories-local_popili"></a>local_popili |  Optional path to a directory holding the `popili` and `cocotec-licensing-server` binaries, registered as an additional toolchain selected by `--@rules_coco//:version=local`.   |  `None` |
 | <a id="coco_repositories-local_cc_runtime"></a>local_cc_runtime |  Optional path to a directory holding the local C++ runtime `coco/` subtree. Required to build `coco_cc_library` against `local_popili`.   |  `None` |
 | <a id="coco_repositories-local_c_runtime"></a>local_c_runtime |  Optional path to a directory holding the local C runtime `coco_c/` subtree. Required to build `coco_c_library` against `local_popili`.   |  `None` |
+| <a id="coco_repositories-local_license_protocol_version"></a>local_license_protocol_version |  Optional licence protocol version `local_popili` reads. See `coco_toolchain`.   |  `0` |
 
 

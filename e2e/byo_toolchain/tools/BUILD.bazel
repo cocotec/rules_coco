@@ -8,7 +8,7 @@ coco_toolchain(
     name = "byo_popili",
     coco = "//popili_dist:popili",
     cocotec_licensing_server = "//popili_dist:licensing_server",
-    # The staged version (see stage.py).
+    # The staged version (see stage.py), which picks the licence file under local_user licensing.
     popili_version = POPILI_VERSION,
     visibility = ["//visibility:public"],
 )
