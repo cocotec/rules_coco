@@ -22,7 +22,6 @@ load(
     _coco_test_outputs_name = "coco_test_outputs_name",
     _coco_verify_test = "coco_verify_test",
     _coco_workspace = "coco_workspace",
-    _with_popili_version = "with_popili_version",
 )
 load(
     "//coco/private:diagram.bzl",
@@ -53,8 +52,6 @@ coco_generate = _coco_generate
 coco_fmt_test = _coco_fmt_test
 
 coco_test_outputs_name = _coco_test_outputs_name
-
-with_popili_version = _with_popili_version
 
 coco_architecture_diagram = _coco_architecture_diagram
 
