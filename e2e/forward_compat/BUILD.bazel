@@ -15,15 +15,19 @@ coco_verify_test(
     package = ":forward_compat",
 )
 
+# Pinned to the only registered version, one rules_coco does not know, so the library's
+# check compares versions it has no table for.
 coco_generate(
     name = "forward_compat_cpp",
     language = "cpp",
     package = ":forward_compat",
+    popili_version = "1.5.8",
 )
 
 coco_cc_library(
     name = "forward_compat_cc",
     generated_package = ":forward_compat_cpp",
+    popili_version = "1.5.8",
 )
 
 cc_binary(

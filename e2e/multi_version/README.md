@@ -15,7 +15,14 @@ and `WORKSPACE` mode.
   own.
 - `with_popili_version` still gives a version to a rule that has no `popili_version` of its own.
 - Code generation at a pinned version feeds a `coco_cc_library` and a `cc_test` in the default
-  configuration.
+  configuration. A library's `popili_version` selects the runtime it links (`legacy_cc` links the
+  1.5.1 runtime, `modern_cc` at the default shares the top-level configuration) and applies to an
+  unpinned generator beneath it (`flexible_cc_at_151`); a library whose runtime is not the
+  version its generated code came from fails with a message saying what to pin
+  (`library_pinned_elsewhere`, `library_unpinned`), as does a library over generators at two
+  versions (`library_mixed_generators`).
+- A pinned `coco_cc_test_library` keeps its default `gmock` in the test's configuration, so
+  `legacy_mock_test`, which also depends on `@googletest//:gtest_main`, links one googletest.
 - `coco_verify_test` and `coco_fmt_test` name the popili of the execution platform the test runs
   on (`test_platform_test.bzl`), checked with a foreign target platform and the host as the first
   execution platform. Bazel 9+ only: Bazel 8 does not tie tests to the target platform.
@@ -34,7 +41,7 @@ e2e/multi_version/
 ├── test_platform_test.bzl     # Analysis test: a test's wrapper names popili for the test's platform
 ├── stub_cc_toolchain.bzl      # Analysis-only C++ toolchain for the foreign platform of that test
 ├── modern/                    # Package whose targets are pinned to popili 1.5.0
-├── legacy/                    # Package whose targets are pinned to popili 1.5.1; its code feeds a cc_test
+├── legacy/                    # Package whose targets are pinned to popili 1.5.1; its code and mocks feed cc_tests
 └── flexible/                  # Package left on the default version
 ```
 

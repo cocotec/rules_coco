@@ -15,6 +15,7 @@ local_path_override(
 
 # Required dependencies
 bazel_dep(name = "bazel_skylib", version = "1.9.2")
+bazel_dep(name = "googletest", version = "1.17.0.bcr.2")
 bazel_dep(name = "platforms", version = "1.1.0")
 bazel_dep(name = "rules_cc", version = "0.2.18")
 
@@ -26,4 +27,14 @@ coco.toolchain(
         "1.5.0",
         "1.5.1",
     ],
+)
+
+# A stand-in for Boost: the runtimes of both versions link it, and so does a target directly.
+coco.cc_runtime_deps(
+    version = "1.5.0",
+    deps = ["//:runtime_extra_dep"],
+)
+coco.cc_runtime_deps(
+    version = "1.5.1",
+    deps = ["//:runtime_extra_dep"],
 )

@@ -16,6 +16,11 @@ load("@rules_coco//coco:repositories.bzl", "coco_repositories")
 # --@rules_coco//:version is unset; the other is reachable via the flag or a popili_version pin.
 coco_repositories(
     cc = True,
+    # The stand-in for Boost of MODULE.bazel; labels here must be repository-absolute.
+    cc_runtime_extra_deps = {
+        "1.5.0": ["@rules_coco_multi_version_test//:runtime_extra_dep"],
+        "1.5.1": ["@rules_coco_multi_version_test//:runtime_extra_dep"],
+    },
     versions = [
         "1.5.0",
         "1.5.1",
