@@ -1,0 +1,2 @@
+# The staged rules_coco copy is a dependency, not part of this module.
+rules_coco_unaware/
