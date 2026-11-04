@@ -523,19 +523,7 @@ coco_generate(
 )
 ```
 
-This can then be compiled using `cc_library` like normal:
-
-```starlark
-load("@rules_cc//cc:defs.bzl", "cc_library")
-
-cc_library(
-    name = "my_package_cc",
-    srcs = [":my_package_cc_src"],
-    deps = [""],
-)
-```
-
-Alternatively these steps can be combined using `coco_cc_library`:
+This is compiled using `coco_cc_library`, which adds the C++ runtime as a dependency:
 
 ```starlark
 load("@rules_coco//coco:cc.bzl", "coco_cc_library")
@@ -543,6 +531,24 @@ load("@rules_coco//coco:cc.bzl", "coco_cc_library")
 coco_cc_library(
     name = "my_package_cc",
     generated_package = ":my_package_cc_src",
+)
+```
+
+The generated files are written below a directory of the `coco_generate`'s own
+(`bazel-bin/<package>/_coco/<name>/`), which the library adds to the include path, so include them by their path
+in the workspace, such as `#include "my/package/Foo.h"`, not by their path in `bazel-bin`.
+
+If your project wraps `cc_library` in a macro of its own, for example to add default `copts`, pass it as
+`library_rule` and `coco_cc_library` calls it instead of rules_cc's `cc_library`, with the same attributes:
+
+```starlark
+load("@rules_coco//coco:cc.bzl", "coco_cc_library")
+load("//tools:defs.bzl", "my_cc_library")
+
+coco_cc_library(
+    name = "my_package_cc",
+    generated_package = ":my_package_cc_src",
+    library_rule = my_cc_library,
 )
 ```
 
