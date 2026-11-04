@@ -1,0 +1,29 @@
+// Lists a registered popili version other than the default, for //test/popili_pinning:pinning;
+// typechecked with that version when built on its own.
+port Runnable {
+  function begin() : Nil
+  function stop() : Nil
+  machine M {
+    state Stopped {
+      begin() = setNextState(Started)
+    }
+
+    state Started {
+      stop() = setNextState(Stopped)
+    }
+  }
+}
+
+@runtime(.MultiThreaded)
+component Listing {
+  val client : Provided<Runnable>
+  machine M {
+    state Stopped {
+      client.begin() = setNextState(Started)
+    }
+
+    state Started {
+      client.stop() = setNextState(Stopped)
+    }
+  }
+}

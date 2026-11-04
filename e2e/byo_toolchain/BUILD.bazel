@@ -32,8 +32,31 @@ coco_generate(
     tags = ["manual"],
 )
 
+# The same package with popili_versions, analysed only, by the tests: one list leaves out the
+# version the toolchain provides, the other names it next to one it does not provide.
+coco_package(
+    name = "lists_unprovided",
+    srcs = glob(["src/**/*.coco"]),
+    package = "Coco.toml",
+    popili_versions = [UNPROVIDED_VERSION],
+    tags = ["manual"],
+)
+
+coco_package(
+    name = "lists_staged",
+    srcs = glob(["src/**/*.coco"]),
+    package = "Coco.toml",
+    popili_versions = [
+        POPILI_VERSION,
+        UNPROVIDED_VERSION,
+    ],
+    tags = ["manual"],
+)
+
 byo_version_tests(
     name = "byo_version",
+    lists_staged = ":lists_staged",
+    lists_unprovided = ":lists_unprovided",
     pinned = ":byo_toolchain_pinned_verify",
     staged_version = POPILI_VERSION,
     unprovided = ":unprovided_cpp",

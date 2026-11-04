@@ -22,16 +22,17 @@ load("@rules_coco//coco:defs.bzl", "coco_generate", "coco_package")
 # under "Regular", so coco_generate needs no setting for it.
 #
 # The package uses standard 2026, which needs popili 1.6, so the generate and
-# the libraries are pinned to "testing" (the libraries link its runtime). The
-# package stays manual: built on its own it is typechecked by the default
-# popili, which rejects standard 2026. Drop the pins and the manual tag once
-# 1.6 is stable.
+# the libraries are pinned to "testing" (the libraries link its runtime), and
+# the package lists it, so that built on its own it is typechecked by testing
+# rather than by the default popili, which rejects standard 2026. Drop the pins
+# and the list once 1.6 is stable.
 
 coco_package(
     name = "hide_implementation_test",
     srcs = glob(["src/**/*.coco"]),
     package = "Coco.toml",
-    tags = ["manual"],
+    popili_versions = ["testing"],
+    typecheck = True,
 )
 
 coco_generate(

@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("@rules_coco//coco:defs.bzl", "coco_generate")
+load("@rules_coco//coco:defs.bzl", "coco_generate", "coco_package", "coco_verify_test")
+load("//test/version_registry:root_versions.bzl", "OLDER_VERSION")
 load(":pinning_test.bzl", "popili_pinning_tests")
 
 # The root registers `stable` and `testing`, so //test/simple pins its coco_generate and its
@@ -30,6 +31,32 @@ coco_generate(
     tags = ["manual"],
 )
 
+# A package listing only a registered version other than the default, so the default is a version
+# it does not list; built on its own, it is typechecked with the version it lists. A consumer that
+# runs popili on it, and a package without a list or a typecheck of its own depending on it, are
+# analysed only, by the analysis tests.
+coco_package(
+    name = "listing",
+    srcs = glob(["listing/src/**/*.coco"]),
+    package = "listing/Coco.toml",
+    popili_versions = [OLDER_VERSION],
+    typecheck = True,
+)
+
+coco_verify_test(
+    name = "listing_verify",
+    package = ":listing",
+    tags = ["manual"],
+)
+
+coco_package(
+    name = "dependent",
+    srcs = ["src/Dependent.coco"],
+    package = "Coco.toml",
+    tags = ["manual"],
+    deps = [":listing"],
+)
+
 popili_pinning_tests(
     name = "pinning",
     # A library's pin is read off its ._gen target, whose CcInfo carries the runtime.
@@ -38,5 +65,8 @@ popili_pinning_tests(
         "generate": "//test/simple:base_cpp",
     },
     current_popili_version = "@rules_coco//coco:current_popili_version",
+    dependent_package = ":dependent",
+    listing_package = ":listing",
+    listing_package_consumer = ":listing_verify",
     unregistered = ":unregistered_cpp",
 )

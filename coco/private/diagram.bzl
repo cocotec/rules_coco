@@ -22,7 +22,7 @@ load(
     "LICENSE_ATTRIBUTES",
     "POPILI_VERSION_ATTRIBUTES",
     "TOOLCHAIN_ATTRIBUTES",
-    "coco_toolchain_or_fail",
+    "check_package_versions",
     "popili_version_pin",
     "run_coco",
 )
@@ -47,8 +47,8 @@ def _coco_architecture_diagram_impl(ctx):
 
     Generates architecture diagrams using `popili graph-component`.
     """
-    coco_toolchain_or_fail(ctx)
     package = ctx.attr.package
+    check_package_versions(ctx, [package])
 
     filenames = ctx.attr.component_filenames
     targets = ctx.attr.component_targets
@@ -159,6 +159,7 @@ def _coco_state_diagram_impl(ctx):
     Generates state machine diagrams using `popili graph-states`.
     """
     package = ctx.attr.package
+    check_package_versions(ctx, [package])
 
     # Determine targets to generate
     targets = ctx.attr.targets if ctx.attr.targets else [""]
@@ -232,8 +233,8 @@ def _coco_counterexample_diagram_impl(ctx):
 
     Generates counterexample diagrams using `popili verify --counterexample-svg`.
     """
-    coco_toolchain_or_fail(ctx)
     package = ctx.attr.package
+    check_package_versions(ctx, [package])
 
     filenames = ctx.attr.counterexample_filenames
     targets = ctx.attr.counterexample_targets

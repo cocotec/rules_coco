@@ -22,6 +22,7 @@ load(
     "LICENSE_ATTRIBUTES",
     "POPILI_VERSION_ATTRIBUTES",
     "TOOLCHAIN_ATTRIBUTES",
+    "check_package_versions",
     "coco_runfiles",
     "create_coco_wrapper_script",
     "popili_version_pin",
@@ -35,6 +36,7 @@ def _coco_fmt_test_impl(ctx):
     is properly formatted. The test passes if code is formatted correctly,
     and fails if formatting changes are needed.
     """
+    check_package_versions(ctx, [ctx.attr.package])
     arguments = [
         "format",
         "--verify",
@@ -95,6 +97,7 @@ def _coco_fmt_binary_impl(ctx):
 
     Creates an executable that runs 'popili format' to format Coco code.
     """
+    check_package_versions(ctx, [ctx.attr.package])
     arguments = [
         "format",
     ]

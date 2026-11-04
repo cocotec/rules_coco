@@ -30,15 +30,18 @@ def _failure_test(settings):
 
 mismatch_under_pin_test = _failure_test({_VERSION_FLAG: "", _FORCE_FLAG: False})
 mismatch_forced_test = _failure_test({_VERSION_FLAG: UNPROVIDED_VERSION, _FORCE_FLAG: True})
+unlisted_test = _failure_test({_VERSION_FLAG: UNPROVIDED_VERSION, _FORCE_FLAG: False})
 alias_rejected_test = _failure_test({})
 
-def byo_version_tests(name, pinned, unprovided, staged_version):
+def byo_version_tests(name, pinned, unprovided, lists_unprovided, lists_staged, staged_version):
     """Declares the tests and a test_suite over them.
 
     Args:
         name: Prefix for the tests and the name of the test_suite.
         pinned: A target pinned to `staged_version`.
         unprovided: A coco_generate pinned to UNPROVIDED_VERSION.
+        lists_unprovided: A coco_package with `popili_versions = [UNPROVIDED_VERSION]`.
+        lists_staged: A coco_package with `popili_versions = [staged_version, UNPROVIDED_VERSION]`.
         staged_version: The version //tools:byo_popili declares.
     """
 
@@ -64,6 +67,26 @@ def byo_version_tests(name, pinned, unprovided, staged_version):
         expected = [":byo_toolchain needs popili %s (forced by --@rules_coco//:force_version), but the bring-your-own coco_toolchain " % UNPROVIDED_VERSION, mismatch],
     )
 
+    # A package whose list leaves out the toolchain's version is told to list it, whatever was asked for.
+    unlisted_test(
+        name = name + "_unlisted",
+        size = "small",
+        target_under_test = lists_unprovided,
+        expected = [
+            ":lists_unprovided gets popili %s from the bring-your-own coco_toolchain " % staged_version,
+            "popili_versions do not list it: %s. Add %s to its popili_versions" % (UNPROVIDED_VERSION, staged_version),
+        ],
+    )
+
+    # The flag asks for UNPROVIDED_VERSION, which the package lists, so its own transition keeps it.
+    # That the list names the toolchain's version too does not excuse the flag naming another.
+    unlisted_test(
+        name = name + "_listed_flag_mismatch",
+        size = "small",
+        target_under_test = lists_staged,
+        expected = [":lists_staged needs popili %s (set by --@rules_coco//:version), but the bring-your-own coco_toolchain " % UNPROVIDED_VERSION, mismatch],
+    )
+
     # A toolchain's popili_version must be a version, not an alias.
     alias_rejected_test(
         name = name + "_alias_rejected",
@@ -76,6 +99,8 @@ def byo_version_tests(name, pinned, unprovided, staged_version):
         tests = [name + suffix for suffix in [
             "_pin_mismatch",
             "_forced_mismatch",
+            "_unlisted",
+            "_listed_flag_mismatch",
             "_alias_rejected",
         ]],
     )
