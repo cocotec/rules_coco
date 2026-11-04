@@ -1,0 +1,17 @@
+enum Status {
+  case OK
+  case ERROR
+}
+
+port IBase {
+  function getStatus() : Status
+
+  machine {
+    getStatus() = Status.OK
+  }
+}
+
+@runtime(.MultiThreaded)
+external component BaseStub {
+  val api : Provided<IBase>
+}

@@ -45,6 +45,8 @@ coco_generate(
 coco_cc_library(
     name = "base_cc",
     generated_package = ":base_cpp",
+    # Only reaches hand-written headers: generated ones are included by module path regardless.
+    # Kept to show that an `includes` left over from rules_coco 0.3 is harmless.
     includes = ["base"],
 )
 
@@ -70,7 +72,6 @@ coco_generate(
 coco_cc_library(
     name = "middle_cc",
     generated_package = ":middle_cpp",
-    includes = ["middle"],
     deps = [":base_cc"],
 )
 

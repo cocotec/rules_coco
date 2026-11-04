@@ -49,7 +49,6 @@ coco_generate(
 coco_cc_library(
     name = "pkg_cc",
     generated_package = ":pkg_cpp",
-    includes = ["pkg"],
 )
 
 cc_test(

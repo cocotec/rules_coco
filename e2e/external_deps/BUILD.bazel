@@ -27,8 +27,8 @@ coco_cc_library(
     deps = ["@coco_dep//:base_cc"],
 )
 
-# Generated headers of packages in @coco_dep are included by their path in that repository, not
-# below external/coco_dep+/.
+# Generated headers of packages in @coco_dep are included by module path, as popili includes them,
+# wherever the package lives.
 cc_test(
     name = "external_includes_test",
     srcs = ["test/external_includes.cc"],

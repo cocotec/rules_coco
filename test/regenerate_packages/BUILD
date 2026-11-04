@@ -44,6 +44,7 @@ coco_generate(
     name = "app_cpp",
     cpp_header_file_extension = ".hpp",
     cpp_regenerate_packages = [":base"],
+    include_prefix = "app",
     language = "cpp",
     package = ":app",
 )
@@ -66,6 +67,7 @@ coco_generate(
     name = "app_c",
     c_header_file_extension = ".hh",
     c_regenerate_packages = [":base"],
+    include_prefix = "app",
     language = "c",
     package = ":app",
 )
@@ -93,7 +95,7 @@ coco_generate(
 cc_test(
     name = "csharp_test",
     srcs = ["app/test/csharp_validator.cc"],
-    args = ["test/regenerate_packages/_coco/app_csharp/test/regenerate_packages/app"],
+    args = ["test/regenerate_packages/_coco/app_csharp"],
     data = [":app_csharp"],
 )
 
