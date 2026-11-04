@@ -56,7 +56,7 @@ Sets up Coco toolchain repositories for WORKSPACE mode.
 Register several versions to build different targets against different Popili
 releases in one build. The first entry of `versions` is the default; select any other
 with `bazel build --@rules_coco//:version=1.5.1`, or per target with
-`with_popili_version`. Call this at most once. Every argument but `version` is
+`popili_version`. Call this at most once. Every argument but `version` is
 keyword-only.
 
 

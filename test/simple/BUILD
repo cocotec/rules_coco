@@ -17,6 +17,9 @@ load("@rules_coco//coco:cc.bzl", "coco_cc_library", "coco_cc_test_library")
 load("@rules_coco//coco:defs.bzl", "coco_fmt_test", "coco_generate", "coco_package", "coco_verify_test")
 load("@rules_shell//shell:sh_test.bzl", "sh_test")
 
+# test/popili_pinning asserts on these targets rather than copying them.
+package(default_visibility = ["//test/popili_pinning:__pkg__"])
+
 coco_package(
     name = "base",
     srcs = glob(["src/**/*.coco"]),
@@ -37,11 +40,14 @@ coco_fmt_test(
     package = ":base",
 )
 
+# Pinned to the alias `stable`, which the root registers first, so without a flag the pin changes
+# nothing and the library below links the runtime of the same version.
 coco_generate(
     name = "base_cpp",
     language = "cpp",
     mocks = True,
     package = ":base",
+    popili_version = "stable",
 )
 
 coco_cc_library(
