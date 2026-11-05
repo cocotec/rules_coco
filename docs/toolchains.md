@@ -97,7 +97,9 @@ toolchain(
 
 Use this when one `popili`, built in your repository, should run every target. A `toolchain()` without `target_settings`
 or constraints, like the one above, matches every target, so it replaces rules_coco's own toolchains and no pin or flag
-can select another one. Register only one such toolchain, since one registered after it would never be selected.
+can select another one. Register only one such toolchain, since one registered after it would never be selected. For a
+prebuilt `popili`, set `exec_compatible_with` on the `toolchain()` to the OS and CPU it runs on, so Bazel never runs it
+on another execution platform.
 
 A bring-your-own `coco_toolchain` does not see the licence settings on
 [`coco.toolchain`](reference/extensions.md#coco.toolchain) or `coco_repositories`; those apply only to the toolchains
@@ -123,7 +125,8 @@ See [`e2e/byo_toolchain`](../e2e/byo_toolchain).
 Bazel picks Popili by execution platform. For every registered version, rules_coco declares one toolchain per platform
 Popili supports: Linux (x86_64 and aarch64), macOS (aarch64) and Windows (x86_64). Each toolchain is constrained to that
 execution platform only. So actions such as [`coco_generate`](reference/defs.md#coco_generate) run on any of these
-execution platforms, local or remote, whatever the target platform.
+execution platforms, local or remote, whatever the target platform. Under the
+[local licence modes](licensing.md#licence-modes) they always run on the host instead.
 
 The Coco runtimes that [`coco_cc_library`](reference/cc.md#coco_cc_library) and
 [`coco_c_library`](reference/c.md#coco_c_library) link are compiled for the target platform like any other `cc_library`,

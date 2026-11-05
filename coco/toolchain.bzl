@@ -15,6 +15,7 @@
 """Coco toolchain implementation."""
 
 load("//coco/private:licence_docs.bzl", "AUTH_TOKEN_PATH_DOC", "LICENSE_SOURCE_DOC", "LICENSE_TOKEN_DOC")
+load("//coco/private:license_sources.bzl", "LICENSE_SOURCES")
 load("//coco/private:version_resolution.bzl", "LOCAL_VERSION", "version_tuple")
 
 def _coco_toolchain_impl(ctx):
@@ -109,6 +110,7 @@ yourself only to bring your own popili: wrap it in a `toolchain()` with
         "license_source": attr.string(
             doc = "The licence mode for this toolchain: " + LICENSE_SOURCE_DOC,
             default = "",
+            values = LICENSE_SOURCES + [""],
         ),
         "license_token": attr.string(
             doc = LICENSE_TOKEN_DOC,
