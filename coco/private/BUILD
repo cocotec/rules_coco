@@ -56,11 +56,17 @@ bzl_library(
 )
 
 bzl_library(
+    name = "license_paths_bzl",
+    srcs = ["license_paths.bzl"],
+)
+
+bzl_library(
     name = "coco_bzl",
     srcs = ["coco.bzl"],
     deps = [
         ":common_attrs_bzl",
         ":host_bzl",
+        ":license_paths_bzl",
         ":license_sources_bzl",
         ":platforms_bzl",
         ":platforms_host_bzl_lib",
