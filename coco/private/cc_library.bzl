@@ -18,20 +18,25 @@ load("@rules_cc//cc:defs.bzl", "cc_library")
 load(":coco.bzl", _coco_cc_gen = "coco_cc_gen", _coco_cc_pin = "coco_cc_pin")
 load(":common_attrs.bzl", "companion_attrs")
 
-def _generated_targets(name, runtime, packages, popili_version, public_hdrs, kwargs, use_test_outputs = False):
+def _generated_targets(name, runtime, generated_package, generated_packages, popili_version, public_hdrs, kwargs, gmock = None, use_test_outputs = False):
     """Declares the targets that feed the generated packages, with the runtime, to the cc_library.
 
     One _coco_cc_pin at the library's `popili_version` (beneath which the generators and the
     runtime are analysed, and which checks they share one version), and one _coco_cc_gen in the
     library's configuration.
 
+    The library's attrs are passed on as given, never inspected or wrapped, so that each may be
+    a select().
+
     Args:
         name: The name of the library.
         runtime: The Coco runtime label (cc_runtime or c_runtime).
-        packages: The coco_generate targets.
+        generated_package: As for the library.
+        generated_packages: As for the library.
         popili_version: The library's pin, "" for none.
         public_hdrs: As for the library.
         kwargs: The library's kwargs, for the common attrs.
+        gmock: As for the test library; None for a library.
         use_test_outputs: Whether to take the generated test/mock outputs.
 
     Returns:
@@ -41,7 +46,8 @@ def _generated_targets(name, runtime, packages, popili_version, public_hdrs, kwa
     _coco_cc_pin(
         name = pin_name,
         library = name,
-        packages = packages,
+        generated_package = generated_package,
+        packages = generated_packages,
         popili_version = popili_version,
         runtime = runtime,
         **companion_attrs(kwargs, extra_tags = ["manual"])
@@ -50,12 +56,14 @@ def _generated_targets(name, runtime, packages, popili_version, public_hdrs, kwa
     _coco_cc_gen(
         name = gen_name,
         library = name,
-        packages = packages,
+        generated_package = generated_package,
+        packages = generated_packages,
+        gmock = gmock,
         pinned = pin_name,
         popili_version = popili_version,
         use_test_outputs = use_test_outputs,
-        all_hdrs_public = (public_hdrs == None),
-        public_hdrs = public_hdrs if public_hdrs != None else [],
+        # None (or a select() branch of None) keeps the rule's default: all headers public.
+        public_hdrs = public_hdrs,
         **companion_attrs(kwargs, extra_tags = ["manual"])
     )
     return gen_name
@@ -92,11 +100,7 @@ def coco_library(
                       attributes. None means rules_cc's cc_library.
         **kwargs: Additional arguments passed to library_rule
     """
-    if generated_package and generated_packages:
-        fail("Cannot specify both generated_package and generated_packages")
-    packages = generated_packages if generated_packages else [generated_package]
-
-    gen_name = _generated_targets(name, runtime, packages, popili_version, public_hdrs, kwargs)
+    gen_name = _generated_targets(name, runtime, generated_package, generated_packages, popili_version, public_hdrs, kwargs)
 
     # The runtime comes with the gen target, at the library's popili_version.
     (library_rule or cc_library)(
@@ -142,19 +146,15 @@ def coco_test_library(
                       attributes. None means rules_cc's cc_library.
         **kwargs: Additional arguments passed to library_rule
     """
-    if generated_package and generated_packages:
-        fail("Cannot specify both generated_package and generated_packages")
-    packages = generated_packages if generated_packages else [generated_package]
 
-    gen_name = _generated_targets(name, runtime, packages, popili_version, public_hdrs, kwargs, use_test_outputs = True)
+    # gmock comes with the gen target. It and deps stay in the library's configuration; only the
+    # runtime follows popili_version.
+    gen_name = _generated_targets(name, runtime, generated_package, generated_packages, popili_version, public_hdrs, kwargs, gmock = gmock, use_test_outputs = True)
 
-    gmock_deps = [gmock] if gmock else []
-
-    # gmock and deps stay in the library's configuration; only the runtime follows popili_version.
     (library_rule or cc_library)(
         name = name,
         srcs = srcs + [gen_name],
         hdrs = hdrs,
-        deps = deps + [gen_name] + gmock_deps,
+        deps = deps + [gen_name],
         **kwargs
     )

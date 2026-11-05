@@ -1991,6 +1991,21 @@ def _library_version_conflict(library, library_version, library_source, generate
             return _library_version_mismatch_message(library, library_version, library_source, generator, version)
     return None
 
+def _library_packages(ctx):
+    """The coco_generate targets a library builds from, from generated_package or generated_packages.
+
+    The macros forward both as given, so that either may be a select().
+    """
+    if ctx.attr.generated_package and ctx.attr.packages:
+        fail("%s: cannot specify both generated_package and generated_packages" % ctx.label.same_package_label(ctx.attr.library))
+    if ctx.attr.generated_package:
+        # A list where the attr has a transition (_coco_cc_gen), a target where not (_coco_cc_pin).
+        package = ctx.attr.generated_package
+        return package if type(package) == "list" else [package]
+    if not ctx.attr.packages:
+        fail("%s: specify generated_package or generated_packages" % ctx.label.same_package_label(ctx.attr.library))
+    return ctx.attr.packages
+
 def _coco_cc_pin_impl(ctx):
     """Checks a library's generated code against the runtime of the library's popili version.
 
@@ -2002,7 +2017,7 @@ def _coco_cc_pin_impl(ctx):
         ctx.label.same_package_label(ctx.attr.library),
         toolchain.popili_version,
         _version_source_of(ctx),
-        [(package.label, package[CocoCcGeneratedInfo].popili_version) for package in ctx.attr.packages],
+        [(package.label, package[CocoCcGeneratedInfo].popili_version) for package in _library_packages(ctx)],
     )
     if conflict:
         fail(conflict)
@@ -2018,14 +2033,17 @@ def _coco_cc_pin_impl(ctx):
 _coco_cc_pin = rule(
     implementation = _coco_cc_pin_impl,
     attrs = dict(TOOLCHAIN_ATTRIBUTES.items() + POPILI_VERSION_ATTRIBUTES.items() + {
+        "generated_package": attr.label(
+            providers = [CocoCcGeneratedInfo],
+            doc = "The coco_generate target the library builds from, when it is just one.",
+        ),
         "library": attr.string(
             mandatory = True,
             doc = "The name of the library in this package, for messages.",
         ),
         "packages": attr.label_list(
             providers = [CocoCcGeneratedInfo],
-            mandatory = True,
-            doc = "The coco_generate targets the library builds from.",
+            doc = "The coco_generate targets the library builds from, when it is several.",
         ),
         "runtime": attr.label(
             providers = [CcInfo],
@@ -2047,7 +2065,7 @@ def _coco_cc_gen_impl(ctx):
     sources = []
     include_roots = []
     include_paths = {}
-    for package in ctx.attr.packages:
+    for package in _library_packages(ctx):
         gen_info = package[CocoCcGeneratedInfo]
         if ctx.attr.use_test_outputs:
             headers = gen_info.test_headers.to_list()
@@ -2060,7 +2078,7 @@ def _coco_cc_gen_impl(ctx):
         for h in headers:
             include_paths[h] = relative_path(h.path, gen_info.include_root)
 
-    if ctx.attr.all_hdrs_public:
+    if ctx.attr.public_hdrs == _ALL_HDRS_PUBLIC:
         public_hdrs = all_headers
         private_hdrs = []
     else:
@@ -2083,34 +2101,51 @@ def _coco_cc_gen_impl(ctx):
         quote_includes = depset(include_roots),
     )
 
+    # gmock comes in here rather than in the library's deps, so that it may be a select() that
+    # can also select None.
+    extra = [ctx.attr.gmock] if ctx.attr.gmock else []
     return [
         DefaultInfo(
             files = depset(sources + private_hdrs),
-            runfiles = ctx.attr.pinned[DefaultInfo].default_runfiles,
+            runfiles = ctx.attr.pinned[DefaultInfo].default_runfiles.merge_all(
+                [dep[DefaultInfo].default_runfiles for dep in extra],
+            ),
         ),
-        # Direct, as when the runtime was in the library's own deps, for layering_check.
+        # Direct, as when the runtime and gmock were in the library's own deps, for layering_check.
         cc_common.merge_cc_infos(direct_cc_infos = [
             CcInfo(compilation_context = compilation_context),
             ctx.attr.pinned[CcInfo],
-        ]),
+        ] + [dep[CcInfo] for dep in extra]),
     ]
+
+# The default of _coco_cc_gen's public_hdrs, for a library whose public_hdrs is None or a select()
+# that selects None: all generated headers are public.
+_ALL_HDRS_PUBLIC = ["*"]
 
 # One per library, so that public_hdrs is checked against all its packages at once.
 _coco_cc_gen = rule(
     implementation = _coco_cc_gen_impl,
     attrs = {
-        "all_hdrs_public": attr.bool(default = True),
+        "generated_package": attr.label(
+            providers = [CocoCcGeneratedInfo],
+            # As for packages.
+            cfg = popili_version_pin,
+            doc = "The coco_generate target the library builds from, when it is just one.",
+        ),
+        "gmock": attr.label(
+            providers = [CcInfo],
+            doc = "The GoogleTest/GoogleMock library of a test library, in the library's configuration.",
+        ),
         "library": attr.string(
             mandatory = True,
             doc = "The name of the library in this package, for messages.",
         ),
         "packages": attr.label_list(
             providers = [CocoCcGeneratedInfo],
-            mandatory = True,
             # The library's _coco_cc_pin applies the same transition with the same popili_version,
             # so these are the coco_generate targets it checked, analysed once.
             cfg = popili_version_pin,
-            doc = "The coco_generate targets the library builds from, analysed at the library's popili_version.",
+            doc = "The coco_generate targets the library builds from, when it is several, analysed at the library's popili_version.",
         ),
         "pinned": attr.label(
             providers = [CcInfo],
@@ -2119,8 +2154,8 @@ _coco_cc_gen = rule(
         ),
         "popili_version": attr.string(doc = "The library's popili_version, for the transition on `packages`."),
         "public_hdrs": attr.string_list(
-            default = [],
-            doc = "Header names to make public (when all_hdrs_public is False). " +
+            default = _ALL_HDRS_PUBLIC,
+            doc = "Header names to make public; all of them by default. " +
                   "Use bare filenames (e.g., 'ISensor.h') to match by name, or " +
                   "trailing parts of the include path (e.g., 'sensors/ISensor.h') to disambiguate. " +
                   "An entry that matches no header is an error.",
