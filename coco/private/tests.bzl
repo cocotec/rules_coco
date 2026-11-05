@@ -23,7 +23,7 @@ load(
     "PATH_CASE_DEFAULTS",
 )
 load(":cc_runtime_deps.bzl", "collect_cc_runtime_extra_deps", "normalize_cc_runtime_extra_deps")
-load(":coco.bzl", "FILE_NAME_MANGLER_STYLES", "bat_set", "common_version", "compute_output_paths", "effective_version", "inherited_versions_conflict", "library_version_conflict", "library_version_mismatch_message", "license_execution_requirements", "mangle_name", "missing_popili_message", "module_path_for", "own_package_versions_message", "package_transition_settings", "package_versions_conflict", "pin_transition_settings", "popili_rule_reserved_attribute", "toolchain_version_mismatch_message", "unpin_transition_settings", "version_source")
+load(":coco.bzl", "FILE_NAME_MANGLER_STYLES", "bat_set", "common_version", "compute_output_paths", "effective_version", "inherited_versions_conflict", "library_version_conflict", "library_version_mismatch_message", "license_execution_requirements", "mangle_name", "missing_popili_message", "module_path_for", "own_package_versions_message", "package_transition_settings", "package_versions_conflict", "pin_transition_settings", "popili_rule_reserved_attribute", "script_literal", "toolchain_version_mismatch_message", "unpin_transition_settings", "version_source")
 load(":common_repositories.bzl", "AVAILABLE_STABLE_VERSIONS", "coco_download", "download_prefix", "find_local_license_paths", "is_license_file_name")
 load(":known_shas.bzl", "FILE_KEY_TO_SHA")
 load(":license_versions.bzl", "LICENSE_PROTOCOL_VERSIONS")
@@ -354,6 +354,22 @@ def _bat_set_test_impl(ctx):
     return unittest.end(env)
 
 bat_set_test = unittest.make(_bat_set_test_impl)
+
+def _script_literal_test_impl(ctx):
+    """Paths from the environment reach popili unchanged through a wrapper script."""
+    env = unittest.begin(ctx)
+
+    asserts.equals(env, "external/x/popili", script_literal("external/x/popili", False))
+    asserts.equals(env, "'/Library/Application Support/l.lic'", script_literal("/Library/Application Support/l.lic", False))
+    asserts.equals(env, "'/data/o'\\''brien/$HOME'", script_literal("/data/o'brien/$HOME", False))
+
+    asserts.equals(env, "external\\x\\popili.exe", script_literal("external\\x\\popili.exe", True))
+    asserts.equals(env, "\"C:/Users/R&D/50%%\"", script_literal("C:/Users/R&D/50%", True))
+    asserts.equals(env, "\"C:\\a b\\\\\"", script_literal("C:\\a b\\", True))
+
+    return unittest.end(env)
+
+script_literal_test = unittest.make(_script_literal_test_impl)
 
 # Tests for source_roots.bzl. Paths here are relative to the Coco.toml directory.
 
@@ -2551,6 +2567,7 @@ def coco_test_suite(name):
         name + "_unit",
         module_path_for_test,
         bat_set_test,
+        script_literal_test,
         license_execution_requirements_test,
 
         # source_roots.bzl tests
