@@ -69,6 +69,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Under `local_user`, popili gets the user's licence file by its absolute path instead of as an action input. Popili's
+  licensing daemon rewrites that file as it renews, which used to rerun every popili action and test.
 - Under the `local_user` and `local_acquire` licence modes, popili's actions and tests are tagged `no-remote-exec`, so
   they run on the machine that holds the licence even when remote execution is on, with that machine's popili even
   when another execution platform comes first. Their results are still cached.
