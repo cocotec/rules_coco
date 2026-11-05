@@ -15,6 +15,10 @@
 """Public API for Coco repository rules."""
 
 load(
+    "//coco/private:common_repositories.bzl",
+    _AVAILABLE_STABLE_VERSIONS = "AVAILABLE_STABLE_VERSIONS",
+)
+load(
     "//coco/private:repositories.bzl",
     _coco_local_repositories = "coco_local_repositories",
     _coco_repositories = "coco_repositories",
@@ -22,3 +26,8 @@ load(
 
 coco_repositories = _coco_repositories
 coco_local_repositories = _coco_local_repositories
+
+# Every stable popili version (1.5.0 onwards, no betas or release candidates) this
+# rules_coco knows the downloads of, newest first: `versions = AVAILABLE_STABLE_VERSIONS`
+# registers them all, with the newest as the default.
+AVAILABLE_STABLE_VERSIONS = _AVAILABLE_STABLE_VERSIONS

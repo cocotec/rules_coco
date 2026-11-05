@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `AVAILABLE_STABLE_VERSIONS`, exported from `@rules_coco//coco:repositories.bzl`, lists every
+  stable Popili version rules_coco knows of (1.5.0 onwards, no betas or release candidates),
+  newest first, so that `coco_repositories(versions = AVAILABLE_STABLE_VERSIONS)` registers them
+  all.
 - WORKSPACE mode now supports multiple Popili versions, like bzlmod already did.
   `coco_repositories(versions = ["1.5.1", "1.5.0"])` registers a toolchain per version, selected
   with `--@rules_coco//:version=1.5.0` or per target with `popili_version`. The first entry is

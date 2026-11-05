@@ -73,7 +73,10 @@ bzl_library(
 bzl_library(
     name = "repositories",
     srcs = ["repositories.bzl"],
-    deps = ["//coco/private:repositories_bzl"],
+    deps = [
+        "//coco/private:common_repositories_bzl",
+        "//coco/private:repositories_bzl",
+    ],
 )
 
 bzl_library(

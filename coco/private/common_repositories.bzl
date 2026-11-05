@@ -15,7 +15,11 @@
 """Common repository implementations shared between WORKSPACE and bzlmod."""
 
 load(":known_shas.bzl", "FILE_KEY_TO_SHA")
-load(":version_resolution.bzl", "version_tuple")
+load(":version_resolution.bzl", "stable_versions", "version_tuple")
+
+# Every stable popili version (1.5.0 onwards, no betas or release candidates) this
+# rules_coco knows the downloads of, newest first.
+AVAILABLE_STABLE_VERSIONS = stable_versions(FILE_KEY_TO_SHA.keys())
 
 _CC_RUNTIME_BUILD_TEMPLATE = """
 load("@rules_cc//cc:defs.bzl", "cc_library")
