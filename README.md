@@ -191,6 +191,29 @@ coco_repositories(
 )
 ```
 
+To register every stable release your rules_coco version knows of (1.5.0 onwards, no betas or
+release candidates), load `AVAILABLE_STABLE_VERSIONS` from `@rules_coco//coco:repositories.bzl`.
+It lists them newest first, so the newest is the default:
+
+```starlark
+load("@rules_coco//coco:repositories.bzl", "AVAILABLE_STABLE_VERSIONS", "coco_repositories")
+
+coco_repositories(
+    c = True,
+    cc = True,
+    versions = AVAILABLE_STABLE_VERSIONS,
+)
+```
+
+`MODULE.bazel` cannot load `.bzl` files, so in bzlmod list the versions manually in `coco.toolchain`.
+
+Registering versions is cheap: Popili and its runtimes are downloaded only for the versions
+targets actually use. Two things to be aware of, though. The default is the newest version your
+rules_coco release knows of, so upgrading rules_coco moves unpinned targets to a new Popili. List
+explicit versions, or pin targets with `popili_version` (see below), if you need generated code
+and verification results to stay the same across upgrades. And `bazel sync` fetches every
+declared repository, so with this list it downloads every stable release for every platform.
+
 Then choose the version per target with `popili_version` on the rules that run Popili:
 `coco_generate`, `coco_verify_test`, `coco_fmt_test` (its `<name>.format` binary formats with the
 same version), `coco_architecture_diagram`, `coco_state_diagram` and `coco_counterexample_diagram`.

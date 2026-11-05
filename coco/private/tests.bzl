@@ -24,7 +24,7 @@ load(
 )
 load(":cc_runtime_deps.bzl", "collect_cc_runtime_extra_deps", "normalize_cc_runtime_extra_deps")
 load(":coco.bzl", "FILE_NAME_MANGLER_STYLES", "common_version", "compute_output_paths", "effective_version", "inherited_versions_conflict", "library_version_conflict", "library_version_mismatch_message", "mangle_name", "missing_popili_message", "module_path_for", "own_package_versions_message", "package_transition_settings", "package_versions_conflict", "pin_transition_settings", "popili_rule_reserved_attribute", "toolchain_version_mismatch_message", "unpin_transition_settings", "version_source")
-load(":common_repositories.bzl", "coco_download", "download_prefix", "find_local_license_paths", "is_license_file_name")
+load(":common_repositories.bzl", "AVAILABLE_STABLE_VERSIONS", "coco_download", "download_prefix", "find_local_license_paths", "is_license_file_name")
 load(":known_shas.bzl", "FILE_KEY_TO_SHA")
 load(":license_versions.bzl", "LICENSE_PROTOCOL_VERSIONS")
 load(":platforms.bzl", "COCO_TOOLCHAIN_PLATFORMS", "archive_platform", "platform_binary_ext")
@@ -1162,6 +1162,21 @@ def _archive_platform_test(ctx):
 
 version_tuple_test = unittest.make(_version_tuple_test)
 version_key_test = unittest.make(_version_key_test)
+
+def _stable_versions_test(ctx):
+    """The releases with known downloads, from 1.5.0 on, once each and newest first."""
+    env = unittest.begin(ctx)
+
+    versions = AVAILABLE_STABLE_VERSIONS
+    asserts.equals(env, "1.5.0", versions[-1])
+    asserts.true(env, VERSION_ALIASES["stable"] in versions)
+    asserts.equals(env, [], [v for v in versions if "-" in v])
+    for newer, older in zip(versions[:-1], versions[1:]):
+        asserts.true(env, version_key(newer) > version_key(older), "%s before %s" % (newer, older))
+
+    return unittest.end(env)
+
+stable_versions_test = unittest.make(_stable_versions_test)
 download_prefix_test = unittest.make(_download_prefix_test)
 archive_platform_test = unittest.make(_archive_platform_test)
 
@@ -2530,6 +2545,7 @@ def coco_test_suite(name):
         normalize_extra_deps_default_resolver_test,
         version_tuple_test,
         version_key_test,
+        stable_versions_test,
         download_prefix_test,
         archive_platform_test,
 

@@ -150,6 +150,27 @@ def validate_minimum_version(version):
 
     return None
 
+def stable_versions(file_keys):
+    """Returns the stable popili versions that have downloads, newest first.
+
+    Args:
+        file_keys: Download keys such as "1.5.8/popili_linux_amd64.zip", the keys of
+            FILE_KEY_TO_SHA.
+
+    Returns:
+        The versions of at least the minimum version and without a pre-release suffix,
+        each once, newest first.
+    """
+    versions = {}
+    for key in file_keys:
+        version = key.split("/")[0]
+        if "-" in version:
+            continue
+        release = version_tuple(version)
+        if release != None and release >= _MINIMUM_VERSION:
+            versions[version] = True
+    return sorted(versions.keys(), key = version_key, reverse = True)
+
 def version_to_repo_suffix(version):
     """Converts a version string to a valid repository name suffix.
 
