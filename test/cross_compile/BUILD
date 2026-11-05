@@ -16,7 +16,7 @@
 # emit must follow the popili binary rather than the target platform.
 
 load("@bazel_skylib//rules:write_file.bzl", "write_file")
-load("@rules_coco//coco:defs.bzl", "coco_fmt_test", "coco_package")
+load("@rules_coco//coco:defs.bzl", "coco_fmt_test", "coco_generate", "coco_package")
 load("@rules_coco//coco:toolchain.bzl", "coco_toolchain")
 load(":script_flavour_test.bzl", "script_flavour_tests")
 
@@ -71,6 +71,14 @@ coco_package(
     typecheck = True,
 )
 
+# Only analysed, never built.
+coco_generate(
+    name = "base_cpp",
+    language = "cpp",
+    package = ":base",
+    tags = ["manual"],
+)
+
 # Only analysed, never run. Test rules cannot be cross-compiled (Bazel runs a test on a platform
 # matching its target), but the .format binary shares the wrapper code path with them.
 coco_fmt_test(
@@ -81,6 +89,7 @@ coco_fmt_test(
 
 script_flavour_tests(
     name = "script_flavour",
+    generate = ":base_cpp",
     package = ":base",
     wrapper = ":base_fmt_test.format",
 )

@@ -950,8 +950,23 @@ def _local_user_license_file(ctx):
     ]
     return files[0] if files else None
 
-def _coco_env(ctx):
+# The `HOME` that build actions on a POSIX exec platform run popili with. Bazel starts actions with
+# an empty environment, and popili before 1.5.2 crashes when `$HOME` is unset and the user is not
+# in `/etc/passwd` (as in containers run with an arbitrary uid). popili needs nothing from its
+# home directory here: the startup arguments name its preferences and licence explicitly.
+_ACTION_HOME = "/nonexistent"
+
+def _coco_env(ctx, for_action):
+    """Returns the environment popili runs with.
+
+    Args:
+        ctx: The rule context.
+        for_action: Whether popili runs in a build action, whose environment is otherwise empty,
+            rather than in a test or `bazel run` script, which keeps its caller's `HOME`.
+    """
     env = {}
+    if for_action and not _is_windows(ctx):
+        env["HOME"] = _ACTION_HOME
 
     license_source = _get_license_source(ctx)
     if license_source == "token":
@@ -993,7 +1008,7 @@ def _run_coco(ctx, package, verb, mnemonic, arguments, outputs):
         tools = [
             _coco_toolchain(ctx).coco,
         ],
-        env = _coco_env(ctx),
+        env = _coco_env(ctx, for_action = True),
         mnemonic = mnemonic,
         progress_message = "%s %s" % (verb, package[CocoPackageInfo].name),
         inputs = _coco_runfiles(ctx, package, False),
@@ -1046,7 +1061,7 @@ def _create_coco_wrapper_script(ctx, package, arguments, marker = None):
     # Build the full command
     full_arguments = [coco_path] + _coco_startup_args(ctx, package, is_test) + arguments
     command = " ".join(full_arguments)
-    env = _coco_env(ctx)
+    env = _coco_env(ctx, for_action = not is_test)
 
     # Create platform-specific wrapper script
     if marker and is_windows:
@@ -2202,7 +2217,7 @@ def _popili_handle(ctx, toolchain, package, from_runfiles):
         ctx.actions.run(
             executable = toolchain.coco,
             tools = [toolchain.coco],
-            env = _coco_env(ctx),
+            env = _coco_env(ctx, for_action = True),
             mnemonic = mnemonic,
             progress_message = progress_message or "Running popili for %s" % ctx.label,
             inputs = depset(
