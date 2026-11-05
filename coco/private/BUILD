@@ -60,6 +60,7 @@ bzl_library(
     srcs = ["coco.bzl"],
     deps = [
         ":common_attrs_bzl",
+        ":license_sources_bzl",
         ":platforms_bzl",
         ":platforms_host_bzl_lib",
         ":source_roots_bzl",
@@ -98,6 +99,7 @@ bzl_library(
     srcs = ["toolchain_hub.bzl"],
     deps = [
         ":common_repositories_bzl",
+        ":license_sources_bzl",
         ":platforms_bzl",
         ":toolchain_repositories_bzl",
         ":version_resolution_bzl",
@@ -163,6 +165,20 @@ bzl_library(
     name = "licensing_bzl",
     srcs = ["licensing.bzl"],
     deps = [":coco_bzl"],
+)
+
+bzl_library(
+    name = "license_sources_bzl",
+    srcs = ["license_sources.bzl"],
+)
+
+bzl_library(
+    name = "host_bzl",
+    srcs = ["host.bzl"],
+    deps = [
+        ":platforms_bzl",
+        ":platforms_host_bzl_lib",
+    ],
 )
 
 bzl_library(

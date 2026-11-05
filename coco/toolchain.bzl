@@ -14,6 +14,7 @@
 
 """Coco toolchain implementation."""
 
+load("//coco/private:license_sources.bzl", "LICENSE_SOURCES")
 load("//coco/private:version_resolution.bzl", "LOCAL_VERSION", "version_tuple")
 
 def _coco_toolchain_impl(ctx):
@@ -81,6 +82,7 @@ coco_toolchain = rule(
         "license_source": attr.string(
             doc = "The license source mode for this toolchain. Can be 'local_user', 'local_acquire', 'token', 'action_environment', or 'action_file'. If not specified, defaults to 'local_user'. Can be overridden via --@rules_coco//:license_source flag.",
             default = "",
+            values = LICENSE_SOURCES + [""],
         ),
         "license_token": attr.string(
             doc = "The license token to use when license_source is 'token'. Optional.",

@@ -50,7 +50,7 @@ bzl_library(
         "//coco/private:coco_bzl",
         "//coco/private:diagram_bzl",
         "//coco/private:format_bzl",
-        "//coco/private:licensing_bzl",
+        "//coco/private:license_sources_bzl",
     ],
 )
 
@@ -84,6 +84,7 @@ bzl_library(
     srcs = ["extensions.bzl"],
     deps = [
         "//coco/private:cc_runtime_deps_bzl",
+        "//coco/private:license_sources_bzl",
         "//coco/private:toolchain_hub_bzl",
     ],
 )

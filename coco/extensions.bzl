@@ -18,6 +18,7 @@ load(
     "//coco/private:cc_runtime_deps.bzl",
     "collect_cc_runtime_extra_deps",
 )
+load("//coco/private:license_sources.bzl", "LICENSE_SOURCES")
 load(
     "//coco/private:toolchain_hub.bzl",
     "declare_coco_toolchains",
@@ -119,6 +120,7 @@ _toolchain_tag = tag_class(
         "license_source": attr.string(
             doc = "Optional default license source mode for all toolchains (e.g., 'local_user', 'local_acquire', 'token', 'action_environment', 'action_file'). Can be overridden via --@rules_coco//:license_source flag.",
             default = "",
+            values = LICENSE_SOURCES + [""],
         ),
         "license_token": attr.string(
             doc = "Optional default license token for all toolchains when license_source is 'token'.",

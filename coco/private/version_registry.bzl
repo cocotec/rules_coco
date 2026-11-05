@@ -21,6 +21,9 @@ hub is evaluated before bazel_skylib has necessarily been fetched.
 CocoVersionRegistryInfo = provider(
     doc = "What the Coco toolchain hub (`@coco_toolchains//:registry`) registered.",
     fields = {
+        "license_source": (
+            "The licence mode every registered toolchain defaults to, \"\" when none sets one."
+        ),
         "versions": (
             "The registered versions in registration order, with `local` last when a local " +
             "distribution is registered. The first entry is the default, except that a " +
@@ -48,6 +51,7 @@ coco_registered_versions = rule(
 
 def _coco_version_registry_impl(ctx):
     return [CocoVersionRegistryInfo(
+        license_source = ctx.attr.license_source,
         versions = ctx.attr.registered_versions[_RegisteredVersionsInfo].versions,
     )]
 
@@ -55,6 +59,9 @@ coco_version_registry = rule(
     doc = "Provides `CocoVersionRegistryInfo` for the hub (`@coco_toolchains//:registry`).",
     implementation = _coco_version_registry_impl,
     attrs = {
+        "license_source": attr.string(
+            doc = "The licence mode every registered toolchain defaults to, \"\" when none sets one.",
+        ),
         "registered_versions": attr.label(
             doc = "The `coco_registered_versions` setting whose value `versions` reports.",
             mandatory = True,
