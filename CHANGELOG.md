@@ -59,6 +59,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   get is not in its list, it is typechecked with the first listed release that is registered
   instead, never `local`; when none is, it fails saying so.
 - `CocoPackageInfo` is exported from `@rules_coco//coco:defs.bzl`, like `CocoWorkspaceInfo`.
+- `CocoCcGeneratedInfo` and `CocoCSharpGeneratedInfo`, the providers `coco_generate` returns for
+  C/C++ and C#, are exported from `@rules_coco//coco:defs.bzl`, for rules of your own that compile
+  or package the generated code.
 - `coco_workspace` gained `popili_versions` too: the versions every member works with. Members
   without a list of their own inherit it, through nested workspaces' `parent` as well, and are
   checked against it. A member or nested workspace with its own list must include every version
