@@ -23,11 +23,11 @@ load(
     "PATH_CASE_DEFAULTS",
 )
 load(":cc_runtime_deps.bzl", "collect_cc_runtime_extra_deps", "normalize_cc_runtime_extra_deps")
-load(":coco.bzl", "FILE_NAME_MANGLER_STYLES", "bat_set", "common_version", "compute_output_paths", "effective_version", "inherited_versions_conflict", "library_version_conflict", "library_version_mismatch_message", "mangle_name", "missing_popili_message", "module_path_for", "own_package_versions_message", "package_transition_settings", "package_versions_conflict", "pin_transition_settings", "popili_rule_reserved_attribute", "toolchain_version_mismatch_message", "unpin_transition_settings", "version_source")
+load(":coco.bzl", "FILE_NAME_MANGLER_STYLES", "bat_set", "common_version", "compute_output_paths", "effective_version", "inherited_versions_conflict", "library_version_conflict", "library_version_mismatch_message", "license_execution_requirements", "mangle_name", "missing_popili_message", "module_path_for", "own_package_versions_message", "package_transition_settings", "package_versions_conflict", "pin_transition_settings", "popili_rule_reserved_attribute", "toolchain_version_mismatch_message", "unpin_transition_settings", "version_source")
 load(":common_repositories.bzl", "AVAILABLE_STABLE_VERSIONS", "coco_download", "download_prefix", "find_local_license_paths", "is_license_file_name")
 load(":known_shas.bzl", "FILE_KEY_TO_SHA")
 load(":license_versions.bzl", "LICENSE_PROTOCOL_VERSIONS")
-load(":platforms.bzl", "COCO_TOOLCHAIN_PLATFORMS", "archive_platform", "platform_binary_ext")
+load(":platforms.bzl", "COCO_TOOLCHAIN_PLATFORMS", "archive_platform", "platform_binary_ext", "toolchain_platform_of")
 load(":source_roots.bzl", "infer_source_root", "leaves_directory", "normalize_root", "relative_path", "resolve_source_roots", "source_root_for")
 load(
     ":toolchain_hub.bzl",
@@ -286,6 +286,17 @@ corpus_styles_test = unittest.make(_corpus_styles_test_impl)
 # Tests for the source-path plumbing that feeds the corpus path cases.
 # These cover rules_coco-only concepts that popili has no equivalent for, so
 # they cannot live in the shared corpus.
+
+def _license_execution_requirements_test_impl(ctx):
+    """Only the local licence modes keep popili off remote executors."""
+    env = unittest.begin(ctx)
+    for source in ["local_acquire", "local_user"]:
+        asserts.equals(env, {"no-remote-exec": "1"}, license_execution_requirements(source), source)
+    for source in ["action_environment", "action_file", "token"]:
+        asserts.equals(env, {}, license_execution_requirements(source), source)
+    return unittest.end(env)
+
+license_execution_requirements_test = unittest.make(_license_execution_requirements_test_impl)
 
 def _module_path_for_test_impl(ctx):
     env = unittest.begin(ctx)
@@ -1173,6 +1184,17 @@ def _archive_platform_test(ctx):
 
     return unittest.end(env)
 
+def _toolchain_platform_of_test(ctx):
+    """A platform's constraints name its popili platform, however the labels are spelled."""
+    env = unittest.begin(ctx)
+
+    asserts.equals(env, ("osx", "aarch64"), toolchain_platform_of(["@platforms//os:osx", "@platforms//cpu:aarch64"]))
+    asserts.equals(env, ("linux", "x86_64"), toolchain_platform_of([str(Label(c)) for c in ["@platforms//cpu:x86_64", "@platforms//os:linux", "@bazel_tools//tools/cpp:clang"]]))
+    asserts.equals(env, None, toolchain_platform_of(["@platforms//os:osx", "@platforms//cpu:x86_64"]))
+    asserts.equals(env, None, toolchain_platform_of(["@platforms//os:linux"]))
+
+    return unittest.end(env)
+
 version_tuple_test = unittest.make(_version_tuple_test)
 version_key_test = unittest.make(_version_key_test)
 
@@ -1192,6 +1214,7 @@ def _stable_versions_test(ctx):
 stable_versions_test = unittest.make(_stable_versions_test)
 download_prefix_test = unittest.make(_download_prefix_test)
 archive_platform_test = unittest.make(_archive_platform_test)
+toolchain_platform_of_test = unittest.make(_toolchain_platform_of_test)
 
 # Tests for resolve_versions
 
@@ -1358,6 +1381,18 @@ def _missing_popili_no_execution_platform_test(ctx):
     # The default is worded as the version it stands for.
     message = missing_popili_message("//a:gen", "", _REGISTRY)
     _assert_mentions(env, message, ["//a:gen needs popili 1.5.0 (the default), which is registered"])
+
+    # Under a local licence mode only the host's popili resolves, so it says so.
+    message = missing_popili_message("//a:gen", "1.5.1", _REGISTRY, local_license_source = "local_user")
+    _assert_mentions(env, message, [
+        "Under the local_user licence mode popili runs on this machine",
+        "--extra_execution_platforms=@platforms//host",
+    ])
+
+    # Unless popili is not published for the host, such as an Intel Mac.
+    message = missing_popili_message("//a:gen", "1.5.1", _REGISTRY, local_license_source = "local_user", host_has_popili = False)
+    _assert_mentions(env, message, ["popili is not published for this machine's OS and CPU"])
+    asserts.false(env, "@platforms//host" in message, message)
     return unittest.end(env)
 
 def _missing_popili_local_off_host_test(ctx):
@@ -2052,6 +2087,40 @@ hub_entries_local_alongside_versions_test = unittest.make(_hub_entries_local_alo
 hub_unknown_version_test = unittest.make(_hub_unknown_version_test)
 hub_entries_registered_versions_test = unittest.make(_hub_entries_registered_versions_test)
 
+def _hub_license_gating_test(ctx):
+    """Downloaded toolchains other than the host's need a remote-capable licence mode; the local one never does."""
+    env = unittest.begin(ctx)
+
+    entries = toolchain_hub_entries(["1.5.7"], has_local = True)
+    asserts.equals(env, sorted([n for n in entries.toolchain_names if n != "local"]), sorted(entries.host_gated))
+    build = render_toolchain_hub_build(entries)
+    asserts.true(
+        env,
+        'target_settings = ["@coco_toolchains//:version_1_5_7"] + unless_host(["@platforms//os:linux", "@platforms//cpu:x86_64"], ["@coco_toolchains//:license_remote_capable"])' in build,
+        "host-gated target_settings missing: %s" % build,
+    )
+    asserts.true(env, 'target_settings = ["@coco_toolchains//:version_local"],' in build, "the local toolchain is gated")
+
+    # Only the remote modes are remote-capable. An unset flag means the default mode: local_user unless
+    # the hub's toolchains default to another.
+    def remote_capable(build):
+        select = build[build.index('name = "license_remote_capable"'):]
+        return select[:select.index("})")]
+
+    for mode in ["action_environment", "action_file", "token"]:
+        condition = '"@rules_coco//config/license_source:%s"' % mode
+        asserts.true(env, condition in remote_capable(build), "%s is remote-capable" % mode)
+    for mode in ["local_acquire", "local_user", "license_source_unset"]:
+        asserts.false(env, mode in remote_capable(build), "%s is remote-capable" % mode)
+
+    build = render_toolchain_hub_build(toolchain_hub_entries(["1.5.7"], license_source = "action_file"))
+    asserts.true(env, '":license_source_unset"' in remote_capable(build), "unset is remote-capable when action_file is the default")
+    asserts.true(env, 'license_source = "action_file",' in build, "the registry's default licence mode")
+
+    return unittest.end(env)
+
+hub_license_gating_test = unittest.make(_hub_license_gating_test)
+
 # Tests for render_toolchain_hub_build
 
 def _hub_build_labels_test(ctx):
@@ -2089,7 +2158,7 @@ def _hub_build_labels_test(ctx):
     return unittest.end(env)
 
 def _hub_build_loads_only_rules_coco_and_platforms_test(ctx):
-    """The hub loads only rules_coco, and @platforms//host only for a local toolchain, so it stays loadable before skylib is fetched."""
+    """The hub loads only rules_coco and @platforms//host, so it stays loadable before skylib is fetched."""
     env = unittest.begin(ctx)
 
     for has_local in [False, True]:
@@ -2105,12 +2174,6 @@ def _hub_build_loads_only_rules_coco_and_platforms_test(ctx):
                 "hub BUILD may only load from rules_coco and @platforms//host: %s" % line,
             )
         asserts.true(env, "skylib" not in build, "hub BUILD must not depend on skylib: %s" % build)
-        asserts.equals(
-            env,
-            has_local,
-            "@platforms//host" in build,
-            "hub BUILD must load @platforms//host only for a local toolchain: %s" % build,
-        )
 
     return unittest.end(env)
 
@@ -2138,6 +2201,7 @@ def _hub_build_registry_test(ctx):
         env,
         """coco_version_registry(
     name = "registry",
+    license_source = "",
     registered_versions = ":registered_versions",
     visibility = ["//visibility:public"],
 )""" in build,
@@ -2487,6 +2551,7 @@ def coco_test_suite(name):
         name + "_unit",
         module_path_for_test,
         bat_set_test,
+        license_execution_requirements_test,
 
         # source_roots.bzl tests
         relative_path_test,
@@ -2562,6 +2627,7 @@ def coco_test_suite(name):
         stable_versions_test,
         download_prefix_test,
         archive_platform_test,
+        toolchain_platform_of_test,
 
         # resolve_versions tests
         resolve_versions_alias_test,
@@ -2617,6 +2683,7 @@ def coco_test_suite(name):
         hub_entries_local_alongside_versions_test,
         hub_unknown_version_test,
         hub_entries_registered_versions_test,
+        hub_license_gating_test,
 
         # render_toolchain_hub_build tests
         hub_build_labels_test,

@@ -41,6 +41,8 @@ test_platform_popili_test = analysistest.make(
         "//command_line_option:extra_execution_platforms": [str(Label("@platforms//host")), str(Label("//:linux_aarch64"))],
         "//command_line_option:extra_toolchains": [str(Label("//:linux_aarch64_stub_cc_toolchain"))],
         "//command_line_option:platforms": str(Label("//:linux_aarch64")),
+        # Under a local licence mode only the host's popili resolves, whatever the test's platform.
+        str(Label("@rules_coco//:license_source")): "action_environment",
         str(Label("@rules_coco//:version")): "",
         str(Label("@rules_coco//:force_version")): False,
     },

@@ -36,7 +36,7 @@ load(
     _coco_fmt_test = "coco_fmt_test",
 )
 load(
-    "//coco/private:licensing.bzl",
+    "//coco/private:license_sources.bzl",
     _LICENSE_SOURCES = "LICENSE_SOURCES",
 )
 
