@@ -2,6 +2,50 @@
 
 Public API for Coco package rules and code generation.
 
+<a id="CocoCSharpGeneratedInfo"></a>
+
+## CocoCSharpGeneratedInfo
+
+<pre>
+load("@rules_coco//coco:defs.bzl", "CocoCSharpGeneratedInfo")
+
+CocoCSharpGeneratedInfo(<a href="#CocoCSharpGeneratedInfo-sources">sources</a>, <a href="#CocoCSharpGeneratedInfo-test_sources">test_sources</a>)
+</pre>
+
+Generated C# code from a Coco package
+
+**FIELDS**
+
+| Name  | Description |
+| :------------- | :------------- |
+| <a id="CocoCSharpGeneratedInfo-sources"></a>sources |  Generated .cs files as a depset    |
+| <a id="CocoCSharpGeneratedInfo-test_sources"></a>test_sources |  Generated test/mock .cs files as a depset    |
+
+
+<a id="CocoCcGeneratedInfo"></a>
+
+## CocoCcGeneratedInfo
+
+<pre>
+load("@rules_coco//coco:defs.bzl", "CocoCcGeneratedInfo")
+
+CocoCcGeneratedInfo(<a href="#CocoCcGeneratedInfo-headers">headers</a>, <a href="#CocoCcGeneratedInfo-include_root">include_root</a>, <a href="#CocoCcGeneratedInfo-popili_version">popili_version</a>, <a href="#CocoCcGeneratedInfo-sources">sources</a>, <a href="#CocoCcGeneratedInfo-test_headers">test_headers</a>, <a href="#CocoCcGeneratedInfo-test_sources">test_sources</a>)
+</pre>
+
+Generated C/C++ code from a Coco package
+
+**FIELDS**
+
+| Name  | Description |
+| :------------- | :------------- |
+| <a id="CocoCcGeneratedInfo-headers"></a>headers |  Generated header files as a depset    |
+| <a id="CocoCcGeneratedInfo-include_root"></a>include_root |  The directory the generated files' include paths are relative to, as an exec path    |
+| <a id="CocoCcGeneratedInfo-popili_version"></a>popili_version |  The version of the popili that generated the code, as its toolchain declares it    |
+| <a id="CocoCcGeneratedInfo-sources"></a>sources |  Generated implementation files as a depset    |
+| <a id="CocoCcGeneratedInfo-test_headers"></a>test_headers |  Generated test/mock header files as a depset    |
+| <a id="CocoCcGeneratedInfo-test_sources"></a>test_sources |  Generated test/mock implementation files as a depset    |
+
+
 <a id="CocoPackageInfo"></a>
 
 ## CocoPackageInfo
