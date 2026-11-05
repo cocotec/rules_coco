@@ -16,6 +16,7 @@
 
 load("@bazel_features//:features.bzl", "bazel_features")
 load("@bazel_skylib//lib:paths.bzl", "paths")
+load("@bazel_skylib//lib:shell.bzl", "shell")
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("@platforms//host:constraints.bzl", "HOST_CONSTRAINTS")
 load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
@@ -1012,6 +1013,16 @@ def _is_windows(ctx):
     """
     return _coco_toolchain(ctx).coco.extension == "exe"
 
+def _bat_set(name, value):
+    """Returns a cmd.exe `SET` line that assigns `value` to `name` verbatim.
+
+    Inside `SET "name=value"` cmd.exe only expands `%`, which `%%` escapes. A `"` or line break
+    cannot be represented, so such values fail analysis instead of producing a broken script.
+    """
+    if "\"" in value or "\n" in value or "\r" in value:
+        fail("Cannot pass %s to a Windows wrapper script: the value contains a double quote or line break" % name)
+    return "SET \"%s=%s\"" % (name, value.replace("%", "%%"))
+
 def _create_coco_wrapper_script(ctx, package, arguments, marker = None):
     """Creates a platform-specific wrapper script for running Coco commands.
 
@@ -1042,31 +1053,30 @@ def _create_coco_wrapper_script(ctx, package, arguments, marker = None):
         wrapper_script = ctx.actions.declare_file(ctx.label.name + "_typecheck.bat")
         wrapper_lines = ["@echo off"]
         for k, v in env.items():
-            wrapper_lines.append("SET %s=\"%s\"" % (k, v))
+            wrapper_lines.append(_bat_set(k, v))
         wrapper_lines.append("%s || exit /b 1" % command)
         wrapper_lines.append("type nul > \"%s\"" % marker.path.replace("/", "\\"))
     elif marker:
         wrapper_script = ctx.actions.declare_file(ctx.label.name + "_typecheck.sh")
-        wrapper_lines = ["#!/bin/bash", "set -e"]
+        wrapper_lines = ["#!/bin/sh", "set -e"]
         for k, v in env.items():
-            wrapper_lines.append("export %s=\"%s\"" % (k, v))
-        wrapper_lines.append(command)
-        wrapper_lines.append("touch \"%s\"" % marker.path)
+            wrapper_lines.append("export %s=%s" % (k, shell.quote(v)))
+        wrapper_lines.append("%s && : > \"%s\"" % (command, marker.path))
     elif is_windows:
         wrapper_script = ctx.actions.declare_file(ctx.label.name + "-cmd.bat")
         wrapper_lines = []
         for k, v in env.items():
-            wrapper_lines.append("SET %s=\"%s\"" % (k, v))
+            wrapper_lines.append(_bat_set(k, v))
         wrapper_lines.append("")
         wrapper_lines.append(command)
     else:
         wrapper_script = ctx.actions.declare_file(ctx.label.name + "-cmd.sh")
         wrapper_lines = [
-            "#!/usr/bin/env bash",
+            "#!/bin/sh",
             "exec env \\",
         ]
         for k, v in env.items():
-            wrapper_lines.append("  %s=\"%s\" \\" % (k, v))
+            wrapper_lines.append("  %s=%s \\" % (k, shell.quote(v)))
         wrapper_lines.append(command)
 
     ctx.actions.write(
@@ -2351,6 +2361,7 @@ coco_cc_gen = _coco_cc_gen
 coco_cc_pin = _coco_cc_pin
 
 # Exported for testing
+bat_set = _bat_set
 mangle_name = _mangle_name
 popili_rule_reserved_attribute = _popili_rule_reserved_attribute
 missing_popili_message = _missing_popili_message
