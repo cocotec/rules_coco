@@ -167,6 +167,8 @@ root>.cs`;
   checking that only one of it and `generated_package` is given.
 - Build actions now run popili with `HOME=/nonexistent` on POSIX. This prevents crashes on remote
   executors with some older popili versions.
+- `local_acquire` licensing also reads the machine token from `COCOTEC_AUTH_TOKEN_FILE`, which wins over
+  `COCOTEC_AUTH_TOKEN`. Only the file's path is passed on, so the token's contents never reach the build.
 - `local_user` licensing passes each popili version the licence file it reads, instead of the first
   one found, which popili 1.6 rejects.
 - `coco_cc_library` and `coco_c_library` no longer fail to find generated headers when their
