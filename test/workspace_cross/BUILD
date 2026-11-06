@@ -34,6 +34,7 @@ coco_workspace(
 coco_package(
     name = "lib",
     srcs = glob(["lib/src/**/*.coco"]),
+    cpp_mocks = "GMock",
     package = "lib/Coco.toml",
     workspace = ":ws_lib",
 )
@@ -59,7 +60,6 @@ coco_verify_test(
 coco_generate(
     name = "lib_cpp",
     language = "cpp",
-    mocks = True,
     package = ":lib",
 )
 

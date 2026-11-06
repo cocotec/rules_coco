@@ -30,6 +30,7 @@ load("@rules_coco//coco:defs.bzl", "coco_generate", "coco_package")
 coco_package(
     name = "hide_implementation_test",
     srcs = glob(["src/**/*.coco"]),
+    cpp_mocks = "GMock",
     package = "Coco.toml",
     popili_versions = ["testing"],
     typecheck = True,
@@ -38,7 +39,6 @@ coco_package(
 coco_generate(
     name = "hide_implementation_test_cpp",
     language = "cpp",
-    mocks = True,
     package = ":hide_implementation_test",
     popili_version = "testing",
 )
