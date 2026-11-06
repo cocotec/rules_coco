@@ -25,7 +25,7 @@ load(
     "resolve_local_path",
 )
 load(":platforms.bzl", "archive_platform", "platform_binary_ext")
-load(":version_resolution.bzl", "LOCAL_VERSION", "version_tuple")
+load(":version_resolution.bzl", "LOCAL_VERSION")
 
 def BUILD_for_coco_toolchain(name, popili_version, cc_runtime_label = None, c_runtime_label = None, license_source = None, license_token = None, auth_token_path = None, license_protocol_version = None):
     """Emits a toolchain declaration to match an existing compiler and stdlib.
@@ -90,14 +90,14 @@ coco_toolchain(
         license_protocol_version_attr = license_protocol_version_attr,
     )
 
-def BUILD_for_coco_archive(binary_ext, product):
+def BUILD_for_coco_archive(binary_ext):
     """Emits a BUILD file the compiler .zip."""
     return """
 load("@rules_coco//coco:toolchain.bzl", "coco_toolchain")
 
 filegroup(
     name = "coco",
-    srcs = ["bin/{product}{binary_ext}"],
+    srcs = ["bin/popili{binary_ext}"],
     visibility = ["//visibility:public"],
 )
 
@@ -109,14 +109,7 @@ filegroup(
 
 """.format(
         binary_ext = binary_ext,
-        product = product,
     )
-
-def _product_for(version):
-    parsed = version_tuple(version)
-    if parsed != None and len(parsed) >= 2 and parsed[0] == 1 and parsed[1] < 5:
-        return "coco"
-    return "popili"
 
 def coco_toolchain_download(version, os, arch):
     """Returns where to download a popili toolchain archive from, and its known checksum.
@@ -131,16 +124,13 @@ def coco_toolchain_download(version, os, arch):
       for the archive, which makes the download unverified.
     """
     archive_os, archive_arch = archive_platform(os, arch)
-    return coco_download(version, "{product}_{os}_{arch}.zip".format(
+    return coco_download(version, "popili_{os}_{arch}.zip".format(
         arch = archive_arch,
         os = archive_os,
-        product = _product_for(version),
     ))
 
 def _coco_toolchain_repository_impl(ctx):
     """The implementation of the coco toolchain repository rule."""
-
-    product = _product_for(ctx.attr.version)
 
     # Download the compiler
     download = coco_toolchain_download(ctx.attr.version, ctx.attr.os, ctx.attr.arch)
@@ -152,7 +142,7 @@ def _coco_toolchain_repository_impl(ctx):
 
     ctx.file("WORKSPACE", "")
     ctx.file("BUILD", "\n".join([
-        BUILD_for_coco_archive(binary_ext = platform_binary_ext(ctx.attr.os), product = product),
+        BUILD_for_coco_archive(binary_ext = platform_binary_ext(ctx.attr.os)),
         BUILD_for_coco_toolchain(
             name = "toolchain",
             cc_runtime_label = ctx.attr.cc_runtime_label,
@@ -196,8 +186,7 @@ coco_toolchain_repository = repository_rule(
 def _coco_local_toolchain_repository_impl(ctx):
     """Coco toolchain repository symlinked from a local path instead of downloaded.
 
-    Host-only, and the product is always "popili" (no os/arch/version attrs, unlike
-    the download rule).
+    Host-only (no os/arch/version attrs, unlike the download rule).
     """
     dist_dir = resolve_local_path(ctx, ctx.attr.path)
 
@@ -211,7 +200,7 @@ def _coco_local_toolchain_repository_impl(ctx):
 
     ctx.file("WORKSPACE", "")
     ctx.file("BUILD", "\n".join([
-        BUILD_for_coco_archive(binary_ext = binary_ext, product = "popili"),
+        BUILD_for_coco_archive(binary_ext = binary_ext),
         BUILD_for_coco_toolchain(
             name = "toolchain",
             cc_runtime_label = ctx.attr.cc_runtime_label,

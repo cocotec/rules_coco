@@ -126,7 +126,7 @@ _toolchain_tag = tag_class(
         ),
         "versions": attr.string_list(
             default = ["stable"],
-            doc = "List of Coco/Popili versions to register (e.g., ['1.5.0', '1.4.0']). Use version aliases like 'stable' or explicit versions like '1.5.1'. The first version is the one used when --@rules_coco//:version is unset.",
+            doc = "List of Coco/Popili versions to register (e.g., ['1.5.1', '1.5.0']). Use version aliases like 'stable' or explicit versions like '1.5.1'. The first version is the one used when --@rules_coco//:version is unset.",
         ),
     },
 )
