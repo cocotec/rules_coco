@@ -283,6 +283,16 @@ _coco_preferences_repository = repository_rule(
     implementation = _coco_preferences_repository_impl,
 )
 
+_BUILD_FOR_LICENSE_PATHS = """
+load("@rules_coco//coco/private:license_paths.bzl", "license_paths")
+
+license_paths(
+    name = "licenses",
+    paths = {paths},
+    visibility = ["//visibility:public"],
+)
+"""
+
 def _coco_fetch_license_repository_impl(ctx):
     """Creates a repository to allow users to easily acquire new licenses.
 
@@ -378,29 +388,25 @@ def find_local_license_paths(ctx, list_directory = _repository_list_directory):
                 found[basename] = directory + sep + basename
     return found
 
-def _coco_symlink_license_repository_impl(ctx):
-    """Creates a repository to symlink to locally installed licenses.
+def _coco_local_licenses_repository_impl(ctx):
+    """Creates a repository naming the locally installed licenses.
 
-    `:licenses` holds every `licenses_<n>.lic` found in popili's data directory, each
-    under its own name, and is empty when there is none. The rules pick the one of
-    their popili's licence protocol version (see license_versions.bzl).
+    `:licenses` gives the absolute path of every `licenses_<n>.lic` found in popili's data
+    directory, and is empty when there is none. The rules pick the one of their popili's licence
+    protocol version (see license_versions.bzl) and pass its path to popili; the files are not
+    linked into the repository, so their contents never become action inputs.
     """
     ctx.file("WORKSPACE", "")
-    found = find_local_license_paths(ctx)
-    for basename, path_str in found.items():
-        ctx.symlink(ctx.path(path_str), basename)
+    paths = {
+        basename: str(ctx.path(path_str))
+        for basename, path_str in find_local_license_paths(ctx).items()
+    }
 
-    ctx.file("BUILD", """
-filegroup(
-    name = "licenses",
-    srcs = %s,
-    visibility = ["//visibility:public"],
-)
-""" % json.encode(sorted(found.keys())))
+    ctx.file("BUILD", _BUILD_FOR_LICENSE_PATHS.format(paths = json.encode(paths)))
 
-_coco_symlink_license_repository = repository_rule(
+_coco_local_licenses_repository = repository_rule(
     attrs = {},
-    implementation = _coco_symlink_license_repository_impl,
+    implementation = _coco_local_licenses_repository_impl,
     environ = ["APPDATA", "COCO_PLATFORM_DATA", "HOME", "LOCALAPPDATA", "POPILI_DATA", "XDG_DATA_HOME"],
     local = True,
 )
@@ -412,4 +418,4 @@ coco_cc_runtime_repository = _coco_cc_runtime_repository
 coco_cc_local_runtime_repository = _coco_cc_local_runtime_repository
 coco_preferences_repository = _coco_preferences_repository
 coco_fetch_license_repository = _coco_fetch_license_repository
-coco_symlink_license_repository = _coco_symlink_license_repository
+coco_local_licenses_repository = _coco_local_licenses_repository
