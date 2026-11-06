@@ -90,7 +90,8 @@ def coco_cc_test_library(
         **kwargs):
     """Creates a C++ test library from Coco-generated C++ test code.
 
-    This automatically adds the Coco C++ runtime and GoogleTest as dependencies.
+    This automatically adds the Coco C++ runtime and GoogleMock as dependencies. The runtime brings
+    `coco/gmock_helpers.h`, which needs GoogleMock.
 
     Generated test headers are made available to downstream targets via CcInfo.
     The `public_hdrs` parameter controls which generated test headers are public:
@@ -111,8 +112,9 @@ def coco_cc_test_library(
         hdrs: Additional C++ header files
         deps: Additional dependencies
         public_hdrs: List of generated test header names to make public, or None for all
-        gmock: The GoogleTest/GoogleMock library (default: @googletest//:gtest).
-               Set to None to omit.
+        gmock: The GoogleTest/GoogleMock library (default: @googletest//:gtest), built in the
+               library's configuration whatever its popili_version. Set to None to omit, if
+               neither the generated mocks nor `coco/gmock_helpers.h` are used.
         popili_version: The registered popili version whose runtime the library links, such as
             `"1.5.1"` or an alias such as `"stable"`. It also applies to the coco_generate targets
             the library builds from, but not to `deps` or `gmock`. A generator pinned to another

@@ -25,9 +25,12 @@ _CC_RUNTIME_BUILD_TEMPLATE = """
 load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@rules_coco//coco/private:cc_runtime.bzl", "coco_cc_runtime_extra_deps")
 
+# coco/gmock_helpers.h (absent from older runtimes) includes gmock, which only coco_cc_test_library
+# links, so it is textual: never compiled on its own, and checked as part of the files including it.
 cc_library(
     name = "runtime",
     hdrs = glob(["coco/*.h"], exclude = ["coco/gmock_helpers.h"]),
+    textual_hdrs = glob(["coco/gmock_helpers.h"], allow_empty = True),
     srcs = glob(["coco/src/*.cc"], allow_empty = True) + glob(["coco/*.cc"], allow_empty = True),
     deps = [":extra_deps"],
     visibility = ["//visibility:public"],
@@ -37,13 +40,6 @@ cc_library(
 coco_cc_runtime_extra_deps(
     name = "extra_deps",
     deps = {deps},
-)
-
-cc_library(
-    name = "testing",
-    hdrs = glob(["coco/gmock_helpers.h"], allow_empty = True),
-    deps = [":runtime"],
-    visibility = ["//visibility:public"],
 )
 """
 
