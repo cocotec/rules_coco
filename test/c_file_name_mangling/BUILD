@@ -4,12 +4,12 @@ load("@rules_coco//coco:defs.bzl", "coco_generate", "coco_package")
 coco_package(
     name = "c_file_name_mangling_test",
     srcs = glob(["src/**/*.coco"]),
+    c_file_name_mangler = "LowerUnderscore",
     package = "Coco.toml",
 )
 
 coco_generate(
     name = "c_file_name_mangling_test_c",
-    c_file_name_mangler = "LowerUnderscore",
     language = "c",
     package = ":c_file_name_mangling_test",
 )

@@ -4,13 +4,13 @@ load("@rules_coco//coco:defs.bzl", "coco_generate", "coco_package")
 coco_package(
     name = "c_file_extensions_test",
     srcs = glob(["src/**/*.coco"]),
+    c_header_file_extension = ".hh",
+    c_implementation_file_extension = ".cc",
     package = "Coco.toml",
 )
 
 coco_generate(
     name = "c_file_extensions_test_c",
-    c_header_file_extension = ".hh",
-    c_implementation_file_extension = ".cc",
     language = "c",
     package = ":c_file_extensions_test",
 )
