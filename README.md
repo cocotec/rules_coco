@@ -696,6 +696,28 @@ coco_cc_library(
 )
 ```
 
+#### Mocks
+
+With `coco_package(cpp_mocks = "GMock")`, `coco_generate` also generates GoogleMock mocks, which
+`coco_cc_test_library` compiles:
+
+```starlark
+load("@rules_coco//coco:cc.bzl", "coco_cc_test_library")
+
+coco_cc_test_library(
+    name = "my_package_cc_test_lib",
+    generated_package = ":my_package_cc_src",
+    deps = [":my_package_cc"],
+)
+```
+
+Besides the C++ runtime, it links GoogleMock, `@googletest//:gtest` unless you set `gmock`. The
+runtime brings `coco/gmock_helpers.h` (`coco::SingleThreadedGMockHelper` and
+`coco::MultiThreadedGMockHelper`, for mocks that act asynchronously), from the same popili version as
+the generated code. A `popili_version` on the library does not apply to `gmock`, which is built in
+the library's own configuration, so a `cc_test` that also depends on `@googletest//:gtest_main` links
+one googletest.
+
 > [!IMPORTANT]
 > Your Coco.toml file must set `generator.cpp.runtimeHeaderFileExtension` to `.h` if you use a custom value for
 > `generator.cpp.headerFileExtension`.

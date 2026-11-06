@@ -152,6 +152,9 @@ root>.cs`;
 
 ### Fixed
 
+- The C++ runtime provides `coco/gmock_helpers.h` (`coco::SingleThreadedGMockHelper`,
+  `coco::MultiThreadedGMockHelper`), which no target provided, as a textual header, so
+  `coco_cc_test_library` gets it from the same popili version as the generated code.
 - `local_user` licensing passes each popili version the licence file it reads, instead of the first
   one found, which popili 1.6 rejects.
 - `coco_cc_library` and `coco_c_library` no longer fail to find generated headers when their
