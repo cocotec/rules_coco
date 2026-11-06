@@ -20,6 +20,7 @@ py_test(
     data = [
         "//:MODULE.bazel",
         "//:version.bzl",
+        "//coco/private:license_versions.bzl",
     ],
     main = "version_consistency_test.py",
 )

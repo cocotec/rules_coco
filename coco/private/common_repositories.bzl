@@ -15,6 +15,7 @@
 """Common repository implementations shared between WORKSPACE and bzlmod."""
 
 load(":known_shas.bzl", "FILE_KEY_TO_SHA")
+load(":platforms.bzl", "host_toolchain_platform")
 load(":version_resolution.bzl", "stable_versions", "version_tuple")
 
 # Every stable popili version (1.5.0 onwards, no betas or release candidates) this
@@ -57,23 +58,6 @@ cc_library(
     visibility = ["//visibility:public"],
 )
 """
-
-def _determine_product_name(versions):
-    """Determines the product name based on versions in use.
-
-    Args:
-        versions: List of version strings (e.g., ["1.4.0", "1.5.0"])
-
-    Returns:
-        "popili" if any version >= 1.5.0, otherwise "coco-platform"
-    """
-    if not versions:
-        return "popili"
-    for version in versions:
-        parsed = version_tuple(version)
-        if parsed == None or parsed >= (1, 5, 0):
-            return "popili"
-    return "coco-platform"
 
 def download_prefix(version):
     """Returns the download path prefix for a given version.
@@ -293,54 +277,78 @@ license_paths(
 )
 """
 
-def _coco_fetch_license_repository_impl(ctx):
-    """Creates a repository to allow users to easily acquire new licenses.
+def _fail(ctx, reason):
+    fail("local_acquire acquired no licence for licence protocol version %d: %s" % (ctx.attr.protocol_version, reason))
 
-    Determines the correct product name based on versions in use:
-    - Versions < 1.5.0 use "coco-platform"
-    - Versions >= 1.5.0 use "popili"
+def _licensing_server(ctx):
+    """The host's cocotec-licensing-server for the repository's protocol version; fails when there is none."""
+    if ctx.attr.local_popili:
+        # Already on disk, unlike a registered version's, which would be downloaded for it.
+        dist_dir = resolve_local_path(ctx, ctx.attr.local_popili)
+        for binary in ["cocotec-licensing-server", "cocotec-licensing-server.exe"]:
+            if dist_dir.get_child(binary).exists:
+                return dist_dir.get_child(binary)
+    platform = host_toolchain_platform(ctx.os.name, ctx.os.arch)
+    if not platform:
+        _fail(ctx, "popili is not published for this machine (%s, %s)" % (ctx.os.name, ctx.os.arch))
+    label = ctx.attr.licensing_servers.get("%s_%s" % platform)
+    if not label:
+        _fail(ctx, "no registered popili reads licence protocol version %d" % ctx.attr.protocol_version)
+    return ctx.path(label)
+
+# Holds the token while cocotec-licensing-server runs.
+_AUTH_TOKEN_FILE = "auth_token.secret"
+
+def _coco_fetch_license_repository_impl(ctx):
+    """Acquires the licence of one licence protocol version for `local_acquire`, at fetch time.
+
+    `:licenses` gives its absolute path, so the licence's contents never become an action input:
+    every acquisition writes a new file, which would otherwise give every popili action a new key.
+    A failed acquisition fails the fetch, which Bazel tries again on its next command; the path is
+    the same once it succeeds, so cached results are untouched.
     """
     ctx.file("WORKSPACE", "")
-    auth_token = ctx.os.environ.get("COCOTEC_AUTH_TOKEN", "")
+    token = ctx.os.environ.get("COCOTEC_AUTH_TOKEN", "")
+    if not token:
+        _fail(ctx, "COCOTEC_AUTH_TOKEN is not set in the repository environment (see --repo_env)")
+    server = _licensing_server(ctx)
 
-    # Determine product name based on versions
-    versions = ctx.attr.versions
-    product_name = _determine_product_name(versions)
+    file_name = "licenses_%d.lic" % ctx.attr.protocol_version
+    path = ctx.path(file_name)
+    ctx.file(_AUTH_TOKEN_FILE, token, executable = False)
+    result = ctx.execute([
+        server,
+        "--no-crash-reporter",
+        "--machine-auth-token",
+        str(ctx.path(_AUTH_TOKEN_FILE)),
+        "--license-file",
+        str(path),
+        "--acquire",
+        "popili",
+    ], timeout = 300)
+    ctx.delete(_AUTH_TOKEN_FILE)
+    if result.return_code != 0 or not path.exists:
+        output = (result.stderr + "\n" + result.stdout).strip() or "no output"
+        _fail(ctx, "cocotec-licensing-server exited with code %d: %s" % (result.return_code, output))
 
-    if not auth_token:
-        # Create a stub repository that will fail only if actually used
-        ctx.file("BUILD", """
-filegroup(
-    name = "licenses",
-    srcs = [],
-    visibility = ["//visibility:public"],
-)
-""")
-    else:
-        ctx.file("auth_token.secret", auth_token)
-        ctx.file("BUILD", """
-load("@rules_coco//coco/private:licensing.bzl", "fetch_license")
-
-# Note: This target is never actually built in practice - license acquisition
-# happens outside of Bazel. This exists only for compatibility.
-fetch_license(
-    name = "licenses",
-    product = "%s",
-    auth_token = "auth_token.secret",
-    tags = ["manual"],
-    visibility = ["//visibility:public"],
-)
-""" % product_name)
+    ctx.file("BUILD", _BUILD_FOR_LICENSE_PATHS.format(paths = json.encode({file_name: str(path)})))
 
 _coco_fetch_license_repository = repository_rule(
-    attrs = {
-        "versions": attr.string_list(
-            doc = "List of Popili/Coco versions in use. Used to determine correct product name (coco-platform vs popili).",
-            default = [],
-        ),
-    },
     implementation = _coco_fetch_license_repository_impl,
-    environ = ["APPDATA", "HOME", "COCOTEC_AUTH_TOKEN"],
+    attrs = {
+        "licensing_servers": attr.string_keyed_label_dict(
+            doc = (
+                "`<os>_<arch>` to the cocotec-licensing-server of the newest registered popili of the " +
+                "protocol version on that platform. Only the host's is fetched."
+            ),
+        ),
+        "local_popili": attr.string(
+            doc = "The local popili distribution's directory, when it reads this protocol version. Its server is preferred: it needs no download.",
+        ),
+        "protocol_version": attr.int(mandatory = True),
+    },
+    environ = ["COCOTEC_AUTH_TOKEN"],
+    # Acquires again once per Bazel server.
     local = True,
 )
 

@@ -113,11 +113,24 @@ Contact [Cocotec Support](https://cocotec.io/support/) to set this up or discuss
   This mode is suitable for remote execution environments where auth token files are pre-mounted or made available through
   other mechanisms. **Requires popili 1.5.2 or later.**
 
-- `local_acquire`: A license will be acquired on the local machine as part of the build using `COCOTEC_AUTH_TOKEN`. This
+- `local_acquire`: A license is acquired on this machine with `COCOTEC_AUTH_TOKEN` when Bazel fetches repositories. This
   is not compatible with remote execution: popili's actions and tests are tagged `no-remote-exec`, so they run locally
   even when remote execution is on, and get this machine's popili even when another execution platform comes first in
   `--extra_execution_platforms`. Their results are still cached. An execution platform with this machine's OS and CPU
   must be registered; Bazel registers the host by default unless `--host_platform` replaces it.
+
+  The licence is acquired when Bazel fetches repositories, once per licence protocol version the build uses, with this
+  machine's `cocotec-licensing-server`: the local popili's when it reads that protocol version, else the newest
+  registered popili's. It is acquired again when `COCOTEC_AUTH_TOKEN` changes or the Bazel server restarts, and not
+  renewed in between: when it expires, run `bazel shutdown` (or `bazel fetch --force`, which refetches every repository)
+  for a fresh one. `bazel query 'deps(...)'`, as IDE syncs run, acquires the licences of every popili version it
+  reaches. Popili gets the licence by its absolute path below Bazel's output base, not as an action input, so a new
+  licence does not rerun popili, and results are cached by that path: CI runners with the same setup share them,
+  separate workspaces or machines do not. Bazel's default sandboxes expose that path read-only; hermetic or Docker
+  sandboxes hide it, so they cannot use this mode. A failed acquisition (no token, offline, a rejected token) fails the
+  fetch, and so the build or query, with the server's output; Bazel tries again on its next command, and cached results
+  are untouched. `action_file` keeps the licence out of the key too, acquiring one per popili action instead.
+
 - `local_user`: The user's existing license on this machine will be reused. This is not compatible with remote
   execution, and is kept local like `local_acquire`. Each popili version gets the license file it reads
   (`licenses_<n>.lic` in popili's data directory, `n` being its licence protocol version); the local toolchain, of
@@ -370,7 +383,7 @@ Each path (absolute, or workspace-relative) mirrors the **extracted release arch
 of `popili_<os>_<arch>.zip`, `coco-cpp-runtime.zip`, and `coco-c-runtime.zip` respectively. To use it, run with
 `bazel build --@rules_coco//:version=local //...` (consider a `.bazelrc` `--config`).
 
-Under `local_user` licensing, set `license_protocol_version` when your popili does not read the newest licence
+Under the local licence modes, set `license_protocol_version` when your popili does not read the newest licence
 protocol version, e.g. `license_protocol_version = 6` for popili 1.5.x.
 
 For `WORKSPACE` mode use `coco_local_repositories(path=..., cc_runtime_path=..., c_runtime_path=...)`,
@@ -408,9 +421,10 @@ load("@rules_coco//coco:toolchain.bzl", "coco_toolchain")
 coco_toolchain(
     name = "my_popili",
     coco = "//path/to:popili",
-    cocotec_licensing_server = "//path/to:cocotec-licensing-server",
     # cc_runtime = "//path/to:cpp_runtime",  # optional cc_library, for coco_cc_library
     popili_version = "1.5.8",  # required: the version of that popili, not an alias
+    # For local_acquire licensing: the licence of licence protocol version 6, which popili 1.5.x reads.
+    local_acquire_licenses = "@rules_coco//coco:local_acquire_licenses_6",
 )
 
 toolchain(
@@ -426,12 +440,34 @@ toolchains and no pin or flag can select another one. Register only one such too
 it would never be selected; in `WORKSPACE`, register it before calling `coco_repositories`.
 
 `popili_version` is the version of the `popili` binary the toolchain points at, such as `"1.5.8"`; an alias such
-as `"stable"` is rejected. It picks the licence file under `local_user` licensing, and every target must ask for
+as `"stable"` is rejected. It picks the licence file under the local licence modes, and every target must ask for
 that version or for none in particular. A target pinned to another version, or built with
 `--@rules_coco//:version` set to another version, fails instead of running this `popili`:
 
 ```
 @@//a:gen needs popili 1.5.1 (pinned by popili_version), but the bring-your-own coco_toolchain @@//tools:my_popili, which serves every target, is popili 1.5.8. ...
+```
+
+`local_acquire_licenses` gets the licence under `local_acquire`. `@rules_coco//coco:local_acquire_licenses_<n>`
+acquires the licence of protocol version `n` (6 for popili 1.5.x, 9 from 1.6.0-beta.3) with the newest registered
+popili of that protocol version, and only when `local_acquire` is the licence mode that applies, by the flag or
+`coco.toolchain`'s `license_source`, not the toolchain's. A popili of that protocol version must be registered, or be
+the local one: `cocotec_licensing_server` is deprecated and ignored.
+
+A toolchain that makes `local_acquire` its own default (`license_source = "local_acquire"`) points the attribute at
+the fetch repository instead, which acquires whenever the toolchain is used, whatever the licence mode, and so needs
+`COCOTEC_AUTH_TOKEN` even under another mode:
+
+```starlark
+# MODULE.bazel
+use_repo(coco, "io_cocotec_licensing_fetch_6")
+
+# BUILD
+coco_toolchain(
+    ...
+    license_source = "local_acquire",
+    local_acquire_licenses = "@io_cocotec_licensing_fetch_6//:licenses",
+)
 ```
 
 See `e2e/byo_toolchain`.
