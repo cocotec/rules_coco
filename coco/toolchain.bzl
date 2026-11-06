@@ -14,6 +14,7 @@
 
 """Coco toolchain implementation."""
 
+load("//coco/private:license_paths.bzl", "LicensePathsInfo")
 load("//coco/private:license_sources.bzl", "LICENSE_SOURCES")
 load("//coco/private:version_resolution.bzl", "LOCAL_VERSION", "version_tuple")
 
@@ -38,6 +39,7 @@ def _coco_toolchain_impl(ctx):
         auth_token_path = ctx.attr.auth_token_path,
         popili_version = ctx.attr.popili_version,
         license_protocol_version = ctx.attr.license_protocol_version,
+        local_acquire_licenses = ctx.attr.local_acquire_licenses[LicensePathsInfo] if ctx.attr.local_acquire_licenses else None,
     )
     return toolchain
 
@@ -73,7 +75,7 @@ coco_toolchain = rule(
         "license_protocol_version": attr.int(
             doc = (
                 "The licence protocol version the `popili` binary reads, `n` in `licenses_<n>.lic`, " +
-                "which picks its licence file under `local_user` licensing. Optional: 0 derives it from " +
+                "which picks its licence file under the local licence modes. Optional: 0 derives it from " +
                 "`popili_version`, or takes the newest protocol version rules_coco knows of when that is " +
                 "unknown. Set it when the popili reads a different protocol version than that."
             ),
@@ -88,10 +90,21 @@ coco_toolchain = rule(
             doc = "The license token to use when license_source is 'token'. Optional.",
             default = "",
         ),
+        "local_acquire_licenses": attr.label(
+            doc = (
+                "The licences acquired for `local_acquire` licensing; popili gets the one of its licence " +
+                "protocol version by path. Optional: without it, popili gets no licence path under " +
+                "`local_acquire` and reads the licence in its own data directory, if any. The toolchains rules_coco generates set it; a bring-your-own toolchain can " +
+                "use `@rules_coco//coco:local_acquire_licenses_<n>`, `n` being its popili's licence protocol " +
+                "version, which acquires a licence only under `local_acquire`."
+            ),
+            providers = [LicensePathsInfo],
+            default = None,
+        ),
         "popili_version": attr.string(
             doc = (
                 "The version of the `popili` binary, such as \"1.5.8\"; not an alias such as " +
-                "\"stable\". It picks the licence file under `local_user` licensing, and every target " +
+                "\"stable\". It picks the licence file under the local licence modes, and every target " +
                 "this toolchain serves must ask for this version, or for none in particular. The " +
                 "toolchains rules_coco generates set it; a local distribution is 'local'."
             ),

@@ -85,17 +85,7 @@ test_platform_mismatch_test = analysistest.make(
     expect_failure = True,
 )
 
-def _no_files_impl(ctx):
-    env = analysistest.begin(ctx)
-    asserts.equals(env, [], analysistest.target_under_test(env)[DefaultInfo].files.to_list(), "files of a licence fetch without a toolchain")
-    return analysistest.end(env)
-
-fetch_license_without_toolchain_test = analysistest.make(
-    _no_files_impl,
-    config_settings = {_VERSION_FLAG: "1.99.0", _FORCE_FLAG: False},
-)
-
-def popili_diagnostics_tests(name, registered_versions, targets, test_targets = [], fetch_license = None):
+def popili_diagnostics_tests(name, registered_versions, targets, test_targets = []):
     """Declares the failure-message tests per target, plus a test_suite.
 
     Args:
@@ -103,7 +93,6 @@ def popili_diagnostics_tests(name, registered_versions, targets, test_targets = 
         registered_versions: The versions the workspace registers, the default first.
         targets: A dict mapping a short name to a target that resolves the Coco toolchain.
         test_targets: The short names in `targets` of test rules, which resolve it where the test runs.
-        fetch_license: An optional `fetch_license` target, checked to yield no files.
     """
     default = registered_versions[0]
     registered = "Registered popili versions: %s." % ", ".join(
@@ -169,13 +158,5 @@ def popili_diagnostics_tests(name, registered_versions, targets, test_targets = 
                 ],
             )
             tests.append("%s_test_platform_mismatch_%s" % (name, consumer))
-
-    if fetch_license:
-        fetch_license_without_toolchain_test(
-            name = "%s_fetch_license_without_toolchain" % name,
-            size = "small",
-            target_under_test = fetch_license,
-        )
-        tests.append("%s_fetch_license_without_toolchain" % name)
 
     native.test_suite(name = name, tests = tests)

@@ -35,7 +35,8 @@ load(
     "coco_preferences_repository",
 )
 load(":license_sources.bzl", "DEFAULT_LICENSE_SOURCE", "LICENSE_SOURCES", "LOCAL_LICENSE_SOURCES")
-load(":platforms.bzl", "COCO_TOOLCHAIN_PLATFORMS", "platform_constraints")
+load(":license_versions.bzl", "LICENSE_PROTOCOL_VERSIONS")
+load(":platforms.bzl", "COCO_TOOLCHAIN_PLATFORMS", "platform_binary_ext", "platform_constraints")
 load(
     ":toolchain_repositories.bzl",
     "coco_local_toolchain_repository",
@@ -47,8 +48,10 @@ load(
     "RESERVED_VERSIONS",
     "TOOLCHAIN_TYPE",
     "VERSION_FLAG",
+    "license_protocol_version",
     "resolve_version_alias",
     "validate_minimum_version",
+    "version_key",
     "version_to_repo_suffix",
 )
 
@@ -107,6 +110,10 @@ _HOST_LOAD = """load("@rules_coco//coco/private:host.bzl", "unless_host")
 # lets popili run remotely. The local modes run popili on this machine (`no-remote-exec`), which
 # needs this machine's binary, whichever execution platform Bazel would otherwise pick first.
 LICENSE_REMOTE_CAPABLE = "license_remote_capable"
+
+# Matches when the licence mode that applies is `local_acquire`: the toolchains then point at the
+# licence acquired for their popili's protocol version, which is only fetched, and so acquired, then.
+LICENSE_LOCAL_ACQUIRE = "license_local_acquire"
 
 # Matches when `--@rules_coco//:license_source` is unset, so the toolchains' default mode applies.
 # A mode the flag names has its config_setting in rules_coco's `config/license_source`.
@@ -237,6 +244,35 @@ def c_runtime_repo_name(version_suffix):
       The repository name.
     """
     return "io_cocotec_coco_c_runtime__%s" % version_suffix
+
+def license_fetch_repo_name(protocol_version):
+    """Returns the name of the repository acquiring the licence of a licence protocol version.
+
+    Args:
+      protocol_version: The licence protocol version, an int.
+
+    Returns:
+      The repository name.
+    """
+    return "io_cocotec_licensing_fetch_%d" % protocol_version
+
+def newest_version_per_protocol(versions):
+    """Returns the newest of `versions` that reads each licence protocol version.
+
+    Its cocotec-licensing-server acquires that protocol version's licence under `local_acquire`.
+
+    Args:
+      versions: Resolved popili versions, not `local`.
+
+    Returns:
+      A dict from protocol version to popili version.
+    """
+    newest = {}
+    for version in versions:
+        protocol = license_protocol_version(version)
+        if protocol not in newest or version_key(version) > version_key(newest[protocol]):
+            newest[protocol] = version
+    return newest
 
 def resolve_versions(raw_versions, resolve_version = resolve_version_alias):
     """Resolves, validates and deduplicates a list of requested Coco versions.
@@ -430,13 +466,14 @@ def _render_license_settings(license_source):
 
     That mode is the one the flag names, or when the flag is unset, the toolchains' default
     (`license_source`, else DEFAULT_LICENSE_SOURCE). `license_remote_capable` matches a mode that is
-    not a local one.
+    not a local one, `license_local_acquire` matches `local_acquire`.
     """
     default = license_source or DEFAULT_LICENSE_SOURCE
     return _LICENSE_SOURCE_UNSET_TEMPLATE + "".join([
         _render_any_mode(name, modes, default)
         for name, modes in [
             (LICENSE_REMOTE_CAPABLE, [mode for mode in LICENSE_SOURCES if mode not in LOCAL_LICENSE_SOURCES]),
+            (LICENSE_LOCAL_ACQUIRE, ["local_acquire"]),
         ]
     ])
 
@@ -524,11 +561,29 @@ def declare_coco_toolchains(
       hub_name: The name of the hub repository to create.
     """
     coco_preferences_repository(name = "io_cocotec_coco_preferences")
-    coco_fetch_license_repository(
-        name = "io_cocotec_licensing_fetch",
-        versions = versions,
-    )
     coco_local_licenses_repository(name = "io_cocotec_licensing_local")
+
+    # One per licence protocol version rules_coco knows of, so that a bring-your-own toolchain can
+    # point at any of them (see //coco:BUILD), plus the local popili's.
+    newest = newest_version_per_protocol(versions)
+    local_protocol = (local.license_protocol_version or license_protocol_version(LOCAL_VERSION)) if local else None
+    protocols = {protocol: True for protocol in LICENSE_PROTOCOL_VERSIONS.values() + newest.keys()}
+    if local:
+        protocols[local_protocol] = True
+    for protocol in sorted(protocols.keys()):
+        version = newest.get(protocol)
+        coco_fetch_license_repository(
+            name = license_fetch_repo_name(protocol),
+            protocol_version = protocol,
+            licensing_servers = {
+                "%s_%s" % (os, arch): "@%s//:bin/cocotec-licensing-server%s" % (
+                    toolchain_repo_name(os, arch, version_to_repo_suffix(version)),
+                    platform_binary_ext(os),
+                )
+                for (os, arch) in COCO_TOOLCHAIN_PLATFORMS
+            } if version else {},
+            local_popili = local.popili if local_protocol == protocol else "",
+        )
 
     for version in versions:
         version_suffix = version_to_repo_suffix(version)
@@ -563,6 +618,8 @@ def declare_coco_toolchains(
                 license_source = license_source,
                 license_token = license_token,
                 auth_token_path = auth_token_path,
+                hub_name = hub_name,
+                local_acquire_licenses = "@%s//:licenses" % license_fetch_repo_name(license_protocol_version(version)),
             )
 
     if local:
@@ -589,6 +646,8 @@ def declare_coco_toolchains(
             cc_runtime_label = cc_runtime_label,
             c_runtime_label = c_runtime_label,
             license_protocol_version = local.license_protocol_version,
+            hub_name = hub_name,
+            local_acquire_licenses = "@%s//:licenses" % license_fetch_repo_name(local_protocol),
             license_source = license_source,
             license_token = license_token,
             auth_token_path = auth_token_path,

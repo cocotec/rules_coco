@@ -15,6 +15,9 @@
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("//coco/private:c_runtime.bzl", "coco_c_runtime")
 load("//coco/private:cc_runtime.bzl", "coco_cc_runtime")
+load("//coco/private:license_paths.bzl", "license_paths")
+load("//coco/private:license_versions.bzl", "LICENSE_PROTOCOL_VERSIONS")
+load("//coco/private:toolchain_hub.bzl", "DEFAULT_HUB_NAME", "LICENSE_LOCAL_ACQUIRE", "license_fetch_repo_name")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -23,6 +26,28 @@ toolchain_type(name = "toolchain_type")
 coco_c_runtime(name = "c_runtime")
 
 coco_cc_runtime(name = "cc_runtime")
+
+# The licence acquired under local_acquire for each licence protocol version, for a bring-your-own
+# coco_toolchain's local_acquire_licenses. Under another licence mode it is empty, and nothing is
+# acquired.
+[
+    alias(
+        name = "local_acquire_licenses_%d" % protocol,
+        actual = select({
+            "@%s//:%s" % (DEFAULT_HUB_NAME, LICENSE_LOCAL_ACQUIRE): "@%s//:licenses" % license_fetch_repo_name(protocol),
+            "//conditions:default": ":no_licenses",
+        }),
+        # Kept out of //..., which would acquire every protocol version's licence.
+        tags = ["manual"],
+    )
+    for protocol in {protocol: True for protocol in LICENSE_PROTOCOL_VERSIONS.values()}
+]
+
+license_paths(
+    name = "no_licenses",
+    error = "rules_coco acquires a licence only when the licence mode that applies is local_acquire",
+    visibility = ["//visibility:private"],
+)
 
 # Export key public Starlark files
 exports_files([

@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Test to verify version consistency between version.bzl and MODULE.bazel."""
+"""Test to verify that MODULE.bazel agrees with version.bzl and license_versions.bzl."""
 
 import re
 import sys
@@ -25,6 +25,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 VERSION_BZL = REPO_ROOT / "version.bzl"
 MODULE_BAZEL = REPO_ROOT / "MODULE.bazel"
+LICENSE_VERSIONS_BZL = REPO_ROOT / "coco" / "private" / "license_versions.bzl"
 
 
 def extract_version_from_bzl() -> str:
@@ -45,6 +46,21 @@ def extract_version_from_module() -> str:
     return match.group(1)
 
 
+def extract_license_protocol_versions() -> set:
+    """The licence protocol versions in license_versions.bzl's LICENSE_PROTOCOL_VERSIONS."""
+    content = LICENSE_VERSIONS_BZL.read_text()
+    match = re.search(r"^LICENSE_PROTOCOL_VERSIONS = \{(.*?)^\}", content, re.MULTILINE | re.DOTALL)
+    if not match:
+        raise ValueError(f"Could not find LICENSE_PROTOCOL_VERSIONS in {LICENSE_VERSIONS_BZL}")
+    return {int(n) for n in re.findall(r":\s*([0-9]+),", match.group(1))}
+
+
+def extract_licensing_fetch_repos() -> set:
+    """The licence protocol versions of the io_cocotec_licensing_fetch_<n> repositories MODULE.bazel uses."""
+    content = MODULE_BAZEL.read_text()
+    return {int(n) for n in re.findall(r'"io_cocotec_licensing_fetch_([0-9]+)"', content)}
+
+
 class VersionConsistencyTest(unittest.TestCase):
     """Test that version.bzl and MODULE.bazel have the same version."""
 
@@ -62,6 +78,17 @@ class VersionConsistencyTest(unittest.TestCase):
             f"\n"
             f"To fix this, run:\n"
             f"  bazel run //tools:release -- --version {version_bzl}"
+        )
+
+    def test_licensing_fetch_repos(self):
+        """MODULE.bazel's use_repo names a licence repository per protocol version, for //coco:BUILD."""
+        protocols = extract_license_protocol_versions()
+        self.assertTrue(protocols, f"No protocol versions found in {LICENSE_VERSIONS_BZL}")
+        self.assertEqual(
+            protocols,
+            extract_licensing_fetch_repos(),
+            "MODULE.bazel's use_repo must list io_cocotec_licensing_fetch_<n> for exactly the protocol "
+            f"versions in {LICENSE_VERSIONS_BZL.name}",
         )
 
     def test_version_bzl_exists(self):

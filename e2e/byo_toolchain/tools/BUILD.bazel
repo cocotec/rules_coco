@@ -2,7 +2,7 @@
 # register_toolchains lives in MODULE.bazel.
 
 load("@rules_coco//coco:toolchain.bzl", "coco_toolchain")
-load("//popili_dist:bin/version.bzl", "POPILI_VERSION")
+load("//popili_dist:bin/version.bzl", "LICENSE_PROTOCOL_VERSION", "POPILI_VERSION")
 
 # The toolchain every build here runs. Its toolchain() has no target_settings, so it is selected
 # whatever popili version a build asks for; rules_coco then checks that version against the one
@@ -11,7 +11,9 @@ coco_toolchain(
     name = "byo_popili",
     coco = "//popili_dist:popili",
     cocotec_licensing_server = "//popili_dist:licensing_server",
-    # The staged version (see stage.py), which picks the licence file under local_user licensing.
+    # The licence acquired for the staged popili under local_acquire licensing.
+    local_acquire_licenses = "@rules_coco//coco:local_acquire_licenses_%d" % LICENSE_PROTOCOL_VERSION,
+    # The staged version (see stage.py), which picks the licence file under the local licence modes.
     popili_version = POPILI_VERSION,
     visibility = ["//visibility:public"],
 )

@@ -23,15 +23,16 @@ load(
     "PATH_CASE_DEFAULTS",
 )
 load(":cc_runtime_deps.bzl", "collect_cc_runtime_extra_deps", "normalize_cc_runtime_extra_deps")
-load(":coco.bzl", "FILE_NAME_MANGLER_STYLES", "bat_set", "common_version", "compute_output_paths", "effective_version", "inherited_versions_conflict", "library_version_conflict", "library_version_mismatch_message", "license_execution_requirements", "mangle_name", "missing_popili_message", "module_path_for", "own_package_versions_message", "package_transition_settings", "package_versions_conflict", "pin_transition_settings", "popili_rule_reserved_attribute", "script_literal", "toolchain_version_mismatch_message", "unpin_transition_settings", "version_source")
-load(":common_repositories.bzl", "AVAILABLE_STABLE_VERSIONS", "coco_download", "download_prefix", "find_local_license_paths", "is_license_file_name")
+load(":coco.bzl", "FILE_NAME_MANGLER_STYLES", "bat_echo_text", "bat_set", "common_version", "compute_output_paths", "effective_version", "inherited_versions_conflict", "library_version_conflict", "library_version_mismatch_message", "license_execution_requirements", "mangle_name", "missing_popili_message", "module_path_for", "own_package_versions_message", "package_transition_settings", "package_versions_conflict", "pin_transition_settings", "popili_rule_reserved_attribute", "script_literal", "toolchain_version_mismatch_message", "unpin_transition_settings", "version_source")
+load(":common_repositories.bzl", "AVAILABLE_STABLE_VERSIONS", "coco_download", "download_prefix", "find_local_license_paths", "is_license_file_name", "one_line")
 load(":known_shas.bzl", "FILE_KEY_TO_SHA")
 load(":license_versions.bzl", "LICENSE_PROTOCOL_VERSIONS")
-load(":platforms.bzl", "COCO_TOOLCHAIN_PLATFORMS", "archive_platform", "platform_binary_ext", "toolchain_platform_of")
+load(":platforms.bzl", "COCO_TOOLCHAIN_PLATFORMS", "archive_platform", "host_toolchain_platform", "platform_binary_ext", "toolchain_platform_of")
 load(":source_roots.bzl", "infer_source_root", "leaves_directory", "normalize_root", "relative_path", "resolve_source_roots", "source_root_for")
 load(
     ":toolchain_hub.bzl",
     "merge_toolchain_tags",
+    "newest_version_per_protocol",
     "render_toolchain_hub_build",
     "resolve_versions",
     "toolchain_hub_entries",
@@ -354,6 +355,18 @@ def _bat_set_test_impl(ctx):
     return unittest.end(env)
 
 bat_set_test = unittest.make(_bat_set_test_impl)
+
+def _bat_echo_text_test_impl(ctx):
+    """A licence note reaches a batch file's `echo` as text: no command separators, redirections or variables."""
+    env = unittest.begin(ctx)
+
+    asserts.equals(env, "a ^& b ^| ^<c^> ^(d^) 50%% ^^ e", bat_echo_text("a & b | <c> (d) 50% ^ e"))
+    asserts.equals(env, "exited: 'quoted' ^& rest", bat_echo_text("exited: \"quoted\" & rest"))
+    asserts.equals(env, "one line", bat_echo_text("one\nline"))
+
+    return unittest.end(env)
+
+bat_echo_text_test = unittest.make(_bat_echo_text_test_impl)
 
 def _script_literal_test_impl(ctx):
     """Paths from the environment reach popili unchanged through a wrapper script."""
@@ -793,6 +806,20 @@ local_license_legacy_fallback_test = unittest.make(_local_license_legacy_fallbac
 local_license_prefers_popili_over_legacy_test = unittest.make(_local_license_prefers_popili_over_legacy_test)
 local_license_absent_test = unittest.make(_local_license_absent_test)
 local_license_unset_home_test = unittest.make(_local_license_unset_home_test)
+
+def _one_line_test(ctx):
+    """A licensing server's output becomes one line json.encode leaves free of `\\u` escapes."""
+    env = unittest.begin(ctx)
+
+    asserts.equals(env, "a b c [0m d e f", one_line("a\r\nb\tc\033[0m d\000e\177f"))
+    asserts.false(env, "\\u" in json.encode(one_line("x\001\002\033\037\177y")), "a \\u escape, which a BUILD file cannot hold")
+    asserts.equals(env, "é \\ \"q\"", one_line("  é \\ \"q\"  "))
+    asserts.equals(env, "abc...", one_line("abcdef", limit = 3))
+    asserts.equals(env, "", one_line("\n\t "))
+
+    return unittest.end(env)
+
+one_line_test = unittest.make(_one_line_test)
 local_license_empty_home_test = unittest.make(_local_license_empty_home_test)
 local_license_unset_appdata_windows_test = unittest.make(_local_license_unset_appdata_windows_test)
 local_license_unset_appdata_ignored_off_windows_test = unittest.make(_local_license_unset_appdata_ignored_off_windows_test)
@@ -1227,7 +1254,32 @@ def _stable_versions_test(ctx):
 
     return unittest.end(env)
 
+def _host_toolchain_platform_test(ctx):
+    """A repository rule's host maps to its popili platform, or to None where popili is not published."""
+    env = unittest.begin(ctx)
+
+    asserts.equals(env, ("osx", "aarch64"), host_toolchain_platform("Mac OS X", "aarch64"))
+    asserts.equals(env, ("linux", "x86_64"), host_toolchain_platform("linux", "amd64"))
+    asserts.equals(env, ("linux", "aarch64"), host_toolchain_platform("linux", "aarch64"))
+    asserts.equals(env, ("windows", "x86_64"), host_toolchain_platform("windows 11", "amd64"))
+    asserts.equals(env, None, host_toolchain_platform("mac os x", "x86_64"))
+    asserts.equals(env, None, host_toolchain_platform("freebsd", "amd64"))
+    asserts.equals(env, None, host_toolchain_platform("linux", "riscv64"))
+
+    return unittest.end(env)
+
+def _newest_version_per_protocol_test(ctx):
+    """Each licence protocol version is acquired with the newest registered popili reading it."""
+    env = unittest.begin(ctx)
+
+    asserts.equals(env, {6: "1.5.8", 9: "1.6.0-beta.3"}, newest_version_per_protocol(["1.5.7", "1.6.0-beta.3", "1.5.8"]))
+    asserts.equals(env, {}, newest_version_per_protocol([]))
+
+    return unittest.end(env)
+
 stable_versions_test = unittest.make(_stable_versions_test)
+host_toolchain_platform_test = unittest.make(_host_toolchain_platform_test)
+newest_version_per_protocol_test = unittest.make(_newest_version_per_protocol_test)
 download_prefix_test = unittest.make(_download_prefix_test)
 archive_platform_test = unittest.make(_archive_platform_test)
 toolchain_platform_of_test = unittest.make(_toolchain_platform_of_test)
@@ -2133,6 +2185,16 @@ def _hub_license_gating_test(ctx):
     asserts.true(env, '":license_source_unset"' in remote_capable(build), "unset is remote-capable when action_file is the default")
     asserts.true(env, 'license_source = "action_file",' in build, "the registry's default licence mode")
 
+    # license_local_acquire matches local_acquire, by the flag or as the hub's default.
+    def local_acquire(build):
+        select = build[build.index('name = "license_local_acquire"'):]
+        return select[:select.index("})")]
+
+    asserts.true(env, '"@rules_coco//config/license_source:local_acquire"' in local_acquire(build), "local_acquire by the flag")
+    asserts.false(env, "license_source_unset" in local_acquire(build), "unset is not local_acquire when action_file is the default")
+    build = render_toolchain_hub_build(toolchain_hub_entries(["1.5.7"], license_source = "local_acquire"))
+    asserts.true(env, '":license_source_unset"' in local_acquire(build), "unset is local_acquire when it is the default")
+
     return unittest.end(env)
 
 hub_license_gating_test = unittest.make(_hub_license_gating_test)
@@ -2296,7 +2358,20 @@ def _toolchain_build_license_protocol_version_test(ctx):
 
     return unittest.end(env)
 
+def _toolchain_build_local_acquire_licenses_test(ctx):
+    """A coco_toolchain points at its acquired licence only under local_acquire, so it is only fetched then."""
+    env = unittest.begin(ctx)
+
+    build = BUILD_for_coco_toolchain("toolchain", popili_version = "1.5.7", local_acquire_licenses = "@fetch_6//:licenses", hub_name = "hub")
+    asserts.true(env, '"@hub//:license_local_acquire": "@fetch_6//:licenses",' in build, "acquired licence missing: %s" % build)
+    asserts.true(env, '"//conditions:default": None,' in build, "unconditional licence: %s" % build)
+    build = BUILD_for_coco_toolchain("toolchain", popili_version = "1.5.7")
+    asserts.true(env, "local_acquire_licenses" not in build, "no acquired licence expected: %s" % build)
+
+    return unittest.end(env)
+
 toolchain_build_version_test = unittest.make(_toolchain_build_version_test)
+toolchain_build_local_acquire_licenses_test = unittest.make(_toolchain_build_local_acquire_licenses_test)
 toolchain_build_license_protocol_version_test = unittest.make(_toolchain_build_license_protocol_version_test)
 
 # Tests for normalize_cc_runtime_extra_deps
@@ -2567,6 +2642,7 @@ def coco_test_suite(name):
         name + "_unit",
         module_path_for_test,
         bat_set_test,
+        bat_echo_text_test,
         script_literal_test,
         license_execution_requirements_test,
 
@@ -2602,6 +2678,7 @@ def coco_test_suite(name):
         local_license_prefers_popili_over_legacy_test,
         local_license_absent_test,
         local_license_unset_home_test,
+        one_line_test,
         local_license_empty_home_test,
         local_license_unset_appdata_windows_test,
         local_license_unset_appdata_ignored_off_windows_test,
@@ -2645,6 +2722,8 @@ def coco_test_suite(name):
         download_prefix_test,
         archive_platform_test,
         toolchain_platform_of_test,
+        host_toolchain_platform_test,
+        newest_version_per_protocol_test,
 
         # resolve_versions tests
         resolve_versions_alias_test,
@@ -2712,6 +2791,7 @@ def coco_test_suite(name):
         # BUILD_for_coco_toolchain tests
         toolchain_build_version_test,
         toolchain_build_license_protocol_version_test,
+        toolchain_build_local_acquire_licenses_test,
 
         # normalize_cc_runtime_extra_deps tests
         normalize_extra_deps_list_applies_to_all_test,

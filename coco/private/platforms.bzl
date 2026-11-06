@@ -86,3 +86,28 @@ def platform_binary_ext(os):
     if os == "windows":
         return ".exe"
     return ""
+
+def host_toolchain_platform(os_name, os_arch):
+    """Returns which of COCO_TOOLCHAIN_PLATFORMS a repository rule's host is.
+
+    Args:
+      os_name: The host's `repository_ctx.os.name`, e.g. "mac os x", "linux" or "windows 11".
+      os_arch: The host's `repository_ctx.os.arch`, e.g. "aarch64", "amd64" or "x86_64".
+
+    Returns:
+      An (os, arch) pair of COCO_TOOLCHAIN_PLATFORMS, or None when popili is not published for
+      the host.
+    """
+    os_name = os_name.lower()
+    if "mac" in os_name or "darwin" in os_name:
+        os = "osx"
+    elif "windows" in os_name:
+        os = "windows"
+    elif "linux" in os_name:
+        os = "linux"
+    else:
+        return None
+    arch = {"aarch64": "aarch64", "amd64": "x86_64", "arm64": "aarch64", "x86_64": "x86_64"}.get(os_arch.lower())
+    if (os, arch) not in COCO_TOOLCHAIN_PLATFORMS:
+        return None
+    return (os, arch)
