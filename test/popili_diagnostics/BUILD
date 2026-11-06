@@ -12,11 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("@bazel_skylib//rules:write_file.bzl", "write_file")
 load("@rules_cc//cc:defs.bzl", "cc_toolchain")
 load("@rules_coco//coco:cc.bzl", "coco_cc_library")
 load("@rules_coco//coco:defs.bzl", "coco_generate", "coco_package", "coco_state_diagram", "coco_verify_test")
-load("@rules_coco//coco/private:licensing.bzl", "fetch_license")  # buildifier: disable=bzl-visibility
 load("//test/version_registry:root_versions.bzl", "ROOT_REGISTERED_VERSIONS")
 load(":bare_coco_rule.bzl", "bare_coco_rule")
 load(":diagnostics_test.bzl", "popili_diagnostics_tests", "unknown_version_test")
@@ -84,23 +82,8 @@ toolchain(
     visibility = ["//visibility:public"],
 )
 
-# What @io_cocotec_licensing_fetch//:licenses is when COCOTEC_AUTH_TOKEN is set; only analysed.
-write_file(
-    name = "fake_auth_token",
-    out = "fake_auth_token.secret",
-    content = ["not-a-token"],
-)
-
-fetch_license(
-    name = "fetch_license",
-    auth_token = ":fake_auth_token",
-    product = "popili",
-    tags = ["manual"],
-)
-
 popili_diagnostics_tests(
     name = "diagnostics",
-    fetch_license = ":fetch_license",
     registered_versions = ROOT_REGISTERED_VERSIONS,
     targets = {
         # The library's ._gen, not the cc_library, which needs a C++ toolchain for riscv64 too.

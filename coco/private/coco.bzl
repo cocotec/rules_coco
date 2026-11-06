@@ -77,9 +77,8 @@ CocoCSharpGeneratedInfo = provider(
 
 LICENSE_ATTRIBUTES = {
     "_auth_token_path": attr.label(default = Label("//:auth_token_path")),
-    "_license_file_fetch": attr.label(default = Label("@io_cocotec_licensing_fetch//:licenses")),
     "_license_token": attr.label(default = Label("//:license_token")),
-    # The path of every licenses_<n>.lic found locally; see _local_user_license_path.
+    # The path of every licenses_<n>.lic found locally; see _popili_license.
     "_local_licenses": attr.label(default = Label("@io_cocotec_licensing_local//:licenses"), providers = [LicensePathsInfo]),
 }
 
@@ -877,7 +876,7 @@ def _package_info(package):
     """
     return package if hasattr(package, "package_file") else package[CocoPackageInfo]
 
-def _coco_startup_args(ctx, package, is_test):
+def _coco_startup_args(ctx, package, is_test, license = None):
     """Build startup arguments for popili.
 
     Args:
@@ -885,6 +884,7 @@ def _coco_startup_args(ctx, package, is_test):
         package: The coco_package target, a struct with CocoPackageInfo's fields (see
                  `_package_info`), or None for base args only
         is_test: Whether this is for a test (affects path resolution)
+        license: The caller's `_popili_license(ctx)`, or None to work it out here
 
     Returns:
         List of startup arguments
@@ -898,23 +898,17 @@ def _coco_startup_args(ctx, package, is_test):
         "--terminal=plain",
     ]
 
+    license = license or _popili_license(ctx)
+
     # Handle auth token file for action_file mode
-    license_source = _get_license_source(ctx)
-    if license_source == "action_file":
+    if license.source == "action_file":
         auth_token_path = _get_auth_token_path(ctx)
         if auth_token_path:
             arguments.append("--machine-auth-token")
             arguments.append(auth_token_path)
-    elif license_source == "local_user":
+    elif license.path:
         # By path, not as an input: see license_paths.bzl.
-        license_path = _local_user_license_path(ctx)
-        if license_path:
-            arguments += ["--override-licenses", license_path]
-    else:
-        license_file = _get_license_file_from_toolchain(ctx)
-        if license_file:
-            arguments.append("--override-licenses")
-            arguments.append(_runtime_path(license_file, is_test))
+        arguments += ["--override-licenses", license.path]
     if package:
         info = _package_info(package)
         arguments += [
@@ -980,31 +974,43 @@ def _get_auth_token_path(ctx):
         return toolchain_auth_token_path
     return ""
 
-def _get_license_file_from_toolchain(ctx):
-    """Get the appropriate license file based on license_source.
+def _popili_license(ctx):
+    """How popili gets its licence, from one toolchain resolution for an action's argv and message.
 
-    Reads license_source from the toolchain (repository default) with optional
-    CLI override via --@rules_coco//:license_source flag.
-    """
-
-    # Even with the flag set, so a missing toolchain fails here rather than as an empty fetch.
-    _coco_toolchain(ctx)
-    license_source = _get_license_source(ctx)
-    if license_source == "local_acquire":
-        files = ctx.attr._license_file_fetch[DefaultInfo].files.to_list()
-        return files[0] if files else None
-    return None
-
-def _local_user_license_path(ctx):
-    """The absolute path of the user's licence for the licence protocol version of the toolchain's popili.
-
-    The toolchain's `license_protocol_version` when set, else the one its `popili_version`
-    reads. The local toolchain, whose version is unknown, gets the file of the newest protocol
-    version. None when there is no such file.
+    Returns:
+        A struct with `source`, the licence mode that applies; `path`, the absolute path of the
+        licence a local licence mode gives popili, or None; `note`, under local_acquire, why
+        popili may have no licence, a line for its progress message or test output, else ""; and
+        `error_path`, the file holding the acquisition's error, which a test prints instead of
+        `note` so that a failed acquisition does not change its script, or "".
+        `path` is the licence of the toolchain's `license_protocol_version` when set, else of the
+        one its `popili_version` reads; the local toolchain, whose version is unknown, gets the
+        newest protocol version's.
     """
     toolchain = _coco_toolchain(ctx)
-    name = "licenses_%d.lic" % (toolchain.license_protocol_version or license_protocol_version(toolchain.popili_version))
-    return ctx.attr._local_licenses[LicensePathsInfo].paths.get(name)
+    source = _license_source(ctx, toolchain)
+    path = None
+    note = ""
+    error_path = ""
+    if source in LOCAL_LICENSE_SOURCES:
+        name = "licenses_%d.lic" % (toolchain.license_protocol_version or license_protocol_version(toolchain.popili_version))
+        licenses = ctx.attr._local_licenses[LicensePathsInfo] if source == "local_user" else toolchain.local_acquire_licenses
+        path = licenses.paths.get(name) if licenses else None
+        if source == "local_acquire":
+            fallback = "so popili reads the licence in its own data directory, if any"
+            if not licenses:
+                note = "local_acquire: the Coco toolchain %s sets no local_acquire_licenses, %s" % (toolchain.label, fallback)
+            elif not path:
+                note = "local_acquire: the local_acquire_licenses of the Coco toolchain %s has no %s, %s" % (toolchain.label, name, fallback)
+            else:
+                # Acquisition never fails the build, which may be all cache hits, so its error waits for popili to run.
+                note = licenses.error
+                error_path = licenses.error_path
+    return struct(source = source, path = path, note = note, error_path = error_path)
+
+def _with_missing_license_note(progress_message, license):
+    # Bazel expands %{...} in progress messages.
+    return "%s (%s)" % (progress_message, license.note.replace("%{", "% {")) if license.note else progress_message
 
 def _coco_env(ctx):
     env = {}
@@ -1024,9 +1030,6 @@ def _coco_runfiles(ctx, package, is_test):
     transitive = []
     if is_test:
         direct.append(_coco_toolchain(ctx).coco)
-    license_file = _get_license_file_from_toolchain(ctx)
-    if license_file:
-        direct.append(license_file)
     if package:
         info = _package_info(package)
         direct.append(info.package_file)
@@ -1044,6 +1047,7 @@ def _coco_runfiles(ctx, package, is_test):
     )
 
 def _run_coco(ctx, package, verb, mnemonic, arguments, outputs):
+    license = _popili_license(ctx)
     ctx.actions.run(
         executable = _coco_toolchain(ctx).coco,
         tools = [
@@ -1051,11 +1055,11 @@ def _run_coco(ctx, package, verb, mnemonic, arguments, outputs):
         ],
         env = _coco_env(ctx),
         mnemonic = mnemonic,
-        progress_message = "%s %s" % (verb, package[CocoPackageInfo].name),
+        progress_message = _with_missing_license_note("%s %s" % (verb, package[CocoPackageInfo].name), license),
         inputs = _coco_runfiles(ctx, package, False),
         outputs = outputs,
-        arguments = _coco_startup_args(ctx, package, False) + arguments,
-        execution_requirements = _license_execution_requirements(ctx),
+        arguments = _coco_startup_args(ctx, package, False, license) + arguments,
+        execution_requirements = license_execution_requirements(license.source),
     )
 
 def _is_windows(ctx):
@@ -1079,6 +1083,16 @@ def _bat_set(name, value):
     if "\"" in value or "\n" in value or "\r" in value:
         fail("Cannot pass %s to a Windows wrapper script: the value contains a double quote or line break" % name)
     return "SET \"%s=%s\"" % (name, value.replace("%", "%%"))
+
+def _bat_echo_text(text):
+    """`text` for a cmd.exe `echo`, which prints it once `%` is doubled and `^&|<>()` are escaped.
+
+    A `"` would leave the rest unescaped to cmd.exe, so it becomes `'`. Line breaks become spaces.
+    """
+    text = text.replace("^", "^^").replace("%", "%%").replace("\"", "'").replace("\r", " ").replace("\n", " ")
+    for c in "&|<>()".elems():
+        text = text.replace(c, "^" + c)
+    return text
 
 _SH_SAFE = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_@%+=:,./-"
 
@@ -1105,7 +1119,7 @@ def _script_literal(argument, is_windows):
     stripped = argument.rstrip("\\")
     return "\"%s%s\"" % (stripped, "\\" * 2 * (len(argument) - len(stripped)))
 
-def _create_coco_wrapper_script(ctx, package, arguments, marker = None):
+def _create_coco_wrapper_script(ctx, package, arguments, marker = None, license = None):
     """Creates a platform-specific wrapper script for running Coco commands.
 
     Args:
@@ -1115,11 +1129,13 @@ def _create_coco_wrapper_script(ctx, package, arguments, marker = None):
         marker: None for a test or `bazel run` script, which finds popili and its inputs in its
             runfiles; else a file for a build action's script to create once popili succeeds,
             with popili and its inputs at their execution paths
+        license: The caller's `_popili_license(ctx)`, or None to work it out here
 
     Returns:
         The wrapper script file
     """
     is_test = marker == None
+    license = license or _popili_license(ctx)
     coco_path = _runtime_path(_coco_toolchain(ctx).coco, is_test)
     is_windows = _is_windows(ctx)
     if is_windows:
@@ -1129,9 +1145,14 @@ def _create_coco_wrapper_script(ctx, package, arguments, marker = None):
     # may expand variables, such as $XML_OUTPUT_FILE.
     command = " ".join([
         _script_literal(argument, is_windows)
-        for argument in [coco_path] + _coco_startup_args(ctx, package, is_test)
+        for argument in [coco_path] + _coco_startup_args(ctx, package, is_test, license)
     ] + arguments)
     env = _coco_env(ctx)
+
+    # A test or `bazel run` has no progress message to show it in. An acquisition's error is read
+    # from its file as the script runs, so the script, and the test's key, stay the same either way.
+    error_path = "" if marker else license.error_path
+    note = "" if marker or error_path else license.note
 
     # Create platform-specific wrapper script
     if marker and is_windows:
@@ -1150,16 +1171,24 @@ def _create_coco_wrapper_script(ctx, package, arguments, marker = None):
     elif is_windows:
         wrapper_script = ctx.actions.declare_file(ctx.label.name + "-cmd.bat")
         wrapper_lines = []
+        if note:
+            wrapper_lines.append("echo %s 1>&2" % _bat_echo_text(note))
+        if error_path:
+            error_file = _script_literal(error_path.replace("/", "\\"), True)
+            wrapper_lines.append("if exist %s type %s 1>&2" % (error_file, error_file))
         for k, v in env.items():
             wrapper_lines.append(_bat_set(k, v))
         wrapper_lines.append("")
         wrapper_lines.append(command)
     else:
         wrapper_script = ctx.actions.declare_file(ctx.label.name + "-cmd.sh")
-        wrapper_lines = [
-            "#!/bin/sh",
-            "exec env \\",
-        ]
+        wrapper_lines = ["#!/bin/sh"]
+        if note:
+            wrapper_lines.append("printf '%%s\\n' %s >&2" % shell.quote(note))
+        if error_path:
+            error_file = _script_literal(error_path, False)
+            wrapper_lines.append("if [ -s %s ]; then cat %s >&2; fi" % (error_file, error_file))
+        wrapper_lines.append("exec env \\")
         for k, v in env.items():
             wrapper_lines.append("  %s=%s \\" % (k, shell.quote(v)))
         wrapper_lines.append(command)
@@ -1188,15 +1217,16 @@ def _run_typecheck(ctx, package):
         The typecheck marker file
     """
     marker = ctx.actions.declare_file(ctx.label.name + ".typecheck")
-    script = _create_coco_wrapper_script(ctx, package, ["typecheck"], marker = marker)
+    license = _popili_license(ctx)
+    script = _create_coco_wrapper_script(ctx, package, ["typecheck"], marker = marker, license = license)
     ctx.actions.run(
         executable = script,
         tools = [_coco_toolchain(ctx).coco, script],
         mnemonic = "CocoTypecheck",
-        progress_message = "Typechecking %s" % ctx.label.name,
+        progress_message = _with_missing_license_note("Typechecking %s" % ctx.label.name, license),
         inputs = _coco_runfiles(ctx, package, False),
         outputs = [marker],
-        execution_requirements = _license_execution_requirements(ctx),
+        execution_requirements = license_execution_requirements(license.source),
     )
     return marker
 
@@ -2285,19 +2315,20 @@ def _popili_handle(ctx, toolchain, package, from_runfiles):
     """
 
     def run(arguments, outputs, inputs = [], mnemonic = "Popili", progress_message = None):
+        license = _popili_license(ctx)
         ctx.actions.run(
             executable = toolchain.coco,
             tools = [toolchain.coco],
             env = _coco_env(ctx),
             mnemonic = mnemonic,
-            progress_message = progress_message or "Running popili for %s" % ctx.label,
+            progress_message = _with_missing_license_note(progress_message or "Running popili for %s" % ctx.label, license),
             inputs = depset(
                 direct = inputs if type(inputs) == "list" else [],
                 transitive = [_coco_runfiles(ctx, package, False)] + ([inputs] if type(inputs) == "depset" else []),
             ),
             outputs = outputs,
-            arguments = _coco_startup_args(ctx, package, False) + arguments,
-            execution_requirements = _license_execution_requirements(ctx),
+            arguments = _coco_startup_args(ctx, package, False, license) + arguments,
+            execution_requirements = license_execution_requirements(license.source),
         )
 
     def script(arguments):
@@ -2346,7 +2377,7 @@ def popili_rule(implementation, attrs = {}, package = False, test = False, execu
     - `package`: with `package = True`, the `CocoPackageInfo` of the `package` attribute.
     - `run(arguments, outputs, inputs = [], mnemonic = "Popili", progress_message = None)`
       (rules only): registers an action running popili with `arguments` after the startup
-      arguments, the licence and preferences files, the package's files when there is one, and
+      arguments, the preferences file, the package's files when there is one, and
       `inputs` (a list or depset) as inputs.
     - `script(arguments)` and `runfiles` (tests and executables only): the wrapper script running
       popili with `arguments` from the runfiles, and the depset of files it needs there. The
@@ -2470,6 +2501,7 @@ coco_cc_pin = _coco_cc_pin
 
 # Exported for testing
 bat_set = _bat_set
+bat_echo_text = _bat_echo_text
 script_literal = _script_literal
 mangle_name = _mangle_name
 popili_rule_reserved_attribute = _popili_rule_reserved_attribute

@@ -68,6 +68,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Under `local_user`, popili gets the user's licence file by its absolute path instead of as an action input. Popili's
   licensing daemon rewrites that file as it renews, which used to rerun every popili action and test.
+- Under `local_acquire`, the licence is acquired when Bazel fetches repositories, once per Bazel server and licence
+  protocol version a build uses, and popili gets it by its absolute path instead of as an action input. Each
+  acquisition wrote a new file, which gave every popili action and test a new key. The key now holds the licence's
+  path below the output base instead, stable across builds but not shared between machines or workspaces. A failed
+  acquisition no longer fails the build: popili gets the same path, finds no licence there, and the action's progress
+  message or the test's output says why. See the README for what else follows (sandboxes, `bazel query`,
+  `bazel shutdown`).
+- **Breaking:** under `local_acquire`, a bring-your-own `coco_toolchain` must set its new `local_acquire_licenses`
+  attribute, such as `@rules_coco//coco:local_acquire_licenses_6`, for popili to get the acquired licence.
+  `fetch_license` is removed.
 - Under the `local_user` and `local_acquire` licence modes, popili's actions and tests are tagged `no-remote-exec`, so
   they run on the machine that holds the licence even when remote execution is on, with that machine's popili even
   when another execution platform comes first. Their results are still cached.

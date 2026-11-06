@@ -17,8 +17,7 @@
 A test running popili is kept off remote executors; actions get the same requirements, but
 Starlark cannot read an action's execution info, so they are checked for the popili they run
 instead: this machine's, even when another platform comes first in --extra_execution_platforms,
-as a remote one would. Under local_user, the licence is passed by absolute path rather than as an
-input.
+as a remote one would. Under both, the licence is passed by absolute path rather than as an input.
 """
 
 load("@bazel_skylib//lib:paths.bzl", "paths")
@@ -78,11 +77,27 @@ def _local_path_test_impl(ctx):
         licences = [f.path for f in action.inputs.to_list() if f.basename.startswith("licenses_")]
         asserts.equals(env, [], licences, "licence files among the inputs")
 
-        # Absent on a machine without a licence, such as CI, which uses local_acquire.
+        # Under local_user, absent without a licence, as on CI. Under local_acquire, the acquired
+        # licence's path even when acquisition failed, as without a token, so the key never changes.
         argv = action.argv
-        if "--override-licenses" in argv:
-            path = argv[argv.index("--override-licenses") + 1]
+        if ctx.attr.always or "--override-licenses" in argv:
+            asserts.true(env, "--override-licenses" in argv, "no --override-licenses in %s" % argv)
+            path = argv[argv.index("--override-licenses") + 1] if "--override-licenses" in argv else ""
             asserts.true(env, paths.is_absolute(path), "--override-licenses %s is not absolute" % path)
     return analysistest.end(env)
 
-local_user_path_test = analysistest.make(_local_path_test_impl, config_settings = _settings("local_user"))
+local_user_path_test = analysistest.make(_local_path_test_impl, attrs = {"always": attr.bool(default = False)}, config_settings = _settings("local_user"))
+local_acquire_path_test = analysistest.make(_local_path_test_impl, attrs = {"always": attr.bool(default = True)}, config_settings = _settings("local_acquire"))
+
+def _local_acquire_script_test_impl(ctx):
+    env = analysistest.begin(ctx)
+    scripts = [a.content for a in analysistest.target_actions(env) if a.mnemonic == "FileWrite" and "--override-licenses" in a.content]
+    asserts.equals(env, 1, len(scripts), "popili wrapper scripts")
+
+    # The error is read as the test runs, so a failed acquisition leaves the script, and the key, as they are.
+    for script in scripts:
+        asserts.true(env, "licenses_" in script and ".error" in script, "the script does not print the error file: %s" % script)
+        asserts.false(env, "acquired no licence" in script, "the script holds the acquisition's error: %s" % script)
+    return analysistest.end(env)
+
+local_acquire_script_test = analysistest.make(_local_acquire_script_test_impl, config_settings = _settings("local_acquire"))

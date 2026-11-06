@@ -27,7 +27,7 @@ load(
 load(":platforms.bzl", "archive_platform", "platform_binary_ext")
 load(":version_resolution.bzl", "LOCAL_VERSION", "version_tuple")
 
-def BUILD_for_coco_toolchain(name, popili_version, cc_runtime_label = None, c_runtime_label = None, license_source = None, license_token = None, auth_token_path = None, license_protocol_version = None):
+def BUILD_for_coco_toolchain(name, popili_version, cc_runtime_label = None, c_runtime_label = None, license_source = None, license_token = None, auth_token_path = None, license_protocol_version = None, local_acquire_licenses = None, hub_name = None):
     """Emits a toolchain declaration to match an existing compiler and stdlib.
 
     Args:
@@ -39,6 +39,9 @@ def BUILD_for_coco_toolchain(name, popili_version, cc_runtime_label = None, c_ru
       license_token: Optional license token string
       auth_token_path: Optional auth token file path string
       license_protocol_version: Optional licence protocol version the toolchain's popili reads
+      local_acquire_licenses: Optional label of the licence acquired for the toolchain's popili,
+        used only when `@<hub_name>//:license_local_acquire` matches, so only fetched then
+      hub_name: The toolchain hub's name, required with `local_acquire_licenses`
 
     Returns:
       A string containing BUILD file content for the toolchain.
@@ -72,11 +75,19 @@ def BUILD_for_coco_toolchain(name, popili_version, cc_runtime_label = None, c_ru
     if license_protocol_version:
         license_protocol_version_attr = "\n    license_protocol_version = {},".format(license_protocol_version)
 
+    local_acquire_licenses_attr = ""
+    if local_acquire_licenses:
+        local_acquire_licenses_attr = """
+    local_acquire_licenses = select({{
+        "@{hub_name}//:license_local_acquire": "{licenses}",
+        "//conditions:default": None,
+    }}),""".format(hub_name = hub_name, licenses = local_acquire_licenses)
+
     return """
 coco_toolchain(
     name = "{toolchain_name}_impl",
     coco = "//:coco",
-    cocotec_licensing_server = "//:cocotec_licensing_server",{cc_runtime_attr}{c_runtime_attr}{license_source_attr}{license_token_attr}{auth_token_path_attr}{popili_version_attr}{license_protocol_version_attr}
+    cocotec_licensing_server = "//:cocotec_licensing_server",{cc_runtime_attr}{c_runtime_attr}{license_source_attr}{license_token_attr}{auth_token_path_attr}{popili_version_attr}{license_protocol_version_attr}{local_acquire_licenses_attr}
     visibility = ["//visibility:public"],
 )
 """.format(
@@ -88,6 +99,7 @@ coco_toolchain(
         auth_token_path_attr = auth_token_path_attr,
         popili_version_attr = popili_version_attr,
         license_protocol_version_attr = license_protocol_version_attr,
+        local_acquire_licenses_attr = local_acquire_licenses_attr,
     )
 
 def BUILD_for_coco_archive(binary_ext, product):
@@ -161,6 +173,8 @@ def _coco_toolchain_repository_impl(ctx):
             license_token = ctx.attr.license_token,
             auth_token_path = ctx.attr.auth_token_path,
             popili_version = ctx.attr.version,
+            local_acquire_licenses = ctx.attr.local_acquire_licenses,
+            hub_name = ctx.attr.hub_name,
         ),
     ]))
 
@@ -179,12 +193,20 @@ coco_toolchain_repository = repository_rule(
             doc = "Optional label to the C++ runtime library",
             default = None,
         ),
+        "hub_name": attr.string(
+            doc = "The toolchain hub's name, whose `license_local_acquire` gates `local_acquire_licenses`.",
+            default = "",
+        ),
         "license_source": attr.string(
             doc = "Optional license source mode (e.g., 'local_user', 'local_acquire', 'token', 'action_environment', 'action_file')",
             default = "",
         ),
         "license_token": attr.string(
             doc = "Optional license token string",
+            default = "",
+        ),
+        "local_acquire_licenses": attr.string(
+            doc = "Optional label of the licence acquired for this popili under `local_acquire`.",
             default = "",
         ),
         "os": attr.string(mandatory = True),
@@ -221,6 +243,8 @@ def _coco_local_toolchain_repository_impl(ctx):
             auth_token_path = ctx.attr.auth_token_path,
             popili_version = LOCAL_VERSION,
             license_protocol_version = ctx.attr.license_protocol_version,
+            local_acquire_licenses = ctx.attr.local_acquire_licenses,
+            hub_name = ctx.attr.hub_name,
         ),
     ]))
 
@@ -238,6 +262,10 @@ coco_local_toolchain_repository = repository_rule(
             doc = "Optional label to the C++ runtime library",
             default = None,
         ),
+        "hub_name": attr.string(
+            doc = "The toolchain hub's name, whose `license_local_acquire` gates `local_acquire_licenses`.",
+            default = "",
+        ),
         "license_protocol_version": attr.int(
             doc = "Optional licence protocol version the local popili reads. See `coco_toolchain`.",
             default = 0,
@@ -248,6 +276,10 @@ coco_local_toolchain_repository = repository_rule(
         ),
         "license_token": attr.string(
             doc = "Optional license token string",
+            default = "",
+        ),
+        "local_acquire_licenses": attr.string(
+            doc = "Optional label of the licence acquired for this popili under `local_acquire`.",
             default = "",
         ),
         "path": attr.string(

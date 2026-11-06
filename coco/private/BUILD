@@ -18,6 +18,12 @@ load(":tests.bzl", "coco_test_suite")
 
 package(default_visibility = ["//coco:__pkg__"])
 
+# Checked against MODULE.bazel's use_repo.
+exports_files(
+    ["license_versions.bzl"],
+    visibility = ["//test/version:__pkg__"],
+)
+
 # The version --@rules_coco//:version had outside any pin; set only by the pin transition. See
 # _PINNED_FROM_SETTING in coco.bzl.
 string_list_setting(
@@ -106,6 +112,7 @@ bzl_library(
     deps = [
         ":common_repositories_bzl",
         ":license_sources_bzl",
+        ":license_versions_bzl",
         ":platforms_bzl",
         ":toolchain_repositories_bzl",
         ":version_resolution_bzl",
@@ -117,6 +124,7 @@ bzl_library(
     srcs = ["common_repositories.bzl"],
     deps = [
         ":known_shas_bzl",
+        ":platforms_bzl",
         ":version_resolution_bzl",
     ],
 )
@@ -165,12 +173,6 @@ bzl_library(
 bzl_library(
     name = "version_registry_bzl",
     srcs = ["version_registry.bzl"],
-)
-
-bzl_library(
-    name = "licensing_bzl",
-    srcs = ["licensing.bzl"],
-    deps = [":coco_bzl"],
 )
 
 bzl_library(
@@ -231,7 +233,6 @@ bzl_library(
         ":format_bzl",
         ":known_shas_bzl",
         ":license_versions_bzl",
-        ":licensing_bzl",
         ":platforms_bzl",
         ":repositories_bzl",
         ":source_roots_bzl",
