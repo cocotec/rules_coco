@@ -31,6 +31,7 @@ def _coco_toolchain_impl(ctx):
         cocotec_licensing_server = ctx.file.cocotec_licensing_server,
         preferences_file = ctx.file.preferences_file,
         cc_runtime = ctx.attr.cc_runtime,
+        cc_test_runtime = ctx.attr.cc_test_runtime,
         c_runtime = ctx.attr.c_runtime,
         license_source = ctx.attr.license_source,
         license_token = ctx.attr.license_token,
@@ -56,6 +57,16 @@ coco_toolchain = rule(
                 "The C++ runtime library for Coco. Optional - only needed when using coco_cc_library. " +
                 "To inject extra deps into this target (e.g. Boost libraries for old libstdc++), " +
                 "use the coco.cc_runtime_deps tag in MODULE.bazel."
+            ),
+            default = None,
+        ),
+        "cc_test_runtime": attr.label(
+            doc = (
+                "The library coco_cc_test_library links: `cc_runtime`, GoogleMock and the runtime's " +
+                "`coco/gmock_helpers.h`. Optional - only needed when a coco_cc_test_library compiles " +
+                "generated mocks; without it, coco_cc_test_library links `cc_runtime`. rules_coco's own " +
+                "toolchains set it when the GoogleMock library is configured, with the coco.cc_test_runtime " +
+                "tag in MODULE.bazel or `cc_test_runtime_gmock` of coco_repositories."
             ),
             default = None,
         ),

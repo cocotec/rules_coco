@@ -410,6 +410,7 @@ def declare_coco_toolchains(
         c = False,
         cc = False,
         cc_runtime_extra_deps_by_version = {},
+        cc_test_runtime_gmock = "",
         license_source = "",
         license_token = "",
         auth_token_path = "",
@@ -429,6 +430,8 @@ def declare_coco_toolchains(
       cc_runtime_extra_deps_by_version: Map of version to extra cc_library labels to
         append to that version's C++ runtime deps. The `LOCAL_VERSION` key applies to
         the `local` C++ runtime.
+      cc_test_runtime_gmock: Canonical label string of the GoogleMock library every C++ test
+        runtime links, for coco_cc_test_library; empty for no test runtime.
       license_source: Default license source mode for every toolchain.
       license_token: Default license token for every toolchain.
       auth_token_path: Default auth token file path for every toolchain.
@@ -449,13 +452,17 @@ def declare_coco_toolchains(
 
         # Set up C++ runtime if requested (version-specific)
         cc_runtime_label = None
+        cc_test_runtime_label = None
         if cc:
             coco_cc_runtime_repository(
                 name = cc_runtime_repo_name(version_suffix),
                 version = version,
                 extra_deps = cc_runtime_extra_deps_by_version.get(version, []),
+                gmock = cc_test_runtime_gmock,
             )
             cc_runtime_label = "@%s//:runtime" % cc_runtime_repo_name(version_suffix)
+            if cc_test_runtime_gmock:
+                cc_test_runtime_label = "@%s//:test_runtime" % cc_runtime_repo_name(version_suffix)
 
         # Set up C runtime if requested (version-specific)
         c_runtime_label = None
@@ -473,6 +480,7 @@ def declare_coco_toolchains(
                 os = os,
                 version = version,
                 cc_runtime_label = cc_runtime_label,
+                cc_test_runtime_label = cc_test_runtime_label,
                 c_runtime_label = c_runtime_label,
                 license_source = license_source,
                 license_token = license_token,
@@ -481,13 +489,17 @@ def declare_coco_toolchains(
 
     if local:
         cc_runtime_label = None
+        cc_test_runtime_label = None
         if local.cc_runtime:
             coco_cc_local_runtime_repository(
                 name = LOCAL_CC_RUNTIME_REPO_NAME,
                 path = local.cc_runtime,
                 extra_deps = cc_runtime_extra_deps_by_version.get(LOCAL_VERSION, []),
+                gmock = cc_test_runtime_gmock,
             )
             cc_runtime_label = "@%s//:runtime" % LOCAL_CC_RUNTIME_REPO_NAME
+            if cc_test_runtime_gmock:
+                cc_test_runtime_label = "@%s//:test_runtime" % LOCAL_CC_RUNTIME_REPO_NAME
 
         c_runtime_label = None
         if local.c_runtime:
@@ -501,6 +513,7 @@ def declare_coco_toolchains(
             name = LOCAL_TOOLCHAIN_REPO_NAME,
             path = local.popili,
             cc_runtime_label = cc_runtime_label,
+            cc_test_runtime_label = cc_test_runtime_label,
             c_runtime_label = c_runtime_label,
             license_protocol_version = local.license_protocol_version,
             license_source = license_source,

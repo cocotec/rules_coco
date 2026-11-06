@@ -84,13 +84,12 @@ def coco_c_test_library(
         hdrs = [],
         deps = [],
         public_hdrs = None,
-        gmock = "@googletest//:gtest",
         popili_version = "",
         library_rule = None,
         **kwargs):
     """Creates a C test library from Coco-generated C test code.
 
-    This automatically adds the Coco C runtime and GoogleTest as dependencies.
+    This automatically adds the Coco C runtime as a dependency.
 
     Generated test headers are made available to downstream targets via CcInfo.
     The `public_hdrs` parameter controls which generated test headers are public:
@@ -111,11 +110,9 @@ def coco_c_test_library(
         hdrs: Additional C header files
         deps: Additional dependencies
         public_hdrs: List of generated test header names to make public, or None for all
-        gmock: The GoogleTest/GoogleMock library (default: @googletest//:gtest).
-               Set to None to omit.
         popili_version: The registered popili version whose runtime the library links, such as
             `"1.5.1"` or an alias such as `"stable"`. It also applies to the coco_generate targets
-            the library builds from, but not to `deps` or `gmock`. A generator pinned to another
+            the library builds from, but not to `deps`. A generator pinned to another
             version is an error, so pin a generator and its library alike. Empty (the default)
             uses the version `--@rules_coco//:version` selects, or the first registered version.
         library_rule: The rule or macro that compiles the library, such as a wrapper of
@@ -133,7 +130,6 @@ def coco_c_test_library(
         deps = deps,
         public_hdrs = public_hdrs,
         popili_version = popili_version,
-        gmock = gmock,
         library_rule = library_rule,
         **kwargs
     )

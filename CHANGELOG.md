@@ -47,7 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   wins over `--@rules_coco//:version`, which sets the version for everything unpinned.
 - `coco_cc_library`, `coco_cc_test_library`, `coco_c_library` and `coco_c_test_library` gained
   `popili_version`, which selects the runtime the library links and applies to the `coco_generate`
-  targets it builds from, but not to its `deps` or `gmock`. The runtime's extra deps (from
+  targets it builds from, but not to its `deps`. The runtime's extra deps (from
   `cc_runtime_deps`) are built where unpinned targets are, so they are built once however many
   versions are pinned, and a binary that also links them directly gets one copy.
 - `--@rules_coco//:force_version` makes `--@rules_coco//:version` (or the default when it is unset)
@@ -75,6 +75,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   generator attributes. Replace `mocks = True` on the `coco_generate` with `cpp_mocks = "GMock"` (or
   `"GMockNumberMacros"`) on its `coco_package`, matching `Coco.toml`; for a C# `coco_generate`, with
   `csharp_mocks = "NSubstitute"`.
+- **Breaking:** `coco_cc_test_library` takes its GoogleMock library from the
+  `coco.cc_test_runtime(gmock = ...)` tag in `MODULE.bazel`, or `cc_test_runtime_gmock` of
+  `coco_repositories` in `WORKSPACE`, the same one for every popili version. A library whose packages
+  generate mocks fails to build without it; one over test source roots alone links the plain
+  runtime. A bring-your-own `coco_toolchain` sets `cc_test_runtime`.
 - **Breaking:** the `coco_generate` attributes that mirror `Coco.toml` generator settings (`c_*`, `cpp_*` and
   `csharp_*`, such as `cpp_header_file_extension` and `cpp_regenerate_packages`) moved to
   `coco_package`, which passes them to every `coco_generate` of the package. Move them from your `coco_generate`
@@ -144,6 +149,8 @@ root>.cs`;
 
 ### Removed
 
+- **Breaking:** the `gmock` attribute of `coco_cc_test_library` and `coco_c_test_library`. The C
+  test library no longer adds GoogleMock; add it to `deps` if your tests need it.
 - **Breaking:** `@rules_coco//coco:current_popili_version` and the `$(POPILI)` and
   `$(POPILI_STARTUP_ARGS)` make variables it provided are removed.
 - **Breaking:** `with_popili_version` is removed. Set `popili_version` on the targets that run Popili
@@ -156,11 +163,14 @@ root>.cs`;
 ### Fixed
 
 - `coco_cc_library`, `coco_c_library` and their test-library variants accept a `select()` for
-  `generated_package` and `gmock`, and for `public_hdrs` a `select()` that selects `None` keeps all
+  `generated_package`, and for `public_hdrs` a `select()` that selects `None` keeps all
   generated headers public. A `select()` for `generated_packages` no longer counts as set when
   checking that only one of it and `generated_package` is given.
 - Build actions now run popili with `HOME=/nonexistent` on POSIX. This prevents crashes on remote
   executors with some older popili versions.
+- `coco_cc_test_library` links the C++ runtime's `coco/gmock_helpers.h`
+  (`coco::SingleThreadedGMockHelper`, `coco::MultiThreadedGMockHelper`), which no target
+  provided, from the same popili version as the generated code.
 - `local_user` licensing passes each popili version the licence file it reads, instead of the first
   one found, which popili 1.6 rejects.
 - `coco_cc_library` and `coco_c_library` no longer fail to find generated headers when their

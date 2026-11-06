@@ -18,7 +18,7 @@ load("@rules_cc//cc:defs.bzl", "cc_library")
 load(":coco.bzl", _coco_cc_gen = "coco_cc_gen", _coco_cc_pin = "coco_cc_pin")
 load(":common_attrs.bzl", "companion_attrs")
 
-def _generated_targets(name, runtime, generated_package, generated_packages, popili_version, public_hdrs, kwargs, gmock = None, use_test_outputs = False):
+def _generated_targets(name, runtime, generated_package, generated_packages, popili_version, public_hdrs, kwargs, use_test_outputs = False):
     """Declares the targets that feed the generated packages, with the runtime, to the cc_library.
 
     One _coco_cc_pin at the library's `popili_version` (beneath which the generators and the
@@ -36,7 +36,6 @@ def _generated_targets(name, runtime, generated_package, generated_packages, pop
         popili_version: The library's pin, "" for none.
         public_hdrs: As for the library.
         kwargs: The library's kwargs, for the common attrs.
-        gmock: As for the test library; None for a library.
         use_test_outputs: Whether to take the generated test/mock outputs.
 
     Returns:
@@ -58,7 +57,6 @@ def _generated_targets(name, runtime, generated_package, generated_packages, pop
         library = name,
         generated_package = generated_package,
         packages = generated_packages,
-        gmock = gmock,
         pinned = pin_name,
         popili_version = popili_version,
         use_test_outputs = use_test_outputs,
@@ -120,7 +118,6 @@ def coco_test_library(
         hdrs = [],
         deps = [],
         public_hdrs = None,
-        gmock = "@googletest//:gtest",
         popili_version = "",
         library_rule = None,
         **kwargs):
@@ -128,7 +125,7 @@ def coco_test_library(
 
     Args:
         name: The name of the test library
-        runtime: The Coco runtime label (cc_runtime or c_runtime)
+        runtime: The Coco runtime label (cc_test_runtime or c_runtime)
         generated_package: A single coco_generate target (use this or generated_packages, not both)
         generated_packages: Multiple coco_generate targets to merge into one library
         srcs: Additional source files
@@ -138,8 +135,6 @@ def coco_test_library(
                         Use bare filenames (e.g., 'RunnableMock.h') to match by name, or trailing
                         parts of the include path (e.g., 'runnable/RunnableMock.h') to disambiguate.
                         An entry that matches no header is an error.
-        gmock: The GoogleTest/GoogleMock library to use (default: @googletest//:gtest).
-               Set to None to omit gmock dependency.
         popili_version: The popili version whose runtime the library links, also applied to the
                         generators beneath it; "" for the configured version.
         library_rule: The rule or macro that compiles the library, called with cc_library's
@@ -147,9 +142,8 @@ def coco_test_library(
         **kwargs: Additional arguments passed to library_rule
     """
 
-    # gmock comes with the gen target. It and deps stay in the library's configuration; only the
-    # runtime follows popili_version.
-    gen_name = _generated_targets(name, runtime, generated_package, generated_packages, popili_version, public_hdrs, kwargs, gmock = gmock, use_test_outputs = True)
+    # deps stay in the library's configuration; only the runtime follows popili_version.
+    gen_name = _generated_targets(name, runtime, generated_package, generated_packages, popili_version, public_hdrs, kwargs, use_test_outputs = True)
 
     (library_rule or cc_library)(
         name = name,

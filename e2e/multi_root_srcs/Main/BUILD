@@ -4,6 +4,7 @@
 
 load("@rules_coco//coco:cc.bzl", "coco_cc_library", "coco_cc_test_library")
 load("@rules_coco//coco:defs.bzl", "coco_generate", "coco_package", "coco_verify_test")
+load(":missing_gmock_test.bzl", "missing_gmock_test")
 
 coco_package(
     name = "main_package",
@@ -39,8 +40,47 @@ coco_cc_library(
     deps = ["//external_package:external_package_cc"],
 )
 
+# Without a GoogleMock in MODULE.bazel (WORKSPACE), this links the plain runtime: no mocks here.
 coco_cc_test_library(
     name = "main_package_cc_tst",
     generated_package = ":main_package_cpp",
     deps = [":main_package_cc"],
+)
+
+# The same package declared as generating mocks, which need GoogleMock: the test library over it
+# fails at analysis, saying how to name one (see missing_gmock_test.bzl). Never generated.
+coco_package(
+    name = "mocks_package",
+    srcs = glob(["src_root/*.coco"]) + ["//external_sources"],
+    cpp_mocks = "GMock",
+    package = "Coco.toml",
+    source_roots = [
+        "src_root",
+        "../external_sources",
+    ],
+    tags = ["manual"],
+    test_source_roots = [
+        "test_root",
+        "../external_test_sources",
+    ],
+    test_srcs = glob(["test_root/*.coco"]) + ["//external_test_sources"],
+    deps = ["//external_package"],
+)
+
+coco_generate(
+    name = "mocks_package_cpp",
+    language = "cpp",
+    package = ":mocks_package",
+    tags = ["manual"],
+)
+
+coco_cc_test_library(
+    name = "mocks_package_cc_tst",
+    generated_package = ":mocks_package_cpp",
+    tags = ["manual"],
+)
+
+missing_gmock_test(
+    name = "missing_gmock_test",
+    target_under_test = ":mocks_package_cc_tst",
 )

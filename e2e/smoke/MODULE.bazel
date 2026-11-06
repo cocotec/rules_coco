@@ -22,3 +22,6 @@ bazel_dep(name = "googletest", version = "1.17.0.bcr.2")
 # Register coco toolchain with default stable version
 coco = use_extension("@rules_coco//coco:extensions.bzl", "coco")
 coco.toolchain(cc = True)
+
+# Through a select() shim (//third_party:gmock), as the README describes.
+coco.cc_test_runtime(gmock = "//third_party:gmock")
