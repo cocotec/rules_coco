@@ -29,9 +29,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `coco_cc_library`, `coco_c_library` and their test-library variants accept `library_rule`, the rule or macro
   that compiles the library, for projects that wrap `cc_library` in a macro of their own. The default is
   rules_cc's `cc_library`.
-- `coco_generate` attribute `include_prefix`, mirroring `generator.cpp.includePrefix` / `generator.c.includePrefix`
-  in `Coco.toml` like the other generator settings. Set it to the package's effective value, including one inherited
-  from a workspace or received through `exportConfig`; the default `""` is popili's default too. Not allowed for C#.
+- `coco_package` attributes `cpp_include_prefix` and `c_include_prefix`, mirroring `generator.cpp.includePrefix` /
+  `generator.c.includePrefix` in `Coco.toml` like the other generator settings. Set them to the package's effective
+  value, including one inherited from a workspace or received through `exportConfig`; the default `""` is popili's
+  default too.
 - `coco_toolchain` gained a required `popili_version` attribute, a concrete version such as `"1.5.8"`
   (not an alias), exposed as the `popili_version` field of the toolchain. The toolchains rules_coco
   generates set it to their Popili version (`local` for a local distribution).
@@ -69,6 +70,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Breaking:** the `coco_generate` attributes that mirror `Coco.toml` generator settings (`c_*`, `cpp_*` and
+  `csharp_*`, such as `cpp_header_file_extension` and `cpp_regenerate_packages`) moved to
+  `coco_package`, which passes them to every `coco_generate` of the package. Move them from your `coco_generate`
+  targets to their `coco_package`. `coco_generate` keeps `package`, `language`, `mocks` and `popili_version`. Regenerated packages must be among the package's deps.
 - **Breaking:** rules_coco's default toolchain (`stable` with the C and C++ runtimes) is now used
   only when no module declares `coco.toolchain`. If yours declares one, you get only what it lists,
   so add `c = True` / `cc = True` for the runtimes you use. Modules that don't declare

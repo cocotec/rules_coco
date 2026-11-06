@@ -626,12 +626,12 @@ includes it, so hand-written code includes it the same way and `coco_cc_library`
 
 With `coco_generate(name = "motor_cpp")` in `hw/motor/BUILD`, `sources = ["src"]` and `includePrefix = "motor"`,
 `hw/motor/src/Foo.coco` becomes `bazel-bin/hw/motor/_coco/motor_cpp/motor/Foo.h`, included as
-`#include "motor/Foo.h"`. Mirror `includePrefix` on the `coco_generate` with `include_prefix`, like the other
-settings under [Output Paths](#output-paths).
+`#include "motor/Foo.h"`. Mirror `includePrefix` on the `coco_package` with `cpp_include_prefix` (or
+`c_include_prefix`), like the other settings under [Output Paths](#output-paths).
 
 `outputDirectory` and `testOutputDirectory` in `Coco.toml` are ignored. If one package is generated for several
-languages, give each `coco_generate` different file extensions (see [Output Paths](#output-paths)) so that their
-files do not clash.
+languages, give each language different file extensions (see [Output Paths](#output-paths)) so that their files
+do not clash.
 
 > [!NOTE]
 > rules_coco 0.3 included generated headers by the path of their source file (`#include "pkg/src/Foo.h"`). See the
@@ -733,7 +733,7 @@ coco_c_library(
 ##### Output Paths
 
 Bazel has to be able to precompute the output paths of all rules. Since there are many settings in `Coco.toml` that
-can affect output paths, these settings must be repeated in the `BUILD` file. If you forget to do this, you will get
+can affect output paths, these settings must be repeated on the `coco_package` in the `BUILD` file. If you forget to do this, you will get
 errors when running `coco_generate` such as:
 
 ```
@@ -755,18 +755,18 @@ includePrefix = "motor"
 Then this would require the following in your `BUILD` file:
 
 ```starlark
-coco_generate(
-    name = "my_package_cc_src",
-    language = "cpp",
-    package = ":my_package",
+coco_package(
+    name = "my_package",
+    srcs = glob(["src/**/*.coco"]),
+    package = "Coco.toml",
     cpp_header_file_extension = ".hpp",        # Must match Coco.toml
     cpp_implementation_file_extension = ".cpp", # Must match Coco.toml
     cpp_file_name_mangler = "LowerUnderscore", # Must match Coco.toml
-    include_prefix = "motor",                  # Must match Coco.toml
+    cpp_include_prefix = "motor",              # Must match Coco.toml
 )
 ```
 
-| Coco.toml Setting                           | `coco_generate` Attribute           |
+| Coco.toml Setting                           | `coco_package` Attribute            |
 | ------------------------------------------- | ----------------------------------- |
 | `generator.c.headerFileExtension`           | `c_header_file_extension`           |
 | `generator.c.implementationFileExtension`   | `c_implementation_file_extension`   |
@@ -774,7 +774,7 @@ coco_generate(
 | `generator.c.implementationFilePrefix`      | `c_implementation_file_prefix`      |
 | `generator.c.fileNameMangler`               | `c_file_name_mangler`               |
 | `generator.c.flatFileHierarchy`             | `c_flat_file_hierarchy`             |
-| `generator.c.includePrefix`                 | `include_prefix`                    |
+| `generator.c.includePrefix`                 | `c_include_prefix`                  |
 | `generator.c.regeneratePackages`            | `c_regenerate_packages`             |
 | `generator.cpp.headerFileExtension`         | `cpp_header_file_extension`         |
 | `generator.cpp.implementationFileExtension` | `cpp_implementation_file_extension` |
@@ -782,13 +782,13 @@ coco_generate(
 | `generator.cpp.implementationFilePrefix`    | `cpp_implementation_file_prefix`    |
 | `generator.cpp.fileNameMangler`             | `cpp_file_name_mangler`             |
 | `generator.cpp.flatFileHierarchy`           | `cpp_flat_file_hierarchy`           |
-| `generator.cpp.includePrefix`               | `include_prefix`                    |
+| `generator.cpp.includePrefix`               | `cpp_include_prefix`                |
 | `generator.cpp.regeneratePackages`          | `cpp_regenerate_packages`           |
 | `generator.csharp.regeneratePackages`       | `csharp_regenerate_packages`        |
 
 Mirror the package's _effective_ value: the one in its own `Coco.toml`, or else the one it inherits from its
 workspace's `Coco.toml` or receives from a dependency with `exportConfig = true` (see the popili documentation
-on `includePrefix`). A wrong `include_prefix` fails when compiling the package's own generated code, as popili
+on `includePrefix`). A wrong `cpp_include_prefix` or `c_include_prefix` fails when compiling the package's own generated code, as popili
 wrote its includes with the `Coco.toml` value:
 
 ```
