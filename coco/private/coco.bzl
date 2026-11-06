@@ -17,7 +17,6 @@
 load("@bazel_features//:features.bzl", "bazel_features")
 load("@bazel_skylib//lib:paths.bzl", "paths")
 load("@bazel_skylib//lib:shell.bzl", "shell")
-load("@bazel_skylib//lib:structs.bzl", "structs")
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("@platforms//host:constraints.bzl", "HOST_CONSTRAINTS")
 load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
@@ -1164,7 +1163,7 @@ def _regenerate_packages(ctx, attr_name, dep_package_files):
 def _generators(ctx, dep_package_files):
     """The generator settings of the package, as CocoPackageInfo.generators holds them.
 
-    The C and C++ structs have the fields `_compute_output_paths` takes, but `mocks`, which is coco_generate's.
+    The C and C++ structs have the fields `_compute_output_paths` takes.
     `dep_package_files` is a list of the Coco.toml files of the package's transitive deps.
     """
     return {
@@ -1175,6 +1174,7 @@ def _generators(ctx, dep_package_files):
             impl_prefix = ctx.attr.c_implementation_file_prefix,
             impl_extension = ctx.attr.c_implementation_file_extension,
             include_prefix = _include_prefix(ctx, "c_include_prefix"),
+            mocks = False,
             flat_hierarchy = ctx.attr.c_flat_file_hierarchy,
             regenerate_packages = _regenerate_packages(ctx, "c_regenerate_packages", dep_package_files),
         ),
@@ -1185,11 +1185,13 @@ def _generators(ctx, dep_package_files):
             impl_prefix = ctx.attr.cpp_implementation_file_prefix,
             impl_extension = ctx.attr.cpp_implementation_file_extension,
             include_prefix = _include_prefix(ctx, "cpp_include_prefix"),
+            mocks = ctx.attr.cpp_mocks != "None",
             flat_hierarchy = ctx.attr.cpp_flat_file_hierarchy,
             regenerate_packages = _regenerate_packages(ctx, "cpp_regenerate_packages", dep_package_files),
         ),
         "csharp": struct(
             include_prefix = "",
+            mocks = ctx.attr.csharp_mocks != "None",
             regenerate_packages = _regenerate_packages(ctx, "csharp_regenerate_packages", dep_package_files),
         ),
     }
@@ -1391,11 +1393,24 @@ _GENERATOR_ATTRIBUTES = {
     "cpp_include_prefix": attr.string(
         doc = _include_prefix_doc("C++", "cpp"),
     ),
+    "cpp_mocks": attr.string(
+        default = "None",
+        values = ["None", "GMock", "GMockNumberMacros"],
+        doc = "Must match the package's `generator.cpp.generateMocks`. Defaults to \"None\". Anything else " +
+              "declares the `*Mock.*` files popili writes as test outputs of a C++ coco_generate, used by " +
+              "`coco_cc_test_library`.",
+    ),
     "cpp_regenerate_packages": attr.label_list(
         providers = [CocoPackageInfo],
         default = [],
         doc = "Other coco_package targets to regenerate with this package's C++ generator settings, each " +
               "a direct or transitive dep. Must match Coco.toml generator.cpp.regeneratePackages.",
+    ),
+    "csharp_mocks": attr.string(
+        default = "None",
+        values = ["None", "NSubstitute"],
+        doc = "Must match the package's `generator.csharp.generateMocks`. Defaults to \"None\". " +
+              "\"NSubstitute\" declares the `*Mock.cs` files popili writes as test outputs of a C# coco_generate.",
     ),
     "csharp_regenerate_packages": attr.label_list(
         providers = [CocoPackageInfo],
@@ -1822,7 +1837,7 @@ def _declare_language_outputs(ctx, headers, sources, mock_headers, mock_sources,
         base_name = module_path[-1]
         sources.append(path_builder(_join_path([directory, base_name + ".cs"])))
 
-        if ctx.attr.mocks:
+        if config.mocks:
             mock_sources.append(path_builder(_join_path([directory, base_name + "Mock.cs"])))
     else:
         fail("unrecognised language")
@@ -1850,15 +1865,12 @@ def _add_outputs(ctx, headers, sources, mock_headers, mock_sources, config, path
     _declare_language_outputs(ctx, headers, sources, mock_headers, mock_sources, config, path_builder, module_path)
 
 def _coco_package_generate_impl(ctx):
-    if ctx.attr.language == "c" and ctx.attr.mocks:
-        fail("mocks = True is not supported for language = \"c\": popili does not generate C mocks", attr = "mocks")
-
     package = ctx.attr.package
     info = package[CocoPackageInfo]
     srcs = info.direct_srcs
     test_srcs = info.direct_test_srcs
     package_dir = info.package_file.dirname
-    config = struct(mocks = ctx.attr.mocks, **structs.to_dict(info.generators[ctx.attr.language]))
+    config = info.generators[ctx.attr.language]
 
     headers = []
     sources = []
@@ -1948,9 +1960,6 @@ _coco_generate = rule(
             mandatory = True,
             values = ["cpp", "c", "csharp"],
             doc = "Target language for code generation: \"cpp\", \"c\", or \"csharp\".",
-        ),
-        "mocks": attr.bool(
-            doc = "Generate mock implementations for testing. Disabled by default. Not supported for C.",
         ),
         "package": attr.label(
             providers = [CocoPackageInfo],

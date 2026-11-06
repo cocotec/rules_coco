@@ -24,6 +24,7 @@ coco_package(
     name = "simple",
     testonly = True,
     srcs = glob(["src/**/*.coco"]),
+    cpp_mocks = "GMock",
     package = "Coco.toml",
 )
 
@@ -38,7 +39,6 @@ coco_generate(
     name = "testonly_cpp",
     testonly = True,
     language = "cpp",
-    mocks = True,
     package = ":simple",
 )
 

@@ -68,7 +68,6 @@ bzl_library(
         "@bazel_features//:features",
         "@bazel_skylib//lib:paths",
         "@bazel_skylib//lib:shell",
-        "@bazel_skylib//lib:structs",
         "@bazel_skylib//rules:common_settings",
         "@rules_cc//cc:defs_bzl",
     ],

@@ -37,7 +37,7 @@ source_root_scenario(
 source_root_scenario(
     name = "test_root",
     srcs = glob(["test_root/src/**/*.coco"]),
-    mocks = True,
+    cpp_mocks = "GMock",
     test_srcs = glob(["test_root/test/**/*.coco"]),
 )
 

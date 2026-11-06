@@ -12,6 +12,7 @@ load(":local_off_host_test.bzl", "local_off_host_test", "local_test_off_target_p
 coco_package(
     name = "local_toolchain",
     srcs = glob(["src/**/*.coco"]),
+    cpp_mocks = "GMock",
     package = "Coco.toml",
 )
 
@@ -25,7 +26,6 @@ coco_verify_test(
 coco_generate(
     name = "local_toolchain_cpp",
     language = "cpp",
-    mocks = True,
     package = ":local_toolchain",
 )
 

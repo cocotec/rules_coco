@@ -19,6 +19,7 @@ load("@rules_coco//coco:defs.bzl", "coco_generate", "coco_package", "coco_verify
 coco_package(
     name = "base",
     srcs = glob(["*.coco"]),
+    cpp_mocks = "GMock",
     package = "Coco.toml",
 )
 
@@ -30,7 +31,6 @@ coco_verify_test(
 coco_generate(
     name = "base_cpp",
     language = "cpp",
-    mocks = True,
     package = ":base",
 )
 

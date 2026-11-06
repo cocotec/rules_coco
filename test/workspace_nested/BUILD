@@ -40,6 +40,7 @@ coco_workspace(
 coco_package(
     name = "pkg",
     srcs = glob(["inner/pkg/src/**/*.coco"]),
+    cpp_mocks = "GMock",
     package = "inner/pkg/Coco.toml",
     workspace = ":inner",
 )
@@ -52,7 +53,6 @@ coco_verify_test(
 coco_generate(
     name = "pkg_cpp",
     language = "cpp",
-    mocks = True,
     package = ":pkg",
 )
 
