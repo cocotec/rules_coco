@@ -34,6 +34,7 @@ load(
     "coco_preferences_repository",
     "coco_symlink_license_repository",
 )
+load(":license_sources.bzl", "DEFAULT_LICENSE_SOURCE", "LICENSE_SOURCES", "LOCAL_LICENSE_SOURCES")
 load(":platforms.bzl", "COCO_TOOLCHAIN_PLATFORMS", "platform_constraints")
 load(
     ":toolchain_repositories.bzl",
@@ -99,6 +100,37 @@ config_setting(
 _REGISTRY_LOAD = """load("@rules_coco//coco/private:version_registry.bzl", "coco_registered_versions", "coco_version_registry")
 """
 
+_HOST_LOAD = """load("@rules_coco//coco/private:host.bzl", "unless_host")
+"""
+
+# Enables the toolchains of execution platforms other than the host's: only when the licence mode
+# lets popili run remotely. The local modes run popili on this machine (`no-remote-exec`), which
+# needs this machine's binary, whichever execution platform Bazel would otherwise pick first.
+LICENSE_REMOTE_CAPABLE = "license_remote_capable"
+
+# Matches when `--@rules_coco//:license_source` is unset, so the toolchains' default mode applies.
+# A mode the flag names has its config_setting in rules_coco's `config/license_source`.
+_LICENSE_SOURCE_UNSET_TEMPLATE = """
+config_setting(
+    name = "license_source_unset",
+    flag_values = {
+        "@rules_coco//:license_source": "",
+    },
+)
+"""
+
+# Matches when any of `conditions` does, natively (bazel_skylib's config_setting_group is not
+# loadable here): the alias stands for the first matching condition, else for one that does not match.
+_ANY_OF_TEMPLATE = """
+alias(
+    name = "{name}",
+    actual = select({{
+{branches}        "//conditions:default": "{fallback}",
+    }}),
+    visibility = ["//visibility:public"],
+)
+"""
+
 _REGISTRY_TEMPLATE = """
 coco_registered_versions(
     name = "registered_versions",
@@ -108,6 +140,7 @@ coco_registered_versions(
 
 coco_version_registry(
     name = "registry",
+    license_source = {license_source},
     registered_versions = ":registered_versions",
     visibility = ["//visibility:public"],
 )
@@ -256,7 +289,7 @@ def resolve_versions(raw_versions, resolve_version = resolve_version_alias):
 
     return versions, None
 
-def toolchain_hub_entries(versions, has_local = False, hub_name = DEFAULT_HUB_NAME):
+def toolchain_hub_entries(versions, has_local = False, hub_name = DEFAULT_HUB_NAME, license_source = ""):
     """Computes the full payload of the toolchain hub repository.
 
     One toolchain is declared per (platform, version), gated on that version's
@@ -266,17 +299,20 @@ def toolchain_hub_entries(versions, has_local = False, hub_name = DEFAULT_HUB_NA
     platform, gated on the version flag being unset. A local toolchain, when present, is
     constrained to the host (its binaries only exist on the machine that staged them) and
     gated on `--@rules_coco//:version=local`; it never becomes the default, matching
-    bzlmod.
+    bzlmod. The downloaded toolchains are `host_gated`: those of other platforms than the
+    host are also gated on a licence mode that lets popili run remotely.
 
     Args:
       versions: Resolved, validated, deduplicated versions in priority order.
       has_local: Whether a local popili distribution is also registered.
       hub_name: The name of the hub repository, which its config_settings are read from.
+      license_source: The licence mode every toolchain defaults to, "" for none.
 
     Returns:
       A struct with `toolchain_names`, `toolchain_labels`, `exec_compatible_with`,
-      `target_settings`, `version_suffixes` and `has_local` fields, plus `registered_versions`
-      (the versions followed by `local` when registered) for the registry targets. An
+      `target_settings`, `host_gated`, `version_suffixes`, `has_local` and `license_source`
+      fields, plus `registered_versions` (the versions followed by `local` when registered)
+      for the registry targets. An
       `exec_compatible_with` value is a list of constraint labels, or for the local toolchain
       the `HOST_CONSTRAINTS` expression the hub's BUILD file loads.
     """
@@ -284,6 +320,7 @@ def toolchain_hub_entries(versions, has_local = False, hub_name = DEFAULT_HUB_NA
     toolchain_labels = {}
     exec_compatible_with = {}
     target_settings = {}
+    host_gated = []
     version_suffixes = {}
 
     for version in versions:
@@ -302,6 +339,7 @@ def toolchain_hub_entries(versions, has_local = False, hub_name = DEFAULT_HUB_NA
             toolchain_labels[name] = label
             exec_compatible_with[name] = constraints
             target_settings[name] = ["@%s//:version_%s" % (hub_name, version_suffix)]
+            host_gated.append(name)
 
             # The first version is what an unset version flag resolves to.
             if version == versions[0]:
@@ -310,6 +348,7 @@ def toolchain_hub_entries(versions, has_local = False, hub_name = DEFAULT_HUB_NA
                 toolchain_labels[default_name] = label
                 exec_compatible_with[default_name] = constraints
                 target_settings[default_name] = ["@%s//:version_default" % hub_name]
+                host_gated.append(default_name)
 
     if has_local:
         version_suffixes[LOCAL_VERSION] = LOCAL_VERSION
@@ -324,8 +363,11 @@ def toolchain_hub_entries(versions, has_local = False, hub_name = DEFAULT_HUB_NA
         toolchain_labels = toolchain_labels,
         exec_compatible_with = exec_compatible_with,
         target_settings = target_settings,
+        host_gated = host_gated,
+        hub_name = hub_name,
         version_suffixes = version_suffixes,
         has_local = has_local,
+        license_source = license_source,
         registered_versions = versions + ([LOCAL_VERSION] if has_local else []),
     )
 
@@ -333,8 +375,8 @@ def render_toolchain_hub_build(entries):
     """Renders the hub repository's BUILD file.
 
     The result uses only native rules, `@platforms` and rules_coco's own
-    `version_registry.bzl`, which loads nothing, so the hub stays loadable before
-    bazel_skylib has been fetched in WORKSPACE mode.
+    `version_registry.bzl` and `host.bzl`, which load nothing beyond `@platforms`, so the
+    hub stays loadable before bazel_skylib has been fetched in WORKSPACE mode.
 
     Args:
       entries: A struct as returned by `toolchain_hub_entries`.
@@ -358,17 +400,56 @@ def render_toolchain_hub_build(entries):
         _TOOLCHAIN_HUB_BUILD_TEMPLATE.format(
             name = name,
             exec_compatible_with = entries.exec_compatible_with[name],
-            target_settings = entries.target_settings[name],
+            target_settings = _render_target_settings(entries, name),
             toolchain_label = entries.toolchain_labels[name],
             toolchain_type = TOOLCHAIN_TYPE,
         )
         for name in entries.toolchain_names
     ])
 
-    registry = _REGISTRY_TEMPLATE.format(versions = repr(entries.registered_versions))
+    registry = _REGISTRY_TEMPLATE.format(
+        license_source = repr(entries.license_source),
+        versions = repr(entries.registered_versions),
+    )
 
-    prelude = (_HOST_CONSTRAINTS_LOAD if entries.has_local else "") + _REGISTRY_LOAD
-    return prelude + config_settings + "\n" + toolchains + registry
+    prelude = (_HOST_CONSTRAINTS_LOAD if entries.has_local else "") + _HOST_LOAD + _REGISTRY_LOAD
+    return prelude + config_settings + _render_license_settings(entries.license_source) + "\n" + toolchains + registry
+
+def _render_target_settings(entries, name):
+    """A toolchain's `target_settings` expression: a host-gated one's also hold off the host unless remote-capable."""
+    if name not in entries.host_gated:
+        return repr(entries.target_settings[name])
+    return "%r + unless_host(%r, [%r])" % (
+        entries.target_settings[name],
+        entries.exec_compatible_with[name],
+        "@%s//:%s" % (entries.hub_name, LICENSE_REMOTE_CAPABLE),
+    )
+
+def _render_license_settings(license_source):
+    """Aliases matching the licence mode that applies, by kind of mode.
+
+    That mode is the one the flag names, or when the flag is unset, the toolchains' default
+    (`license_source`, else DEFAULT_LICENSE_SOURCE). `license_remote_capable` matches a mode that is
+    not a local one.
+    """
+    default = license_source or DEFAULT_LICENSE_SOURCE
+    return _LICENSE_SOURCE_UNSET_TEMPLATE + "".join([
+        _render_any_mode(name, modes, default)
+        for name, modes in [
+            (LICENSE_REMOTE_CAPABLE, [mode for mode in LICENSE_SOURCES if mode not in LOCAL_LICENSE_SOURCES]),
+        ]
+    ])
+
+def _render_any_mode(name, modes, default):
+    """An alias matching when the mode that applies is one of `modes`; `default` applies when the flag is unset."""
+    conditions = ["@rules_coco//config/license_source:" + mode for mode in modes]
+    if default in modes:
+        conditions.append(":license_source_unset")
+    return _ANY_OF_TEMPLATE.format(
+        name = name,
+        branches = "".join(['        "%s": "%s",\n' % (c, c) for c in conditions]),
+        fallback = conditions[0],
+    )
 
 def _coco_toolchain_hub_impl(repository_ctx):
     """Implementation of the coco toolchain hub repository rule."""
@@ -380,6 +461,7 @@ def _coco_toolchain_hub_impl(repository_ctx):
         repository_ctx.attr.versions,
         has_local = repository_ctx.attr.has_local,
         hub_name = repository_ctx.attr.hub_name,
+        license_source = repository_ctx.attr.license_source,
     )
     repository_ctx.file("BUILD.bazel", render_toolchain_hub_build(entries))
 
@@ -396,6 +478,10 @@ coco_toolchain_hub = repository_rule(
         "hub_name": attr.string(
             doc = "The apparent name of this repository, which its config_settings are read from.",
             mandatory = True,
+        ),
+        "license_source": attr.string(
+            doc = "The licence mode every toolchain defaults to, \"\" for none.",
+            values = LICENSE_SOURCES + [""],
         ),
         "versions": attr.string_list(
             doc = "Resolved, deduplicated versions in priority order; the first is the default.",
@@ -513,4 +599,5 @@ def declare_coco_toolchains(
         versions = versions,
         has_local = local != None,
         hub_name = hub_name,
+        license_source = license_source,
     )

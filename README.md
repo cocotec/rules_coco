@@ -113,12 +113,15 @@ Contact [Cocotec Support](https://cocotec.io/support/) to set this up or discuss
   This mode is suitable for remote execution environments where auth token files are pre-mounted or made available through
   other mechanisms. **Requires popili 1.5.2 or later.**
 
-- `local_acquire`: A license will be acquired on the local machine as part of the build using `COCOTEC_AUTH_TOKEN`.
-  This is not compatible with remote execution.
+- `local_acquire`: A license will be acquired on the local machine as part of the build using `COCOTEC_AUTH_TOKEN`. This
+  is not compatible with remote execution: popili's actions and tests are tagged `no-remote-exec`, so they run locally
+  even when remote execution is on, and get this machine's popili even when another execution platform comes first in
+  `--extra_execution_platforms`. Their results are still cached. An execution platform with this machine's OS and CPU
+  must be registered; Bazel registers the host by default unless `--host_platform` replaces it.
 - `local_user`: The user's existing license on this machine will be reused. This is not compatible with remote
-  execution. Each popili version gets the license file it reads (`licenses_<n>.lic` in popili's data directory, `n`
-  being its licence protocol version); the local toolchain, of unknown version, gets the file of the newest protocol
-  version, unless it sets `license_protocol_version`.
+  execution, and is kept local like `local_acquire`. Each popili version gets the license file it reads
+  (`licenses_<n>.lic` in popili's data directory, `n` being its licence protocol version); the local toolchain, of
+  unknown version, gets the file of the newest protocol version, unless it sets `license_protocol_version`.
 - `token`: The explicitly provided token should be used as `COCOTEC_AUTH_TOKEN`. In this case,
   `--@rules_coco//:license_token` must be set as well. This works with remote execution but it is only recommended when
   using workload identity federation as `COCOTEC_AUTH_TOKEN` is not a secret in that case.
