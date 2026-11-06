@@ -267,6 +267,31 @@ _coco_preferences_repository = repository_rule(
     implementation = _coco_preferences_repository_impl,
 )
 
+def auth_token_source(environ):
+    """Where `local_acquire` takes the machine auth token from.
+
+    A non-empty `COCOTEC_AUTH_TOKEN_FILE` wins over `COCOTEC_AUTH_TOKEN`. Only the file's path is
+    used: the file is never read, so its contents do not affect the build. The path must be
+    absolute: the licensing server runs in a repository's directory, where a relative path would
+    not resolve against where it was set.
+
+    Args:
+        environ: The repository environment, a dict from variable name to value.
+
+    Returns:
+        `struct(file = path)`, `struct(value = token)`, `struct(error = message)` for a path that
+        is not absolute, or None when neither variable is set.
+    """
+    path = environ.get("COCOTEC_AUTH_TOKEN_FILE", "")
+    if path:
+        if not _is_absolute(path):
+            return struct(error = "COCOTEC_AUTH_TOKEN_FILE must be an absolute path, not %r" % path)
+        return struct(file = path)
+    token = environ.get("COCOTEC_AUTH_TOKEN", "")
+    if token:
+        return struct(value = token)
+    return None
+
 _BUILD_FOR_LICENSE_PATHS = """
 load("@rules_coco//coco/private:license_paths.bzl", "license_paths")
 
@@ -317,7 +342,7 @@ def one_line(text, limit = 500):
     text = " ".join([word for word in text.split(" ") if word])
     return text[:limit] + "..." if len(text) > limit else text
 
-def _acquire_license(ctx, token, path):
+def _acquire_license(ctx, source, path):
     """Runs the host's cocotec-licensing-server to acquire a licence into `path`.
 
     Returns:
@@ -326,18 +351,23 @@ def _acquire_license(ctx, token, path):
     server, error = _licensing_server(ctx)
     if error:
         return error, False
-    ctx.file("auth_token.secret", token)
+    if hasattr(source, "file"):
+        token = source.file
+    else:
+        ctx.file("auth_token.secret", source.value)
+        token = str(ctx.path("auth_token.secret"))
     result = ctx.execute([
         server,
         "--no-crash-reporter",
         "--machine-auth-token",
-        str(ctx.path("auth_token.secret")),
+        token,
         "--license-file",
         str(path),
         "--acquire",
         "popili",
     ], timeout = 300)
-    ctx.delete("auth_token.secret")
+    if not hasattr(source, "file"):
+        ctx.delete("auth_token.secret")
     if result.return_code == 0 and path.exists:
         return None, False
     output = one_line(result.stderr + " " + result.stdout) or "no output"
@@ -354,17 +384,19 @@ def _coco_fetch_license_repository_impl(ctx):
     runs: in an action's progress message, or read from `licenses_<n>.error` by a test as it runs.
     """
     ctx.file("WORKSPACE", "")
-    token = ctx.os.environ.get("COCOTEC_AUTH_TOKEN", "")
+    source = auth_token_source(ctx.os.environ)
 
     file_name = "licenses_%d.lic" % ctx.attr.protocol_version
     path = ctx.path(file_name)
 
     # Bazel refetches into an empty directory; this makes sure no earlier licence outlives a failure.
     ctx.delete(path)
-    if not token:
-        error, retryable = "COCOTEC_AUTH_TOKEN is not set in the repository environment (see --repo_env)", False
+    if hasattr(source, "error"):
+        error, retryable = source.error, False
+    elif not source:
+        error, retryable = "neither COCOTEC_AUTH_TOKEN_FILE nor COCOTEC_AUTH_TOKEN is set in the repository environment (see --repo_env)", False
     else:
-        error, retryable = _acquire_license(ctx, token, path)
+        error, retryable = _acquire_license(ctx, source, path)
     if error:
         ctx.delete(path)
         error = "local_acquire acquired no licence for licence protocol version %d: %s." % (ctx.attr.protocol_version, error)
@@ -395,7 +427,8 @@ _coco_fetch_license_repository = repository_rule(
         ),
         "protocol_version": attr.int(mandatory = True),
     },
-    environ = ["COCOTEC_AUTH_TOKEN"],
+    # Only the variables' values: the token file is never read here, so its contents do not affect the build.
+    environ = ["COCOTEC_AUTH_TOKEN", "COCOTEC_AUTH_TOKEN_FILE"],
     # Acquires again once per Bazel server.
     local = True,
 )
