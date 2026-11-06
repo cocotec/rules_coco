@@ -59,20 +59,21 @@ package_failure_test = analysistest.make(
     },
 )
 
-def source_root_scenario(name, srcs, test_srcs = [], mocks = False, **package_kwargs):
+def source_root_scenario(name, srcs, test_srcs = [], cpp_mocks = "None", **package_kwargs):
     """Declares the package, generator, build test and verify test for the fixture in directory `name`.
 
     Args:
         name: Scenario name; also the fixture directory.
         srcs: The package's .coco sources.
         test_srcs: The package's .coco test sources.
-        mocks: Passed to coco_generate; must match generateMocks in Coco.toml.
+        cpp_mocks: Passed to coco_package; must match generateMocks in Coco.toml.
         **package_kwargs: Forwarded to coco_package (source_roots, test_source_roots).
     """
     coco_package(
         name = name,
         srcs = srcs,
         package = name + "/Coco.toml",
+        cpp_mocks = cpp_mocks,
         test_srcs = test_srcs,
         **package_kwargs
     )
@@ -83,7 +84,6 @@ def source_root_scenario(name, srcs, test_srcs = [], mocks = False, **package_kw
     coco_generate(
         name = name + "_cpp",
         language = "cpp",
-        mocks = mocks,
         package = ":" + name,
     )
     coco_cc_library(
@@ -91,7 +91,7 @@ def source_root_scenario(name, srcs, test_srcs = [], mocks = False, **package_kw
         generated_package = ":" + name + "_cpp",
     )
     build_targets = [":" + name + "_cc"]
-    if mocks or test_srcs:
+    if cpp_mocks != "None" or test_srcs:
         coco_cc_test_library(
             name = name + "_cc_tst",
             generated_package = ":" + name + "_cpp",

@@ -67,10 +67,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Breaking:** `coco_generate`'s `mocks` attribute is replaced by the `coco_package` attributes `cpp_mocks` and
+  `csharp_mocks`, which mirror `generator.cpp.generateMocks` and `generator.csharp.generateMocks` like the other
+  generator attributes. Replace `mocks = True` on the `coco_generate` with `cpp_mocks = "GMock"` (or
+  `"GMockNumberMacros"`) on its `coco_package`, matching `Coco.toml`; for a C# `coco_generate`, with
+  `csharp_mocks = "NSubstitute"`.
 - **Breaking:** the `coco_generate` attributes that mirror `Coco.toml` generator settings (`c_*`, `cpp_*` and
   `csharp_*`, such as `cpp_header_file_extension` and `cpp_regenerate_packages`) moved to
   `coco_package`, which passes them to every `coco_generate` of the package. Move them from your `coco_generate`
-  targets to their `coco_package`. `coco_generate` keeps `package`, `language`, `mocks` and `popili_version`. Regenerated packages must be among the package's deps.
+  targets to their `coco_package`. `coco_generate` keeps only `package`, `language` and `popili_version`.
+  Regenerated packages must be among the package's deps.
 - **Breaking:** rules_coco's default toolchain (`stable` with the C and C++ runtimes) is now used
   only when no module declares `coco.toolchain`. If yours declares one, you get only what it lists,
   so add `c = True` / `cc = True` for the runtimes you use. Modules that don't declare
@@ -164,8 +170,6 @@ root>.cs`;
   a Linux or macOS host emitted a `.bat` for a POSIX executor, and vice versa. The flavour is now
   derived from the resolved toolchain's binary: `popili.exe` means Windows.
 - `coco_generate`, the C/C++ library macros and `coco_fmt_test` now work with `tags = ["manual"]` and `testonly`.
-- `coco_generate` with `language = "c"` and `mocks = True` now fails with a clear error, since C mocks are not
-  supported.
 - `coco_generate` no longer derives the source root from the shortest source path, which depended on file order and
   failed for a source file next to `Coco.toml` with others in subdirectories, for sibling subdirectories, and for
   several source roots.

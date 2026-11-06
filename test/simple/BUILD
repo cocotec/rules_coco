@@ -23,6 +23,7 @@ package(default_visibility = ["//test/popili_pinning:__pkg__"])
 coco_package(
     name = "base",
     srcs = glob(["src/**/*.coco"]),
+    cpp_mocks = "GMock",
     package = "Coco.toml",
     typecheck = True,
 )
@@ -46,7 +47,6 @@ coco_fmt_test(
 coco_generate(
     name = "base_cpp",
     language = "cpp",
-    mocks = True,
     package = ":base",
     popili_version = "stable",
 )
