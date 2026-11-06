@@ -5,12 +5,12 @@ load("@rules_shell//shell:sh_test.bzl", "sh_test")
 coco_package(
     name = "file_name_mangling_test",
     srcs = glob(["src/**/*.coco"]),
+    cpp_file_name_mangler = "LowerUnderscore",
     package = "Coco.toml",
 )
 
 coco_generate(
     name = "file_name_mangling_test_cpp",
-    cpp_file_name_mangler = "LowerUnderscore",
     language = "cpp",
     package = ":file_name_mangling_test",
 )

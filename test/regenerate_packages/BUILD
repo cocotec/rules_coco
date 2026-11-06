@@ -16,6 +16,7 @@ load("@rules_cc//cc:defs.bzl", "cc_test")
 load("@rules_coco//coco:c.bzl", "coco_c_library")
 load("@rules_coco//coco:cc.bzl", "coco_cc_library")
 load("@rules_coco//coco:defs.bzl", "coco_fmt_test", "coco_generate", "coco_package", "coco_verify_test")
+load(":failure_test.bzl", "analysis_failure_test")
 
 coco_package(
     name = "base",
@@ -36,15 +37,19 @@ coco_fmt_test(
 coco_package(
     name = "app",
     srcs = glob(["app/sources/**/*.coco"]),
+    c_header_file_extension = ".hh",
+    c_include_prefix = "app",
+    c_regenerate_packages = [":base"],
+    cpp_header_file_extension = ".hpp",
+    cpp_include_prefix = "app",
+    cpp_regenerate_packages = [":base"],
+    csharp_regenerate_packages = [":base"],
     package = "app/Coco.toml",
     deps = [":base"],
 )
 
 coco_generate(
     name = "app_cpp",
-    cpp_header_file_extension = ".hpp",
-    cpp_regenerate_packages = [":base"],
-    include_prefix = "app",
     language = "cpp",
     package = ":app",
 )
@@ -65,9 +70,6 @@ cc_test(
 
 coco_generate(
     name = "app_c",
-    c_header_file_extension = ".hh",
-    c_regenerate_packages = [":base"],
-    include_prefix = "app",
     language = "c",
     package = ":app",
 )
@@ -87,7 +89,6 @@ cc_test(
 
 coco_generate(
     name = "app_csharp",
-    csharp_regenerate_packages = [":base"],
     language = "csharp",
     package = ":app",
 )
@@ -107,4 +108,20 @@ coco_verify_test(
 coco_fmt_test(
     name = "app_fmt_test",
     package = ":app",
+)
+
+# popili regenerates only dependencies, so a regenerated package must be among the deps. Manual, as
+# it fails analysis; only analysed through the test below.
+coco_package(
+    name = "regenerates_non_dep",
+    srcs = glob(["app/sources/**/*.coco"]),
+    cpp_regenerate_packages = [":base"],
+    package = "app/Coco.toml",
+    tags = ["manual"],
+)
+
+analysis_failure_test(
+    name = "regenerate_non_dep_test",
+    expected_message = "is not a dependency of",
+    target_under_test = ":regenerates_non_dep",
 )
