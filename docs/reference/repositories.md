@@ -99,9 +99,9 @@ Acquires a popili licence when Bazel fetches repositories, for `local_acquire` l
 
 `@<name>//:licenses` names the acquired licence by its absolute path, for the `local_acquire_licenses`
 of a bring-your-own `coco_toolchain`; the toolchains rules_coco generates have their own. The token
-comes from `COCOTEC_AUTH_TOKEN` in the repository environment (`--repo_env`); without it, popili's
-analysis fails under `local_acquire`. A failed acquisition fails the fetch, which Bazel tries again
-on its next command.
+comes from the repository environment (`--repo_env`): the path in `COCOTEC_AUTH_TOKEN_FILE`, else
+`COCOTEC_AUTH_TOKEN`; without either, popili's analysis fails under `local_acquire`. A failed
+acquisition fails the fetch, which Bazel tries again on its next command.
 
 Use it in a `select()` on `local_acquire`; see
 [Bring your own toolchain](../toolchains.md#bring-your-own-toolchain).
@@ -122,5 +122,6 @@ Use it in a `select()` on `local_acquire`; see
 This repository rule depends on the following environment variables:
 
 * `COCOTEC_AUTH_TOKEN`
+* `COCOTEC_AUTH_TOKEN_FILE`
 
 

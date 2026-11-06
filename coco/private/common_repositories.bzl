@@ -210,9 +210,9 @@ _coco_c_runtime_repository = repository_rule(
 )
 
 def _is_absolute(path):
-    # Matches skylib's paths.is_absolute; inlined because this file is loaded before
-    # skylib is fetched in WORKSPACE mode, so we can't load it here.
-    return path.startswith("/") or (len(path) > 2 and path[1] == ":")
+    # skylib's paths.is_absolute, plus Windows network shares (`\\server\share`); inlined because
+    # this file is loaded before skylib is fetched in WORKSPACE mode, so we can't load it here.
+    return path.startswith("/") or path.startswith("\\\\") or (len(path) > 2 and path[1] == ":")
 
 def resolve_local_path(ctx, path):
     """Resolves a local_toolchain path: absolute as-is, relative against the workspace root.
@@ -290,6 +290,31 @@ _coco_preferences_repository = repository_rule(
     implementation = _coco_preferences_repository_impl,
 )
 
+def auth_token_source(environ):
+    """Where `local_acquire` takes the machine auth token from.
+
+    A non-empty `COCOTEC_AUTH_TOKEN_FILE` wins over `COCOTEC_AUTH_TOKEN`. Only the file's path is
+    used: the file is never read, so its contents do not affect the build. The path must be
+    absolute: the licensing server runs in a repository's directory, where a relative path would
+    not resolve against where it was set.
+
+    Args:
+        environ: The repository environment, a dict from variable name to value.
+
+    Returns:
+        `struct(file = path)`, `struct(value = token)`, `struct(error = message)` for a path that
+        is not absolute, or None when neither variable is set.
+    """
+    path = environ.get("COCOTEC_AUTH_TOKEN_FILE", "")
+    if path:
+        if not _is_absolute(path):
+            return struct(error = "COCOTEC_AUTH_TOKEN_FILE must be an absolute path, not %r" % path)
+        return struct(file = path)
+    token = environ.get("COCOTEC_AUTH_TOKEN", "")
+    if token:
+        return struct(value = token)
+    return None
+
 _BUILD_FOR_LICENSE_PATHS = """
 load("@rules_coco//coco/private:license_paths.bzl", "license_paths")
 
@@ -339,33 +364,40 @@ def _licensing_server(ctx):
         _fail(ctx, "no cocotec-licensing-server for %s_%s" % platform)
     return ctx.path(label)
 
-# Holds the token while cocotec-licensing-server runs.
+# Holds the token while cocotec-licensing-server runs, when COCOTEC_AUTH_TOKEN gives its value.
 _AUTH_TOKEN_FILE = "auth_token.secret"
 
 def _coco_fetch_license_repository_impl(ctx):
     """Acquires a licence for `local_acquire` at fetch time; see the rule's doc."""
     ctx.file("WORKSPACE", "")
-    token = ctx.os.environ.get("COCOTEC_AUTH_TOKEN", "")
-    if not token:
-        error = _no_licence(ctx, "COCOTEC_AUTH_TOKEN is not set in the repository environment (see --repo_env)")
-        ctx.file("BUILD", _BUILD_FOR_LICENSE_PATHS.format(paths = "{}", error = json.encode(error)))
+    source = auth_token_source(ctx.os.environ)
+    if not source:
+        reason = "neither COCOTEC_AUTH_TOKEN_FILE nor COCOTEC_AUTH_TOKEN is set in the repository environment (see --repo_env)"
+        ctx.file("BUILD", _BUILD_FOR_LICENSE_PATHS.format(paths = "{}", error = json.encode(_no_licence(ctx, reason))))
         return
+    if hasattr(source, "error"):
+        _fail(ctx, source.error)
     server = _licensing_server(ctx)
 
     file_name = "licenses_%d.lic" % ctx.attr.protocol_version
     path = ctx.path(file_name)
-    ctx.file(_AUTH_TOKEN_FILE, token, executable = False)
+    if hasattr(source, "file"):
+        token_path = source.file
+    else:
+        ctx.file(_AUTH_TOKEN_FILE, source.value, executable = False)
+        token_path = str(ctx.path(_AUTH_TOKEN_FILE))
     result = ctx.execute([
         server,
         "--no-crash-reporter",
         "--machine-auth-token",
-        str(ctx.path(_AUTH_TOKEN_FILE)),
+        token_path,
         "--license-file",
         str(path),
         "--acquire",
         "popili",
     ], timeout = 300)
-    ctx.delete(_AUTH_TOKEN_FILE)
+    if not hasattr(source, "file"):
+        ctx.delete(_AUTH_TOKEN_FILE)
     if result.return_code != 0 or not path.exists:
         output = (result.stderr + "\n" + result.stdout).strip() or "no output"
         _fail(ctx, "cocotec-licensing-server exited with code %d: %s" % (result.return_code, output))
@@ -377,9 +409,9 @@ _coco_fetch_license_repository = repository_rule(
 
 `@<name>//:licenses` names the acquired licence by its absolute path, for the `local_acquire_licenses`
 of a bring-your-own `coco_toolchain`; the toolchains rules_coco generates have their own. The token
-comes from `COCOTEC_AUTH_TOKEN` in the repository environment (`--repo_env`); without it, popili's
-analysis fails under `local_acquire`. A failed acquisition fails the fetch, which Bazel tries again
-on its next command.
+comes from the repository environment (`--repo_env`): the path in `COCOTEC_AUTH_TOKEN_FILE`, else
+`COCOTEC_AUTH_TOKEN`; without either, popili's analysis fails under `local_acquire`. A failed
+acquisition fails the fetch, which Bazel tries again on its next command.
 
 Use it in a `select()` on `local_acquire`; see
 [Bring your own toolchain](../toolchains.md#bring-your-own-toolchain).""",
@@ -402,7 +434,8 @@ Use it in a `select()` on `local_acquire`; see
             mandatory = True,
         ),
     },
-    environ = ["COCOTEC_AUTH_TOKEN"],
+    # Only the variables' values: the token file is never read here, so its contents do not affect the build.
+    environ = ["COCOTEC_AUTH_TOKEN", "COCOTEC_AUTH_TOKEN_FILE"],
     # Acquires again once per Bazel server.
     local = True,
 )
