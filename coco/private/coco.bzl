@@ -17,6 +17,7 @@
 load("@bazel_features//:features.bzl", "bazel_features")
 load("@bazel_skylib//lib:paths.bzl", "paths")
 load("@bazel_skylib//lib:shell.bzl", "shell")
+load("@bazel_skylib//lib:structs.bzl", "structs")
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("@platforms//host:constraints.bzl", "HOST_CONSTRAINTS")
 load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
@@ -32,6 +33,9 @@ CocoPackageInfo = provider(
         "dep_package_files": "All Coco.toml files for all transitive dependencies",
         "direct_srcs": "The .coco files that are direct sources of this package only",
         "direct_test_srcs": "The .coco files that are direct test_sources of this package only",
+        "generators": "The package's generator settings, mirroring `[generator.<language>]` in Coco.toml: a dict " +
+                      "from \"cpp\", \"c\" and \"csharp\" to a struct of that language's coco_package attributes, " +
+                      "with the CocoPackageInfo of each regenerated package in `regenerate_packages`",
         "name": "The name of the package",
         "package_file": "The Coco.toml file for this package",
         "popili_versions": "The popili versions this package is compatible with, aliases resolved ([] when unconstrained)",
@@ -1133,6 +1137,63 @@ def _require_coco_toml(file, attr):
     if file.basename != "Coco.toml":
         fail("%s must point to a file called exactly 'Coco.toml'" % attr.capitalize(), attr = attr)
 
+def _include_prefix(ctx, attr_name):
+    """A validated include prefix attribute: the package's effective includePrefix, "" by default."""
+    prefix = getattr(ctx.attr, attr_name)
+    if prefix and (prefix == "." or paths.normalize(prefix) != prefix or paths.is_absolute(prefix) or leaves_directory(prefix)):
+        fail("%s must be a normalised relative path within the include root, such as \"my/pkg\", " % attr_name +
+             "not \"%s\"" % prefix, attr = attr_name)
+    return prefix
+
+def _regenerate_packages(ctx, attr_name, dep_package_files):
+    """The CocoPackageInfo of each package in a *_regenerate_packages attribute.
+
+    Each must be among the package's transitive deps, as popili regenerates only dependencies: so
+    their sources are already inputs of the package's generate actions, and depending on them adds
+    no testonly or visibility constraint that the deps do not.
+    """
+    infos = []
+    for regen in getattr(ctx.attr, attr_name):
+        info = regen[CocoPackageInfo]
+        if info.package_file not in dep_package_files:
+            fail("%s is not a dependency of %s: list it in deps, directly or through another package, " % (regen.label, ctx.label) +
+                 "to regenerate it", attr = attr_name)
+        infos.append(info)
+    return infos
+
+def _generators(ctx, dep_package_files):
+    """The generator settings of the package, as CocoPackageInfo.generators holds them.
+
+    The C and C++ structs have the fields `_compute_output_paths` takes, but `mocks`, which is coco_generate's.
+    `dep_package_files` is a list of the Coco.toml files of the package's transitive deps.
+    """
+    return {
+        "c": struct(
+            file_name_mangler = ctx.attr.c_file_name_mangler,
+            header_prefix = ctx.attr.c_header_file_prefix,
+            header_extension = ctx.attr.c_header_file_extension,
+            impl_prefix = ctx.attr.c_implementation_file_prefix,
+            impl_extension = ctx.attr.c_implementation_file_extension,
+            include_prefix = _include_prefix(ctx, "c_include_prefix"),
+            flat_hierarchy = ctx.attr.c_flat_file_hierarchy,
+            regenerate_packages = _regenerate_packages(ctx, "c_regenerate_packages", dep_package_files),
+        ),
+        "cpp": struct(
+            file_name_mangler = ctx.attr.cpp_file_name_mangler,
+            header_prefix = ctx.attr.cpp_header_file_prefix,
+            header_extension = ctx.attr.cpp_header_file_extension,
+            impl_prefix = ctx.attr.cpp_implementation_file_prefix,
+            impl_extension = ctx.attr.cpp_implementation_file_extension,
+            include_prefix = _include_prefix(ctx, "cpp_include_prefix"),
+            flat_hierarchy = ctx.attr.cpp_flat_file_hierarchy,
+            regenerate_packages = _regenerate_packages(ctx, "cpp_regenerate_packages", dep_package_files),
+        ),
+        "csharp": struct(
+            include_prefix = "",
+            regenerate_packages = _regenerate_packages(ctx, "csharp_regenerate_packages", dep_package_files),
+        ),
+    }
+
 def _coco_package_impl(ctx):
     _require_coco_toml(ctx.file.package, "package")
 
@@ -1193,6 +1254,7 @@ def _coco_package_impl(ctx):
         direct = [dep[CocoPackageInfo].package_file for dep in ctx.attr.deps],
         transitive = [dep[CocoPackageInfo].dep_package_files for dep in ctx.attr.deps],
     )
+    generators = _generators(ctx, dep_package_files.to_list())
     srcs = depset(
         direct = ctx.files.srcs,
         transitive = [dep[CocoPackageInfo].srcs for dep in ctx.attr.deps],
@@ -1238,6 +1300,7 @@ def _coco_package_impl(ctx):
             dep_package_files = dep_package_files,
             direct_srcs = depset(ctx.files.srcs),
             direct_test_srcs = depset(ctx.files.test_srcs),
+            generators = generators,
             popili_versions = popili_versions,
             source_roots = source_roots,
             srcs = srcs,
@@ -1249,10 +1312,103 @@ def _coco_package_impl(ctx):
         DefaultInfo(files = depset(direct = default_files_direct, transitive = [srcs, test_srcs, dep_package_files, workspace_files])),
     ]
 
+def _include_prefix_doc(language, section):
+    return ("Must match the package's effective `generator.%s.includePrefix`: the value in its Coco.toml, or " % section +
+            "else the one it inherits from its workspace or receives from a dependency with `exportConfig = true`. " +
+            "Default `\"\"`, popili's default. Generated %s headers are included as `<prefix>/<path below the " % language +
+            "source root>`, the way popili's own generated code includes them: `#include \"Foo.h\"` by default, " +
+            "`#include \"motor/Foo.h\"` for `\"motor\"`. A mismatch fails when compiling this package's generated " +
+            "code, with the header not found under the Coco.toml prefix.")
+
+# The coco_package attributes that mirror the [generator.<language>] settings in Coco.toml, which
+# coco_generate needs to predict the files popili writes.
+_GENERATOR_ATTRIBUTES = {
+    "c_file_name_mangler": attr.string(
+        default = "Unaltered",
+        doc = "C file naming style. Must match Coco.toml generator.c.fileNameMangler. " +
+              "Options: \"Unaltered\" (default), \"UnalteredButValid\", \"LowerCamelCase\", " +
+              "\"LowerCamelCasePrefixUnderscore\", \"UpperCamelCase\", \"LowerUnderscore\", " +
+              "\"UpperUnderscore\", \"CapsUpperUnderscore\".",
+    ),
+    "c_flat_file_hierarchy": attr.bool(
+        default = False,
+        doc = "Use a flat directory structure for C files. Must match " +
+              "Coco.toml generator.c.flatFileHierarchy. Disabled by default.",
+    ),
+    "c_header_file_extension": attr.string(
+        default = ".h",
+        doc = "File extension for C headers. Defaults to \".h\".",
+    ),
+    "c_header_file_prefix": attr.string(
+        default = "",
+        doc = "Prefix for C header file names. Empty by default.",
+    ),
+    "c_implementation_file_extension": attr.string(
+        default = ".c",
+        doc = "File extension for C implementation files. Defaults to \".c\".",
+    ),
+    "c_implementation_file_prefix": attr.string(
+        default = "",
+        doc = "Prefix for C implementation file names. Empty by default.",
+    ),
+    "c_include_prefix": attr.string(
+        doc = _include_prefix_doc("C", "c"),
+    ),
+    "c_regenerate_packages": attr.label_list(
+        providers = [CocoPackageInfo],
+        default = [],
+        doc = "Other coco_package targets to regenerate with this package's C generator settings, each " +
+              "a direct or transitive dep. Must match Coco.toml generator.c.regeneratePackages.",
+    ),
+    "cpp_file_name_mangler": attr.string(
+        default = "Unaltered",
+        doc = "C++ file naming style. Must match Coco.toml generator.cpp.fileNameMangler. " +
+              "Options: \"Unaltered\" (default), \"UnalteredButValid\", \"LowerCamelCase\", " +
+              "\"LowerCamelCasePrefixUnderscore\", \"UpperCamelCase\", \"LowerUnderscore\", " +
+              "\"UpperUnderscore\", \"CapsUpperUnderscore\".",
+    ),
+    "cpp_flat_file_hierarchy": attr.bool(
+        default = False,
+        doc = "Use a flat directory structure for C++ files. Must match " +
+              "Coco.toml generator.cpp.flatFileHierarchy. Disabled by default.",
+    ),
+    "cpp_header_file_extension": attr.string(
+        default = ".h",
+        doc = "File extension for C++ headers. Defaults to \".h\".",
+    ),
+    "cpp_header_file_prefix": attr.string(
+        default = "",
+        doc = "Prefix for C++ header file names. Empty by default.",
+    ),
+    "cpp_implementation_file_extension": attr.string(
+        default = ".cc",
+        doc = "File extension for C++ implementation files. Defaults to \".cc\".",
+    ),
+    "cpp_implementation_file_prefix": attr.string(
+        default = "",
+        doc = "Prefix for C++ implementation file names. Empty by default.",
+    ),
+    "cpp_include_prefix": attr.string(
+        doc = _include_prefix_doc("C++", "cpp"),
+    ),
+    "cpp_regenerate_packages": attr.label_list(
+        providers = [CocoPackageInfo],
+        default = [],
+        doc = "Other coco_package targets to regenerate with this package's C++ generator settings, each " +
+              "a direct or transitive dep. Must match Coco.toml generator.cpp.regeneratePackages.",
+    ),
+    "csharp_regenerate_packages": attr.label_list(
+        providers = [CocoPackageInfo],
+        default = [],
+        doc = "Other coco_package targets to regenerate with this package's C# generator settings, each " +
+              "a direct or transitive dep. Must match Coco.toml generator.csharp.regeneratePackages.",
+    ),
+}
+
 _coco_package = rule(
     implementation = _coco_package_impl,
     cfg = _package_self_pin,
-    attrs = dict(LICENSE_ATTRIBUTES.items() + TOOLCHAIN_ATTRIBUTES.items() + {
+    attrs = dict(LICENSE_ATTRIBUTES.items() + TOOLCHAIN_ATTRIBUTES.items() + _GENERATOR_ATTRIBUTES.items() + {
         "deps": attr.label_list(
             providers = [CocoPackageInfo],
             doc = "Other coco_package targets this package depends on.",
@@ -1322,7 +1478,12 @@ coco_package = macro(
 A coco_package is the unit the other Coco rules operate on: pass it to
 coco_generate to produce code, to coco_verify_test to verify it, or to
 coco_fmt_test to check formatting. Packages may depend on other packages via
-`deps`, and may inherit shared settings from a coco_workspace via `workspace`.""",
+`deps`, and may inherit shared settings from a coco_workspace via `workspace`.
+
+The `c_*`, `cpp_*` and `csharp_*` attributes mirror the package's generator
+settings in Coco.toml (`[generator.c]`, `[generator.cpp]` and
+`[generator.csharp]`), which coco_generate needs to know the files popili
+writes.""",
     inherit_attrs = _coco_package,
     implementation = _coco_package_macro_impl,
 )
@@ -1612,41 +1773,6 @@ def _module_path_for(src, package_dir, root_output_dir):
 
     return stem.split("/")
 
-def _build_language_config(ctx, language):
-    """Build configuration struct for code generation.
-
-    Args:
-        ctx: Rule context
-        language: Language string ("cpp", "c", or "csharp")
-
-    Returns:
-        Struct containing language-specific configuration, or None for C#
-    """
-    if language == "cpp":
-        return struct(
-            file_name_mangler = ctx.attr.cpp_file_name_mangler,
-            header_prefix = ctx.attr.cpp_header_file_prefix,
-            header_extension = ctx.attr.cpp_header_file_extension,
-            impl_prefix = ctx.attr.cpp_implementation_file_prefix,
-            impl_extension = ctx.attr.cpp_implementation_file_extension,
-            mocks = ctx.attr.mocks,
-            flat_hierarchy = ctx.attr.cpp_flat_file_hierarchy,
-        )
-    elif language == "c":
-        return struct(
-            file_name_mangler = ctx.attr.c_file_name_mangler,
-            header_prefix = ctx.attr.c_header_file_prefix,
-            header_extension = ctx.attr.c_header_file_extension,
-            impl_prefix = ctx.attr.c_implementation_file_prefix,
-            impl_extension = ctx.attr.c_implementation_file_extension,
-            mocks = ctx.attr.mocks,
-            flat_hierarchy = ctx.attr.c_flat_file_hierarchy,
-        )
-    elif language == "csharp":
-        return None  # C# doesn't use config struct
-    else:
-        fail("unrecognised language: " + language)
-
 def _make_path_builder(ctx, output_dir):
     """Create a path builder that declares files below the output directory.
 
@@ -1668,7 +1794,7 @@ def _declare_language_outputs(ctx, headers, sources, mock_headers, mock_sources,
         sources: List to append regular source outputs to
         mock_headers: List to append mock header outputs to
         mock_sources: List to append mock source outputs to
-        config: Configuration struct (or None for C#)
+        config: The package's generator settings for the language
         path_builder: Function(relative_path) -> declared file
         module_path: Source path components relative to the source root
     """
@@ -1713,7 +1839,7 @@ def _add_outputs(ctx, headers, sources, mock_headers, mock_sources, config, path
         sources: List to append regular source outputs to
         mock_headers: List to append mock header outputs to
         mock_sources: List to append mock source outputs to
-        config: Language configuration struct (or None for C#)
+        config: The package's generator settings for the language
         path_builder: Declares outputs below the output directory
         src: Source file
         package_dir: Directory containing the Coco.toml of the package src belongs to
@@ -1732,7 +1858,7 @@ def _coco_package_generate_impl(ctx):
     srcs = info.direct_srcs
     test_srcs = info.direct_test_srcs
     package_dir = info.package_file.dirname
-    include_prefix = _include_prefix(ctx)
+    config = struct(mocks = ctx.attr.mocks, **structs.to_dict(info.generators[ctx.attr.language]))
 
     headers = []
     sources = []
@@ -1746,23 +1872,16 @@ def _coco_package_generate_impl(ctx):
     # so the output directory is the root plus the prefix.
     bin_package = _join_path([ctx.bin_dir.path, ctx.label.workspace_root, ctx.label.package])
     root_dir = _join_path(["_coco", ctx.label.name])
-    output_dir = _join_path([root_dir, include_prefix])
+    output_dir = _join_path([root_dir, config.include_prefix])
     include_root = _join_path([bin_package, root_dir])
-    config = _build_language_config(ctx, ctx.attr.language)
     path_builder = _make_path_builder(ctx, output_dir)
 
-    # Get the list of packages to regenerate based on language
-    regenerate_pkgs = {
-        "c": ctx.attr.c_regenerate_packages,
-        "cpp": ctx.attr.cpp_regenerate_packages,
-        "csharp": ctx.attr.csharp_regenerate_packages,
-    }.get(ctx.attr.language, [])
-    toolchain = _check_package_versions(ctx, [package] + regenerate_pkgs)
+    # Regenerated packages are deps of the package, which checked their popili_versions.
+    toolchain = _check_package_versions(ctx, [package])
 
     # Regenerated packages' files go into this package's output directory (using this package's
     # generator settings), with module paths relative to their own source roots.
-    for regen_pkg in regenerate_pkgs:
-        regen_info = regen_pkg[CocoPackageInfo]
+    for regen_info in config.regenerate_packages:
         for src in regen_info.direct_srcs.to_list():
             _add_outputs(ctx, headers, sources, mock_headers, mock_sources, config, path_builder, src, regen_info.package_file.dirname, regen_info.source_roots)
 
@@ -1822,101 +1941,9 @@ def _coco_package_generate_impl(ctx):
         lang_provider,
     ]
 
-def _include_prefix(ctx):
-    """The validated include_prefix attribute: the package's effective includePrefix, "" by default."""
-    prefix = ctx.attr.include_prefix
-    if prefix and ctx.attr.language == "csharp":
-        fail("include_prefix is not supported for language = \"csharp\": C# has no include prefix", attr = "include_prefix")
-    if prefix and (prefix == "." or paths.normalize(prefix) != prefix or paths.is_absolute(prefix) or leaves_directory(prefix)):
-        fail("include_prefix must be a normalised relative path within the include root, such as \"my/pkg\", " +
-             "not \"%s\"" % prefix, attr = "include_prefix")
-    return prefix
-
 _coco_generate = rule(
     implementation = _coco_package_generate_impl,
     attrs = dict(LICENSE_ATTRIBUTES.items() + TOOLCHAIN_ATTRIBUTES.items() + POPILI_VERSION_ATTRIBUTES.items() + {
-        # C output path options
-        "c_file_name_mangler": attr.string(
-            default = "Unaltered",
-            doc = "C file naming style. Must match Coco.toml generator.c.fileNameMangler. " +
-                  "Options: \"Unaltered\" (default), \"UnalteredButValid\", \"LowerCamelCase\", " +
-                  "\"LowerCamelCasePrefixUnderscore\", \"UpperCamelCase\", \"LowerUnderscore\", " +
-                  "\"UpperUnderscore\", \"CapsUpperUnderscore\".",
-        ),
-        "c_flat_file_hierarchy": attr.bool(
-            default = False,
-            doc = "Use a flat directory structure for C files. Must match " +
-                  "Coco.toml generator.c.flatFileHierarchy. Disabled by default.",
-        ),
-        "c_header_file_extension": attr.string(
-            default = ".h",
-            doc = "File extension for C headers. Defaults to \".h\".",
-        ),
-        "c_header_file_prefix": attr.string(
-            default = "",
-            doc = "Prefix for C header file names. Empty by default.",
-        ),
-        "c_implementation_file_extension": attr.string(
-            default = ".c",
-            doc = "File extension for C implementation files. Defaults to \".c\".",
-        ),
-        "c_implementation_file_prefix": attr.string(
-            default = "",
-            doc = "Prefix for C implementation file names. Empty by default.",
-        ),
-        "c_regenerate_packages": attr.label_list(
-            providers = [CocoPackageInfo],
-            default = [],
-            doc = "Other coco_package targets to regenerate with this target's C generator settings.",
-        ),
-        # C++ output path options
-        "cpp_file_name_mangler": attr.string(
-            default = "Unaltered",
-            doc = "C++ file naming style. Must match Coco.toml generator.cpp.fileNameMangler. " +
-                  "Options: \"Unaltered\" (default), \"UnalteredButValid\", \"LowerCamelCase\", " +
-                  "\"LowerCamelCasePrefixUnderscore\", \"UpperCamelCase\", \"LowerUnderscore\", " +
-                  "\"UpperUnderscore\", \"CapsUpperUnderscore\".",
-        ),
-        "cpp_flat_file_hierarchy": attr.bool(
-            default = False,
-            doc = "Use a flat directory structure for C++ files. Must match " +
-                  "Coco.toml generator.cpp.flatFileHierarchy. Disabled by default.",
-        ),
-        "cpp_header_file_extension": attr.string(
-            default = ".h",
-            doc = "File extension for C++ headers. Defaults to \".h\".",
-        ),
-        "cpp_header_file_prefix": attr.string(
-            default = "",
-            doc = "Prefix for C++ header file names. Empty by default.",
-        ),
-        "cpp_implementation_file_extension": attr.string(
-            default = ".cc",
-            doc = "File extension for C++ implementation files. Defaults to \".cc\".",
-        ),
-        "cpp_implementation_file_prefix": attr.string(
-            default = "",
-            doc = "Prefix for C++ implementation file names. Empty by default.",
-        ),
-        "cpp_regenerate_packages": attr.label_list(
-            providers = [CocoPackageInfo],
-            default = [],
-            doc = "Other coco_package targets to regenerate with this target's C++ generator settings.",
-        ),
-        "csharp_regenerate_packages": attr.label_list(
-            providers = [CocoPackageInfo],
-            default = [],
-            doc = "Other coco_package targets to regenerate with this target's C# generator settings.",
-        ),
-        "include_prefix": attr.string(
-            doc = "Must match the package's effective `generator.cpp.includePrefix` (C++) or " +
-                  "`generator.c.includePrefix` (C): the value in its Coco.toml, or else the one it inherits from " +
-                  "its workspace or receives from a dependency with `exportConfig = true`. Default `\"\"`, " +
-                  "popili's default. Generated headers are included as `<include_prefix>/<path below the source " +
-                  "root>`, the way popili's own generated code includes them: `#include \"Foo.h\"` by default, " +
-                  "`#include \"motor/Foo.h\"` for `\"motor\"`. A mismatch fails when compiling this package's " +
-                  "generated code, with the header not found under the Coco.toml prefix. Not allowed for C#.",
-        ),
         "language": attr.string(
             mandatory = True,
             values = ["cpp", "c", "csharp"],
@@ -2180,7 +2207,6 @@ _coco_cc_gen = rule(
 )
 
 def _coco_generate_macro_impl(name, visibility, **kwargs):
-    # Generator attrs are inherited from _coco_generate and forwarded via kwargs.
     _coco_generate(
         name = name,
         visibility = visibility,
@@ -2205,9 +2231,8 @@ which find them below an include root of this target's own; `library_rule`
 lets those macros call a custom cc_library. The generated files are also
 exposed through DefaultInfo for other consumers.
 
-The generator configuration options (file extensions, prefixes, etc.) must
-match the settings in your Coco.toml file under the corresponding generator
-section (e.g., [generator.cpp] for C++, [generator.c] for C).
+The generator settings (file extensions, prefixes, etc.) come from the
+package: they are attributes of coco_package, mirroring its Coco.toml.
 
 Alongside the main code-generation target, a companion `<name>.tst` target is
 created that exposes the generated test sources and headers.""",

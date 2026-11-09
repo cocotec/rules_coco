@@ -4,12 +4,12 @@ load("@rules_coco//coco:defs.bzl", "coco_generate", "coco_package")
 coco_package(
     name = "c_flat_hierarchy_test",
     srcs = glob(["src/**/*.coco"]),
+    c_flat_file_hierarchy = True,
     package = "Coco.toml",
 )
 
 coco_generate(
     name = "c_flat_hierarchy_test_c",
-    c_flat_file_hierarchy = True,
     language = "c",
     package = ":c_flat_hierarchy_test",
 )

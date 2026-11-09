@@ -53,7 +53,7 @@ Generated C/C++ code from a Coco package
 <pre>
 load("@rules_coco//coco:defs.bzl", "CocoPackageInfo")
 
-CocoPackageInfo(<a href="#CocoPackageInfo-dep_package_files">dep_package_files</a>, <a href="#CocoPackageInfo-direct_srcs">direct_srcs</a>, <a href="#CocoPackageInfo-direct_test_srcs">direct_test_srcs</a>, <a href="#CocoPackageInfo-name">name</a>, <a href="#CocoPackageInfo-package_file">package_file</a>,
+CocoPackageInfo(<a href="#CocoPackageInfo-dep_package_files">dep_package_files</a>, <a href="#CocoPackageInfo-direct_srcs">direct_srcs</a>, <a href="#CocoPackageInfo-direct_test_srcs">direct_test_srcs</a>, <a href="#CocoPackageInfo-generators">generators</a>, <a href="#CocoPackageInfo-name">name</a>, <a href="#CocoPackageInfo-package_file">package_file</a>,
                 <a href="#CocoPackageInfo-popili_versions">popili_versions</a>, <a href="#CocoPackageInfo-source_roots">source_roots</a>, <a href="#CocoPackageInfo-srcs">srcs</a>, <a href="#CocoPackageInfo-test_source_roots">test_source_roots</a>, <a href="#CocoPackageInfo-test_srcs">test_srcs</a>, <a href="#CocoPackageInfo-typecheck_marker">typecheck_marker</a>,
                 <a href="#CocoPackageInfo-workspace_files">workspace_files</a>)
 </pre>
@@ -67,6 +67,7 @@ Information about a Coco package
 | <a id="CocoPackageInfo-dep_package_files"></a>dep_package_files |  All Coco.toml files for all transitive dependencies    |
 | <a id="CocoPackageInfo-direct_srcs"></a>direct_srcs |  The .coco files that are direct sources of this package only    |
 | <a id="CocoPackageInfo-direct_test_srcs"></a>direct_test_srcs |  The .coco files that are direct test_sources of this package only    |
+| <a id="CocoPackageInfo-generators"></a>generators |  The package's generator settings, mirroring `[generator.<language>]` in Coco.toml: a dict from "cpp", "c" and "csharp" to a struct of that language's coco_package attributes, with the CocoPackageInfo of each regenerated package in `regenerate_packages`    |
 | <a id="CocoPackageInfo-name"></a>name |  The name of the package    |
 | <a id="CocoPackageInfo-package_file"></a>package_file |  The Coco.toml file for this package    |
 | <a id="CocoPackageInfo-popili_versions"></a>popili_versions |  The popili versions this package is compatible with, aliases resolved ([] when unconstrained)    |
@@ -285,14 +286,9 @@ To skip the test for specific packages, use standard Bazel tags, e.g.
 <pre>
 load("@rules_coco//coco:defs.bzl", "coco_generate")
 
-coco_generate(*, <a href="#coco_generate-name">name</a>, <a href="#coco_generate-c_file_name_mangler">c_file_name_mangler</a>, <a href="#coco_generate-c_flat_file_hierarchy">c_flat_file_hierarchy</a>, <a href="#coco_generate-c_header_file_extension">c_header_file_extension</a>,
-              <a href="#coco_generate-c_header_file_prefix">c_header_file_prefix</a>, <a href="#coco_generate-c_implementation_file_extension">c_implementation_file_extension</a>, <a href="#coco_generate-c_implementation_file_prefix">c_implementation_file_prefix</a>,
-              <a href="#coco_generate-c_regenerate_packages">c_regenerate_packages</a>, <a href="#coco_generate-compatible_with">compatible_with</a>, <a href="#coco_generate-cpp_file_name_mangler">cpp_file_name_mangler</a>, <a href="#coco_generate-cpp_flat_file_hierarchy">cpp_flat_file_hierarchy</a>,
-              <a href="#coco_generate-cpp_header_file_extension">cpp_header_file_extension</a>, <a href="#coco_generate-cpp_header_file_prefix">cpp_header_file_prefix</a>, <a href="#coco_generate-cpp_implementation_file_extension">cpp_implementation_file_extension</a>,
-              <a href="#coco_generate-cpp_implementation_file_prefix">cpp_implementation_file_prefix</a>, <a href="#coco_generate-cpp_regenerate_packages">cpp_regenerate_packages</a>, <a href="#coco_generate-csharp_regenerate_packages">csharp_regenerate_packages</a>,
-              <a href="#coco_generate-deprecation">deprecation</a>, <a href="#coco_generate-exec_compatible_with">exec_compatible_with</a>, <a href="#coco_generate-exec_properties">exec_properties</a>, <a href="#coco_generate-features">features</a>, <a href="#coco_generate-include_prefix">include_prefix</a>, <a href="#coco_generate-language">language</a>,
-              <a href="#coco_generate-mocks">mocks</a>, <a href="#coco_generate-package">package</a>, <a href="#coco_generate-package_metadata">package_metadata</a>, <a href="#coco_generate-popili_version">popili_version</a>, <a href="#coco_generate-restricted_to">restricted_to</a>, <a href="#coco_generate-tags">tags</a>,
-              <a href="#coco_generate-target_compatible_with">target_compatible_with</a>, <a href="#coco_generate-testonly">testonly</a>, <a href="#coco_generate-toolchains">toolchains</a>, <a href="#coco_generate-visibility">visibility</a>)
+coco_generate(*, <a href="#coco_generate-name">name</a>, <a href="#coco_generate-compatible_with">compatible_with</a>, <a href="#coco_generate-deprecation">deprecation</a>, <a href="#coco_generate-exec_compatible_with">exec_compatible_with</a>, <a href="#coco_generate-exec_properties">exec_properties</a>,
+              <a href="#coco_generate-features">features</a>, <a href="#coco_generate-language">language</a>, <a href="#coco_generate-mocks">mocks</a>, <a href="#coco_generate-package">package</a>, <a href="#coco_generate-package_metadata">package_metadata</a>, <a href="#coco_generate-popili_version">popili_version</a>, <a href="#coco_generate-restricted_to">restricted_to</a>,
+              <a href="#coco_generate-tags">tags</a>, <a href="#coco_generate-target_compatible_with">target_compatible_with</a>, <a href="#coco_generate-testonly">testonly</a>, <a href="#coco_generate-toolchains">toolchains</a>, <a href="#coco_generate-visibility">visibility</a>)
 </pre>
 
 Generate C, C++, or C# code from a Coco package.
@@ -302,9 +298,8 @@ which find them below an include root of this target's own; `library_rule`
 lets those macros call a custom cc_library. The generated files are also
 exposed through DefaultInfo for other consumers.
 
-The generator configuration options (file extensions, prefixes, etc.) must
-match the settings in your Coco.toml file under the corresponding generator
-section (e.g., [generator.cpp] for C++, [generator.c] for C).
+The generator settings (file extensions, prefixes, etc.) come from the
+package: they are attributes of coco_package, mirroring its Coco.toml.
 
 Alongside the main code-generation target, a companion `<name>.tst` target is
 created that exposes the generated test sources and headers.
@@ -315,27 +310,11 @@ created that exposes the generated test sources and headers.
 | Name  | Description | Type | Mandatory | Default |
 | :------------- | :------------- | :------------- | :------------- | :------------- |
 | <a id="coco_generate-name"></a>name |  A unique name for this macro instance. Normally, this is also the name for the macro's main or only target. The names of any other targets that this macro might create will be this name with a string suffix.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
-| <a id="coco_generate-c_file_name_mangler"></a>c_file_name_mangler |  C file naming style. Must match Coco.toml generator.c.fileNameMangler. Options: "Unaltered" (default), "UnalteredButValid", "LowerCamelCase", "LowerCamelCasePrefixUnderscore", "UpperCamelCase", "LowerUnderscore", "UpperUnderscore", "CapsUpperUnderscore".   | String | optional |  `None`  |
-| <a id="coco_generate-c_flat_file_hierarchy"></a>c_flat_file_hierarchy |  Use a flat directory structure for C files. Must match Coco.toml generator.c.flatFileHierarchy. Disabled by default.   | Boolean | optional |  `None`  |
-| <a id="coco_generate-c_header_file_extension"></a>c_header_file_extension |  File extension for C headers. Defaults to ".h".   | String | optional |  `None`  |
-| <a id="coco_generate-c_header_file_prefix"></a>c_header_file_prefix |  Prefix for C header file names. Empty by default.   | String | optional |  `None`  |
-| <a id="coco_generate-c_implementation_file_extension"></a>c_implementation_file_extension |  File extension for C implementation files. Defaults to ".c".   | String | optional |  `None`  |
-| <a id="coco_generate-c_implementation_file_prefix"></a>c_implementation_file_prefix |  Prefix for C implementation file names. Empty by default.   | String | optional |  `None`  |
-| <a id="coco_generate-c_regenerate_packages"></a>c_regenerate_packages |  Other coco_package targets to regenerate with this target's C generator settings.   | <a href="https://bazel.build/concepts/labels">List of labels</a> | optional |  `None`  |
 | <a id="coco_generate-compatible_with"></a>compatible_with |  <a href="https://bazel.build/reference/be/common-definitions#common.compatible_with">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a>; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
-| <a id="coco_generate-cpp_file_name_mangler"></a>cpp_file_name_mangler |  C++ file naming style. Must match Coco.toml generator.cpp.fileNameMangler. Options: "Unaltered" (default), "UnalteredButValid", "LowerCamelCase", "LowerCamelCasePrefixUnderscore", "UpperCamelCase", "LowerUnderscore", "UpperUnderscore", "CapsUpperUnderscore".   | String | optional |  `None`  |
-| <a id="coco_generate-cpp_flat_file_hierarchy"></a>cpp_flat_file_hierarchy |  Use a flat directory structure for C++ files. Must match Coco.toml generator.cpp.flatFileHierarchy. Disabled by default.   | Boolean | optional |  `None`  |
-| <a id="coco_generate-cpp_header_file_extension"></a>cpp_header_file_extension |  File extension for C++ headers. Defaults to ".h".   | String | optional |  `None`  |
-| <a id="coco_generate-cpp_header_file_prefix"></a>cpp_header_file_prefix |  Prefix for C++ header file names. Empty by default.   | String | optional |  `None`  |
-| <a id="coco_generate-cpp_implementation_file_extension"></a>cpp_implementation_file_extension |  File extension for C++ implementation files. Defaults to ".cc".   | String | optional |  `None`  |
-| <a id="coco_generate-cpp_implementation_file_prefix"></a>cpp_implementation_file_prefix |  Prefix for C++ implementation file names. Empty by default.   | String | optional |  `None`  |
-| <a id="coco_generate-cpp_regenerate_packages"></a>cpp_regenerate_packages |  Other coco_package targets to regenerate with this target's C++ generator settings.   | <a href="https://bazel.build/concepts/labels">List of labels</a> | optional |  `None`  |
-| <a id="coco_generate-csharp_regenerate_packages"></a>csharp_regenerate_packages |  Other coco_package targets to regenerate with this target's C# generator settings.   | <a href="https://bazel.build/concepts/labels">List of labels</a> | optional |  `None`  |
 | <a id="coco_generate-deprecation"></a>deprecation |  <a href="https://bazel.build/reference/be/common-definitions#common.deprecation">Inherited rule attribute</a>   | String; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
 | <a id="coco_generate-exec_compatible_with"></a>exec_compatible_with |  <a href="https://bazel.build/reference/be/common-definitions#common.exec_compatible_with">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a>; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
 | <a id="coco_generate-exec_properties"></a>exec_properties |  <a href="https://bazel.build/reference/be/common-definitions#common.exec_properties">Inherited rule attribute</a>   | <a href="https://bazel.build/rules/lib/core/dict">Dictionary: String -> String</a> | optional |  `None`  |
 | <a id="coco_generate-features"></a>features |  <a href="https://bazel.build/reference/be/common-definitions#common.features">Inherited rule attribute</a>   | List of strings | optional |  `None`  |
-| <a id="coco_generate-include_prefix"></a>include_prefix |  Must match the package's effective `generator.cpp.includePrefix` (C++) or `generator.c.includePrefix` (C): the value in its Coco.toml, or else the one it inherits from its workspace or receives from a dependency with `exportConfig = true`. Default `""`, popili's default. Generated headers are included as `<include_prefix>/<path below the source root>`, the way popili's own generated code includes them: `#include "Foo.h"` by default, `#include "motor/Foo.h"` for `"motor"`. A mismatch fails when compiling this package's generated code, with the header not found under the Coco.toml prefix. Not allowed for C#.   | String | optional |  `None`  |
 | <a id="coco_generate-language"></a>language |  Target language for code generation: "cpp", "c", or "csharp".   | String | required |  |
 | <a id="coco_generate-mocks"></a>mocks |  Generate mock implementations for testing. Disabled by default. Not supported for C.   | Boolean | optional |  `None`  |
 | <a id="coco_generate-package"></a>package |  The coco_package target containing the source files to generate from.   | <a href="https://bazel.build/concepts/labels">Label</a> | required |  |
@@ -356,10 +335,16 @@ created that exposes the generated test sources and headers.
 <pre>
 load("@rules_coco//coco:defs.bzl", "coco_package")
 
-coco_package(*, <a href="#coco_package-name">name</a>, <a href="#coco_package-deps">deps</a>, <a href="#coco_package-srcs">srcs</a>, <a href="#coco_package-compatible_with">compatible_with</a>, <a href="#coco_package-deprecation">deprecation</a>, <a href="#coco_package-exec_compatible_with">exec_compatible_with</a>,
-             <a href="#coco_package-exec_properties">exec_properties</a>, <a href="#coco_package-features">features</a>, <a href="#coco_package-package">package</a>, <a href="#coco_package-package_metadata">package_metadata</a>, <a href="#coco_package-popili_versions">popili_versions</a>, <a href="#coco_package-restricted_to">restricted_to</a>,
-             <a href="#coco_package-source_roots">source_roots</a>, <a href="#coco_package-tags">tags</a>, <a href="#coco_package-target_compatible_with">target_compatible_with</a>, <a href="#coco_package-test_source_roots">test_source_roots</a>, <a href="#coco_package-test_srcs">test_srcs</a>, <a href="#coco_package-testonly">testonly</a>,
-             <a href="#coco_package-toolchains">toolchains</a>, <a href="#coco_package-typecheck">typecheck</a>, <a href="#coco_package-visibility">visibility</a>, <a href="#coco_package-workspace">workspace</a>)
+coco_package(*, <a href="#coco_package-name">name</a>, <a href="#coco_package-deps">deps</a>, <a href="#coco_package-srcs">srcs</a>, <a href="#coco_package-c_file_name_mangler">c_file_name_mangler</a>, <a href="#coco_package-c_flat_file_hierarchy">c_flat_file_hierarchy</a>,
+             <a href="#coco_package-c_header_file_extension">c_header_file_extension</a>, <a href="#coco_package-c_header_file_prefix">c_header_file_prefix</a>, <a href="#coco_package-c_implementation_file_extension">c_implementation_file_extension</a>,
+             <a href="#coco_package-c_implementation_file_prefix">c_implementation_file_prefix</a>, <a href="#coco_package-c_include_prefix">c_include_prefix</a>, <a href="#coco_package-c_regenerate_packages">c_regenerate_packages</a>, <a href="#coco_package-compatible_with">compatible_with</a>,
+             <a href="#coco_package-cpp_file_name_mangler">cpp_file_name_mangler</a>, <a href="#coco_package-cpp_flat_file_hierarchy">cpp_flat_file_hierarchy</a>, <a href="#coco_package-cpp_header_file_extension">cpp_header_file_extension</a>,
+             <a href="#coco_package-cpp_header_file_prefix">cpp_header_file_prefix</a>, <a href="#coco_package-cpp_implementation_file_extension">cpp_implementation_file_extension</a>,
+             <a href="#coco_package-cpp_implementation_file_prefix">cpp_implementation_file_prefix</a>, <a href="#coco_package-cpp_include_prefix">cpp_include_prefix</a>, <a href="#coco_package-cpp_regenerate_packages">cpp_regenerate_packages</a>,
+             <a href="#coco_package-csharp_regenerate_packages">csharp_regenerate_packages</a>, <a href="#coco_package-deprecation">deprecation</a>, <a href="#coco_package-exec_compatible_with">exec_compatible_with</a>, <a href="#coco_package-exec_properties">exec_properties</a>, <a href="#coco_package-features">features</a>,
+             <a href="#coco_package-package">package</a>, <a href="#coco_package-package_metadata">package_metadata</a>, <a href="#coco_package-popili_versions">popili_versions</a>, <a href="#coco_package-restricted_to">restricted_to</a>, <a href="#coco_package-source_roots">source_roots</a>, <a href="#coco_package-tags">tags</a>,
+             <a href="#coco_package-target_compatible_with">target_compatible_with</a>, <a href="#coco_package-test_source_roots">test_source_roots</a>, <a href="#coco_package-test_srcs">test_srcs</a>, <a href="#coco_package-testonly">testonly</a>, <a href="#coco_package-toolchains">toolchains</a>, <a href="#coco_package-typecheck">typecheck</a>,
+             <a href="#coco_package-visibility">visibility</a>, <a href="#coco_package-workspace">workspace</a>)
 </pre>
 
 Define a Coco package from a Coco.toml and its .coco source files.
@@ -369,6 +354,11 @@ coco_generate to produce code, to coco_verify_test to verify it, or to
 coco_fmt_test to check formatting. Packages may depend on other packages via
 `deps`, and may inherit shared settings from a coco_workspace via `workspace`.
 
+The `c_*`, `cpp_*` and `csharp_*` attributes mirror the package's generator
+settings in Coco.toml (`[generator.c]`, `[generator.cpp]` and
+`[generator.csharp]`), which coco_generate needs to know the files popili
+writes.
+
 **ATTRIBUTES**
 
 
@@ -377,7 +367,24 @@ coco_fmt_test to check formatting. Packages may depend on other packages via
 | <a id="coco_package-name"></a>name |  A unique name for this macro instance. Normally, this is also the name for the macro's main or only target. The names of any other targets that this macro might create will be this name with a string suffix.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
 | <a id="coco_package-deps"></a>deps |  Other coco_package targets this package depends on.   | <a href="https://bazel.build/concepts/labels">List of labels</a> | optional |  `None`  |
 | <a id="coco_package-srcs"></a>srcs |  The .coco source files for this package.   | <a href="https://bazel.build/concepts/labels">List of labels</a> | required |  |
+| <a id="coco_package-c_file_name_mangler"></a>c_file_name_mangler |  C file naming style. Must match Coco.toml generator.c.fileNameMangler. Options: "Unaltered" (default), "UnalteredButValid", "LowerCamelCase", "LowerCamelCasePrefixUnderscore", "UpperCamelCase", "LowerUnderscore", "UpperUnderscore", "CapsUpperUnderscore".   | String | optional |  `None`  |
+| <a id="coco_package-c_flat_file_hierarchy"></a>c_flat_file_hierarchy |  Use a flat directory structure for C files. Must match Coco.toml generator.c.flatFileHierarchy. Disabled by default.   | Boolean | optional |  `None`  |
+| <a id="coco_package-c_header_file_extension"></a>c_header_file_extension |  File extension for C headers. Defaults to ".h".   | String | optional |  `None`  |
+| <a id="coco_package-c_header_file_prefix"></a>c_header_file_prefix |  Prefix for C header file names. Empty by default.   | String | optional |  `None`  |
+| <a id="coco_package-c_implementation_file_extension"></a>c_implementation_file_extension |  File extension for C implementation files. Defaults to ".c".   | String | optional |  `None`  |
+| <a id="coco_package-c_implementation_file_prefix"></a>c_implementation_file_prefix |  Prefix for C implementation file names. Empty by default.   | String | optional |  `None`  |
+| <a id="coco_package-c_include_prefix"></a>c_include_prefix |  Must match the package's effective `generator.c.includePrefix`: the value in its Coco.toml, or else the one it inherits from its workspace or receives from a dependency with `exportConfig = true`. Default `""`, popili's default. Generated C headers are included as `<prefix>/<path below the source root>`, the way popili's own generated code includes them: `#include "Foo.h"` by default, `#include "motor/Foo.h"` for `"motor"`. A mismatch fails when compiling this package's generated code, with the header not found under the Coco.toml prefix.   | String | optional |  `None`  |
+| <a id="coco_package-c_regenerate_packages"></a>c_regenerate_packages |  Other coco_package targets to regenerate with this package's C generator settings, each a direct or transitive dep. Must match Coco.toml generator.c.regeneratePackages.   | <a href="https://bazel.build/concepts/labels">List of labels</a> | optional |  `None`  |
 | <a id="coco_package-compatible_with"></a>compatible_with |  <a href="https://bazel.build/reference/be/common-definitions#common.compatible_with">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a>; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
+| <a id="coco_package-cpp_file_name_mangler"></a>cpp_file_name_mangler |  C++ file naming style. Must match Coco.toml generator.cpp.fileNameMangler. Options: "Unaltered" (default), "UnalteredButValid", "LowerCamelCase", "LowerCamelCasePrefixUnderscore", "UpperCamelCase", "LowerUnderscore", "UpperUnderscore", "CapsUpperUnderscore".   | String | optional |  `None`  |
+| <a id="coco_package-cpp_flat_file_hierarchy"></a>cpp_flat_file_hierarchy |  Use a flat directory structure for C++ files. Must match Coco.toml generator.cpp.flatFileHierarchy. Disabled by default.   | Boolean | optional |  `None`  |
+| <a id="coco_package-cpp_header_file_extension"></a>cpp_header_file_extension |  File extension for C++ headers. Defaults to ".h".   | String | optional |  `None`  |
+| <a id="coco_package-cpp_header_file_prefix"></a>cpp_header_file_prefix |  Prefix for C++ header file names. Empty by default.   | String | optional |  `None`  |
+| <a id="coco_package-cpp_implementation_file_extension"></a>cpp_implementation_file_extension |  File extension for C++ implementation files. Defaults to ".cc".   | String | optional |  `None`  |
+| <a id="coco_package-cpp_implementation_file_prefix"></a>cpp_implementation_file_prefix |  Prefix for C++ implementation file names. Empty by default.   | String | optional |  `None`  |
+| <a id="coco_package-cpp_include_prefix"></a>cpp_include_prefix |  Must match the package's effective `generator.cpp.includePrefix`: the value in its Coco.toml, or else the one it inherits from its workspace or receives from a dependency with `exportConfig = true`. Default `""`, popili's default. Generated C++ headers are included as `<prefix>/<path below the source root>`, the way popili's own generated code includes them: `#include "Foo.h"` by default, `#include "motor/Foo.h"` for `"motor"`. A mismatch fails when compiling this package's generated code, with the header not found under the Coco.toml prefix.   | String | optional |  `None`  |
+| <a id="coco_package-cpp_regenerate_packages"></a>cpp_regenerate_packages |  Other coco_package targets to regenerate with this package's C++ generator settings, each a direct or transitive dep. Must match Coco.toml generator.cpp.regeneratePackages.   | <a href="https://bazel.build/concepts/labels">List of labels</a> | optional |  `None`  |
+| <a id="coco_package-csharp_regenerate_packages"></a>csharp_regenerate_packages |  Other coco_package targets to regenerate with this package's C# generator settings, each a direct or transitive dep. Must match Coco.toml generator.csharp.regeneratePackages.   | <a href="https://bazel.build/concepts/labels">List of labels</a> | optional |  `None`  |
 | <a id="coco_package-deprecation"></a>deprecation |  <a href="https://bazel.build/reference/be/common-definitions#common.deprecation">Inherited rule attribute</a>   | String; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
 | <a id="coco_package-exec_compatible_with"></a>exec_compatible_with |  <a href="https://bazel.build/reference/be/common-definitions#common.exec_compatible_with">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a>; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |  `None`  |
 | <a id="coco_package-exec_properties"></a>exec_properties |  <a href="https://bazel.build/reference/be/common-definitions#common.exec_properties">Inherited rule attribute</a>   | <a href="https://bazel.build/rules/lib/core/dict">Dictionary: String -> String</a> | optional |  `None`  |
