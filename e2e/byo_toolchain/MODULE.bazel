@@ -19,3 +19,6 @@ bazel_dep(name = "platforms", version = "1.1.0")
 bazel_dep(name = "rules_cc", version = "0.2.18")
 
 register_toolchains("//tools:byo_popili_tc")
+
+# The licence acquired with the staged popili's own cocotec-licensing-server (see stage.py).
+include("//popili_dist:bin/licence.MODULE.bazel")

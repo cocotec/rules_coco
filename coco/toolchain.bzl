@@ -70,7 +70,7 @@ coco_toolchain = rule(
         "cocotec_licensing_server": attr.label(
             doc = (
                 "Deprecated and unused: `local_acquire` acquires its licence when Bazel fetches repositories, " +
-                "with the local popili's server or a registered popili's (see `local_acquire_licenses`). Will be removed."
+                "with the server `coco_license_repository` names (see `local_acquire_licenses`). Will be removed."
             ),
             allow_single_file = True,
         ),

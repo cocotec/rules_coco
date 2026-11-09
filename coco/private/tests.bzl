@@ -2171,11 +2171,11 @@ def _hub_license_gating_test(ctx):
     for mode in ["action_environment", "action_file", "token"]:
         condition = '"@rules_coco//config/license_source:%s"' % mode
         asserts.true(env, condition in remote_capable(build), "%s is remote-capable" % mode)
-    for mode in ["local_acquire", "local_user", "license_source_unset"]:
-        asserts.false(env, mode in remote_capable(build), "%s is remote-capable" % mode)
+    for mode in ["local_acquire", "local_user", "unset"]:
+        asserts.false(env, '"@rules_coco//config/license_source:%s"' % mode in remote_capable(build), "%s is remote-capable" % mode)
 
     build = render_toolchain_hub_build(toolchain_hub_entries(["1.5.7"], license_source = "action_file"))
-    asserts.true(env, '":license_source_unset"' in remote_capable(build), "unset is remote-capable when action_file is the default")
+    asserts.true(env, '"@rules_coco//config/license_source:unset"' in remote_capable(build), "unset is remote-capable when action_file is the default")
     asserts.true(env, 'license_source = "action_file",' in build, "the registry's default licence mode")
 
     # license_local_acquire matches local_acquire, by the flag or as the hub's default.
@@ -2184,9 +2184,9 @@ def _hub_license_gating_test(ctx):
         return select[:select.index("})")]
 
     asserts.true(env, '"@rules_coco//config/license_source:local_acquire"' in local_acquire(build), "local_acquire by the flag")
-    asserts.false(env, "license_source_unset" in local_acquire(build), "unset is not local_acquire when action_file is the default")
+    asserts.false(env, "license_source:unset" in local_acquire(build), "unset is not local_acquire when action_file is the default")
     build = render_toolchain_hub_build(toolchain_hub_entries(["1.5.7"], license_source = "local_acquire"))
-    asserts.true(env, '":license_source_unset"' in local_acquire(build), "unset is local_acquire when it is the default")
+    asserts.true(env, '"@rules_coco//config/license_source:unset"' in local_acquire(build), "unset is local_acquire when it is the default")
 
     return unittest.end(env)
 

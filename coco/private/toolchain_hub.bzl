@@ -105,17 +105,6 @@ _REGISTRY_LOAD = """load("@rules_coco//coco/private:version_registry.bzl", "coco
 _HOST_LOAD = """load("@rules_coco//coco/private:host.bzl", "unless_host")
 """
 
-# Matches when `--@rules_coco//:license_source` is unset, so the toolchains' default mode applies.
-# A mode the flag names has its config_setting in rules_coco's `config/license_source`.
-_LICENSE_SOURCE_UNSET_TEMPLATE = """
-config_setting(
-    name = "license_source_unset",
-    flag_values = {
-        "@rules_coco//:license_source": "",
-    },
-)
-"""
-
 # Matches when any of `conditions` does, natively (bazel_skylib's config_setting_group is not
 # loadable here): the alias stands for the first matching condition, else for one that does not match.
 _ANY_OF_TEMPLATE = """
@@ -448,7 +437,7 @@ def _render_license_settings(license_source):
     not a local one, `license_local_acquire` matches `local_acquire`.
     """
     default = license_source or DEFAULT_LICENSE_SOURCE
-    return _LICENSE_SOURCE_UNSET_TEMPLATE + "".join([
+    return "".join([
         _render_any_mode(name, modes, default)
         for name, modes in [
             (LICENSE_REMOTE_CAPABLE, [mode for mode in LICENSE_SOURCES if mode not in LOCAL_LICENSE_SOURCES]),
@@ -460,7 +449,7 @@ def _render_any_mode(name, modes, default):
     """An alias matching when the mode that applies is one of `modes`; `default` applies when the flag is unset."""
     conditions = ["@rules_coco//config/license_source:" + mode for mode in modes]
     if default in modes:
-        conditions.append(":license_source_unset")
+        conditions.append("@rules_coco//config/license_source:unset")
     return _ANY_OF_TEMPLATE.format(
         name = name,
         branches = "".join(['        "%s": "%s",\n' % (c, c) for c in conditions]),
@@ -562,7 +551,7 @@ def declare_coco_toolchains(
                 )
                 for (os, arch) in COCO_TOOLCHAIN_PLATFORMS
             } if version else {},
-            local_popili = local.popili if local_protocol == protocol else "",
+            popili = local.popili if local_protocol == protocol else "",
         )
 
     for version in versions:

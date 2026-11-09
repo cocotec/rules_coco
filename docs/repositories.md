@@ -79,3 +79,43 @@ keyword-only.
 | <a id="coco_repositories-local_license_protocol_version"></a>local_license_protocol_version |  Optional licence protocol version `local_popili` reads. See `coco_toolchain`.   |  `0` |
 
 
+<a id="coco_license_repository"></a>
+
+## coco_license_repository
+
+<pre>
+load("@rules_coco//coco:repositories.bzl", "coco_license_repository")
+
+coco_license_repository(<a href="#coco_license_repository-name">name</a>, <a href="#coco_license_repository-licensing_servers">licensing_servers</a>, <a href="#coco_license_repository-popili">popili</a>, <a href="#coco_license_repository-protocol_version">protocol_version</a>, <a href="#coco_license_repository-repo_mapping">repo_mapping</a>)
+</pre>
+
+Acquires a popili licence when Bazel fetches repositories, for `local_acquire` licensing.
+
+`@<name>//:licenses` names the acquired licence by its absolute path, for the `local_acquire_licenses`
+of a bring-your-own `coco_toolchain`; the toolchains rules_coco generates have their own. The token
+comes from the repository environment (`--repo_env`): the path in `COCOTEC_AUTH_TOKEN_FILE`, else
+`COCOTEC_AUTH_TOKEN`. A failed acquisition fails the fetch, which Bazel tries again on its next
+command. Point a toolchain at it only when `local_acquire` applies, with a `select()` on
+`@rules_coco//config/license_source:local_acquire`, plus `:unset` when the toolchain's own
+`license_source` is `local_acquire`: an unconditional label acquires, and so needs the token, under
+every licence mode. See the README's bring-your-own toolchain section.
+
+**ATTRIBUTES**
+
+
+| Name  | Description | Type | Mandatory | Default |
+| :------------- | :------------- | :------------- | :------------- | :------------- |
+| <a id="coco_license_repository-name"></a>name |  A unique name for this repository.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
+| <a id="coco_license_repository-licensing_servers"></a>licensing_servers |  `<os>_<arch>` to the cocotec-licensing-server of the newest registered popili of the protocol version on that platform; only the host's is fetched. rules_coco's own repositories set it; a bring-your-own toolchain sets `popili`.   | Dictionary: String -> Label | optional |  `{}`  |
+| <a id="coco_license_repository-popili"></a>popili |  A directory holding this machine's `cocotec-licensing-server`, such as a popili distribution's `bin`; absolute or workspace-relative. Used over `licensing_servers`.   | String | optional |  `""`  |
+| <a id="coco_license_repository-protocol_version"></a>protocol_version |  The licence protocol version to acquire, `n` in `licenses_<n>.lic`: the one the toolchain's popili reads (see `coco_toolchain`).   | Integer | required |  |
+| <a id="coco_license_repository-repo_mapping"></a>repo_mapping |  In `WORKSPACE` context only: a dictionary from local repository name to global repository name. This allows controls over workspace dependency resolution for dependencies of this repository.<br><br>For example, an entry `"@foo": "@bar"` declares that, for any time this repository depends on `@foo` (such as a dependency on `@foo//some:target`, it should actually resolve that dependency within globally-declared `@bar` (`@bar//some:target`).<br><br>This attribute is _not_ supported in `MODULE.bazel` context (when invoking a repository rule inside a module extension's implementation function).   | <a href="https://bazel.build/rules/lib/core/dict">Dictionary: String -> String</a> | optional |  |
+
+**ENVIRONMENT VARIABLES**
+
+This repository rule depends on the following environment variables:
+
+* `COCOTEC_AUTH_TOKEN`
+* `COCOTEC_AUTH_TOKEN_FILE`
+
+
