@@ -1,20 +1,11 @@
-# Exposes the staged bin/ binaries (gitignored) as single-file labels for //tools.
-# Wildcards tolerate the .exe suffix; the exclude drops popili-language-server.
+# Exposes the staged bin/popili (gitignored) as a single-file label for //tools. The wildcard
+# tolerates the .exe suffix; the exclude drops popili-language-server.
 filegroup(
     name = "popili",
     srcs = glob(
         ["bin/popili*"],
         allow_empty = True,
         exclude = ["bin/popili-language-server*"],
-    ),
-    visibility = ["//visibility:public"],
-)
-
-filegroup(
-    name = "licensing_server",
-    srcs = glob(
-        ["bin/cocotec-licensing-server*"],
-        allow_empty = True,
     ),
     visibility = ["//visibility:public"],
 )

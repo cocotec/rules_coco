@@ -43,7 +43,11 @@ use_repo(
     coco,
     "coco_toolchains",
     "io_cocotec_coco_preferences",
-    "io_cocotec_licensing_fetch",
+    # One per licence protocol version in coco/private/license_versions.bzl, for //coco:BUILD;
+    # //test/version:version_consistency_test checks that they agree.
+    "io_cocotec_licensing_fetch_6",
+    "io_cocotec_licensing_fetch_8",
+    "io_cocotec_licensing_fetch_9",
     "io_cocotec_licensing_local",
 )
 

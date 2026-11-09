@@ -42,14 +42,9 @@ load(":script_flavour_test.bzl", "script_flavour_tests")
             name = "fake_%s_popili" % kind,
             out = "fake_%s/popili%s" % (kind, ext),
         ),
-        write_file(
-            name = "fake_%s_licensing_server" % kind,
-            out = "fake_%s/cocotec-licensing-server%s" % (kind, ext),
-        ),
         coco_toolchain(
             name = "fake_%s_toolchain_impl" % kind,
             coco = ":fake_%s_popili" % kind,
-            cocotec_licensing_server = ":fake_%s_licensing_server" % kind,
             popili_version = "1.5.0",
         ),
         toolchain(

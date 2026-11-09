@@ -23,9 +23,9 @@ the hub's toolchains via `native.register_toolchains`.
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load(":cc_runtime_deps.bzl", "normalize_cc_runtime_extra_deps")
+load(":hub_names.bzl", "DEFAULT_HUB_NAME")
 load(
     ":toolchain_hub.bzl",
-    "DEFAULT_HUB_NAME",
     "declare_coco_toolchains",
     "resolve_versions",
 )
