@@ -26,6 +26,7 @@ coco_package(
     name = "base",
     srcs = glob(["base/src/**/*.coco"]),
     cpp_include_prefix = "core",
+    cpp_mocks = "GMock",
     package = "base/Coco.toml",
 )
 
@@ -37,7 +38,6 @@ coco_verify_test(
 coco_generate(
     name = "base_cpp",
     language = "cpp",
-    mocks = True,
     package = ":base",
 )
 

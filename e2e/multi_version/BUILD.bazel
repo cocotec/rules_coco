@@ -68,6 +68,7 @@ coco_cc_library(
 coco_package(
     name = "legacy",
     srcs = ["legacy/src/Example.coco"],
+    cpp_mocks = "GMock",
     package = "legacy/Coco.toml",
 )
 
@@ -80,7 +81,6 @@ coco_verify_test(
 coco_generate(
     name = "legacy_cpp",
     language = "cpp",
-    mocks = True,
     package = ":legacy",
     popili_version = "1.5.1",
 )

@@ -784,7 +784,9 @@ coco_package(
 | `generator.cpp.flatFileHierarchy`           | `cpp_flat_file_hierarchy`           |
 | `generator.cpp.includePrefix`               | `cpp_include_prefix`                |
 | `generator.cpp.regeneratePackages`          | `cpp_regenerate_packages`           |
+| `generator.cpp.generateMocks`               | `cpp_mocks`                         |
 | `generator.csharp.regeneratePackages`       | `csharp_regenerate_packages`        |
+| `generator.csharp.generateMocks`            | `csharp_mocks`                      |
 
 Mirror the package's _effective_ value: the one in its own `Coco.toml`, or else the one it inherits from its
 workspace's `Coco.toml` or receives from a dependency with `exportConfig = true` (see the popili documentation
@@ -806,6 +808,10 @@ the guard `TYPES_H`, so a file that reaches both through generated headers silen
 packages an `includePrefix`. The same holds for a dependency regenerated through `regeneratePackages` under the same
 prefix as the original: link only one copy. A hand-written `Foo.h` beside a `.cc` file shadows a generated one, for
 the same reason. `shortenIncludes = "SameDirectory"` does not work across packages; leave it unset.
+
+Mocks are no exception: set `generateMocks = "GMock"` in `Coco.toml` _and_ `cpp_mocks = "GMock"` on `coco_package`
+to get mocks for `coco_cc_test_library`. With only the attribute set, the build fails with
+`output ... was not created`; with only the setting, popili writes mocks that no target uses.
 
 #### C# Code Generation
 
