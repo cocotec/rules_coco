@@ -144,6 +144,10 @@ root>.cs`;
 
 ### Fixed
 
+- `coco_cc_library`, `coco_c_library` and their test-library variants accept a `select()` for
+  `generated_package` and `gmock`, and for `public_hdrs` a `select()` that selects `None` keeps all
+  generated headers public. A `select()` for `generated_packages` no longer counts as set when
+  checking that only one of it and `generated_package` is given.
 - `local_user` licensing passes each popili version the licence file it reads, instead of the first
   one found, which popili 1.6 rejects.
 - `coco_cc_library` and `coco_c_library` no longer fail to find generated headers when their

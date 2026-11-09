@@ -51,15 +51,20 @@ coco_generate(
     popili_version = "stable",
 )
 
+# The library macros pass their attrs on unchanged, so each may be a select(). These are the ones
+# a macro used to inspect or wrap in a list; `unit` only compiles when they resolve as plain values.
 coco_cc_library(
     name = "base_cc",
-    generated_package = ":base_cpp",
+    generated_package = select({"//conditions:default": ":base_cpp"}),
     popili_version = "stable",
+    # None keeps the default: all generated headers public.
+    public_hdrs = select({"//conditions:default": None}),
 )
 
 coco_cc_test_library(
     name = "base_cc_tst",
     generated_package = ":base_cpp",
+    gmock = select({"//conditions:default": "@googletest//:gtest"}),
     popili_version = "stable",
     deps = [":base_cc"],
 )
