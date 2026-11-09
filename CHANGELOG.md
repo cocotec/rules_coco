@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `coco_license_repository`, exported from `@rules_coco//coco:repositories.bzl`: a repository rule acquiring a
+  licence protocol version's licence under `local_acquire` with your own `cocotec-licensing-server`, for a
+  bring-your-own `coco_toolchain`'s `local_acquire_licenses`. `@rules_coco//config/license_source:unset` matches
+  when `--@rules_coco//:license_source` is unset, for gating it by the toolchain's own `license_source`.
 - `AVAILABLE_STABLE_VERSIONS`, exported from `@rules_coco//coco:repositories.bzl`, lists every
   stable Popili version rules_coco knows of (1.5.0 onwards, no betas or release candidates),
   newest first, so that `coco_repositories(versions = AVAILABLE_STABLE_VERSIONS)` registers them

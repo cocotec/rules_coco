@@ -307,12 +307,14 @@ def _fail(ctx, reason):
 
 def _licensing_server(ctx):
     """The host's cocotec-licensing-server for the repository's protocol version; fails when there is none."""
-    if ctx.attr.local_popili:
+    if ctx.attr.popili:
         # Already on disk, unlike a registered version's, which would be downloaded for it.
-        dist_dir = resolve_local_path(ctx, ctx.attr.local_popili)
+        dist_dir = resolve_local_path(ctx, ctx.attr.popili)
         for binary in ["cocotec-licensing-server", "cocotec-licensing-server.exe"]:
             if dist_dir.get_child(binary).exists:
                 return dist_dir.get_child(binary)
+        if not ctx.attr.licensing_servers:
+            _fail(ctx, "no cocotec-licensing-server in %s" % ctx.attr.popili)
     platform = host_toolchain_platform(ctx.os.name, ctx.os.arch)
     if not platform:
         _fail(ctx, "popili is not published for this machine (%s, %s)" % (ctx.os.name, ctx.os.arch))
@@ -366,18 +368,35 @@ def _coco_fetch_license_repository_impl(ctx):
     ctx.file("BUILD", _BUILD_FOR_LICENSE_PATHS.format(paths = json.encode({file_name: str(path)})))
 
 _coco_fetch_license_repository = repository_rule(
+    doc = """Acquires a popili licence when Bazel fetches repositories, for `local_acquire` licensing.
+
+`@<name>//:licenses` names the acquired licence by its absolute path, for the `local_acquire_licenses`
+of a bring-your-own `coco_toolchain`; the toolchains rules_coco generates have their own. The token
+comes from the repository environment (`--repo_env`): the path in `COCOTEC_AUTH_TOKEN_FILE`, else
+`COCOTEC_AUTH_TOKEN`. A failed acquisition fails the fetch, which Bazel tries again on its next
+command. Point a toolchain at it only when `local_acquire` applies, with a `select()` on
+`@rules_coco//config/license_source:local_acquire`, plus `:unset` when the toolchain's own
+`license_source` is `local_acquire`: an unconditional label acquires, and so needs the token, under
+every licence mode. See the README's bring-your-own toolchain section.""",
     implementation = _coco_fetch_license_repository_impl,
     attrs = {
         "licensing_servers": attr.string_keyed_label_dict(
             doc = (
                 "`<os>_<arch>` to the cocotec-licensing-server of the newest registered popili of the " +
-                "protocol version on that platform. Only the host's is fetched."
+                "protocol version on that platform; only the host's is fetched. rules_coco's own " +
+                "repositories set it; a bring-your-own toolchain sets `popili`."
             ),
         ),
-        "local_popili": attr.string(
-            doc = "The local popili distribution's directory, when it reads this protocol version. Its server is preferred: it needs no download.",
+        "popili": attr.string(
+            doc = (
+                "A directory holding this machine's `cocotec-licensing-server`, such as a popili " +
+                "distribution's `bin`; absolute or workspace-relative. Used over `licensing_servers`."
+            ),
         ),
-        "protocol_version": attr.int(mandatory = True),
+        "protocol_version": attr.int(
+            doc = "The licence protocol version to acquire, `n` in `licenses_<n>.lic`: the one the toolchain's popili reads (see `coco_toolchain`).",
+            mandatory = True,
+        ),
     },
     # Only the variables' values: the token file is never read here, so its contents do not affect the build.
     environ = ["COCOTEC_AUTH_TOKEN", "COCOTEC_AUTH_TOKEN_FILE"],

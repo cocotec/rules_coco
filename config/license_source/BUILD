@@ -21,3 +21,12 @@ load("@rules_coco//coco:defs.bzl", "LICENSE_SOURCES")
     },
     visibility = ["//visibility:public"],
 ) for source in LICENSE_SOURCES]
+
+# The flag is unset, so each toolchain's own default mode applies.
+config_setting(
+    name = "unset",
+    flag_values = {
+        "//:license_source": "",
+    },
+    visibility = ["//visibility:public"],
+)

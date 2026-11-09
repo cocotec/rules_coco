@@ -17,6 +17,7 @@
 load(
     "//coco/private:common_repositories.bzl",
     _AVAILABLE_STABLE_VERSIONS = "AVAILABLE_STABLE_VERSIONS",
+    _coco_license_repository = "coco_fetch_license_repository",
 )
 load(
     "//coco/private:repositories.bzl",
@@ -26,6 +27,7 @@ load(
 
 coco_repositories = _coco_repositories
 coco_local_repositories = _coco_local_repositories
+coco_license_repository = _coco_license_repository
 
 # Every stable popili version (1.5.0 onwards, no betas or release candidates) this
 # rules_coco knows the downloads of, newest first: `versions = AVAILABLE_STABLE_VERSIONS`
