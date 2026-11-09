@@ -69,6 +69,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Under the `local_user` and `local_acquire` licence modes, popili's actions and tests are tagged `no-remote-exec`, so
+  they run on the machine that holds the licence even when remote execution is on, with that machine's popili even
+  when another execution platform comes first. Their results are still cached.
 - **Breaking:** rules_coco's default toolchain (`stable` with the C and C++ runtimes) is now used
   only when no module declares `coco.toolchain`. If yours declares one, you get only what it lists,
   so add `c = True` / `cc = True` for the runtimes you use. Modules that don't declare

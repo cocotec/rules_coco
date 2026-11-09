@@ -22,6 +22,8 @@ load("@platforms//host:constraints.bzl", "HOST_CONSTRAINTS")
 load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
 load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load(":common_attrs.bzl", "companion_attrs")
+load(":license_sources.bzl", "DEFAULT_LICENSE_SOURCE", "LOCAL_LICENSE_SOURCES")
+load(":platforms.bzl", "toolchain_platform_of")
 load(":source_roots.bzl", "leaves_directory", "relative_path", "resolve_source_roots", "source_root_for")
 load(":version_registry.bzl", "CocoVersionRegistryInfo")
 load(":version_resolution.bzl", "FORCE_VERSION_FLAG", "LOCAL_VERSION", "TOOLCHAIN_TYPE", "VERSION_FLAG", "license_protocol_version", "resolve_version_alias")
@@ -77,7 +79,6 @@ LICENSE_ATTRIBUTES = {
     "_license_file_fetch": attr.label(default = Label("@io_cocotec_licensing_fetch//:licenses")),
     # Every licenses_<n>.lic found locally; see _local_user_license_file.
     "_license_files_local": attr.label(default = Label("@io_cocotec_licensing_local//:licenses")),
-    "_license_source": attr.label(default = Label("//:license_source")),
     "_license_token": attr.label(default = Label("//:license_token")),
 }
 
@@ -122,9 +123,11 @@ COCO_RUN_RULE_ARGS = {
     "toolchains": [COCO_TOOLCHAIN_TYPE],
 }
 
-# What a rule needs for `_coco_toolchain`'s full message: the configured version and the registry.
+# What a rule needs for `_coco_toolchain`'s full message: the configured version, the registry, and
+# the licence mode, which decides which execution platforms' popili may resolve.
 TOOLCHAIN_ATTRIBUTES = {
     "_force_version": attr.label(default = Label("//:force_version")),
+    "_license_source": attr.label(default = Label("//:license_source")),
     "_pinned_from": attr.label(default = Label("//coco/private:pinned_from")),
     "_version": attr.label(default = Label("//:version")),
     "_version_registry": attr.label(
@@ -421,7 +424,7 @@ _REGISTER_LOCAL_PHRASE = (
 
 _REGISTER_LOCAL_HINT = _sentence(_REGISTER_LOCAL_PHRASE)
 
-def _missing_popili_message(label, version, registry, source = None, test_target_platform = None):
+def _missing_popili_message(label, version, registry, source = None, test_target_platform = None, local_license_source = None, host_has_popili = True):
     """Words the failure of a rule whose Coco toolchain did not resolve.
 
     Decided after toolchain resolution, so it never second-guesses resolution: the registry is
@@ -436,6 +439,9 @@ def _missing_popili_message(label, version, registry, source = None, test_target
             version as set by the flag.
         test_target_platform: For a test that lost popili to the execution platform Bazel runs
             tests on, its target platform, as `_test_target_platform` returns it; else None.
+        local_license_source: The licence mode when it is a local one, which only lets the host's
+            popili resolve; else None.
+        host_has_popili: Whether popili is published for the host's OS and CPU.
 
     Returns:
         The message to fail with.
@@ -498,14 +504,30 @@ def _missing_popili_message(label, version, registry, source = None, test_target
             "matching the test's target platform (%s), and no registered execution platform both " % test_target_platform +
             "matches it and can run popili. Build the test for a platform popili is available for, register " +
             "a matching execution platform popili is available for (--extra_execution_platforms), or bring " +
-            "your own coco_toolchain for such a platform. %s" % registered
+            "your own coco_toolchain for such a platform. %s%s" % (registered, _local_license_hint(local_license_source, host_has_popili))
         )
 
     return (
         "%s needs popili %s (%s), which is registered, but none of the registered execution platforms " %
         (label, version, source) +
         "can run it. Register an execution platform popili is available for (--extra_execution_platforms), " +
-        "or bring your own coco_toolchain for the execution platform you have. %s" % registered
+        "or bring your own coco_toolchain for the execution platform you have. %s%s" % (registered, _local_license_hint(local_license_source, host_has_popili))
+    )
+
+def _local_license_hint(local_license_source, host_has_popili):
+    """The sentence a missing-popili message ends with under a local licence mode, else ""."""
+    if not local_license_source:
+        return ""
+    if not host_has_popili:
+        return (
+            " Under the %s licence mode popili runs on this machine, but popili is not published for " % local_license_source +
+            "this machine's OS and CPU: register a local popili distribution or bring your own coco_toolchain " +
+            "for it, or choose a licence mode that lets popili run remotely, such as action_file."
+        )
+    return (
+        " Under the %s licence mode popili runs on this machine, so only an execution platform with this " % local_license_source +
+        "machine's OS and CPU qualifies: register the host as one (--extra_execution_platforms=@platforms//host), " +
+        "or choose a licence mode that lets popili run remotely, such as action_file."
     )
 
 def _test_target_platform(ctx):
@@ -530,12 +552,15 @@ def _missing_toolchain_message(ctx):
             "Only rules_coco's own rules choose the version with popili_version and say which " +
             "versions are registered."
         )
+    license_source = _license_source(ctx, None)
     return _missing_popili_message(
         ctx.label,
         ctx.attr._version[BuildSettingInfo].value,
         ctx.attr._version_registry[CocoVersionRegistryInfo],
         source = _version_source_of(ctx),
         test_target_platform = _test_target_platform(ctx),
+        local_license_source = license_source if license_source in LOCAL_LICENSE_SOURCES else None,
+        host_has_popili = toolchain_platform_of(HOST_CONSTRAINTS) != None,
     )
 
 def _requested_version(pin, version, forced = False):
@@ -895,14 +920,47 @@ def _coco_startup_args(ctx, package, is_test):
             arguments += ["--import-path", _runtime_dirname(dep_file, is_test)]
     return arguments
 
+def _license_source(ctx, toolchain):
+    """The licence mode that applies: the flag's, else the toolchain's default, else DEFAULT_LICENSE_SOURCE.
+
+    Args:
+        ctx: The rule context.
+        toolchain: The resolved Coco toolchain, or None for a rule that resolved none: then the
+            hub's default, which every toolchain it registers shares, stands in.
+
+    Returns:
+        One of LICENSE_SOURCES.
+    """
+    flag = ctx.attr._license_source[BuildSettingInfo].value
+    if flag:
+        return flag
+    if toolchain:
+        default = toolchain.license_source
+    else:
+        default = ctx.attr._version_registry[CocoVersionRegistryInfo].license_source
+    return default or DEFAULT_LICENSE_SOURCE
+
 def _get_license_source(ctx):
-    cli_license_source = ctx.attr._license_source[BuildSettingInfo].value
-    if cli_license_source:
-        return cli_license_source
-    toolchain_license_source = _coco_toolchain(ctx).license_source
-    if toolchain_license_source:
-        return toolchain_license_source
-    return "local_user"
+    return _license_source(ctx, _coco_toolchain(ctx))
+
+def license_execution_requirements(license_source):
+    """The execution requirements of anything that runs popili under `license_source`.
+
+    The local licence modes read a licence on this machine, so popili must not run remotely. Results
+    stay cacheable: the licence decides whether popili runs, not what it writes.
+
+    Args:
+        license_source: One of LICENSE_SOURCES.
+
+    Returns:
+        A dict for `execution_requirements` or `testing.ExecutionInfo`, empty when popili may run remotely.
+    """
+    if license_source in LOCAL_LICENSE_SOURCES:
+        return {"no-remote-exec": "1"}
+    return {}
+
+def _license_execution_requirements(ctx):
+    return license_execution_requirements(_get_license_source(ctx))
 
 def _get_auth_token_path(ctx):
     """Get the auth token file path from CLI flag or toolchain.
@@ -1014,6 +1072,7 @@ def _run_coco(ctx, package, verb, mnemonic, arguments, outputs):
         inputs = _coco_runfiles(ctx, package, False),
         outputs = outputs,
         arguments = _coco_startup_args(ctx, package, False) + arguments,
+        execution_requirements = _license_execution_requirements(ctx),
     )
 
 def _is_windows(ctx):
@@ -1126,6 +1185,7 @@ def _run_typecheck(ctx, package):
         progress_message = "Typechecking %s" % ctx.label.name,
         inputs = _coco_runfiles(ctx, package, False),
         outputs = [marker],
+        execution_requirements = _license_execution_requirements(ctx),
     )
     return marker
 
@@ -2261,6 +2321,7 @@ def _popili_handle(ctx, toolchain, package, from_runfiles):
             ),
             outputs = outputs,
             arguments = _coco_startup_args(ctx, package, False) + arguments,
+            execution_requirements = _license_execution_requirements(ctx),
         )
 
     def script(arguments):
@@ -2278,6 +2339,22 @@ def _popili_handle(ctx, toolchain, package, from_runfiles):
     else:
         members["run"] = run
     return struct(**members)
+
+def _with_test_execution_info(providers, requirements):
+    """A test's providers with `requirements` added to its ExecutionInfo, keeping the author's own."""
+    if not requirements:
+        return providers
+    execution_info_type = type(testing.ExecutionInfo({}))
+    merged = dict(requirements)
+    exec_group = "test"
+    others = []
+    for provider in (providers if type(providers) == "list" else [providers]):
+        if type(provider) == execution_info_type:
+            merged = dict(provider.requirements.items() + requirements.items())
+            exec_group = provider.exec_group
+        else:
+            others.append(provider)
+    return others + [testing.ExecutionInfo(merged, exec_group = exec_group)]
 
 def popili_rule(implementation, attrs = {}, package = False, test = False, executable = False, doc = "", provides = []):
     """Defines a rule that runs popili, with the plumbing rules_coco's own rules have.
@@ -2298,6 +2375,9 @@ def popili_rule(implementation, attrs = {}, package = False, test = False, execu
     - `script(arguments)` and `runfiles` (tests and executables only): the wrapper script running
       popili with `arguments` from the runfiles, and the depset of files it needs there.
       Return `DefaultInfo(executable = popili.script(...), runfiles = ctx.runfiles(transitive_files = popili.runfiles))`.
+
+    Under the `local_user` and `local_acquire` licence modes, `run`'s actions and the rule's tests are
+    tagged `no-remote-exec`; a test's own `testing.ExecutionInfo` is kept and extended.
 
     ```starlark
     def _typecheck_test_impl(ctx, popili):
@@ -2350,7 +2430,8 @@ def popili_rule(implementation, attrs = {}, package = False, test = False, execu
             toolchain = _check_package_versions(ctx, [ctx.attr.package])
         else:
             toolchain = _coco_toolchain(ctx)
-        return implementation(ctx, _popili_handle(ctx, toolchain, ctx.attr.package if package else None, test or executable))
+        providers = implementation(ctx, _popili_handle(ctx, toolchain, ctx.attr.package if package else None, test or executable))
+        return _with_test_execution_info(providers, _license_execution_requirements(ctx)) if test else providers
 
     return rule(
         implementation = _impl,

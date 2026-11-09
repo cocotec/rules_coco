@@ -42,6 +42,23 @@ def platform_constraints(os, arch):
         "@platforms//cpu:%s" % arch,
     ]
 
+def toolchain_platform_of(constraints):
+    """Returns which of COCO_TOOLCHAIN_PLATFORMS a platform with `constraints` is.
+
+    Args:
+      constraints: The platform's constraint value labels, as strings, e.g. `HOST_CONSTRAINTS`.
+        Only the part after `//` is compared, so apparent and canonical repository names match.
+
+    Returns:
+      An (os, arch) pair of COCO_TOOLCHAIN_PLATFORMS, or None when popili is not published for
+      that platform.
+    """
+    names = [c.split("//")[-1] for c in constraints]
+    for os, arch in COCO_TOOLCHAIN_PLATFORMS:
+        if "os:" + os in names and "cpu:" + arch in names:
+            return (os, arch)
+    return None
+
 def archive_platform(os, arch):
     """Returns how popili's release archives spell a toolchain platform.
 

@@ -15,6 +15,7 @@
 load("@rules_cc//cc:defs.bzl", "cc_test")
 load("@rules_coco//coco:cc.bzl", "coco_cc_library", "coco_cc_test_library")
 load("@rules_coco//coco:defs.bzl", "coco_fmt_test", "coco_generate", "coco_package", "coco_verify_test")
+load(":license_execution_test.bzl", "local_license_action_test", "local_license_test", "remote_license_action_test", "remote_license_test")
 load(":popili_rules.bzl", "popili_component_diagram", "popili_typecheck", "popili_typecheck_test")
 
 # test/popili_pinning asserts on these targets rather than copying them.
@@ -93,4 +94,47 @@ popili_typecheck(
     name = "base_typecheck_binary",
     package = ":base",
     popili_version = "stable",
+)
+
+# Under the local licence modes popili never runs remotely; the others leave that to the user.
+local_license_test(
+    name = "local_license_execution_test",
+    no_remote_exec = True,
+    target_under_test = ":base_verify",
+)
+
+remote_license_test(
+    name = "remote_license_execution_test",
+    no_remote_exec = False,
+    target_under_test = ":base_verify",
+)
+
+# Execution platforms for the action tests, which put the one that isn't the host's first. Under the
+# local licence modes popili still runs this machine's binary; the others follow the first platform.
+platform(
+    name = "linux_x86_64",
+    constraint_values = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+)
+
+platform(
+    name = "osx_aarch64",
+    constraint_values = [
+        "@platforms//cpu:aarch64",
+        "@platforms//os:osx",
+    ],
+)
+
+local_license_action_test(
+    name = "local_license_action_test",
+    host = True,
+    target_under_test = ":base_cpp",
+)
+
+remote_license_action_test(
+    name = "remote_license_action_test",
+    host = False,
+    target_under_test = ":base_cpp",
 )
