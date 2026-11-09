@@ -15,7 +15,7 @@
 load("@rules_cc//cc:defs.bzl", "cc_test")
 load("@rules_coco//coco:cc.bzl", "coco_cc_library", "coco_cc_test_library")
 load("@rules_coco//coco:defs.bzl", "coco_fmt_test", "coco_generate", "coco_package", "coco_verify_test")
-load(":license_execution_test.bzl", "local_license_action_test", "local_license_test", "remote_license_action_test", "remote_license_test")
+load(":license_execution_test.bzl", "local_license_action_test", "local_license_test", "local_user_path_test", "remote_license_action_test", "remote_license_test")
 load(":popili_rules.bzl", "popili_component_diagram", "popili_typecheck", "popili_typecheck_test")
 
 # test/popili_pinning asserts on these targets rather than copying them.
@@ -136,5 +136,11 @@ local_license_action_test(
 remote_license_action_test(
     name = "remote_license_action_test",
     host = False,
+    target_under_test = ":base_cpp",
+)
+
+# local_user passes the licence by path, so its contents stay out of the action key.
+local_user_path_test(
+    name = "local_user_licence_path_test",
     target_under_test = ":base_cpp",
 )

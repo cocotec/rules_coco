@@ -121,7 +121,9 @@ Contact [Cocotec Support](https://cocotec.io/support/) to set this up or discuss
 - `local_user`: The user's existing license on this machine will be reused. This is not compatible with remote
   execution, and is kept local like `local_acquire`. Each popili version gets the license file it reads
   (`licenses_<n>.lic` in popili's data directory, `n` being its licence protocol version); the local toolchain, of
-  unknown version, gets the file of the newest protocol version, unless it sets `license_protocol_version`.
+  unknown version, gets the file of the newest protocol version, unless it sets `license_protocol_version`. Popili gets
+  the file by its absolute path rather than as an action input, so popili refreshing it does not rerun your build. That
+  relies on the sandbox exposing popili's data directory read-only, as Bazel's default sandboxes do.
 - `token`: The explicitly provided token should be used as `COCOTEC_AUTH_TOKEN`. In this case,
   `--@rules_coco//:license_token` must be set as well. This works with remote execution but it is only recommended when
   using workload identity federation as `COCOTEC_AUTH_TOKEN` is not a secret in that case.

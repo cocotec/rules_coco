@@ -31,8 +31,8 @@ load(
     "coco_cc_local_runtime_repository",
     "coco_cc_runtime_repository",
     "coco_fetch_license_repository",
+    "coco_local_licenses_repository",
     "coco_preferences_repository",
-    "coco_symlink_license_repository",
 )
 load(":license_sources.bzl", "DEFAULT_LICENSE_SOURCE", "LICENSE_SOURCES", "LOCAL_LICENSE_SOURCES")
 load(":platforms.bzl", "COCO_TOOLCHAIN_PLATFORMS", "platform_constraints")
@@ -528,7 +528,7 @@ def declare_coco_toolchains(
         name = "io_cocotec_licensing_fetch",
         versions = versions,
     )
-    coco_symlink_license_repository(name = "io_cocotec_licensing_local")
+    coco_local_licenses_repository(name = "io_cocotec_licensing_local")
 
     for version in versions:
         version_suffix = version_to_repo_suffix(version)
