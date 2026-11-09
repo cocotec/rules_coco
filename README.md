@@ -100,36 +100,40 @@ Contact [Cocotec Support](https://cocotec.io/support/) to set this up or discuss
 `rules_coco` supports several different license modes:
 
 - `action_environment`: Suitable credentials will be provided in the execution environment of each action. What is
-  supported will depend on the version of Popili, but could include `COCOTEC_AUTH_TOKEN` being injected into the
-  build action environment via some non-bazel mechanism.
+  supported will depend on the version of Popili, but could include `COCOTEC_AUTH_TOKEN` or
+  `COCOTEC_AUTH_TOKEN_FILE` being injected into the build action environment via some non-bazel mechanism.
 
   This is the recommended mode when using remote execution, as it will not interfere with bazel's cache, and also keeps
   the license token most secure.
 
 - `action_file`: An auth token file path is provided that is guaranteed to be available in the execution environment of
   each action (e.g., mounted on remote runners). The path must be specified via `--@rules_coco//:auth_token_path` or in
-  the toolchain configuration. Popili will be invoked with `--machine-auth-token` pointing to this file.
+  the toolchain configuration. Popili will be invoked with `--machine-auth-token` pointing to this file. Make sure the
+  path is readable in Bazel's sandbox. On Linux, the sandbox's `/tmp` can differ from the host's.
 
   This mode is suitable for remote execution environments where auth token files are pre-mounted or made available through
   other mechanisms. **Requires popili 1.5.2 or later.**
 
-- `local_acquire`: A license is acquired on this machine with `COCOTEC_AUTH_TOKEN` when Bazel fetches repositories. This
-  is not compatible with remote execution: popili's actions and tests are tagged `no-remote-exec`, so they run locally
-  even when remote execution is on, and get this machine's popili even when another execution platform comes first in
-  `--extra_execution_platforms`. Their results are still cached. An execution platform with this machine's OS and CPU
-  must be registered; Bazel registers the host by default unless `--host_platform` replaces it.
+- `local_acquire`: A license is acquired on this machine when Bazel fetches repositories, using the machine token in the
+  repository environment: the absolute path of a token file in `COCOTEC_AUTH_TOKEN_FILE` or, when that is unset, the
+  token itself in `COCOTEC_AUTH_TOKEN`. This is not compatible with remote execution: popili's actions and tests are
+  tagged `no-remote-exec`, so they run locally even when remote execution is on, and get this machine's popili even when
+  another execution platform comes first in `--extra_execution_platforms`. Their results are still cached. An execution
+  platform with this machine's OS and CPU must be registered; Bazel registers the host by default unless
+  `--host_platform` replaces it.
 
   The licence is acquired when Bazel fetches repositories, once per licence protocol version the build uses, with this
   machine's `cocotec-licensing-server`: the local popili's when it reads that protocol version, else the newest
-  registered popili's. It is acquired again when `COCOTEC_AUTH_TOKEN` changes or the Bazel server restarts, and not
-  renewed in between: when it expires, run `bazel shutdown` (or `bazel fetch --force`, which refetches every repository)
-  for a fresh one. `bazel query 'deps(...)'`, as IDE syncs run, acquires the licences of every popili version it
-  reaches. Popili gets the licence by its absolute path below Bazel's output base, not as an action input, so a new
-  licence does not rerun popili, and results are cached by that path: CI runners with the same setup share them,
-  separate workspaces or machines do not. Bazel's default sandboxes expose that path read-only; hermetic or Docker
-  sandboxes hide it, so they cannot use this mode. A failed acquisition (no token, offline, a rejected token) fails the
-  fetch, and so the build or query, with the server's output; Bazel tries again on its next command, and cached results
-  are untouched. `action_file` keeps the licence out of the key too, acquiring one per popili action instead.
+  registered popili's. It is acquired again when either variable changes or the Bazel server restarts, and not renewed
+  in between: when it expires, run `bazel shutdown` (or `bazel fetch --force`, which refetches every repository) for a
+  fresh one. `bazel query 'deps(...)'`, as IDE syncs run, acquires the licences of every popili version it reaches.
+  Popili gets the licence by its absolute path below Bazel's output base, not as an action input, so a new licence does
+  not rerun popili, and results are cached by that path: CI runners with the same setup share them, separate workspaces
+  or machines do not. Bazel's default sandboxes expose that path read-only; hermetic or Docker sandboxes hide it, so
+  they cannot use this mode. A failed acquisition (no token, a relative `COCOTEC_AUTH_TOKEN_FILE`, offline, a rejected
+  token) fails the fetch, and so the build or query, with the server's output; Bazel tries again on its next command,
+  and cached results are untouched. `action_file` keeps the licence out of the key too, acquiring one per popili action
+  instead.
 
 - `local_user`: The user's existing license on this machine will be reused. This is not compatible with remote
   execution, and is kept local like `local_acquire`. Each popili version gets the license file it reads

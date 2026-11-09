@@ -107,6 +107,7 @@ jobs:
               license_source: "local_acquire",
               auth_token_path: "",
             }
+          # local_acquire with the token in a file under $RUNNER_TEMP, through COCOTEC_AUTH_TOKEN_FILE
           - {
               os: ubuntu-latest,
               bazel_version: "9.0.1",
@@ -114,6 +115,7 @@ jobs:
               verification_backend: "remote",
               license_source: "local_acquire",
               auth_token_path: "",
+              auth_token_file: "coco-auth-token",
             }
           - {
               os: macos-latest,
@@ -180,10 +182,18 @@ jobs:
         if: matrix.auth_token_path != ''
         run: echo "$COCOTEC_AUTH_TOKEN" > ${{ matrix.auth_token_path }}
         shell: bash
+      - name: Move the auth token into COCOTEC_AUTH_TOKEN_FILE
+        if: matrix.auth_token_file != ''
+        run: |
+          echo "$COCOTEC_AUTH_TOKEN" > "$RUNNER_TEMP/${{ matrix.auth_token_file }}"
+          echo "COCOTEC_AUTH_TOKEN_FILE=$RUNNER_TEMP/${{ matrix.auth_token_file }}" >> "$GITHUB_ENV"
+          echo "COCOTEC_AUTH_TOKEN=" >> "$GITHUB_ENV"
+        shell: bash
       - name: Test root workspace
         run: |
           bazel test --config=ci --config=${{ matrix.build_system }} \
             --repo_env=COCOTEC_AUTH_TOKEN \
+            --repo_env=COCOTEC_AUTH_TOKEN_FILE \
             --color=yes \
             --keep_going \
             --test_output=errors \
@@ -225,6 +235,7 @@ jobs:
             (cd "${dir}" && bazel test \
               --config=${{ matrix.build_system }} \
               --repo_env=COCOTEC_AUTH_TOKEN \
+              --repo_env=COCOTEC_AUTH_TOKEN_FILE \
               --color=yes \
               --keep_going \
               --test_output=errors \
@@ -240,6 +251,7 @@ jobs:
               (cd "${dir}" && bazel test \
                 --config=${{ matrix.build_system }} \
                 --repo_env=COCOTEC_AUTH_TOKEN \
+                --repo_env=COCOTEC_AUTH_TOKEN_FILE \
                 --color=yes \
                 --test_output=errors \
                 --@rules_coco//:license_source=${{ matrix.license_source }} \
