@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("@rules_python//python:defs.bzl", "py_binary")
+load("@rules_python//python:defs.bzl", "py_binary", "py_library", "py_test")
 
 py_binary(
     name = "update_digests",
@@ -24,4 +24,19 @@ py_binary(
     name = "release",
     srcs = ["release.py"],
     tags = ["manual"],
+)
+
+py_library(
+    name = "release_policy_lib",
+    srcs = [
+        "release.py",
+        "release_policy.py",
+    ],
+    imports = ["."],
+)
+
+py_test(
+    name = "release_policy_test",
+    srcs = ["release_policy_test.py"],
+    deps = [":release_policy_lib"],
 )

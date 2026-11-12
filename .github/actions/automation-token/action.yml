@@ -1,0 +1,49 @@
+name: cocotec-automation token
+description: >-
+  Mints an installation token for the cocotec-automation GitHub App, signed with Cloud KMS. Pull requests opened with
+  it run CI, unlike ones opened with GITHUB_TOKEN. Needs `id-token: write`.
+
+inputs:
+  workload-identity-provider:
+    required: true
+  app-id:
+    required: true
+  installation-id:
+    required: true
+  kms-project:
+    required: true
+  kms-location:
+    required: true
+  kms-keyring:
+    required: true
+  kms-key:
+    required: true
+  kms-key-version:
+    required: true
+
+outputs:
+  token:
+    description: The installation token (masked).
+    value: ${{ steps.token.outputs.token }}
+
+runs:
+  using: composite
+  steps:
+    - uses: google-github-actions/auth@v3
+      with:
+        workload_identity_provider: ${{ inputs.workload-identity-provider }}
+    - uses: google-github-actions/setup-gcloud@v3
+    - id: token
+      shell: bash
+      run: |
+        TOKEN=$(python3 "$GITHUB_ACTION_PATH/../../scripts/github_app_token.py")
+        echo "::add-mask::$TOKEN"
+        echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+      env:
+        COCOTEC_BOT_APP_ID: ${{ inputs.app-id }}
+        COCOTEC_BOT_INSTALLATION_ID: ${{ inputs.installation-id }}
+        GCP_KMS_PROJECT: ${{ inputs.kms-project }}
+        GCP_KMS_LOCATION: ${{ inputs.kms-location }}
+        GCP_KMS_KEYRING: ${{ inputs.kms-keyring }}
+        GCP_KMS_KEY: ${{ inputs.kms-key }}
+        GCP_KMS_KEY_VERSION: ${{ inputs.kms-key-version }}

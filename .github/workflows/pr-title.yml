@@ -1,0 +1,51 @@
+name: PR Title
+# Pull requests are squash-merged with their title as the commit subject, and the release workflows read those
+# subjects with commitizen. So the title must be a conventional commit, and a pull request into a release/X.Y branch
+# must fit a patch release: no `feat` and no breaking change, in the title or in the description (which becomes the
+# commit body). A pull request that changes the version is also held to the release policy, which the Release workflow
+# otherwise only applies after the merge. See RELEASING.md.
+#
+# A workflow of its own so that editing a title does not rerun CI. On a pull request it checks the title and
+# description, which is what the squashed commit should be made of; in the merge queue it checks the commits themselves,
+# which is what the Release workflow will read, whatever the repository's squash settings made of the pull request.
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+  merge_group:
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+jobs:
+  pr-title:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The release policy needs the history and tags since the previous release.
+          fetch-depth: 0
+      - uses: ./.github/actions/release-tools
+      # Bazel runs these tests too, but without commitizen, so there the ones that ask commitizen are skipped.
+      - if: github.event_name == 'pull_request'
+        name: Test the release policy against commitizen
+        run: |
+          if git diff --quiet HEAD^1 HEAD -- tools .cz.toml; then
+            echo "The pull request changes neither tools/ nor .cz.toml."
+          else
+            python3 tools/release_policy_test.py
+          fi
+      - if: github.event_name == 'pull_request'
+        name: Check the pull request
+        run: python3 tools/release_policy.py check-pull-request --base "$BASE" --title "$TITLE" --body="$BODY"
+        env:
+          BASE: ${{ github.event.pull_request.base.ref }}
+          TITLE: ${{ github.event.pull_request.title }}
+          BODY: ${{ github.event.pull_request.body }}
+      - if: github.event_name == 'merge_group'
+        name: Check the merge group
+        run: python3 tools/release_policy.py check-merge-group --base-ref "$BASE_REF" --base-rev "$BASE_SHA"
+        env:
+          BASE_REF: ${{ github.event.merge_group.base_ref }}
+          BASE_SHA: ${{ github.event.merge_group.base_sha }}
