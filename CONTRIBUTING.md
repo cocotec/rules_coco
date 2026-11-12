@@ -47,7 +47,7 @@ used (`local_user`). For a token instead, export `COCOTEC_AUTH_TOKEN` and add
    )
    ```
 
-Set `config=workspace` to run in `WORKSPACE` mode, which only works with Bazel 8.
+Set `config=workspace` to run in `WORKSPACE` mode, which needs Bazel 8.3.0 or higher.
 
 ## Documentation
 

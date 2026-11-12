@@ -13,7 +13,7 @@ The rules are fully compatible with remote caching and execution.
 
 ## Requirements
 
-- Bazel 8.0.0 or higher (`WORKSPACE` mode: Bazel 8 only).
+- Bazel 8.0.0 or higher. `WORKSPACE` mode needs 8.3.0 or higher.
 - Popili 1.5.0 or higher.
 - A valid Coco/Popili license.
 

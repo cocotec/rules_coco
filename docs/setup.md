@@ -35,7 +35,7 @@ See [Popili versions](popili-versions.md) for registering and pinning several ve
 ## WORKSPACE (Deprecated)
 
 > [!WARNING]
-> The `WORKSPACE` mode is deprecated and only works with Bazel 8; Bazel 9 removed it. Please migrate to bzlmod.
+> The `WORKSPACE` mode is deprecated and needs Bazel 8.3.0 or higher. Please migrate to bzlmod.
 
 Add the following to your `WORKSPACE` file:
 
