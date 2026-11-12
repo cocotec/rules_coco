@@ -79,7 +79,7 @@ The diagram is written to `<name>.svg`. Without `targets`, that one file shows e
 ### Counterexample Diagrams
 
 Generate sequence diagrams for verification failures. You must specify the expected counterexamples as a dict mapping
-output filenames to target declarations:
+output file names to the declaration whose counterexample to draw, such as a component name:
 
 ```starlark
 load("@rules_coco//coco:defs.bzl", "coco_counterexample_diagram")
@@ -98,7 +98,9 @@ coco_counterexample_diagram(
 `draw_title` (default `True`) draws a border and title on each diagram. `deterministic` (default `True`) makes popili
 produce the same counterexample on every run, so the output is reproducible.
 
-For filtering by specific assertions, use the `counterexample_options()` helper:
+For filtering by specific assertions, use the `counterexample_options()` helper. `assertion` is the name of a check as
+popili reports it in the verification results, such as `"Well-formedness"`. rules_coco passes it to
+`popili verify --counterexample-assertion`.
 
 ```starlark
 load("@rules_coco//coco:defs.bzl", "coco_counterexample_diagram", "counterexample_options")

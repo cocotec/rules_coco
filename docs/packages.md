@@ -38,7 +38,9 @@ coco_package(
 )
 ```
 
-When enabled, any target depending on this package (such as `coco_generate`) will wait for typecheck to pass.
+With `typecheck = True`, building the package runs `popili typecheck`, so `bazel build //path/to:my_package` fails on
+type errors directly. Targets that read the package, such as `coco_generate`, run only after the typecheck has passed.
+Without it, those targets still fail on type errors when they run popili.
 
 ## Workspaces
 

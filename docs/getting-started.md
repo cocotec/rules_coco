@@ -35,6 +35,9 @@ configuration. CI and remote execution need a machine token: see [Licensing](lic
 
 ## 3. Declare a package, verify it and generate C++
 
+This step assumes a Coco package: a `Coco.toml` with its `.coco` sources in `src/`. [`e2e/smoke`](../e2e/smoke) has a
+minimal one to start from.
+
 Next to your `Coco.toml`, add a `BUILD.bazel` file:
 
 ```starlark

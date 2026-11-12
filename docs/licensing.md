@@ -4,7 +4,8 @@ To use the rules, the host where the build actions executes will need to have a 
 then this means that local host requires a license. If remote execution is being used, then the remote executor will
 need a license.
 
-When using these rules in a CI environment you will need to provide a machine token. This can either be done by:
+In CI you need a machine token: a Cocotec token that identifies a machine or CI job rather than a person, passed to
+popili as `COCOTEC_AUTH_TOKEN`. You can get one in two ways:
 
 - (Preferred) Using workload identity federation: in this, tokens from your existing identity provider can be used to
   authenticate to Cocotec. This works with AWS or any OIDC-compatible identity provider, such as Github Actions and
@@ -13,20 +14,28 @@ When using these rules in a CI environment you will need to provide a machine to
 
 Contact [Cocotec Support](https://cocotec.io/support/) to set this up or discuss options.
 
+| Mode                   | Credentials                                                                                               | Remote execution |
+| ---------------------- | --------------------------------------------------------------------------------------------------------- | ---------------- |
+| `local_user` (default) | the license already activated on the machine running Bazel                                                | no               |
+| `local_acquire`        | a token in `COCOTEC_AUTH_TOKEN` on the machine running Bazel, passed with `--repo_env=COCOTEC_AUTH_TOKEN` | no               |
+| `action_environment`   | whatever popili finds in each action's environment, such as an injected `COCOTEC_AUTH_TOKEN`              | yes              |
+| `action_file`          | a token file at `--@rules_coco//:auth_token_path` on every machine that runs actions                      | yes              |
+| `token`                | a token passed with `--@rules_coco//:license_token`, for workload identity federation                     | yes              |
+
 ## License modes
 
 `rules_coco` supports several different license modes:
 
-- `action_environment`: Suitable credentials will be provided in the execution environment of each action. What is
-  supported will depend on the version of Popili, but could include `COCOTEC_AUTH_TOKEN` being injected into the
-  build action environment via some non-bazel mechanism.
+- `action_environment`: rules_coco passes no credentials. popili finds them in the action's environment, for example
+  where a remote execution service injects `COCOTEC_AUTH_TOKEN` into actions as a secret.
 
   This is the recommended mode when using remote execution, as it will not interfere with bazel's cache, and also keeps
   the license token most secure.
 
 - `action_file`: An auth token file path is provided that is guaranteed to be available in the execution environment of
-  each action (e.g., mounted on remote runners). The path must be specified via `--@rules_coco//:auth_token_path` or in
-  the toolchain configuration. Popili will be invoked with `--machine-auth-token` pointing to this file.
+  each action (e.g., mounted on remote runners). The path must be specified via `--@rules_coco//:auth_token_path` or
+  with `auth_token_path` on `coco.toolchain` or `coco_repositories`. Popili will be invoked with `--machine-auth-token`
+  pointing to this file.
 
   This mode is suitable for remote execution environments where auth token files are pre-mounted or made available through
   other mechanisms. **Requires popili 1.5.2 or later.** rules_coco does not check either requirement: without an
@@ -35,10 +44,10 @@ Contact [Cocotec Support](https://cocotec.io/support/) to set this up or discuss
 - `local_acquire`: rules_coco acquires a license on the local machine with `COCOTEC_AUTH_TOKEN`. Bazel reads the
   token from your shell when it fetches the license repository, so export it and pass `--repo_env=COCOTEC_AUTH_TOKEN`;
   without it popili fails at its first action. Not compatible with remote execution.
-- `local_user`: The user's existing license on this machine will be reused. This is not compatible with remote
-  execution. Each popili version gets the license file it reads (`licenses_<n>.lic` in popili's data directory, `n`
-  being its licence protocol version); the local toolchain, of unknown version, gets the file of the newest protocol
-  version, unless it sets `license_protocol_version`.
+- `local_user`: rules_coco reuses the license already activated on this machine, from popili's data directory:
+  `~/Library/Application Support/Popili` on macOS, `%LOCALAPPDATA%\Popili` on Windows, or `$XDG_DATA_HOME/popili` (by
+  default `~/.local/share/popili`) on Linux. `POPILI_DATA` overrides it. Not compatible with remote execution. A
+  [local toolchain](toolchains.md#using-a-local-toolchain) may need `license_protocol_version`.
 - `token`: The explicitly provided token should be used as `COCOTEC_AUTH_TOKEN`. In this case,
   `--@rules_coco//:license_token` must be set as well. This works with remote execution but it is only recommended when
   using workload identity federation as `COCOTEC_AUTH_TOKEN` is not a secret in that case.
