@@ -1,0 +1,9 @@
+# Configuration for the dead link checker (https://lychee.cli.rs), run in CI on every Markdown file.
+include_fragments = "anchor-only"
+exclude_path = ["bazel-.*"]
+exclude = [
+  # Installation snippets use VERSION as a placeholder for a release.
+  'VERSION',
+  # Stardoc links attributes to anchors that bazel.build creates with JavaScript, so they cannot be checked.
+  '^https://bazel\.build/reference/be/common-definitions#',
+]

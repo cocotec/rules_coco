@@ -70,6 +70,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The documentation moved out of the README into guides under [`docs/`](docs/README.md); the README links to
+  them, starting with a new getting-started guide. The generated API reference moved from `docs/*.md` to
+  [`docs/reference/`](docs/reference/README.md).
 - **Breaking:** `coco_generate`'s `mocks` attribute is replaced by the `coco_package` attributes `cpp_mocks` and
   `csharp_mocks`, which mirror `generator.cpp.generateMocks` and `generator.csharp.generateMocks` like the other
   generator attributes. Replace `mocks = True` on the `coco_generate` with `cpp_mocks = "GMock"` (or
@@ -172,7 +175,7 @@ root>.cs`;
 - The local toolchain (`coco.local_toolchain` in bzlmod, `coco_local_repositories` in WORKSPACE) is
   now constrained to the host's OS and CPU.
 - `coco_repositories(versions = [...])` was accepted but silently ignored in WORKSPACE mode, so a
-  workspace following the README's "Popili Version" section got `stable` instead of the versions it
+  workspace following the [Popili versions](docs/popili-versions.md) guide got `stable` instead of the versions it
   asked for. It is now honoured — check that your default version has not moved.
 - The `.bat`/`.sh` wrapper and typecheck scripts followed the target platform instead of the exec
   platform the popili binary was resolved for. Cross-compiling with `--platforms` for Windows from
@@ -278,5 +281,7 @@ Initial public release of Bazel rules for Popili.
 - macOS: aarch64
 - Windows: x86_64
 
-[Unreleased]: https://github.com/cocotec/rules_coco/compare/0.1.0...HEAD
-[0.1.0]: https://github.com/cocotec/rules_coco/releases/tag/0.1.0
+[Unreleased]: https://github.com/cocotec/rules_coco/compare/0.3.4...HEAD
+[0.3.0]: https://github.com/cocotec/rules_coco/releases/tag/0.3.0
+[0.2.0]: https://github.com/cocotec/rules_coco/releases/tag/0.2.0
+[0.1.1]: https://github.com/cocotec/rules_coco/releases/tag/0.1.1

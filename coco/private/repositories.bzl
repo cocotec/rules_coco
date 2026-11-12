@@ -99,8 +99,8 @@ def coco_repositories(
         `license_source` is 'action_file'. The file must be available in the execution
         environment.
       cc_runtime_extra_deps: cc_library labels appended to the Coco C++ runtime's deps.
-        Use this to supply Boost (or equivalent) libraries on old compilers; see the
-        rules_coco README. A list applies to every registered version, including
+        Use this to supply Boost (or equivalent) libraries on old compilers; see
+        [Older C++ compilers](../old-compilers.md). A list applies to every registered version, including
         `local_popili`; a dict maps a version (or alias, or "local") to the labels for
         that version alone. Labels are written
         verbatim into a generated repository, so they must be repository-absolute.

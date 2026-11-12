@@ -20,7 +20,7 @@ coco.toolchain(<a href="#coco.toolchain-auth_token_path">auth_token_path</a>, <a
 
 ### cc_runtime_deps
 
-Inject extra cc_library deps into the Coco C++ runtime for a specific Coco/Popili version. Root-module only. See the rules_coco README for when this is needed (typically Boost libraries when building against old libstdc++).
+Inject extra cc_library deps into the Coco C++ runtime for a specific Coco/Popili version. Root-module only. See [Older C++ compilers](../old-compilers.md) for when this is needed (typically Boost libraries when building against old libstdc++).
 
 **Attributes**
 
@@ -33,7 +33,7 @@ Inject extra cc_library deps into the Coco C++ runtime for a specific Coco/Popil
 
 ### local_toolchain
 
-Register a Coco toolchain from a popili distribution on the local filesystem, instead of fetching a published release. Root-module only, at most once. Used only under --@rules_coco//:version=local. Paths mirror the extracted release archive layout; see the rules_coco README.
+Register a Coco toolchain from a popili distribution on the local filesystem, instead of fetching a published release. Root-module only, at most once. Used only under --@rules_coco//:version=local. Paths mirror the extracted release archive layout; see [Custom toolchains](../toolchains.md).
 
 **Attributes**
 

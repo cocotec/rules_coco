@@ -15,11 +15,11 @@ repos:
         args: [--unsafe] # Allow custom YAML tags
       - id: check-toml
       - id: end-of-file-fixer
-        exclude: ^(docs/|coco/private/known_shas\.bzl$)
+        exclude: ^(docs/reference/|coco/private/known_shas\.bzl$)
       - id: mixed-line-ending
         args: [--fix=lf]
       - id: trailing-whitespace
-        exclude: ^(docs/|coco/private/known_shas\.bzl$)
+        exclude: ^(docs/reference/|coco/private/known_shas\.bzl$)
   - repo: https://github.com/keith/pre-commit-buildifier
     rev: 8.5.1
     hooks:
@@ -38,7 +38,7 @@ repos:
     rev: v3.1.0
     hooks:
       - id: prettier
-        exclude: ^(docs/|renovate\.json$)
+        exclude: ^(docs/reference/|renovate\.json$)
         types_or:
           - markdown
           - yaml
@@ -47,3 +47,13 @@ repos:
     rev: v1.52.0
     hooks:
       - id: typos
+  - repo: https://github.com/lycheeverse/lychee
+    rev: lychee-v0.24.2
+    hooks:
+      # Needs lychee on PATH (brew install lychee). Offline: links between the repository's
+      # own files and their anchors only; CI checks external links. Every Markdown file is
+      # checked, as renaming a heading breaks links in files that are not staged.
+      - id: lychee-system
+        args: ["--no-progress", "--offline", "./**/*.md"]
+        pass_filenames: false
+        files: \.md$

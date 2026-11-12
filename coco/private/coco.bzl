@@ -567,7 +567,7 @@ def _toolchain_version_mismatch_message(label, version, source, toolchain_label,
 
     Only a bring-your-own toolchain gets here: the hub's toolchain() entries carry target_settings
     on the version flag, so each resolves for its own version only, whereas a bring-your-own one,
-    registered without target_settings as the README shows, serves every target.
+    registered without target_settings as docs/toolchains.md shows, serves every target.
 
     Args:
         label: The failing target's label.

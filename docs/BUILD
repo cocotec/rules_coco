@@ -19,35 +19,35 @@ load("@stardoc//stardoc:stardoc.bzl", "stardoc")
 # Generate documentation for main public API
 stardoc(
     name = "defs",
-    out = "defs.md",
+    out = "reference/defs.md",
     input = "//coco:defs.bzl",
     deps = ["//coco:defs"],
 )
 
 stardoc(
     name = "cc",
-    out = "cc.md",
+    out = "reference/cc.md",
     input = "//coco:cc.bzl",
     deps = ["//coco:cc"],
 )
 
 stardoc(
     name = "c",
-    out = "c.md",
+    out = "reference/c.md",
     input = "//coco:c.bzl",
     deps = ["//coco:c"],
 )
 
 stardoc(
     name = "repositories",
-    out = "repositories.md",
+    out = "reference/repositories.md",
     input = "//coco:repositories.bzl",
     deps = ["//coco:repositories"],
 )
 
 stardoc(
     name = "extensions",
-    out = "extensions.md",
+    out = "reference/extensions.md",
     input = "//coco:extensions.bzl",
     deps = ["//coco:extensions"],
 )
@@ -56,11 +56,11 @@ stardoc(
 filegroup(
     name = "docs",
     srcs = [
-        "c.md",
-        "cc.md",
-        "defs.md",
-        "extensions.md",
-        "repositories.md",
+        "reference/c.md",
+        "reference/cc.md",
+        "reference/defs.md",
+        "reference/extensions.md",
+        "reference/repositories.md",
     ],
     visibility = ["//visibility:public"],
 )

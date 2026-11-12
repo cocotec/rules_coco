@@ -1,0 +1,88 @@
+# Defining packages
+
+For each `Coco.toml` file add the following to your `BUILD` file:
+
+```starlark
+load("@rules_coco//coco:defs.bzl", "coco_package")
+
+coco_package(
+    name = "my_package",
+    srcs = glob(["*.coco"]),
+    package = "Coco.toml",
+)
+```
+
+If the `Coco.toml` file has dependencies then these need to be mirrored in the `BUILD` file:
+
+```starlark
+load("@rules_coco//coco:defs.bzl", "coco_package")
+
+coco_package(
+    name = "my_package",
+    srcs = glob(["*.coco"]),
+    package = "Coco.toml",
+    deps = [
+        "//my:other_pkg",
+    ]
+)
+```
+
+To enable type checking as part of the build, add `typecheck = True`:
+
+```starlark
+coco_package(
+    name = "my_package",
+    srcs = glob(["*.coco"]),
+    package = "Coco.toml",
+    typecheck = True,  # Validates types before code generation
+)
+```
+
+When enabled, any target depending on this package (such as `coco_generate`) will wait for typecheck to pass.
+
+## Where generated code goes
+
+`coco_generate` writes all generated code, including test code and mocks, to a directory of its own:
+
+```
+bazel-bin/<package path>/_coco/<generate name>/<includePrefix>/<path below the source root>
+```
+
+`<package path>` is the directory of the `BUILD` file declaring the `coco_generate` (below `external/<repo>/` for
+another repository) and `<generate name>` is its `name`. Every library built from the target gets the part up to
+the name as a quote include directory, so a header is included by what follows it: the package's `includePrefix`,
+empty by default, then the path of its source relative to its source root. That is how popili's own generated code
+includes it, so hand-written code includes it the same way and `coco_cc_library` and `coco_c_library` need no
+`includes` for generated headers.
+
+With `coco_generate(name = "motor_cpp")` in `hw/motor/BUILD`, `sources = ["src"]` and `includePrefix = "motor"`,
+`hw/motor/src/Foo.coco` becomes `bazel-bin/hw/motor/_coco/motor_cpp/motor/Foo.h`, included as
+`#include "motor/Foo.h"`. Mirror `includePrefix` on the `coco_package` with `cpp_include_prefix` (or
+`c_include_prefix`), like the other settings under [Output Paths](code-generation.md#output-paths).
+
+`outputDirectory` and `testOutputDirectory` in `Coco.toml` are ignored. If one package is generated for several
+languages, give each language different file extensions (see [Output Paths](code-generation.md#output-paths)) so that their files
+do not clash.
+
+> [!NOTE]
+> rules_coco 0.3 included generated headers by the path of their source file (`#include "pkg/src/Foo.h"`). See the
+> [changelog](../CHANGELOG.md) for how to update your include paths.
+
+To predict these paths, `coco_package` needs the source roots. If all `srcs` (or `test_srcs`) are below one
+directory, that directory is used. Otherwise, for example when a package has several roots, set `source_roots` (or
+`test_source_roots`):
+
+```starlark
+coco_package(
+    name = "my_package",
+    srcs = glob([
+        "src/**/*.coco",
+        "interfaces/**/*.coco",
+    ]),
+    package = "Coco.toml",
+    source_roots = [
+        "src",
+        "interfaces",
+    ],  # Must match package.sources in Coco.toml
+)
+```

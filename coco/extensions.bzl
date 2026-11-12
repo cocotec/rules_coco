@@ -134,7 +134,7 @@ _toolchain_tag = tag_class(
 _cc_runtime_deps_tag = tag_class(
     doc = (
         "Inject extra cc_library deps into the Coco C++ runtime for a specific " +
-        "Coco/Popili version. Root-module only. See the rules_coco README for " +
+        "Coco/Popili version. Root-module only. See [Older C++ compilers](../old-compilers.md) for " +
         "when this is needed (typically Boost libraries when building against old libstdc++)."
     ),
     attrs = {
@@ -154,7 +154,7 @@ _local_toolchain_tag = tag_class(
         "Register a Coco toolchain from a popili distribution on the local filesystem, " +
         "instead of fetching a published release. Root-module only, at most once. Used " +
         "only under --@rules_coco//:version=local. Paths mirror the extracted release " +
-        "archive layout; see the rules_coco README."
+        "archive layout; see [Custom toolchains](../toolchains.md)."
     ),
     attrs = {
         "c_runtime": attr.string(
