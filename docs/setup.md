@@ -63,9 +63,8 @@ coco_repositories(
 For a single version, `coco_repositories(version = "1.5.1", ...)` is a shorthand for `versions = ["1.5.1"]`. The two
 are mutually exclusive, and with neither, `stable` is registered.
 
-In `WORKSPACE` mode the repository must be named `rules_coco`: the generated toolchain hub
-refers to `@rules_coco//:version` and `@rules_coco//coco:toolchain_type` by absolute label, and
-repositories created by a repository rule have no repository mapping to rewrite them.
+In `WORKSPACE` mode the `http_archive` must be named `rules_coco`, because the repositories rules_coco generates refer
+to `@rules_coco` by absolute label.
 
 See the [repository rules reference](reference/repositories.md) for every `coco_repositories` argument.
 
