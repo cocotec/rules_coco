@@ -25,7 +25,7 @@ target, for example `bazel build //path/to:my_component_arch`, and find them in 
 counterexample diagrams are named after the keys of `components` and `counterexamples` (here `my_component.svg`);
 state diagrams are named as described below.
 
-### Architecture Diagrams
+### Architecture diagrams
 
 Generate component architecture diagrams showing the structure and connections of your components:
 
@@ -60,7 +60,7 @@ Other options: `depth` (how many levels to draw: an integer such as `"2"`, `"aut
 `component_names`, and `component_types` (on by default). The [reference](reference/defs.md#coco_architecture_diagram)
 lists every attribute with its default.
 
-### State Machine Diagrams
+### State machine diagrams
 
 Generate state machine diagrams:
 
@@ -79,7 +79,7 @@ The diagram is written to `<name>.svg`. Without `targets`, that one file shows e
 `targets`, each gets its own file, `<name>_<target>.svg`, with the dots in the target replaced by underscores
 (`my_state_machine_MyComponent_MyMachine.svg`).
 
-### Counterexample Diagrams
+### Counterexample diagrams
 
 Generate sequence diagrams for verification failures. You must specify the expected counterexamples as a dict mapping
 output file names to the declaration whose counterexample to draw, such as a component name:
@@ -98,11 +98,11 @@ coco_counterexample_diagram(
 )
 ```
 
-`draw_title` (default `True`) draws a border and title on each diagram. `deterministic` (default `True`) makes popili
+`draw_title` (default `True`) draws a border and title on each diagram. `deterministic` (default `True`) makes Popili
 produce the same counterexample on every run, so the output is reproducible.
 
 For filtering by specific assertions, use the `counterexample_options()` helper. `assertion` is the name of a check as
-popili reports it in the verification results, such as `"Well-formedness"`. rules_coco passes it to
+Popili reports it in the verification results, such as `"Well-formedness"`. rules_coco passes it to
 `popili verify --counterexample-assertion`.
 
 ```starlark

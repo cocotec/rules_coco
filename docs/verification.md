@@ -13,13 +13,13 @@ coco_verify_test(
 
 ## Verification backend
 
-`--@rules_coco//:verification_backend` selects where popili runs verification:
+`--@rules_coco//:verification_backend` selects where Popili runs verification:
 
 - `local`: verify inside the test action.
 - `remote`: send verification to the remote verification service.
 - `attempt-remote`: try the remote service, and fall back to local verification if it is unavailable.
 
-When the flag is unset, rules_coco passes no backend and popili's own default applies.
+When the flag is unset, rules_coco passes no backend and Popili's own default applies.
 
 ```bash
 bazel test --@rules_coco//:verification_backend=remote //...
