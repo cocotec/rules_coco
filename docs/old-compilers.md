@@ -20,6 +20,8 @@ coco.cc_runtime_deps(
 )
 ```
 
+`coco.cc_runtime_deps` is allowed only in the root module, so a library module cannot add Boost for its consumers.
+
 ## Some builds use GCC 4.x, some don't
 
 `MODULE.bazel` is evaluated before `select()` fires, so the conditional lives in a target you own:
