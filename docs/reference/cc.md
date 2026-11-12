@@ -34,12 +34,12 @@ an error.
 
 | Name  | Description | Default Value |
 | :------------- | :------------- | :------------- |
-| <a id="coco_cc_library-name"></a>name |  The name of the library   |  none |
+| <a id="coco_cc_library-name"></a>name |  The name of the library target.   |  none |
 | <a id="coco_cc_library-generated_package"></a>generated_package |  A coco_generate target (mutually exclusive with generated_packages)   |  `None` |
 | <a id="coco_cc_library-generated_packages"></a>generated_packages |  Multiple coco_generate targets to merge into one library   |  `[]` |
-| <a id="coco_cc_library-srcs"></a>srcs |  Additional C++ source files   |  `[]` |
-| <a id="coco_cc_library-hdrs"></a>hdrs |  Additional C++ header files   |  `[]` |
-| <a id="coco_cc_library-deps"></a>deps |  Additional dependencies   |  `[]` |
+| <a id="coco_cc_library-srcs"></a>srcs |  Hand-written C++ sources to add to the library.   |  `[]` |
+| <a id="coco_cc_library-hdrs"></a>hdrs |  Hand-written C++ headers to add to the library.   |  `[]` |
+| <a id="coco_cc_library-deps"></a>deps |  Other `cc_library` targets the library depends on, such as the library of each package this package depends on.   |  `[]` |
 | <a id="coco_cc_library-public_hdrs"></a>public_hdrs |  List of generated header names to make public, or None for all   |  `None` |
 | <a id="coco_cc_library-popili_version"></a>popili_version |  The registered popili version whose runtime the library links, such as `"1.5.1"` or an alias such as `"stable"`. It also applies to the coco_generate targets the library builds from, but not to `deps`. A generator pinned to another version is an error, so pin a generator and its library alike. Empty (the default) uses the version `--@rules_coco//:version` selects, or the first registered version.   |  `""` |
 | <a id="coco_cc_library-library_rule"></a>library_rule |  The rule or macro that compiles the library, such as a wrapper of cc_library adding your project's defaults. It is called with cc_library's attributes. None means rules_cc's cc_library.   |  `None` |
@@ -78,12 +78,12 @@ header is an error.
 
 | Name  | Description | Default Value |
 | :------------- | :------------- | :------------- |
-| <a id="coco_cc_test_library-name"></a>name |  The name of the test library   |  none |
+| <a id="coco_cc_test_library-name"></a>name |  The name of the test library target.   |  none |
 | <a id="coco_cc_test_library-generated_package"></a>generated_package |  A `coco_generate` target whose package sets `cpp_mocks` (mutually exclusive with `generated_packages`)   |  `None` |
 | <a id="coco_cc_test_library-generated_packages"></a>generated_packages |  Multiple coco_generate targets to merge into one library   |  `[]` |
-| <a id="coco_cc_test_library-srcs"></a>srcs |  Additional C++ source files   |  `[]` |
-| <a id="coco_cc_test_library-hdrs"></a>hdrs |  Additional C++ header files   |  `[]` |
-| <a id="coco_cc_test_library-deps"></a>deps |  Additional dependencies   |  `[]` |
+| <a id="coco_cc_test_library-srcs"></a>srcs |  Hand-written C++ sources to add to the library.   |  `[]` |
+| <a id="coco_cc_test_library-hdrs"></a>hdrs |  Hand-written C++ headers to add to the library.   |  `[]` |
+| <a id="coco_cc_test_library-deps"></a>deps |  Other `cc_library` targets the library depends on, such as the library of each package this package depends on.   |  `[]` |
 | <a id="coco_cc_test_library-public_hdrs"></a>public_hdrs |  List of generated test header names to make public, or None for all   |  `None` |
 | <a id="coco_cc_test_library-gmock"></a>gmock |  The GoogleTest/GoogleMock library (default: @googletest//:gtest). Set to None to omit.   |  `"@googletest//:gtest"` |
 | <a id="coco_cc_test_library-popili_version"></a>popili_version |  The registered popili version whose runtime the library links, such as `"1.5.1"` or an alias such as `"stable"`. It also applies to the coco_generate targets the library builds from, but not to `deps` or `gmock`. A generator pinned to another version is an error, so pin a generator and its library alike. Empty (the default) uses the version `--@rules_coco//:version` selects, or the first registered version.   |  `""` |

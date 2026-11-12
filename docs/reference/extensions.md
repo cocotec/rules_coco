@@ -54,11 +54,11 @@ Register Coco toolchains for one or more popili versions. Every module declaring
 
 | Name  | Description | Type | Mandatory | Default |
 | :------------- | :------------- | :------------- | :------------- | :------------- |
-| <a id="coco.toolchain-auth_token_path"></a>auth_token_path |  Optional path to auth token file for all toolchains when `license_source` is `"action_file"`. The file must be available in the execution environment.   | String | optional |  `""`  |
-| <a id="coco.toolchain-c"></a>c |  Whether to include C runtime support.   | Boolean | optional |  `False`  |
-| <a id="coco.toolchain-cc"></a>cc |  Whether to include C++ runtime support.   | Boolean | optional |  `False`  |
-| <a id="coco.toolchain-license_source"></a>license_source |  Optional default license source mode for all toolchains (`"local_user"`, `"local_acquire"`, `"token"`, `"action_environment"` or `"action_file"`). Can be overridden with the `--@rules_coco//:license_source` flag.   | String | optional |  `""`  |
-| <a id="coco.toolchain-license_token"></a>license_token |  Optional default license token for all toolchains when `license_source` is `"token"`.   | String | optional |  `""`  |
-| <a id="coco.toolchain-versions"></a>versions |  List of Popili versions to register (e.g. `["1.5.1", "1.5.0"]`). Use version aliases like `"stable"` or explicit versions like `"1.5.1"`. The first version is the one used when `--@rules_coco//:version` is unset.   | List of strings | optional |  `["stable"]`  |
+| <a id="coco.toolchain-auth_token_path"></a>auth_token_path |  Path to the auth token file for `"action_file"` mode. The file must exist wherever actions run.   | String | optional |  `""`  |
+| <a id="coco.toolchain-c"></a>c |  Register the C runtime, needed by `coco_c_library` and `coco_c_test_library`. A runtime is registered when any module's tag asks for it. Default: `False`; when no module declares `coco.toolchain`, both runtimes are registered.   | Boolean | optional |  `False`  |
+| <a id="coco.toolchain-cc"></a>cc |  Register the C++ runtime, needed by `coco_cc_library` and `coco_cc_test_library`. A runtime is registered when any module's tag asks for it. Default: `False`; when no module declares `coco.toolchain`, both runtimes are registered.   | Boolean | optional |  `False`  |
+| <a id="coco.toolchain-license_source"></a>license_source |  Default licence mode for every toolchain rules_coco generates: `"local_user"`, `"local_acquire"`, `"token"`, `"action_environment"` or `"action_file"`; see [Licensing](../licensing.md#licence-modes). Empty means `"local_user"`. The `--@rules_coco//:license_source` flag overrides it. When several modules set it, the first wins.   | String | optional |  `""`  |
+| <a id="coco.toolchain-license_token"></a>license_token |  The licence token for `"token"` mode.   | String | optional |  `""`  |
+| <a id="coco.toolchain-versions"></a>versions |  Popili versions to register, such as `["1.5.1", "1.5.0"]`: explicit versions or aliases like `"stable"`. The versions of every module's tags are combined in module order, root module first, and the first of them is the default, used when `--@rules_coco//:version` is unset.   | List of strings | optional |  `["stable"]`  |
 
 

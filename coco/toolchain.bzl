@@ -51,7 +51,7 @@ yourself only to bring your own popili: wrap it in a `toolchain()` with
 [Custom toolchains](../toolchains.md#bring-your-own-toolchain).""",
     attrs = {
         "auth_token_path": attr.string(
-            doc = "The path to auth token file to use when license_source is 'action_file'. The file must be available in the execution environment. Optional.",
+            doc = "Path to the auth token file for `\"action_file\"` mode. The file must exist wherever actions run.",
             default = "",
         ),
         "c_runtime": attr.label(
@@ -86,11 +86,15 @@ yourself only to bring your own popili: wrap it in a `toolchain()` with
             default = 0,
         ),
         "license_source": attr.string(
-            doc = "The license source mode for this toolchain. Can be 'local_user', 'local_acquire', 'token', 'action_environment', or 'action_file'. If not specified, defaults to 'local_user'. Can be overridden via --@rules_coco//:license_source flag.",
+            doc = (
+                "The licence mode for this toolchain: `\"local_user\"`, `\"local_acquire\"`, `\"token\"`, `\"action_environment\"` or `\"action_file\"`; see " +
+                "[Licensing](../licensing.md#licence-modes). Empty means `\"local_user\"`. The " +
+                "`--@rules_coco//:license_source` flag overrides it."
+            ),
             default = "",
         ),
         "license_token": attr.string(
-            doc = "The license token to use when license_source is 'token'. Optional.",
+            doc = "The licence token for `\"token\"` mode.",
             default = "",
         ),
         "popili_version": attr.string(

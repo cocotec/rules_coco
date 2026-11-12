@@ -45,12 +45,13 @@ def coco_c_library(
     an error.
 
     Args:
-        name: The name of the library
+        name: The name of the library target.
         generated_package: A coco_generate target (mutually exclusive with generated_packages)
         generated_packages: Multiple coco_generate targets to merge into one library
-        srcs: Additional C source files
-        hdrs: Additional C header files
-        deps: Additional dependencies
+        srcs: Hand-written C sources to add to the library.
+        hdrs: Hand-written C headers to add to the library.
+        deps: Other `cc_library` targets the library depends on, such as the library of each package this
+            package depends on.
         public_hdrs: List of generated header names to make public, or None for all
         popili_version: The registered popili version whose runtime the library links, such as
             `"1.5.1"` or an alias such as `"stable"`. It also applies to the coco_generate targets
@@ -104,12 +105,13 @@ def coco_c_test_library(
     header is an error.
 
     Args:
-        name: The name of the test library
+        name: The name of the test library target.
         generated_package: A coco_generate target whose package has test sources (mutually exclusive with generated_packages)
         generated_packages: Multiple coco_generate targets to merge into one library
-        srcs: Additional C source files
-        hdrs: Additional C header files
-        deps: Additional dependencies
+        srcs: Hand-written C sources to add to the library.
+        hdrs: Hand-written C headers to add to the library.
+        deps: Other `cc_library` targets the library depends on, such as the library of each package this
+            package depends on.
         public_hdrs: List of generated test header names to make public, or None for all
         gmock: The GoogleTest/GoogleMock library (default: @googletest//:gtest).
                Set to None to omit.

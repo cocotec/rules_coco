@@ -192,7 +192,9 @@ _coco_state_diagram = popili_rule(
         "targets": attr.string_list(
             default = [],
             doc = "Fully qualified names of the state machines, components or ports to draw, such as " +
-                  "`\"MyComponent.myPort.stateMachine\"`. Default: `[]`, which draws every state machine.",
+                  "`\"MyComponent.myPort.stateMachine\"`. With one target or none, the diagram is written to " +
+                  "`<name>.svg`. With several, each is written to `<name>_<target>.svg`, with the dots replaced " +
+                  "by underscores. Default: `[]`, which draws every state machine.",
         ),
     },
 )
