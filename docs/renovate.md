@@ -10,6 +10,7 @@ rules_coco releases are published to GitHub, some users operate behind corporate
 github.com.
 
 To support these users, rules_coco also publishes:
+
 - Release tarballs to: `https://dl.cocotec.io/rules_coco/`
 - A version manifest to: `https://dl.cocotec.io/rules_coco/renovate_versions.json`
 
@@ -50,6 +51,7 @@ so it works with or without GitHub access:
 ```
 
 This configuration:
+
 - Monitors your `MODULE.bazel` file for the rules_coco `archive_override`.
 - Uses the version manifest instead of GitHub, which also provides the `integrity` hash of each release.
 - Updates every URL in the `urls` list, as well as `integrity`, in the same pull request.
@@ -101,6 +103,7 @@ archive_override(
 ```
 
 **Important:** The configurations above only recognise an `archive_override` laid out like this example:
+
 - `module_name` must be the first argument.
 - `urls` must include the URL for the configuration you use (`dl.cocotec.io` or `github.com`).
 - For the recommended configuration, `integrity` must come after `urls`.

@@ -149,7 +149,7 @@ _toolchain_tag = tag_class(
 _cc_runtime_deps_tag = tag_class(
     doc = (
         "Inject extra cc_library deps into the Coco C++ runtime for a specific " +
-        "Coco/Popili version. Root-module only. See the rules_coco README for " +
+        "Coco/Popili version. Root-module only. See [Older C++ compilers](../old-compilers.md) for " +
         "when this is needed (typically Boost libraries when building against old libstdc++)."
     ),
     attrs = {
@@ -168,8 +168,8 @@ _cc_test_runtime_tag = tag_class(
     doc = (
         "Configure the GoogleMock library coco_cc_test_library links besides the C++ runtime, for " +
         "every registered version; required when a coco_cc_test_library compiles generated mocks. " +
-        "Root-module only, at most once. See the rules_coco README for choosing the library per " +
-        "build with select()."
+        "Root-module only, at most once. See [Mocks](../code-generation.md#mocks) for choosing the " +
+        "library per build with select()."
     ),
     attrs = {
         "gmock": attr.label(
@@ -187,7 +187,7 @@ _local_toolchain_tag = tag_class(
         "Register a Coco toolchain from a popili distribution on the local filesystem, " +
         "instead of fetching a published release. Root-module only, at most once. Used " +
         "only under --@rules_coco//:version=local. Paths mirror the extracted release " +
-        "archive layout; see the rules_coco README."
+        "archive layout; see [Custom toolchains](../toolchains.md)."
     ),
     attrs = {
         "c_runtime": attr.string(
