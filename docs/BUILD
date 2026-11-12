@@ -52,6 +52,13 @@ stardoc(
     deps = ["//coco:extensions"],
 )
 
+stardoc(
+    name = "toolchain",
+    out = "reference/toolchain.md",
+    input = "//coco:toolchain.bzl",
+    deps = ["//coco:toolchain"],
+)
+
 # Generate index/overview documentation
 filegroup(
     name = "docs",
@@ -61,6 +68,7 @@ filegroup(
         "reference/defs.md",
         "reference/extensions.md",
         "reference/repositories.md",
+        "reference/toolchain.md",
     ],
     visibility = ["//visibility:public"],
 )
