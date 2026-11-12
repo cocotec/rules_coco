@@ -19,7 +19,11 @@ coco.local_toolchain(
 
 Each path (absolute, or workspace-relative) mirrors the **extracted release archive layout** — i.e. the contents
 of `popili_<os>_<arch>.zip`, `coco-cpp-runtime.zip`, and `coco-c-runtime.zip` respectively. To use it, run with
-`bazel build --@rules_coco//:version=local //...` (consider a `.bazelrc` `--config`).
+`bazel build --@rules_coco//:version=local //...`. To select it with `--config=local_popili`, add to `.bazelrc`:
+
+```
+build:local_popili --@rules_coco//:version=local
+```
 
 The local toolchain is registered alongside the versions from `coco.toolchain` (or the default `stable`). Targets use
 those versions unless `--@rules_coco//:version=local` selects the local one, so the same build can switch between
