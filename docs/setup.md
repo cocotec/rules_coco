@@ -5,26 +5,8 @@ Each release lists the exact version and integrity hash to use in place of `VERS
 
 ## bzlmod (Recommended)
 
-Add the following to your `MODULE.bazel` file:
-
-```starlark
-bazel_dep(name = "rules_coco")
-archive_override(
-    module_name = "rules_coco",
-    urls = [
-        "https://github.com/cocotec/rules_coco/releases/download/VERSION/rules_coco_VERSION.tar.gz",
-        "https://dl.cocotec.io/rules_coco/rules_coco_VERSION.tar.gz",
-    ],
-    integrity = "sha256-HASH",  # See releases page
-)
-
-coco = use_extension("@rules_coco//coco:extensions.bzl", "coco")
-coco.toolchain(
-    versions = ["stable"],  # Or specify explicit versions like ["1.5.1"]
-    c = True,   # Enable C runtime (for coco_c_library)
-    cc = True,  # Enable C++ runtime (for coco_cc_library)
-)
-```
+Add rules_coco to `MODULE.bazel` as in [Getting started](getting-started.md#1-add-rules_coco-to-modulebazel), and
+enable the runtimes you need on `coco.toolchain`: `cc = True` for `coco_cc_library`, `c = True` for `coco_c_library`.
 
 Every module declaring `coco.toolchain` contributes its versions and runtimes. When no module in
 the dependency graph declares one, `stable` is registered with both runtimes.

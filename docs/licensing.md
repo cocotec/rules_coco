@@ -72,7 +72,6 @@ This can be configured in three ways (in order of precedence):
    coco.toolchain(
        versions = ["stable"],
        license_source = "local_acquire",  # Optional: set repository default
-       # license_token = "...",  # Optional: only needed when license_source = "token"
        # auth_token_path = "/path/to/token",  # Optional: only needed when license_source = "action_file"
    )
    ```
@@ -82,7 +81,6 @@ This can be configured in three ways (in order of precedence):
    coco_repositories(
        versions = ["stable"],
        license_source = "local_acquire",  # Optional: set repository default
-       # license_token = "...",  # Optional: only needed when license_source = "token"
        # auth_token_path = "/path/to/token",  # Optional: only needed when license_source = "action_file"
    )
    ```

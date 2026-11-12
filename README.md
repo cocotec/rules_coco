@@ -19,23 +19,11 @@ The rules are fully compatible with remote caching and execution.
 
 ## Documentation
 
-| Guide                                                      | Covers                                                                |
-| ---------------------------------------------------------- | --------------------------------------------------------------------- |
-| [Getting started](docs/getting-started.md)                 | A first package: install, verify, generate and build C++              |
-| [Setup](docs/setup.md)                                     | bzlmod and `WORKSPACE` installation, staying up to date with Renovate |
-| [Licensing](docs/licensing.md)                             | License modes for local builds, CI and remote execution               |
-| [Defining packages](docs/packages.md)                      | `coco_package`, dependencies, typechecking, where generated code goes |
-| [Generating code](docs/code-generation.md)                 | C++, C and C# generation, mirroring `Coco.toml` output settings       |
-| [Verification](docs/verification.md)                       | `coco_verify_test` and the verification backend                       |
-| [Formatting and diagrams](docs/formatting-and-diagrams.md) | `coco_fmt_test`, architecture, state and counterexample diagrams      |
-| [Popili versions](docs/popili-versions.md)                 | Registering several versions, pinning targets, version flags          |
-| [Custom toolchains](docs/toolchains.md)                    | A local popili distribution, or a toolchain of your own               |
-| [Older C++ compilers](docs/old-compilers.md)               | Supplying Boost for GCC 4.x                                           |
-| [Build flags](docs/flags.md)                               | Every `--@rules_coco//` flag and the license config settings          |
-| [Using Renovate](docs/renovate.md)                         | Automatic rules_coco updates, also behind a firewall                  |
-
-The [API reference](docs/reference/README.md) lists every rule, macro and attribute. Changes between releases are in
-the [changelog](CHANGELOG.md), and [CONTRIBUTING.md](CONTRIBUTING.md) explains how to work on rules_coco itself.
+- [Getting started](docs/getting-started.md)
+- [Documentation](docs/README.md)
+- [API reference](docs/reference/README.md)
+- [Changelog](CHANGELOG.md)
+- [Contributing](CONTRIBUTING.md)
 
 ## License
 

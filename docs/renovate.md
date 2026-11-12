@@ -3,22 +3,10 @@
 This guide explains how to use [Renovate](https://docs.renovatebot.com/) to automatically update your rules_coco
 dependency, especially for users who cannot access GitHub.
 
-## Background
-
-Renovate is a tool that automatically creates pull requests to update dependencies in your repositories. While
-rules_coco releases are published to GitHub, some users operate behind corporate firewalls that block access to
-github.com.
-
-To support these users, rules_coco also publishes:
-
-- Release tarballs to: `https://dl.cocotec.io/rules_coco/`
-- A version manifest to: `https://dl.cocotec.io/rules_coco/renovate_versions.json`
-
-## Why Custom Configuration is Needed
-
-rules_coco uses `archive_override` in `MODULE.bazel` to fetch releases directly from URLs. While Renovate has built-in
-support for Bazel's `MODULE.bazel` files, it does **not** automatically detect or update `archive_override`
-declarations.
+rules_coco is fetched with `archive_override`, which Renovate's Bazel support does not update, so it needs the custom
+configuration below. Because some users cannot reach github.com, rules_coco also publishes its release tarballs to
+`https://dl.cocotec.io/rules_coco/` and a version manifest to `https://dl.cocotec.io/rules_coco/renovate_versions.json`,
+which the recommended configuration uses.
 
 ## Recommended Configuration
 
@@ -87,22 +75,10 @@ with the value from the [release notes](https://github.com/cocotec/rules_coco/re
 
 ## Example MODULE.bazel
 
-Make sure your `MODULE.bazel` includes the dl.cocotec.io URL:
+Make sure your `MODULE.bazel` lists the `dl.cocotec.io` URL, as the snippet in
+[Getting started](getting-started.md#1-add-rules_coco-to-modulebazel) does.
 
-```starlark
-bazel_dep(name = "rules_coco")
-
-archive_override(
-    module_name = "rules_coco",
-    urls = [
-        "https://github.com/cocotec/rules_coco/releases/download/0.1.3/rules_coco_0.1.3.tar.gz",
-        "https://dl.cocotec.io/rules_coco/rules_coco_0.1.3.tar.gz",
-    ],
-    integrity = "sha256-...",
-)
-```
-
-**Important:** The configurations above only recognise an `archive_override` laid out like this example:
+**Important:** The configurations above only recognise an `archive_override` laid out like that snippet:
 
 - `module_name` must be the first argument.
 - `urls` must include the URL for the configuration you use (`dl.cocotec.io` or `github.com`).

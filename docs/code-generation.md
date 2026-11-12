@@ -55,10 +55,6 @@ Besides `generated_package`, `coco_cc_library` and `coco_c_library` (and their t
 Any other attribute, such as `copts` or `visibility`, is passed on to the rule that compiles the library:
 `library_rule` when set, otherwise rules_cc's `cc_library`.
 
-> [!IMPORTANT]
-> Your Coco.toml file must set `generator.cpp.runtimeHeaderFileExtension` to `.h` if you use a custom value for
-> `generator.cpp.headerFileExtension`.
-
 ## C Code Generation
 
 Enable the C runtime with `c = True` on `coco.toolchain` (or `coco_repositories`):
@@ -105,10 +101,6 @@ cc_binary(
 
 `coco_c_test_library` compiles the generated C test code; see [Test code and mocks](#test-code-and-mocks).
 
-> [!IMPORTANT]
-> Your Coco.toml file must set `generator.c.runtimeHeaderFileExtension` to `.h` if you use a custom value for
-> `generator.c.headerFileExtension`.
-
 ## Output Paths
 
 Bazel has to be able to precompute the output paths of all rules. Since there are many settings in `Coco.toml` that
@@ -131,6 +123,10 @@ implementationFileExtension = ".cpp"
 fileNameMangler = "LowerUnderscore"
 includePrefix = "motor"
 ```
+
+> [!IMPORTANT]
+> With a custom `headerFileExtension` in `[generator.cpp]` or `[generator.c]`, `Coco.toml` must also set
+> `runtimeHeaderFileExtension = ".h"` in the same section.
 
 Then this would require the following in your `BUILD` file:
 
@@ -172,6 +168,8 @@ Each package in a `*_regenerate_packages` list must be a dependency of the packa
 package in `deps`, because popili only regenerates dependencies. Otherwise the build fails with
 `... is not a dependency of ...`.
 
+### Include prefixes
+
 Mirror the package's _effective_ value: the one in its own `Coco.toml`, or else the one it inherits from its
 workspace's `Coco.toml` or receives from a dependency with `exportConfig = true` (see the popili documentation
 on `includePrefix`). A wrong `cpp_include_prefix` or `c_include_prefix` fails when compiling the package's own generated code, as popili
@@ -185,6 +183,8 @@ The path in the message names the value to set. Keep the two equal even for a pa
 small package may compile despite a mismatch, as its sources find headers in their own directory, and the packages
 that later depend on it fail instead.
 
+### Header name collisions
+
 Two unrelated packages may both have `src/Types.coco`. Hand-written code including `"Types.h"` gets the copy from
 whichever include directory comes first on the compiler's command line. Generated code finds its own package's copy,
 as the including file's directory is searched first, but with `includeGuardStyle = "IncludeGuard"` both copies share
@@ -192,10 +192,6 @@ the guard `TYPES_H`, so a file that reaches both through generated headers silen
 packages an `includePrefix`. The same holds for a dependency regenerated through `regeneratePackages` under the same
 prefix as the original: link only one copy. A hand-written `Foo.h` beside a `.cc` file shadows a generated one, for
 the same reason. `shortenIncludes = "SameDirectory"` does not work across packages; leave it unset.
-
-Mocks are no exception: set `generateMocks = "GMock"` in `Coco.toml` _and_ `cpp_mocks = "GMock"` on `coco_package`
-to get mocks for `coco_cc_test_library`. With only the attribute set, the build fails with
-`output ... was not created`; with only the setting, popili writes mocks that no target uses.
 
 ## Test code and mocks
 
@@ -236,6 +232,10 @@ cc_test(
 )
 ```
 
+Mocks are no exception: set `generateMocks = "GMock"` in `Coco.toml` _and_ `cpp_mocks = "GMock"` on `coco_package`
+to get mocks for `coco_cc_test_library`. With only the attribute set, the build fails with
+`output ... was not created`; with only the setting, popili writes mocks that no target uses.
+
 The test libraries link GoogleTest through `gmock`, which defaults to `@googletest//:gtest`. Add
 `bazel_dep(name = "googletest", version = "...")` to `MODULE.bazel`, or set `gmock` to another target, or to `None` to
 leave GoogleTest out. Set `test_source_roots` for `test_srcs` in the same cases as `source_roots` (see
@@ -257,9 +257,6 @@ coco_generate(
     package = ":my_package",
 )
 ```
-
-The generated files are written to `bazel-bin/<package path>/_coco/<generate name>/<path below the source root>`,
-see [Where Generated Code Goes](packages.md#where-generated-code-goes).
 
 **Note:** C# code generation produces `.cs` files but does not include compilation support. Bazel's C# rules are currently too primitive to provide a good integration. The generated C# files can be consumed by other build systems or IDEs.
 

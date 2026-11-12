@@ -116,6 +116,4 @@ Naming a version that was not registered is an error. Unlike the bzlmod tag, the
 resolved against your workspace before being written into the generated runtime repository, so
 they must be repository-absolute (`@my_workspace//...`, not `//...`).
 
-Which target you name is an independent choice: the three patterns above describe that, and all
-three work here unchanged — Boost directly, a `cc_library` wrapping a `select()`, or a `label_flag`.
-Only the spelling differs between the two modes.
+All three patterns above work here unchanged; only the spelling of the labels differs.

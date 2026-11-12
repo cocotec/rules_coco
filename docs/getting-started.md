@@ -75,12 +75,10 @@ cc_binary(
 ```
 
 > [!IMPORTANT]
-> This example assumes your `Coco.toml` keeps popili's default generator settings. Bazel must know every output file
-> before popili runs, so each `[generator.cpp]`, `[generator.c]` or `[generator.csharp]` setting that changes output
-> paths has to be repeated on `coco_package`. Examples are file extensions, file name prefixes, `fileNameMangler`,
-> `includePrefix`, `regeneratePackages` and `generateMocks`. For example, `headerFileExtension = ".hpp"` needs
-> `cpp_header_file_extension = ".hpp"` (and `runtimeHeaderFileExtension = ".h"` in `Coco.toml`). If a setting is
-> missing, the build fails with `output '...' was not created` or a missing include. See [Output paths](code-generation.md#output-paths) for every setting and its attribute.
+> This example assumes your `Coco.toml` keeps popili's default generator settings. Each `[generator.cpp]`,
+> `[generator.c]` or `[generator.csharp]` setting that changes output paths, such as `headerFileExtension`, has to be
+> repeated on `coco_package`, or the build fails with `output '...' was not created`. See
+> [Output paths](code-generation.md#output-paths).
 
 ## 4. Build and test
 
