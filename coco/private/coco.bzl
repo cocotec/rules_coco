@@ -1317,41 +1317,43 @@ def _coco_package_impl(ctx):
 def _include_prefix_doc(language, section):
     return ("Must match the package's effective `generator.%s.includePrefix`: the value in its Coco.toml, or " % section +
             "else the one it inherits from its workspace or receives from a dependency with `exportConfig = true`. " +
-            "Default `\"\"`, popili's default. Generated %s headers are included as `<prefix>/<path below the " % language +
+            "Generated %s headers are included as `<prefix>/<path below the " % language +
             "source root>`, the way popili's own generated code includes them: `#include \"Foo.h\"` by default, " +
             "`#include \"motor/Foo.h\"` for `\"motor\"`. A mismatch fails when compiling this package's generated " +
-            "code, with the header not found under the Coco.toml prefix.")
+            "code, with the header not found under the `Coco.toml` prefix. Default: `\"\"`, popili's default.")
 
 # The coco_package attributes that mirror the [generator.<language>] settings in Coco.toml, which
 # coco_generate needs to predict the files popili writes.
 _GENERATOR_ATTRIBUTES = {
     "c_file_name_mangler": attr.string(
         default = "Unaltered",
-        doc = "C file naming style. Must match Coco.toml generator.c.fileNameMangler. " +
-              "Options: \"Unaltered\" (default), \"UnalteredButValid\", \"LowerCamelCase\", " +
-              "\"LowerCamelCasePrefixUnderscore\", \"UpperCamelCase\", \"LowerUnderscore\", " +
-              "\"UpperUnderscore\", \"CapsUpperUnderscore\".",
+        doc = "C file naming style. Must match `generator.c.fileNameMangler` in `Coco.toml`. " +
+              "One of `\"Unaltered\"`, `\"UnalteredButValid\"`, `\"LowerCamelCase\"`, " +
+              "`\"LowerCamelCasePrefixUnderscore\"`, `\"UpperCamelCase\"`, `\"LowerUnderscore\"`, " +
+              "`\"UpperUnderscore\"`, `\"CapsUpperUnderscore\"`. Default: `\"Unaltered\"`.",
     ),
     "c_flat_file_hierarchy": attr.bool(
         default = False,
-        doc = "Use a flat directory structure for C files. Must match " +
-              "Coco.toml generator.c.flatFileHierarchy. Disabled by default.",
+        doc = "Use a flat directory structure for the C files. Must match " +
+              "`generator.c.flatFileHierarchy` in `Coco.toml`. Default: `False`.",
     ),
     "c_header_file_extension": attr.string(
         default = ".h",
-        doc = "File extension for C headers. Defaults to \".h\".",
+        doc = "File extension of C headers. Must match `generator.c.headerFileExtension` in `Coco.toml`. Default: `\".h\"`.",
     ),
     "c_header_file_prefix": attr.string(
         default = "",
-        doc = "Prefix for C header file names. Empty by default.",
+        doc = "Prefix of C header file names. Must match `generator.c.headerFilePrefix` in `Coco.toml`. Default: `\"\"`.",
     ),
     "c_implementation_file_extension": attr.string(
         default = ".c",
-        doc = "File extension for C implementation files. Defaults to \".c\".",
+        doc = "File extension of C implementation files. Must match `generator.c.implementationFileExtension` in " +
+              "`Coco.toml`. Default: `\".c\"`.",
     ),
     "c_implementation_file_prefix": attr.string(
         default = "",
-        doc = "Prefix for C implementation file names. Empty by default.",
+        doc = "Prefix of C implementation file names. Must match `generator.c.implementationFilePrefix` in " +
+              "`Coco.toml`. Default: `\"\"`.",
     ),
     "c_include_prefix": attr.string(
         doc = _include_prefix_doc("C", "c"),
@@ -1359,36 +1361,40 @@ _GENERATOR_ATTRIBUTES = {
     "c_regenerate_packages": attr.label_list(
         providers = [CocoPackageInfo],
         default = [],
-        doc = "Other coco_package targets to regenerate with this package's C generator settings, each " +
-              "a direct or transitive dep. Must match Coco.toml generator.c.regeneratePackages.",
+        doc = "Other `coco_package` targets to regenerate with this package's C generator settings, each " +
+              "a direct or transitive dep. Must match `generator.c.regeneratePackages` in `Coco.toml`. " +
+              "Default: `[]`.",
     ),
     "cpp_file_name_mangler": attr.string(
         default = "Unaltered",
-        doc = "C++ file naming style. Must match Coco.toml generator.cpp.fileNameMangler. " +
-              "Options: \"Unaltered\" (default), \"UnalteredButValid\", \"LowerCamelCase\", " +
-              "\"LowerCamelCasePrefixUnderscore\", \"UpperCamelCase\", \"LowerUnderscore\", " +
-              "\"UpperUnderscore\", \"CapsUpperUnderscore\".",
+        doc = "C++ file naming style. Must match `generator.cpp.fileNameMangler` in `Coco.toml`. " +
+              "One of `\"Unaltered\"`, `\"UnalteredButValid\"`, `\"LowerCamelCase\"`, " +
+              "`\"LowerCamelCasePrefixUnderscore\"`, `\"UpperCamelCase\"`, `\"LowerUnderscore\"`, " +
+              "`\"UpperUnderscore\"`, `\"CapsUpperUnderscore\"`. Default: `\"Unaltered\"`.",
     ),
     "cpp_flat_file_hierarchy": attr.bool(
         default = False,
-        doc = "Use a flat directory structure for C++ files. Must match " +
-              "Coco.toml generator.cpp.flatFileHierarchy. Disabled by default.",
+        doc = "Use a flat directory structure for the C++ files. Must match " +
+              "`generator.cpp.flatFileHierarchy` in `Coco.toml`. Default: `False`.",
     ),
     "cpp_header_file_extension": attr.string(
         default = ".h",
-        doc = "File extension for C++ headers. Defaults to \".h\".",
+        doc = "File extension of C++ headers. Must match `generator.cpp.headerFileExtension` in `Coco.toml`. " +
+              "Default: `\".h\"`.",
     ),
     "cpp_header_file_prefix": attr.string(
         default = "",
-        doc = "Prefix for C++ header file names. Empty by default.",
+        doc = "Prefix of C++ header file names. Must match `generator.cpp.headerFilePrefix` in `Coco.toml`. Default: `\"\"`.",
     ),
     "cpp_implementation_file_extension": attr.string(
         default = ".cc",
-        doc = "File extension for C++ implementation files. Defaults to \".cc\".",
+        doc = "File extension of C++ implementation files. Must match `generator.cpp.implementationFileExtension` " +
+              "in `Coco.toml`. Default: `\".cc\"`.",
     ),
     "cpp_implementation_file_prefix": attr.string(
         default = "",
-        doc = "Prefix for C++ implementation file names. Empty by default.",
+        doc = "Prefix of C++ implementation file names. Must match `generator.cpp.implementationFilePrefix` in " +
+              "`Coco.toml`. Default: `\"\"`.",
     ),
     "cpp_include_prefix": attr.string(
         doc = _include_prefix_doc("C++", "cpp"),
@@ -1396,27 +1402,30 @@ _GENERATOR_ATTRIBUTES = {
     "cpp_mocks": attr.string(
         default = "None",
         values = ["None", "GMock", "GMockNumberMacros"],
-        doc = "Must match the package's `generator.cpp.generateMocks`. Defaults to \"None\". Anything else " +
-              "declares the `*Mock.*` files popili writes as test outputs of a C++ coco_generate, used by " +
-              "`coco_cc_test_library`.",
+        doc = "Must match the package's `generator.cpp.generateMocks`: `\"None\"` (the default: no mocks), " +
+              "`\"GMock\"` or `\"GMockNumberMacros\"`. With either GMock value, the `*Mock.*` files popili " +
+              "writes are declared as test outputs of a C++ `coco_generate`, for `coco_cc_test_library`.",
     ),
     "cpp_regenerate_packages": attr.label_list(
         providers = [CocoPackageInfo],
         default = [],
-        doc = "Other coco_package targets to regenerate with this package's C++ generator settings, each " +
-              "a direct or transitive dep. Must match Coco.toml generator.cpp.regeneratePackages.",
+        doc = "Other `coco_package` targets to regenerate with this package's C++ generator settings, each " +
+              "a direct or transitive dep. Must match `generator.cpp.regeneratePackages` in `Coco.toml`. " +
+              "Default: `[]`.",
     ),
     "csharp_mocks": attr.string(
         default = "None",
         values = ["None", "NSubstitute"],
-        doc = "Must match the package's `generator.csharp.generateMocks`. Defaults to \"None\". " +
-              "\"NSubstitute\" declares the `*Mock.cs` files popili writes as test outputs of a C# coco_generate.",
+        doc = "Must match the package's `generator.csharp.generateMocks`: `\"None\"` (the default: no mocks) " +
+              "or `\"NSubstitute\"`, which declares the `*Mock.cs` files popili writes as test outputs of a C# " +
+              "`coco_generate`.",
     ),
     "csharp_regenerate_packages": attr.label_list(
         providers = [CocoPackageInfo],
         default = [],
-        doc = "Other coco_package targets to regenerate with this package's C# generator settings, each " +
-              "a direct or transitive dep. Must match Coco.toml generator.csharp.regeneratePackages.",
+        doc = "Other `coco_package` targets to regenerate with this package's C# generator settings, each " +
+              "a direct or transitive dep. Must match `generator.csharp.regeneratePackages` in `Coco.toml`. " +
+              "Default: `[]`.",
     ),
 }
 
@@ -1467,8 +1476,7 @@ _coco_package = rule(
         ),
         "typecheck": attr.bool(
             default = False,
-            doc = "Run typecheck validation during package creation. When enabled, " +
-                  "the build fails if typecheck errors are found. Disabled by default.",
+            doc = "Typecheck the package as part of building it; the build fails on type errors. Default: `False`.",
         ),
         "workspace": attr.label(
             providers = [CocoWorkspaceInfo],
@@ -1546,7 +1554,6 @@ _coco_workspace = rule(
             doc = "Label pointing to the workspace's root Coco.toml (must contain a [workspace] section)",
         ),
     },
-    doc = "Declares a Coco workspace root whose shared settings flow down to member coco_package targets.",
 )
 
 def _coco_workspace_macro_impl(name, visibility, **kwargs):
@@ -1559,8 +1566,8 @@ def _coco_workspace_macro_impl(name, visibility, **kwargs):
 coco_workspace = macro(
     doc = """Declares a Coco workspace root.
 
-A workspace's Coco.toml carries shared settings that popili applies to member
-packages. Reference this target from a coco_package's `workspace` attribute.""",
+A workspace's `Coco.toml` carries shared settings that popili applies to member
+packages. Reference this target from a `coco_package`'s `workspace` attribute.""",
     inherit_attrs = _coco_workspace,
     implementation = _coco_workspace_macro_impl,
 )

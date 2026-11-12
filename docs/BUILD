@@ -21,6 +21,7 @@ stardoc(
     name = "defs",
     out = "reference/defs.md",
     input = "//coco:defs.bzl",
+    macro_template = "templates/macro.vm",
     deps = ["//coco:defs"],
 )
 

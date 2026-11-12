@@ -96,38 +96,38 @@ _coco_architecture_diagram = popili_rule(
         ),
         "component_names": attr.bool(
             default = False,
-            doc = "Show the instance name of child components. Disabled by default.",
+            doc = "Show the instance name of each child component. Default: `False`.",
         ),
         "component_targets": attr.string_list(
             mandatory = True,
         ),
         "component_types": attr.bool(
             default = True,
-            doc = "Show the type of each component. Enabled by default.",
+            doc = "Show the type of each component. Default: `True`.",
         ),
         "depth": attr.string(
             default = "",
-            doc = "Recursive drawing depth: an integer string, 'auto', 'max', or empty for the default.",
+            doc = "Recursive drawing depth: an integer such as `\"2\"`, `\"auto\"` or `\"max\"`. Default: `\"\"`, popili's default.",
         ),
         "hide_ports": attr.bool(
             default = False,
-            doc = "Hide ports in diagrams. Disabled by default.",
+            doc = "Hide ports. Default: `False`.",
         ),
         "only_encapsulating": attr.bool(
             default = True,
-            doc = "Don't draw implementation/external components. Enabled by default.",
+            doc = "Draw only encapsulating components, leaving out implementation and external components. Default: `True`.",
         ),
         "only_roots": attr.bool(
             default = False,
-            doc = "Only draw root components. Disabled by default.",
+            doc = "Draw only root components. Default: `False`.",
         ),
         "port_names": attr.bool(
             default = False,
-            doc = "Show the instance name of each port. Disabled by default.",
+            doc = "Show the instance name of each port. Default: `False`.",
         ),
         "port_types": attr.bool(
             default = True,
-            doc = "Show the type of each port. Enabled by default.",
+            doc = "Show the type of each port. Default: `True`.",
         ),
     },
 )
@@ -187,12 +187,12 @@ _coco_state_diagram = popili_rule(
     attrs = {
         "separate_edges": attr.bool(
             default = False,
-            doc = "Lay out each state transition as a separate edge. Disabled by default.",
+            doc = "Lay out each state transition as a separate edge. Default: `False`.",
         ),
         "targets": attr.string_list(
             default = [],
-            doc = "Fully qualified names of state machines/components/ports to diagram " +
-                  "(e.g. \"MyComponent.myPort.stateMachine\"). If empty, all state machines are drawn.",
+            doc = "Fully qualified names of the state machines, components or ports to draw, such as " +
+                  "`\"MyComponent.myPort.stateMachine\"`. Default: `[]`, which draws every state machine.",
         ),
     },
 )
