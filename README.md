@@ -65,7 +65,13 @@ http_archive(
     ],
 )
 
-load("@rules_coco//coco:repositories.bzl", "coco_repositories")
+load("@rules_coco//coco:repositories.bzl", "coco_dependencies", "coco_repositories")
+
+coco_dependencies()
+
+load("@bazel_features//:deps.bzl", "bazel_features_deps")
+
+bazel_features_deps()
 
 coco_repositories(
     versions = ["stable"],  # Or explicit versions, e.g. ["1.5.1"] or ["1.5.1", "1.5.0"]

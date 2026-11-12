@@ -94,8 +94,8 @@ COCO_TOOLCHAIN_TYPE = config_common.toolchain_type(COCO_TOOLCHAIN_TYPE_LABEL, ma
 _DEFAULT_TEST_TOOLCHAIN_TYPE = "@bazel_tools//tools/test:default_test_toolchain_type"
 
 # Whether Bazel keeps a test on an execution platform matching its target platform (Bazel 9+), through
-# the default test toolchain type. WORKSPACE mode gets @bazel_features from Bazel 8's WORKSPACE suffix,
-# which may predate the flag, hence getattr.
+# the default test toolchain type. In WORKSPACE mode @bazel_features may come from Bazel's WORKSPACE
+# suffix (8.3+) rather than `coco_dependencies`, and so may predate the flag, hence getattr.
 TESTS_FOLLOW_TARGET_PLATFORM = getattr(bazel_features.toolchains, "has_default_test_toolchain_type", False)
 
 # rule() kwargs for test rules: on Bazel 9+ resolve popili on the `test` exec group, where the test action runs,

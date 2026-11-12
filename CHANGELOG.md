@@ -155,6 +155,9 @@ root>.cs`;
 
 ### Fixed
 
+- WORKSPACE mode works on Bazel 8.0 to 8.2 again. rules_coco loads `@bazel_features`, which only
+  Bazel 8.3 and later declare in their WORKSPACE suffix. The new `coco_dependencies()` macro declares
+  it; call it, then `bazel_features_deps()`, before `coco_repositories` (see the README).
 - `coco_cc_library`, `coco_c_library` and their test-library variants accept a `select()` for
   `generated_package` and `gmock`, and for `public_hdrs` a `select()` that selects `None` keeps all
   generated headers public. A `select()` for `generated_packages` no longer counts as set when

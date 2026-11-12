@@ -10,7 +10,13 @@ local_repository(
     path = "../..",
 )
 
-load("@rules_coco//coco:repositories.bzl", "coco_repositories")
+load("@rules_coco//coco:repositories.bzl", "coco_dependencies", "coco_repositories")
+
+coco_dependencies()
+
+load("@bazel_features//:deps.bzl", "bazel_features_deps")
+
+bazel_features_deps()
 
 # Register both versions, mirroring MODULE.bazel. The first entry is the one used when
 # --@rules_coco//:version is unset; the other is reachable via the flag or a popili_version pin.

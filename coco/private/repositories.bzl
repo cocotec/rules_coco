@@ -31,14 +31,37 @@ load(
 )
 load(":version_resolution.bzl", "LOCAL_VERSION")
 
-def _coco_bootstrap_deps():
-    """Fetches the dependencies the generated repositories need, if absent.
+# buildifier: disable=unnamed-macro
+def coco_dependencies():
+    """Fetches the repositories rules_coco's own .bzl files load, if absent (WORKSPACE mode).
 
-    Only reaches repositories the user has not already declared, so a workspace pinning
-    its own bazel_skylib or platforms keeps it. `native.existing_rule` only sees
-    repositories declared earlier in the same WORKSPACE file, so `coco_repositories`
-    should come after any such pin.
+    Call this before `coco_repositories`, followed by `bazel_features_deps()`:
+
+    ```starlark
+    load("@rules_coco//coco:repositories.bzl", "coco_dependencies")
+
+    coco_dependencies()
+
+    load("@bazel_features//:deps.bzl", "bazel_features_deps")
+
+    bazel_features_deps()
+    ```
+
+    Bazel 8.3 and later declare `bazel_features` in their WORKSPACE suffix, but earlier
+    releases do not, so without this rules_coco fails to load there. Only reaches
+    repositories the user has not already declared, so a workspace pinning its own
+    bazel_features, bazel_skylib or platforms keeps it. `native.existing_rule` only sees
+    repositories declared earlier in the same WORKSPACE file, so this call should come
+    after any such pin.
     """
+    if native.existing_rule("bazel_features") == None:
+        http_archive(
+            name = "bazel_features",
+            sha256 = "790b660c9cb35adb91071a4f6e62d29988a7383cbb948b39aa7c0065eea1e035",
+            strip_prefix = "bazel_features-1.54.1",
+            url = "https://github.com/bazel-contrib/bazel_features/releases/download/v1.54.1/bazel_features-v1.54.1.tar.gz",
+        )
+
     if native.existing_rule("bazel_skylib") == None:
         http_archive(
             name = "bazel_skylib",
@@ -145,7 +168,7 @@ def coco_repositories(
             "toolchain would be registered.",
         )
 
-    _coco_bootstrap_deps()
+    coco_dependencies()
 
     registered_versions = {resolved: True for resolved in resolved_versions}
     if local_popili:

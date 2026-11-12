@@ -12,7 +12,13 @@ local_repository(
     path = "dep",
 )
 
-load("@rules_coco//coco:repositories.bzl", "coco_repositories")
+load("@rules_coco//coco:repositories.bzl", "coco_dependencies", "coco_repositories")
+
+coco_dependencies()
+
+load("@bazel_features//:deps.bzl", "bazel_features_deps")
+
+bazel_features_deps()
 
 coco_repositories(
     cc = True,

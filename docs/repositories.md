@@ -2,6 +2,39 @@
 
 Public API for Coco repository rules.
 
+<a id="coco_dependencies"></a>
+
+## coco_dependencies
+
+<pre>
+load("@rules_coco//coco:repositories.bzl", "coco_dependencies")
+
+coco_dependencies()
+</pre>
+
+Fetches the repositories rules_coco's own .bzl files load, if absent (WORKSPACE mode).
+
+Call this before `coco_repositories`, followed by `bazel_features_deps()`:
+
+```starlark
+load("@rules_coco//coco:repositories.bzl", "coco_dependencies")
+
+coco_dependencies()
+
+load("@bazel_features//:deps.bzl", "bazel_features_deps")
+
+bazel_features_deps()
+```
+
+Bazel 8.3 and later declare `bazel_features` in their WORKSPACE suffix, but earlier
+releases do not, so without this rules_coco fails to load there. Only reaches
+repositories the user has not already declared, so a workspace pinning its own
+bazel_features, bazel_skylib or platforms keeps it. `native.existing_rule` only sees
+repositories declared earlier in the same WORKSPACE file, so this call should come
+after any such pin.
+
+
+
 <a id="coco_local_repositories"></a>
 
 ## coco_local_repositories

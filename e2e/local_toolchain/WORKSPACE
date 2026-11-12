@@ -10,7 +10,13 @@ local_repository(
     path = "../..",
 )
 
-load("@rules_coco//coco:repositories.bzl", "coco_local_repositories")
+load("@rules_coco//coco:repositories.bzl", "coco_dependencies", "coco_local_repositories")
+
+coco_dependencies()
+
+load("@bazel_features//:deps.bzl", "bazel_features_deps")
+
+bazel_features_deps()
 
 # stage.py writes the licence protocol version the staged popili reads.
 load("//staged:license.bzl", "LICENSE_PROTOCOL_VERSION")
