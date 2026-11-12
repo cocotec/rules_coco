@@ -166,7 +166,7 @@ _local_toolchain_tag = tag_class(
             default = "",
         ),
         "license_protocol_version": attr.int(
-            doc = "Optional licence protocol version the local popili reads. See `coco_toolchain`.",
+            doc = "Optional licence protocol version the local popili reads. See [`coco_toolchain`](toolchain.md#coco_toolchain-license_protocol_version).",
             default = 0,
         ),
         "popili": attr.string(

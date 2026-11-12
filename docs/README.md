@@ -17,5 +17,7 @@
 
 ## Reference
 
+- [Build flags](flags.md): every `--@rules_coco//` flag and the license config settings.
+
 The [API reference](reference/README.md) is generated from the `.bzl` sources with Stardoc and lists every rule,
 macro and attribute.

@@ -12,7 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Public API for Coco repository rules."""
+"""Repository rules for `WORKSPACE` setup.
+
+Also exports `AVAILABLE_STABLE_VERSIONS`: every stable popili version (1.5.0 onwards, no betas or release candidates)
+whose downloads this rules_coco knows, newest first. `coco_repositories(versions = AVAILABLE_STABLE_VERSIONS)`
+registers them all, with the newest as the default.
+"""
 
 load(
     "//coco/private:common_repositories.bzl",

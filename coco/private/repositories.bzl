@@ -113,7 +113,7 @@ def coco_repositories(
       local_c_runtime: Optional path to a directory holding the local C runtime `coco_c/`
         subtree. Required to build `coco_c_library` against `local_popili`.
       local_license_protocol_version: Optional licence protocol version `local_popili`
-        reads. See `coco_toolchain`.
+        reads. See [`coco_toolchain`](toolchain.md#coco_toolchain-license_protocol_version).
     """
     if native.existing_rule(DEFAULT_HUB_NAME) != None:
         fail(
@@ -212,7 +212,7 @@ def coco_local_repositories(
       license_token: Optional default license token.
       auth_token_path: Optional auth token file path.
       license_protocol_version: Optional licence protocol version the local popili reads.
-        See `coco_toolchain`.
+        See [`coco_toolchain`](toolchain.md#coco_toolchain-license_protocol_version).
     """
     coco_repositories(
         versions = [],

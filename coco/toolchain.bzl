@@ -42,6 +42,13 @@ def _coco_toolchain_impl(ctx):
 
 coco_toolchain = rule(
     _coco_toolchain_impl,
+    doc = """Declares a popili toolchain: the `popili` and `cocotec-licensing-server` binaries, the Coco runtimes and the
+licence settings the Coco rules run with.
+
+rules_coco generates one for every version that `coco.toolchain` or `coco_repositories` registers. Declare one
+yourself only to bring your own popili: wrap it in a `toolchain()` with
+`toolchain_type = "@rules_coco//coco:toolchain_type"` and register it. See
+[Custom toolchains](../toolchains.md#bring-your-own-toolchain).""",
     attrs = {
         "auth_token_path": attr.string(
             doc = "The path to auth token file to use when license_source is 'action_file'. The file must be available in the execution environment. Optional.",
@@ -54,8 +61,8 @@ coco_toolchain = rule(
         "cc_runtime": attr.label(
             doc = (
                 "The C++ runtime library for Coco. Optional - only needed when using coco_cc_library. " +
-                "To inject extra deps into this target (e.g. Boost libraries for old libstdc++), " +
-                "use the coco.cc_runtime_deps tag in MODULE.bazel."
+                "Give it any extra deps it needs, such as Boost libraries for an old libstdc++, in its own " +
+                "`deps`: the `coco.cc_runtime_deps` tag only reaches the runtimes rules_coco generates."
             ),
             default = None,
         ),

@@ -41,7 +41,7 @@ Register a Coco toolchain from a popili distribution on the local filesystem, in
 | :------------- | :------------- | :------------- | :------------- | :------------- |
 | <a id="coco.local_toolchain-c_runtime"></a>c_runtime |  Optional path to a dir holding the C runtime 'coco_c/' subtree. Absolute or workspace-relative.   | String | optional |  `""`  |
 | <a id="coco.local_toolchain-cc_runtime"></a>cc_runtime |  Optional path to a dir holding the C++ runtime 'coco/' subtree. Absolute or workspace-relative.   | String | optional |  `""`  |
-| <a id="coco.local_toolchain-license_protocol_version"></a>license_protocol_version |  Optional licence protocol version the local popili reads. See `coco_toolchain`.   | Integer | optional |  `0`  |
+| <a id="coco.local_toolchain-license_protocol_version"></a>license_protocol_version |  Optional licence protocol version the local popili reads. See [`coco_toolchain`](toolchain.md#coco_toolchain-license_protocol_version).   | Integer | optional |  `0`  |
 | <a id="coco.local_toolchain-popili"></a>popili |  Path to a dir holding the 'popili' and 'cocotec-licensing-server' binaries. Absolute or workspace-relative.   | String | required |  |
 
 <a id="coco.toolchain"></a>

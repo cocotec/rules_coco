@@ -1995,6 +1995,18 @@ _coco_test_outputs = rule(
 )
 
 def coco_test_outputs_name(name):
+    """Returns the name of the target that holds a `coco_generate` target's generated test code.
+
+    `coco_generate(name = "x")` also creates `x.tst`, whose files are the generated test sources and
+    headers, mocks included. `coco_cc_test_library` and `coco_c_test_library` compile them for you; use
+    this target for other consumers.
+
+    Args:
+      name: The name of the `coco_generate` target.
+
+    Returns:
+      The name of its test code target, `name + ".tst"`.
+    """
     return "%s.tst" % name
 
 def _header_matches(include_path, pattern):

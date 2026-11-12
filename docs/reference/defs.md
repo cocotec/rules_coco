@@ -1,6 +1,9 @@
 <!-- Generated with Stardoc: http://skydoc.bazel.build -->
 
-Public API for Coco package rules and code generation.
+Core rules and macros: packages, code generation, verification, formatting and diagrams.
+
+Also exports `LICENSE_SOURCES`, the licence modes that `--@rules_coco//:license_source` accepts: `action_environment`,
+`action_file`, `local_acquire`, `local_user` and `token`. See [Licensing](../licensing.md#license-modes).
 
 <a id="CocoCSharpGeneratedInfo"></a>
 
@@ -141,6 +144,11 @@ load("@rules_coco//coco:defs.bzl", "coco_test_outputs_name")
 coco_test_outputs_name(<a href="#coco_test_outputs_name-name">name</a>)
 </pre>
 
+Returns the name of the target that holds a `coco_generate` target's generated test code.
+
+`coco_generate(name = "x")` also creates `x.tst`, whose files are the generated test sources and
+headers, mocks included. `coco_cc_test_library` and `coco_c_test_library` compile them for you; use
+this target for other consumers.
 
 
 **PARAMETERS**
@@ -148,7 +156,11 @@ coco_test_outputs_name(<a href="#coco_test_outputs_name-name">name</a>)
 
 | Name  | Description | Default Value |
 | :------------- | :------------- | :------------- |
-| <a id="coco_test_outputs_name-name"></a>name |  <p align="center"> - </p>   |  none |
+| <a id="coco_test_outputs_name-name"></a>name |  The name of the `coco_generate` target.   |  none |
+
+**RETURNS**
+
+The name of its test code target, `name + ".tst"`.
 
 
 <a id="counterexample_options"></a>

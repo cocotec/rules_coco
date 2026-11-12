@@ -1,6 +1,10 @@
 <!-- Generated with Stardoc: http://skydoc.bazel.build -->
 
-Public API for Coco repository rules.
+Repository rules for `WORKSPACE` setup.
+
+Also exports `AVAILABLE_STABLE_VERSIONS`: every stable popili version (1.5.0 onwards, no betas or release candidates)
+whose downloads this rules_coco knows, newest first. `coco_repositories(versions = AVAILABLE_STABLE_VERSIONS)`
+registers them all, with the newest as the default.
 
 <a id="coco_local_repositories"></a>
 
@@ -36,7 +40,7 @@ instead.
 | <a id="coco_local_repositories-license_source"></a>license_source |  Optional default license source mode. See `coco_repositories`.   |  `""` |
 | <a id="coco_local_repositories-license_token"></a>license_token |  Optional default license token.   |  `""` |
 | <a id="coco_local_repositories-auth_token_path"></a>auth_token_path |  Optional auth token file path.   |  `""` |
-| <a id="coco_local_repositories-license_protocol_version"></a>license_protocol_version |  Optional licence protocol version the local popili reads. See `coco_toolchain`.   |  `0` |
+| <a id="coco_local_repositories-license_protocol_version"></a>license_protocol_version |  Optional licence protocol version the local popili reads. See [`coco_toolchain`](toolchain.md#coco_toolchain-license_protocol_version).   |  `0` |
 
 
 <a id="coco_repositories"></a>
@@ -76,6 +80,6 @@ keyword-only.
 | <a id="coco_repositories-local_popili"></a>local_popili |  Optional path to a directory holding the `popili` and `cocotec-licensing-server` binaries, registered as an additional toolchain selected by `--@rules_coco//:version=local`.   |  `None` |
 | <a id="coco_repositories-local_cc_runtime"></a>local_cc_runtime |  Optional path to a directory holding the local C++ runtime `coco/` subtree. Required to build `coco_cc_library` against `local_popili`.   |  `None` |
 | <a id="coco_repositories-local_c_runtime"></a>local_c_runtime |  Optional path to a directory holding the local C runtime `coco_c/` subtree. Required to build `coco_c_library` against `local_popili`.   |  `None` |
-| <a id="coco_repositories-local_license_protocol_version"></a>local_license_protocol_version |  Optional licence protocol version `local_popili` reads. See `coco_toolchain`.   |  `0` |
+| <a id="coco_repositories-local_license_protocol_version"></a>local_license_protocol_version |  Optional licence protocol version `local_popili` reads. See [`coco_toolchain`](toolchain.md#coco_toolchain-license_protocol_version).   |  `0` |
 
 
