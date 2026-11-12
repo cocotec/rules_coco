@@ -45,8 +45,10 @@ See [`e2e/local_toolchain`](../e2e/local_toolchain).
 
 ## Bring your own toolchain
 
-To point at a popili toolchain obtained from other bazel rules you can register your own `coco_toolchain` and skip
-rules_coco's toolchain machinery entirely. In `MODULE.bazel` you just need
+To use a popili obtained from other Bazel rules, register your own `coco_toolchain` and skip rules_coco's toolchain
+downloads entirely. With bzlmod you don't need the `coco` extension at all, because rules_coco's own module sets up the
+repositories its rules read. With `WORKSPACE`, still call `coco_repositories`, which creates those repositories, and
+register your toolchain before it. In `MODULE.bazel` you just need
 
 ```starlark
 register_toolchains("//tools:my_popili_tc")
@@ -74,7 +76,11 @@ toolchain(
 Use this when one `popili`, built in your repository, should run every target. A `toolchain()` without
 `target_settings` or constraints, like the one above, matches every target, so it replaces rules_coco's own
 toolchains and no pin or flag can select another one. Register only one such toolchain, since one registered after
-it would never be selected; in `WORKSPACE`, register it before calling `coco_repositories`.
+it would never be selected.
+
+A bring-your-own `coco_toolchain` does not see the license settings on `coco.toolchain` or `coco_repositories`; those
+apply only to the toolchains rules_coco creates. Set `license_source` (and `license_token` or `auth_token_path` when
+the mode needs them) on the `coco_toolchain` itself, or use the `--@rules_coco//:license_source` flag.
 
 `popili_version` is the version of the `popili` binary the toolchain points at, such as `"1.5.8"`; an alias such
 as `"stable"` is rejected. It picks the licence file under `local_user` licensing, and every target must ask for

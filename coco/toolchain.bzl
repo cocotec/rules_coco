@@ -60,7 +60,7 @@ coco_toolchain = rule(
             default = None,
         ),
         "coco": attr.label(
-            doc = "The location of the `coco` binary. Can be a direct source or a filegroup containing one item.",
+            doc = "The `popili` binary. Can be a file or a filegroup containing one file.",
             allow_single_file = True,
             mandatory = True,
         ),

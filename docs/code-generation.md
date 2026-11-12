@@ -93,6 +93,7 @@ If you see these errors then you need to make sure that the `BUILD` files contai
 ```toml
 [generator.cpp]
 headerFileExtension = ".hpp"
+runtimeHeaderFileExtension = ".h"   # required with a custom headerFileExtension
 implementationFileExtension = ".cpp"
 fileNameMangler = "LowerUnderscore"
 includePrefix = "motor"
