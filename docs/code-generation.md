@@ -61,6 +61,15 @@ Any other attribute, such as `copts` or `visibility`, is passed on to the rule t
 
 ## C Code Generation
 
+Enable the C runtime with `c = True` on `coco.toolchain` (or `coco_repositories`):
+
+```starlark
+coco.toolchain(
+    versions = ["stable"],
+    c = True,
+)
+```
+
 To generate C code:
 
 ```starlark
@@ -83,6 +92,18 @@ coco_c_library(
     generated_package = ":my_package_c_src",
 )
 ```
+
+Link it like any other `cc_library`:
+
+```starlark
+cc_binary(
+    name = "main",
+    srcs = ["main.c"],
+    deps = [":my_package_c"],
+)
+```
+
+`coco_c_test_library` compiles the generated C test code; see [Test code and mocks](#test-code-and-mocks).
 
 > [!IMPORTANT]
 > Your Coco.toml file must set `generator.c.runtimeHeaderFileExtension` to `.h` if you use a custom value for

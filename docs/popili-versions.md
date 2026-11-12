@@ -172,7 +172,11 @@ coco_package(
 Everything without a pin uses the default, or the version `--@rules_coco//:version` selects, for
 example `bazel build --@rules_coco//:version=1.5.1 //...`. The flag takes a concrete version (or
 `local`); aliases such as `stable` are for pins only. A pin wins over the flag, unless
-`--@rules_coco//:force_version` is set (see below).
+`--@rules_coco//:force_version` is set (see below). To set it for the whole repository, add it to `.bazelrc`:
+
+```
+build --@rules_coco//:version=1.5.1
+```
 
 A pin equal to the version the build uses anyway (the flag, or the default when the flag is unset)
 costs nothing. A target pinned to any other version is built in a configuration of its own, so its

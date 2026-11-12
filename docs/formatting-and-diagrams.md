@@ -20,7 +20,10 @@ This creates two targets:
 
 ## Diagram generation
 
-`rules_coco` provides rules for generating diagrams from Coco code:
+`rules_coco` provides rules for generating diagrams from Coco code. Each diagram rule writes SVG files. Build the
+target, for example `bazel build //path/to:my_component_arch`, and find them in `bazel-bin/path/to/`. Architecture and
+counterexample diagrams are named after the keys of `components` and `counterexamples` (here `my_component.svg`);
+state diagrams are named as described below.
 
 ### Architecture Diagrams
 

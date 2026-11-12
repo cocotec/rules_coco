@@ -27,6 +27,24 @@ coco_package(
 )
 ```
 
+The `deps` mirror `[dependencies]` in `Coco.toml`:
+
+```toml
+[dependencies]
+other_pkg = "*"
+```
+
+Each package gets its own `coco_generate` and `coco_cc_library`. A library lists the libraries of the packages its
+package depends on in `deps`:
+
+```starlark
+coco_cc_library(
+    name = "my_package_cc",
+    generated_package = ":my_package_cpp",
+    deps = ["//my:other_pkg_cc"],
+)
+```
+
 To enable type checking as part of the build, add `typecheck = True`:
 
 ```starlark
@@ -121,3 +139,11 @@ coco_package(
     ],  # Must match package.sources in Coco.toml
 )
 ```
+
+```toml
+[package]
+name = "my_package"
+sources = ["src", "interfaces"]
+```
+
+[`e2e/multi_root_srcs`](../e2e/multi_root_srcs) also has roots outside the package directory, and test sources.
