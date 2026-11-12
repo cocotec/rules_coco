@@ -18,3 +18,11 @@ Rows described as _Inherited rule attribute_ are Bazel's
 [common attributes](https://bazel.build/reference/be/common-definitions#common-attributes) (`tags`, `visibility`, ...).
 
 For explanations and examples, see the [guides](../README.md).
+
+## Rules of your own
+
+rules_coco has no public API for rules of your own that run popili. A hand-written rule that declares
+`@rules_coco//coco:toolchain_type` gets no `popili_version`, is not reached by `--@rules_coco//:force_version` when it
+transitions the version flag itself, and the fields of the toolchain it resolves are not a stable interface.
+`CocoPackageInfo` is public for rules that only read a package's files, and `CocoCcGeneratedInfo` and
+`CocoCSharpGeneratedInfo` for rules that consume the code a `coco_generate` target produced.
