@@ -168,7 +168,7 @@ _cc_test_runtime_tag = tag_class(
     doc = (
         "Configure the GoogleMock library coco_cc_test_library links besides the C++ runtime, for " +
         "every registered version; required when a coco_cc_test_library compiles generated mocks. " +
-        "Root-module only, at most once. See [Mocks](../code-generation.md#mocks) for choosing the " +
+        "Root-module only, at most once. See [GoogleMock](../code-generation.md#googlemock) for choosing the " +
         "library per build with select()."
     ),
     attrs = {

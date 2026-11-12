@@ -40,6 +40,37 @@ coco_package(
 
 When enabled, any target depending on this package (such as `coco_generate`) will wait for typecheck to pass.
 
+## Workspaces
+
+A popili workspace is a `Coco.toml` with a `[workspace]` section, whose settings, such as `[language]` and
+`[generator]`, apply to the member packages it lists. Declare it with `coco_workspace` and point each member's
+`coco_package` at it:
+
+```starlark
+load("@rules_coco//coco:defs.bzl", "coco_package", "coco_workspace")
+
+coco_workspace(
+    name = "workspace",
+    workspace = "Coco.toml",  # [workspace] members = ["base", ...]
+)
+
+coco_package(
+    name = "base",
+    srcs = glob(["base/src/**/*.coco"]),
+    package = "base/Coco.toml",
+    workspace = ":workspace",
+)
+```
+
+For mirroring, a generator setting a member inherits from the workspace counts as its own (see
+[Output paths](code-generation.md#output-paths)). For example, to use the mocks from `generateMocks = "GMock"` in the
+workspace's `Coco.toml`, set `cpp_mocks = "GMock"` on the member's `coco_package`.
+
+A workspace nested inside another names the enclosing one with `parent`. A workspace can also restrict the popili
+versions of its members; see [Workspaces](popili-versions.md#workspaces).
+[`test/workspace_basic`](../test/workspace_basic) and [`test/workspace_nested`](../test/workspace_nested) are complete
+examples.
+
 ## Where generated code goes
 
 `coco_generate` writes all generated code, including test code and mocks, to a directory of its own:

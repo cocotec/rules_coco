@@ -1,4 +1,4 @@
-# The select() shim for coco.cc_test_runtime from docs/code-generation.md#mocks: MODULE.bazel is
+# The select() shim for coco.cc_test_runtime from docs/code-generation.md#googlemock: MODULE.bazel is
 # evaluated before select() fires, so the choice of GoogleMock lives in an alias.
 alias(
     name = "gmock",

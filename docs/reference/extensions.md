@@ -34,7 +34,7 @@ Inject extra `cc_library` deps into the Coco C++ runtime for a specific Coco/Pop
 
 ### cc_test_runtime
 
-Configure the GoogleMock library coco_cc_test_library links besides the C++ runtime, for every registered version; required when a coco_cc_test_library compiles generated mocks. Root-module only, at most once. See [Mocks](../code-generation.md#mocks) for choosing the library per build with select().
+Configure the GoogleMock library coco_cc_test_library links besides the C++ runtime, for every registered version; required when a coco_cc_test_library compiles generated mocks. Root-module only, at most once. See [GoogleMock](../code-generation.md#googlemock) for choosing the library per build with select().
 
 **Attributes**
 
