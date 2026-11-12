@@ -18,7 +18,7 @@ coco_generate(
 )
 ```
 
-This is compiled using `coco_cc_library`, which adds the C++ runtime as a dependency:
+Compile the generated C++ with `coco_cc_library`, which adds the C++ runtime as a dependency:
 
 ```starlark
 load("@rules_coco//coco:cc.bzl", "coco_cc_library")
@@ -78,7 +78,7 @@ coco_generate(
 )
 ```
 
-This can be compiled using `coco_c_library`:
+Compile the generated C with `coco_c_library`:
 
 ```starlark
 load("@rules_coco//coco:c.bzl", "coco_c_library")

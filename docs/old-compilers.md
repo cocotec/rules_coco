@@ -59,9 +59,9 @@ constraint_value(name = "pre_gcc5", constraint_setting = ":libstdcxx_era")
 config_setting(name = "old_libstdcxx", constraint_values = [":pre_gcc5"])
 ```
 
-## Same as above, and keep `rules_boost` out of modern-compiler workspaces
+## Same as above, and keep `rules_boost` out of modern-compiler builds
 
-The shim above still pulls `rules_boost` into every workspace, because `@boost//:integer` is named in a `select()`
+The shim above still makes every build fetch `rules_boost`, because `@boost//:integer` is named in a `select()`
 branch Bazel must load. A `label_flag` defers the reference until `.bazelrc` sets it:
 
 ```starlark
