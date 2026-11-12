@@ -23,6 +23,13 @@ coco_repositories(
 )
 ```
 
+Besides explicit versions such as `"1.5.1"`, two aliases can be used when registering versions
+(`coco.toolchain(versions = ...)` or `coco_repositories(versions = ...)`), in `popili_version` pins and in
+`popili_versions` lists: `"stable"`, the newest stable release, and `"testing"`, the current pre-release (a beta or
+release candidate). Each rules_coco release fixes what they resolve to (see
+[`version_aliases.bzl`](../coco/private/version_aliases.bzl)), so upgrading rules_coco can move them. List explicit
+versions to stay on a version. `--@rules_coco//:version` takes explicit versions only.
+
 To register every stable release your rules_coco version knows of (1.5.0 onwards, no betas or
 release candidates), load `AVAILABLE_STABLE_VERSIONS` from `@rules_coco//coco:repositories.bzl`.
 It lists them newest first, so the newest is the default:

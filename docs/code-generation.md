@@ -43,6 +43,18 @@ coco_cc_library(
 )
 ```
 
+Besides `generated_package`, `coco_cc_library` and `coco_c_library` (and their test variants) take:
+
+- `generated_packages`: several `coco_generate` targets compiled into one library; mutually exclusive with the
+  `generated_package` attribute.
+- `srcs`, `hdrs` and `deps`: hand-written sources, headers and dependencies to add to the library.
+- `public_hdrs`: the generated headers dependents may include. By default that is all of them; `[]` makes them all
+  private. An entry names a header by file name (`"ISensor.h"`) or, when several headers share a name, by a trailing
+  part of its include path (`"sensors/ISensor.h"`). An entry that matches no header is an error.
+
+Any other attribute, such as `copts` or `visibility`, is passed on to the rule that compiles the library:
+`library_rule` when set, otherwise rules_cc's `cc_library`.
+
 > [!IMPORTANT]
 > Your Coco.toml file must set `generator.cpp.runtimeHeaderFileExtension` to `.h` if you use a custom value for
 > `generator.cpp.headerFileExtension`.
@@ -135,6 +147,10 @@ coco_package(
 | `generator.csharp.regeneratePackages`       | `csharp_regenerate_packages`        |
 | `generator.csharp.generateMocks`            | `csharp_mocks`                      |
 
+Each package in a `*_regenerate_packages` list must be a dependency of the package, directly or through another
+package in `deps`, because popili only regenerates dependencies. Otherwise the build fails with
+`... is not a dependency of ...`.
+
 Mirror the package's _effective_ value: the one in its own `Coco.toml`, or else the one it inherits from its
 workspace's `Coco.toml` or receives from a dependency with `exportConfig = true` (see the popili documentation
 on `includePrefix`). A wrong `cpp_include_prefix` or `c_include_prefix` fails when compiling the package's own generated code, as popili
@@ -160,6 +176,53 @@ Mocks are no exception: set `generateMocks = "GMock"` in `Coco.toml` _and_ `cpp_
 to get mocks for `coco_cc_test_library`. With only the attribute set, the build fails with
 `output ... was not created`; with only the setting, popili writes mocks that no target uses.
 
+## Test code and mocks
+
+popili writes two kinds of test code: code generated from the package's test sources (`testSources` in `Coco.toml`),
+and mocks of its components (`generateMocks`). `coco_cc_test_library` and `coco_c_test_library` compile this test code
+apart from the production library:
+
+```starlark
+coco_package(
+    name = "example",
+    srcs = glob(["src/**/*.coco"]),
+    test_srcs = glob(["test/**/*.coco"]),  # testSources = ["test"] in Coco.toml
+    cpp_mocks = "GMock",                   # generateMocks = "GMock" in Coco.toml
+    package = "Coco.toml",
+)
+
+coco_generate(
+    name = "example_cpp",
+    language = "cpp",
+    package = ":example",
+)
+
+coco_cc_library(
+    name = "example_cc",
+    generated_package = ":example_cpp",
+)
+
+coco_cc_test_library(
+    name = "example_cc_tst",
+    generated_package = ":example_cpp",
+    deps = [":example_cc"],
+)
+
+cc_test(
+    name = "example_test",
+    srcs = ["example_test.cc"],
+    deps = [":example_cc_tst"],
+)
+```
+
+The test libraries link GoogleTest through `gmock`, which defaults to `@googletest//:gtest`. Add
+`bazel_dep(name = "googletest", version = "...")` to `MODULE.bazel`, or set `gmock` to another target, or to `None` to
+leave GoogleTest out. Set `test_source_roots` for `test_srcs` in the same cases as `source_roots` (see
+[Where generated code goes](packages.md#where-generated-code-goes)). [`e2e/smoke`](../e2e/smoke) is a tested example.
+
+Each `coco_generate` target also creates a `<name>.tst` target with only the generated test code, mocks included, for
+consumers other than the test libraries. `coco_test_outputs_name` from `@rules_coco//coco:defs.bzl` returns its name.
+
 ## C# Code Generation
 
 To generate C# code:
@@ -178,3 +241,6 @@ The generated files are written to `bazel-bin/<package path>/_coco/<generate nam
 see [Where Generated Code Goes](packages.md#where-generated-code-goes).
 
 **Note:** C# code generation produces `.cs` files but does not include compilation support. Bazel's C# rules are currently too primitive to provide a good integration. The generated C# files can be consumed by other build systems or IDEs.
+
+With `csharp_mocks` or test sources, the generated C# test code is in the `<name>.tst` target; see
+[Test code and mocks](#test-code-and-mocks).
