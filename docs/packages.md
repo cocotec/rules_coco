@@ -1,6 +1,7 @@
 # Defining packages
 
-For each `Coco.toml` file add the following to your `BUILD` file:
+For each [`Coco.toml`](https://cocotec.io/popili/doc/stable/language/structure.html#packages-and-workspaces) file add
+the following to your `BUILD` file:
 
 ```starlark
 load("@rules_coco//coco:defs.bzl", "coco_package")
@@ -27,7 +28,8 @@ coco_package(
 )
 ```
 
-The `deps` mirror `[dependencies]` in `Coco.toml`:
+The `deps` mirror [`[dependencies]`](https://cocotec.io/popili/doc/stable/language/structure.html#dependencies) in
+`Coco.toml`:
 
 ```toml
 [dependencies]
@@ -56,15 +58,16 @@ coco_package(
 )
 ```
 
-With `typecheck = True`, building the package runs `popili typecheck`, so `bazel build //path/to:my_package` fails on
-type errors directly. Targets that read the package, such as `coco_generate`, run only after the typecheck has passed.
-Without it, those targets still fail on type errors when they run Popili.
+With `typecheck = True`, building the package runs
+[`popili typecheck`](https://cocotec.io/popili/doc/stable/tools/cli.html#typecheck-subcommand), so
+`bazel build //path/to:my_package` fails on type errors directly. Targets that read the package, such as
+`coco_generate`, run only after the typecheck has passed. Without it, those targets still fail on type errors when they run Popili.
 
 ## Workspaces
 
-A Popili workspace is a `Coco.toml` with a `[workspace]` section, whose settings, such as `[language]` and
-`[generator]`, apply to the member packages it lists. Declare it with `coco_workspace` and point each member's
-`coco_package` at it:
+A Popili [workspace](https://cocotec.io/popili/doc/stable/language/structure.html#workspace) is a `Coco.toml` with a
+`[workspace]` section, whose settings, such as `[language]` and `[generator]`, apply to the member packages it lists.
+Declare it with `coco_workspace` and point each member's `coco_package` at it:
 
 ```starlark
 load("@rules_coco//coco:defs.bzl", "coco_package", "coco_workspace")
@@ -119,9 +122,10 @@ their files do not clash.
 
 To predict the paths of generated files, `coco_package` needs the source roots. When `source_roots` is unset,
 `coco_package` uses the deepest directory that contains all `srcs`. Set `source_roots` (and `test_source_roots` for
-`test_srcs`) when that directory isn't the one `Coco.toml` lists in `package.sources`. Three common cases: the package
-has several roots; all sources sit in a subdirectory such as `src/sub/` while `Coco.toml` says `sources = ["src"]`; or
-the sources are outside the directory of `Coco.toml`.
+`test_srcs`) when that directory isn't the one `Coco.toml` lists in
+[`package.sources`](https://cocotec.io/popili/doc/stable/language/structure.html#package.sources). Three common cases:
+the package has several roots; all sources sit in a subdirectory such as `src/sub/` while `Coco.toml` says
+`sources = ["src"]`; or the sources are outside the directory of `Coco.toml`.
 
 ```starlark
 coco_package(

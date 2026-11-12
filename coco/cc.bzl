@@ -32,7 +32,7 @@ def coco_cc_library(
         **kwargs):
     """Creates a C++ library from Coco-generated C++ code.
 
-    This automatically adds the Coco C++ runtime as a dependency.
+    The library depends on the Coco C++ runtime of its Popili version.
 
     Args:
         name: The name of the library target.
@@ -46,9 +46,10 @@ def coco_cc_library(
             trailing part of its include path, such as `"sensors/ISensor.h"`. An entry that matches no
             header is an error. Default: `None`, all of them; `[]` makes them all private.
         popili_version: The registered Popili version whose runtime the library links, such as
-            `"1.5.1"` or `"stable"`. It also pins the library's `coco_generate` targets that have no
-            pin of their own, but not `deps`. Pin the library like its `coco_generate` targets.
-            Default: `""`, the version the rest of the build uses. See
+            `"1.5.1"` or `"stable"`. The `coco_generate` targets in `generated_package` or
+            `generated_packages` that have no `popili_version` of their own run with this version too,
+            so pin the library like its `coco_generate` targets. `deps` is not affected: it is built
+            as if the library had no pin. Default: `""`, the version the rest of the build uses. See
             [Pinning targets](../popili-versions.md#pinning-targets).
         library_rule: The rule or macro that compiles the library, such as a wrapper of
             cc_library adding your project's defaults. It is called with cc_library's
@@ -82,10 +83,10 @@ def coco_cc_test_library(
         **kwargs):
     """Creates a C++ test library from Coco-generated C++ test code.
 
-    This automatically adds the Coco C++ runtime as a dependency, and with it GoogleMock and the
-    runtime's `coco/gmock_helpers.h` when the `coco.cc_test_runtime` tag in MODULE.bazel
-    (`cc_test_runtime_gmock` of `coco_repositories` in WORKSPACE) names a GoogleMock library.
-    Generated mocks need it: without it, a library whose packages generate mocks fails to build.
+    The library depends on the Coco C++ runtime of its Popili version. When the
+    `coco.cc_test_runtime` tag in MODULE.bazel (`cc_test_runtime_gmock` of `coco_repositories` in
+    WORKSPACE) names a GoogleMock library, it also depends on that library and on the runtime's
+    `coco/gmock_helpers.h`; without it, a library whose packages generate mocks fails to build.
     See [GoogleMock](../code-generation.md#googlemock).
 
     Args:
@@ -101,8 +102,10 @@ def coco_cc_test_library(
             a trailing part of its include path, such as `"runnable/RunnableMock.h"`. An entry that
             matches no header is an error. Default: `None`, all of them; `[]` makes them all private.
         popili_version: The registered Popili version whose runtime the library links, such as
-            `"1.5.1"` or `"stable"`. It also pins the library's `coco_generate` targets that have no
-            pin of their own, but not `deps`. Pin the library like its `coco_generate` targets.
+            `"1.5.1"` or `"stable"`. The `coco_generate` targets in `generated_package` or
+            `generated_packages` that have no `popili_version` of their own run with this version too,
+            so pin the library like its `coco_generate` targets. `deps` and the GoogleMock library are not
+            affected: they are built as if the library had no pin.
             Default: `""`, the version the rest of the build uses. See
             [Pinning targets](../popili-versions.md#pinning-targets).
         library_rule: The rule or macro that compiles the library, such as a wrapper of

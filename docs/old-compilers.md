@@ -1,7 +1,8 @@
 # Using an older C++ compiler (Boost libraries)
 
-Most users can skip this page. The Coco C++ runtime compiles cleanly on any toolchain that supports C++11 or
-later. It also includes limited support for GCC 4.x but requires some Boost dependencies to support this compiler.
+Most users can skip this page. The Coco [C++ runtime](https://cocotec.io/popili/doc/stable/cpp/runtime.html#cpp-runtime)
+compiles cleanly on any toolchain that supports C++11 or later. It also includes limited support for GCC 4.x but
+requires some Boost dependencies to support this compiler.
 
 `rules_coco` does not supply its own `rules_boost`; instead you need to supply your own library targets if you want to
 ensure compatibility with older compilers. In `rules_boost` terms the two targets are `@boost//:integer` and

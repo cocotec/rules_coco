@@ -2,7 +2,9 @@
 
 ## Registering versions
 
-Register every Popili version you need; the first one is the default. In `MODULE.bazel`:
+Popili's [version numbers](https://cocotec.io/popili/doc/stable/versioning.html#popili-version) and
+[release notes](https://cocotec.io/popili/doc/stable/release_notes.html) explain its releases. Register every Popili
+version you need; the first one is the default. In `MODULE.bazel`:
 
 ```starlark
 coco = use_extension("@rules_coco//coco:extensions.bzl", "coco")
