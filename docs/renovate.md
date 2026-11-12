@@ -8,7 +8,7 @@ configuration below. Because some users cannot reach github.com, rules_coco also
 `https://dl.cocotec.io/rules_coco/` and a version manifest to `https://dl.cocotec.io/rules_coco/renovate_versions.json`,
 which the recommended configuration uses.
 
-## Recommended Configuration
+## Recommended configuration
 
 This configuration updates both the version and the `integrity` hash. It uses the version manifest on `dl.cocotec.io`,
 so it works with or without GitHub access:
@@ -44,7 +44,7 @@ This configuration:
 - Uses the version manifest instead of GitHub, which also provides the `integrity` hash of each release.
 - Updates every URL in the `urls` list, as well as `integrity`, in the same pull request.
 
-## Configuration Using GitHub Releases
+## Configuration using GitHub releases
 
 If you prefer GitHub releases as the datasource, use this configuration instead:
 
@@ -67,26 +67,28 @@ If you prefer GitHub releases as the datasource, use this configuration instead:
 }
 ```
 
-**Important:** Renovate's `github-releases` datasource only knows the commit SHA of a release tag, not a hash of the
-release archive, so this configuration only updates the `urls`. Don't capture `integrity` with it: Renovate would
-replace the hash with the commit SHA. Bazel reports a checksum mismatch on the resulting pull request until you replace `integrity`
-with the value from the [release notes](https://github.com/cocotec/rules_coco/releases). Use the
-[recommended configuration](#recommended-configuration) to have `integrity` updated automatically.
+> [!IMPORTANT]
+> Renovate's `github-releases` datasource only knows the commit SHA of a release tag, not a hash of the release
+> archive, so this configuration only updates the `urls`. Don't capture `integrity` with it: Renovate would replace the
+> hash with the commit SHA. Bazel reports a checksum mismatch on the resulting pull request until you replace
+> `integrity` with the value from the [release notes](https://github.com/cocotec/rules_coco/releases). Use the
+> [recommended configuration](#recommended-configuration) to have `integrity` updated automatically.
 
-## Example MODULE.bazel
+## Required `archive_override` layout
 
 Make sure your `MODULE.bazel` lists the `dl.cocotec.io` URL, as the snippet in
 [Getting started](getting-started.md#1-add-rules_coco-to-modulebazel) does.
 
-**Important:** The configurations above only recognise an `archive_override` laid out like that snippet:
+> [!IMPORTANT]
+> The configurations above only recognise an `archive_override` laid out like that snippet:
+>
+> - `module_name` must be the first argument.
+> - `urls` must include the URL for the configuration you use (`dl.cocotec.io` or `github.com`).
+> - For the recommended configuration, `integrity` must come after `urls`.
+>
+> Renovate silently ignores an `archive_override` it does not recognise, so it will never propose an update for it.
 
-- `module_name` must be the first argument.
-- `urls` must include the URL for the configuration you use (`dl.cocotec.io` or `github.com`).
-- For the recommended configuration, `integrity` must come after `urls`.
-
-Renovate silently ignores an `archive_override` it does not recognise, so it will never propose an update for it.
-
-## Version Manifest Format
+## Version manifest format
 
 The version manifest at `https://dl.cocotec.io/rules_coco/renovate_versions.json` follows Renovate's [custom datasource format](https://docs.renovatebot.com/modules/datasource/custom/):
 

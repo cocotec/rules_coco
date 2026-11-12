@@ -58,11 +58,11 @@ coco_package(
 
 With `typecheck = True`, building the package runs `popili typecheck`, so `bazel build //path/to:my_package` fails on
 type errors directly. Targets that read the package, such as `coco_generate`, run only after the typecheck has passed.
-Without it, those targets still fail on type errors when they run popili.
+Without it, those targets still fail on type errors when they run Popili.
 
 ## Workspaces
 
-A popili workspace is a `Coco.toml` with a `[workspace]` section, whose settings, such as `[language]` and
+A Popili workspace is a `Coco.toml` with a `[workspace]` section, whose settings, such as `[language]` and
 `[generator]`, apply to the member packages it lists. Declare it with `coco_workspace` and point each member's
 `coco_package` at it:
 
@@ -86,7 +86,7 @@ For mirroring, a generator setting a member inherits from the workspace counts a
 [Output paths](code-generation.md#output-paths)). For example, to use the mocks from `generateMocks = "GMock"` in the
 workspace's `Coco.toml`, set `cpp_mocks = "GMock"` on the member's `coco_package`.
 
-A workspace nested inside another names the enclosing one with `parent`. A workspace can also restrict the popili
+A workspace nested inside another names the enclosing one with `parent`. A workspace can also restrict the Popili
 versions of its members; see [Workspaces](popili-versions.md#workspaces).
 [`test/workspace_basic`](../test/workspace_basic) and [`test/workspace_nested`](../test/workspace_nested) are complete
 examples.
@@ -103,23 +103,25 @@ bazel-bin/<package path>/_coco/<generate name>/<includePrefix>/<path below the s
 another repository) and `<generate name>` is its `name`. `coco_cc_library` and `coco_c_library` add
 `bazel-bin/<package path>/_coco/<generate name>` as a quote include directory. A generated header is therefore included
 by the rest of its path: the package's `includePrefix`, empty by default, then the path of its source below the source
-root. popili's generated code includes its headers by that same path, so hand-written code does too, and the libraries
+root. Popili's generated code includes its headers by that same path, so hand-written code does too, and the libraries
 need no `includes` for generated headers.
 
 With `coco_generate(name = "motor_cpp")` in `hw/motor/BUILD`, `sources = ["src"]` and `includePrefix = "motor"`,
 `hw/motor/src/Foo.coco` becomes `bazel-bin/hw/motor/_coco/motor_cpp/motor/Foo.h`, included as
 `#include "motor/Foo.h"`. Mirror `includePrefix` on the `coco_package` with `cpp_include_prefix` (or
-`c_include_prefix`), like the other settings under [Output Paths](code-generation.md#output-paths).
+`c_include_prefix`), like the other settings under [Output paths](code-generation.md#output-paths).
 
 `outputDirectory` and `testOutputDirectory` in `Coco.toml` are ignored. If one package is generated for several
-languages, give each language different file extensions (see [Output Paths](code-generation.md#output-paths)) so that their files
-do not clash.
+languages, give each language different file extensions (see [Output paths](code-generation.md#output-paths)) so that
+their files do not clash.
 
-To predict these paths, `coco_package` needs the source roots. When `source_roots` is unset, `coco_package` uses the
-deepest directory that contains all `srcs`. Set `source_roots` (and `test_source_roots` for `test_srcs`) when that
-directory isn't the one `Coco.toml` lists in `package.sources`. Three common cases: the package has several roots; all
-sources sit in a subdirectory such as `src/sub/` while `Coco.toml` says `sources = ["src"]`; or the sources are outside
-the directory of `Coco.toml`.
+## Source roots
+
+To predict the paths of generated files, `coco_package` needs the source roots. When `source_roots` is unset,
+`coco_package` uses the deepest directory that contains all `srcs`. Set `source_roots` (and `test_source_roots` for
+`test_srcs`) when that directory isn't the one `Coco.toml` lists in `package.sources`. Three common cases: the package
+has several roots; all sources sit in a subdirectory such as `src/sub/` while `Coco.toml` says `sources = ["src"]`; or
+the sources are outside the directory of `Coco.toml`.
 
 ```starlark
 coco_package(

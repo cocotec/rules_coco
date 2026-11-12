@@ -46,7 +46,7 @@ coco_repositories(
 
 `MODULE.bazel` cannot load `.bzl` files, so in bzlmod list the versions manually in `coco.toolchain`.
 
-Registering versions is cheap: popili and its runtimes are downloaded only for the versions targets actually use. Two
+Registering versions is cheap: Popili and its runtimes are downloaded only for the versions targets actually use. Two
 things to be aware of, though:
 
 - When the first version is an alias such as `"stable"`, or the list is `AVAILABLE_STABLE_VERSIONS`, upgrading
@@ -123,7 +123,7 @@ Under this flag the `popili_versions` checks below only warn.
 
 ## Restricting the versions of a package
 
-A `coco_package` can list the popili versions it is compatible with:
+A `coco_package` can list the Popili versions it is compatible with:
 
 ```starlark
 coco_package(
@@ -134,7 +134,7 @@ coco_package(
 )
 ```
 
-A target such as `coco_generate` or `coco_verify_test` that runs popili on the package at a version not in the list
+A target such as `coco_generate` or `coco_verify_test` that runs Popili on the package at a version not in the list
 fails, saying which pin to set or which version to add to the list. Matching is exact after alias resolution. Add
 `"local"` to the list for the local toolchain. Each package also checks the version it is built with against the lists
 of its `deps`, whether or not it typechecks. Those deps check their own `deps` in turn, so every transitive dep's list

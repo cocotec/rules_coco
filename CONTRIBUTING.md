@@ -7,11 +7,11 @@ Commit messages follow [Conventional Commits](https://www.conventionalcommits.or
 
 ## Running the checks
 
-Most checks run real popili, so they need a Coco license. Locally, the license already activated on your machine is
+Most checks run real Popili, so they need a Coco licence. Locally, the licence already activated on your machine is
 used (`local_user`). For a token instead, export `COCOTEC_AUTH_TOKEN` and add
 `--@rules_coco//:license_source=local_acquire --repo_env=COCOTEC_AUTH_TOKEN`.
 
-1. Lint (buildifier, prettier, typos, whitespace, links), no license needed but
+1. Lint (buildifier, prettier, typos, whitespace, links), no licence needed but
    [lychee](https://lychee.cli.rs) must be installed (`brew install lychee`):
 
    ```bash

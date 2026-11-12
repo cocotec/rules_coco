@@ -20,14 +20,14 @@ coco.toolchain(<a href="#coco.toolchain-auth_token_path">auth_token_path</a>, <a
 
 ### cc_runtime_deps
 
-Inject extra `cc_library` deps into the Coco C++ runtime for a specific Coco/Popili version. Root-module only. See [Older C++ compilers](../old-compilers.md) for when this is needed (typically Boost libraries when building against old libstdc++).
+Inject extra `cc_library` deps into the Coco C++ runtime for a specific Popili version. Root-module only. See [Older C++ compilers](../old-compilers.md) for when this is needed (typically Boost libraries when building against old libstdc++).
 
 **Attributes**
 
 | Name  | Description | Type | Mandatory | Default |
 | :------------- | :------------- | :------------- | :------------- | :------------- |
 | <a id="coco.cc_runtime_deps-deps"></a>deps |  List of `cc_library` targets to append to the runtime's deps.   | <a href="https://bazel.build/concepts/labels">List of labels</a> | required |  |
-| <a id="coco.cc_runtime_deps-version"></a>version |  Coco/Popili version these deps apply to. May be an explicit version (e.g. `"1.5.1"`), an alias (e.g. `"stable"`), or `"local"` for the `coco.local_toolchain` runtime.   | String | required |  |
+| <a id="coco.cc_runtime_deps-version"></a>version |  Popili version these deps apply to. May be an explicit version (e.g. `"1.5.1"`), an alias (e.g. `"stable"`), or `"local"` for the `coco.local_toolchain` runtime.   | String | required |  |
 
 <a id="coco.local_toolchain"></a>
 
@@ -59,6 +59,6 @@ Register Coco toolchains for one or more popili versions. Every module declaring
 | <a id="coco.toolchain-cc"></a>cc |  Whether to include C++ runtime support.   | Boolean | optional |  `False`  |
 | <a id="coco.toolchain-license_source"></a>license_source |  Optional default license source mode for all toolchains (`"local_user"`, `"local_acquire"`, `"token"`, `"action_environment"` or `"action_file"`). Can be overridden with the `--@rules_coco//:license_source` flag.   | String | optional |  `""`  |
 | <a id="coco.toolchain-license_token"></a>license_token |  Optional default license token for all toolchains when `license_source` is `"token"`.   | String | optional |  `""`  |
-| <a id="coco.toolchain-versions"></a>versions |  List of Coco/Popili versions to register (e.g. `["1.5.1", "1.5.0"]`). Use version aliases like `"stable"` or explicit versions like `"1.5.1"`. The first version is the one used when `--@rules_coco//:version` is unset.   | List of strings | optional |  `["stable"]`  |
+| <a id="coco.toolchain-versions"></a>versions |  List of Popili versions to register (e.g. `["1.5.1", "1.5.0"]`). Use version aliases like `"stable"` or explicit versions like `"1.5.1"`. The first version is the one used when `--@rules_coco//:version` is unset.   | List of strings | optional |  `["stable"]`  |
 
 

@@ -69,8 +69,8 @@ keyword-only.
 
 | Name  | Description | Default Value |
 | :------------- | :------------- | :------------- |
-| <a id="coco_repositories-version"></a>version |  A single Coco version, for workspaces that need only one. Mutually exclusive with `versions`. Use an alias like 'stable' or an explicit version like '1.5.1'. Defaults to "stable" when neither argument is given.   |  `None` |
-| <a id="coco_repositories-versions"></a>versions |  The Coco versions to register, in priority order; the first is used when `--@rules_coco//:version` is unset. Mutually exclusive with `version`.   |  `None` |
+| <a id="coco_repositories-version"></a>version |  A single Popili version, for workspaces that need only one. Mutually exclusive with `versions`. Use an alias like 'stable' or an explicit version like '1.5.1'. Defaults to "stable" when neither argument is given.   |  `None` |
+| <a id="coco_repositories-versions"></a>versions |  The Popili versions to register, in priority order; the first is used when `--@rules_coco//:version` is unset. Mutually exclusive with `version`.   |  `None` |
 | <a id="coco_repositories-c"></a>c |  Whether to include C runtime support (for `coco_c_library`).   |  `False` |
 | <a id="coco_repositories-cc"></a>cc |  Whether to include C++ runtime support (for `coco_cc_library`).   |  `False` |
 | <a id="coco_repositories-license_source"></a>license_source |  Optional default license source mode for all toolchains (e.g. 'local_user', 'local_acquire', 'token', 'action_environment', 'action_file'). Can be overridden via the `--@rules_coco//:license_source` flag.   |  `""` |

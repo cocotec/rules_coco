@@ -3,7 +3,7 @@
 Follow the installation instructions from the [latest release](https://github.com/cocotec/rules_coco/releases/latest).
 Each release lists the exact version and integrity hash to use in place of `VERSION` and `HASH` below.
 
-## bzlmod (Recommended)
+## bzlmod (recommended)
 
 Add rules_coco to `MODULE.bazel` as in [Getting started](getting-started.md#1-add-rules_coco-to-modulebazel), and
 enable the runtimes you need on `coco.toolchain`: `cc = True` for `coco_cc_library`, `c = True` for `coco_c_library`.
@@ -14,7 +14,7 @@ the dependency graph declares one, `stable` is registered with both runtimes.
 See [Popili versions](popili-versions.md) for registering and pinning several versions, and the
 [module extension reference](reference/extensions.md) for every tag and attribute.
 
-## WORKSPACE (Deprecated)
+## `WORKSPACE` (deprecated)
 
 > [!WARNING]
 > The `WORKSPACE` mode is deprecated and needs Bazel 8.3.0 or higher. Please migrate to bzlmod.

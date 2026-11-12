@@ -15,7 +15,7 @@ The rules are fully compatible with remote caching and execution.
 
 - Bazel 8.0.0 or higher. `WORKSPACE` mode needs 8.3.0 or higher.
 - Popili 1.5.0 or higher.
-- A valid Coco/Popili license.
+- A valid Coco/Popili licence.
 
 ## Documentation
 
@@ -25,6 +25,6 @@ The rules are fully compatible with remote caching and execution.
 - [Changelog](CHANGELOG.md)
 - [Contributing](CONTRIBUTING.md)
 
-## License
+## Licence
 
 Copyright 2019- Cocotec Limited. Licensed under the Apache License, Version 2.0.

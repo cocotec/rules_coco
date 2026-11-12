@@ -1,11 +1,11 @@
 # Custom toolchains
 
-By default rules_coco downloads popili and its runtimes for every registered version. This page covers the
-two alternatives: a popili distribution on the local filesystem, and a toolchain you build or fetch yourself.
+By default rules_coco downloads Popili and its runtimes for every registered version. This page covers the
+two alternatives: a Popili distribution on the local filesystem, and a toolchain you build or fetch yourself.
 
 ## Using a local toolchain
 
-To point at a popili toolchain on the local filesystem instead of a download add `coco.local_toolchain` to
+To point at a Popili toolchain on the local filesystem instead of a download add `coco.local_toolchain` to
 `MODULE.bazel`:
 
 ```starlark
@@ -29,20 +29,20 @@ The local toolchain is registered alongside the versions from `coco.toolchain` (
 becomes the default. Targets use those versions unless `--@rules_coco//:version=local` selects the local one, so the
 same build can switch between them.
 
-The local popili runs only on the host. If no registered execution platform is the host, for example under remote
+The local Popili runs only on the host. If no registered execution platform is the host, for example under remote
 execution, add `--extra_execution_platforms=@platforms//host`. On Bazel 9, which runs a test on an execution platform
 matching the test's target platform, `coco_verify_test` and `coco_fmt_test` also need `--platforms=@platforms//host`.
 rules_coco fails with a message naming the missing flag.
 
 `coco.local_toolchain` is allowed only in the root module, and at most once.
 
-Under [`local_user` licensing](licensing.md#license-modes), set `license_protocol_version` when your popili does not
-read the newest licence protocol version, e.g. `license_protocol_version = 6` for popili 1.5.x.
+Under [`local_user` licensing](licensing.md#licence-modes), set `license_protocol_version` when your Popili does not
+read the newest licence protocol version, e.g. `license_protocol_version = 6` for Popili 1.5.x.
 
 For `WORKSPACE` mode use `coco_local_repositories(path=..., cc_runtime_path=..., c_runtime_path=...)`, with
 `license_protocol_version=...` when needed (see above). It registers only the local toolchain, which is selected by
 `--@rules_coco//:version=local` and never becomes the default. So a build that does not set the flag fails, saying
-that no default popili version is registered.
+that no default Popili version is registered.
 
 In `WORKSPACE`, to register a local distribution _alongside_ downloaded releases, pass it to `coco_repositories`
 instead, and switch between them with the version flag:
@@ -61,7 +61,7 @@ See [`e2e/local_toolchain`](../e2e/local_toolchain).
 
 ## Bring your own toolchain
 
-To use a popili obtained from other Bazel rules, register your own `coco_toolchain` and skip rules_coco's toolchain
+To use a Popili obtained from other Bazel rules, register your own `coco_toolchain` and skip rules_coco's toolchain
 downloads entirely. With bzlmod you don't need the `coco` extension at all, because rules_coco's own module sets up the
 repositories its rules read. With `WORKSPACE`, still call `coco_repositories`, which creates those repositories, and
 register your toolchain before it. In `MODULE.bazel` you just need
@@ -94,12 +94,12 @@ Use this when one `popili`, built in your repository, should run every target. A
 toolchains and no pin or flag can select another one. Register only one such toolchain, since one registered after
 it would never be selected.
 
-A bring-your-own `coco_toolchain` does not see the license settings on `coco.toolchain` or `coco_repositories`; those
+A bring-your-own `coco_toolchain` does not see the licence settings on `coco.toolchain` or `coco_repositories`; those
 apply only to the toolchains rules_coco creates. Set `license_source` (and `license_token` or `auth_token_path` when
 the mode needs them) on the `coco_toolchain` itself, or use the `--@rules_coco//:license_source` flag.
 
 `popili_version` is the version of the `popili` binary the toolchain points at, such as `"1.5.8"`; an alias such as
-`"stable"` is rejected. Under `local_user` licensing it selects which license file popili gets. Because this toolchain
+`"stable"` is rejected. Under `local_user` licensing it selects which licence file Popili gets. Because this toolchain
 serves every target, a target may ask only for this version or for none. A target pinned to another version, or built
 with `--@rules_coco//:version` set to another version, fails instead of running this `popili`:
 
@@ -111,16 +111,16 @@ See [`e2e/byo_toolchain`](../e2e/byo_toolchain).
 
 ## Execution platforms and cross-compilation
 
-Bazel picks popili by execution platform. For every registered version, rules_coco declares one toolchain per platform
-popili supports: Linux (x86_64 and aarch64), macOS (aarch64) and Windows (x86_64). Each toolchain is constrained to
+Bazel picks Popili by execution platform. For every registered version, rules_coco declares one toolchain per platform
+Popili supports: Linux (x86_64 and aarch64), macOS (aarch64) and Windows (x86_64). Each toolchain is constrained to
 that execution platform only. So actions such as `coco_generate` run on any of these execution platforms, local or
 remote, whatever the target platform.
 
 The Coco runtimes that `coco_cc_library` and `coco_c_library` link are compiled for the target platform like any other
 `cc_library`, so cross-compiling the generated code needs no extra configuration.
 
-`coco_verify_test` and `coco_fmt_test` run popili when the test runs, using the popili of the execution platform the
+`coco_verify_test` and `coco_fmt_test` run Popili when the test runs, using the Popili of the execution platform the
 test runs on. On Bazel 9 that platform must also match the test's target platform, so these tests need a target
-platform that popili supports. Otherwise rules_coco fails with a message naming the target platform.
+platform that Popili supports. Otherwise rules_coco fails with a message naming the target platform.
 
-The `.format` target of `coco_fmt_test` uses the popili of the platform `bazel run` executes it on.
+The `.format` target of `coco_fmt_test` uses the Popili of the platform `bazel run` executes it on.

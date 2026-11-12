@@ -28,9 +28,9 @@ coco.toolchain(
 
 Still on `WORKSPACE`? See [Setup](setup.md#workspace-deprecated).
 
-## 2. Make a license available
+## 2. Make a licence available
 
-By default the rules reuse the Coco license already activated on your machine, so a local build needs no
+By default the rules reuse the Coco licence already activated on your machine, so a local build needs no
 configuration. CI and remote execution need a machine token: see [Licensing](licensing.md).
 
 ## 3. Declare a package, verify it and generate C++
@@ -75,7 +75,7 @@ cc_binary(
 ```
 
 > [!IMPORTANT]
-> This example assumes your `Coco.toml` keeps popili's default generator settings. Each `[generator.cpp]`,
+> This example assumes your `Coco.toml` keeps Popili's default generator settings. Each `[generator.cpp]`,
 > `[generator.c]` or `[generator.csharp]` setting that changes output paths, such as `headerFileExtension`, has to be
 > repeated on `coco_package`, or the build fails with `output '...' was not created`. See
 > [Output paths](code-generation.md#output-paths).

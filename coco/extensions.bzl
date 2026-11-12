@@ -126,7 +126,7 @@ _toolchain_tag = tag_class(
         ),
         "versions": attr.string_list(
             default = ["stable"],
-            doc = "List of Coco/Popili versions to register (e.g. `[\"1.5.1\", \"1.5.0\"]`). Use version aliases like `\"stable\"` or explicit versions like `\"1.5.1\"`. The first version is the one used when `--@rules_coco//:version` is unset.",
+            doc = "List of Popili versions to register (e.g. `[\"1.5.1\", \"1.5.0\"]`). Use version aliases like `\"stable\"` or explicit versions like `\"1.5.1\"`. The first version is the one used when `--@rules_coco//:version` is unset.",
         ),
     },
 )
@@ -134,7 +134,7 @@ _toolchain_tag = tag_class(
 _cc_runtime_deps_tag = tag_class(
     doc = (
         "Inject extra `cc_library` deps into the Coco C++ runtime for a specific " +
-        "Coco/Popili version. Root-module only. See [Older C++ compilers](../old-compilers.md) for " +
+        "Popili version. Root-module only. See [Older C++ compilers](../old-compilers.md) for " +
         "when this is needed (typically Boost libraries when building against old libstdc++)."
     ),
     attrs = {
@@ -143,7 +143,7 @@ _cc_runtime_deps_tag = tag_class(
             mandatory = True,
         ),
         "version": attr.string(
-            doc = "Coco/Popili version these deps apply to. May be an explicit version (e.g. `\"1.5.1\"`), an alias (e.g. `\"stable\"`), or `\"local\"` for the `coco.local_toolchain` runtime.",
+            doc = "Popili version these deps apply to. May be an explicit version (e.g. `\"1.5.1\"`), an alias (e.g. `\"stable\"`), or `\"local\"` for the `coco.local_toolchain` runtime.",
             mandatory = True,
         ),
     },

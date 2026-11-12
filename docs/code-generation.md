@@ -4,7 +4,7 @@ Code is generated from a [`coco_package`](packages.md) with `coco_generate`, and
 library rules. See [where generated code goes](packages.md#where-generated-code-goes) for the output layout and
 how to include generated headers.
 
-## C++ Code Generation
+## C++ code generation
 
 To generate C++ code:
 
@@ -55,7 +55,7 @@ Besides `generated_package`, `coco_cc_library` and `coco_c_library` (and their t
 Any other attribute, such as `copts` or `visibility`, is passed on to the rule that compiles the library:
 `library_rule` when set, otherwise rules_cc's `cc_library`.
 
-## C Code Generation
+## C code generation
 
 Enable the C runtime with `c = True` on `coco.toolchain` (or `coco_repositories`):
 
@@ -101,11 +101,11 @@ cc_binary(
 
 `coco_c_test_library` compiles the generated C test code; see [Test code and mocks](#test-code-and-mocks).
 
-## Output Paths
+## Output paths
 
-Bazel has to be able to precompute the output paths of all rules. Since there are many settings in `Coco.toml` that
-can affect output paths, these settings must be repeated on the `coco_package` in the `BUILD` file. If you forget to do this, you will get
-errors when running `coco_generate` such as:
+Bazel has to be able to precompute the output paths of all rules. Since there are many settings in `Coco.toml` that can
+affect output paths, these settings must be repeated on the `coco_package` in the `BUILD` file. If you forget to do
+this, you will get errors when running `coco_generate` such as:
 
 ```
 ERROR: example/BUILD:10:14: output 'example/Example.h' was not created
@@ -165,14 +165,14 @@ coco_package(
 | `generator.csharp.generateMocks`            | `csharp_mocks`                      |
 
 Each package in a `*_regenerate_packages` list must be a dependency of the package, directly or through another
-package in `deps`, because popili only regenerates dependencies. Otherwise the build fails with
+package in `deps`, because Popili only regenerates dependencies. Otherwise the build fails with
 `... is not a dependency of ...`.
 
 ### Include prefixes
 
-Mirror the package's _effective_ value: the one in its own `Coco.toml`, or else the one it inherits from its
-workspace's `Coco.toml` or receives from a dependency with `exportConfig = true` (see the popili documentation
-on `includePrefix`). A wrong `cpp_include_prefix` or `c_include_prefix` fails when compiling the package's own generated code, as popili
+Mirror the package's _effective_ value: the one in its own `Coco.toml`, or else the one it inherits from its workspace's
+`Coco.toml` or receives from a dependency with `exportConfig = true` (see the Popili documentation on `includePrefix`).
+A wrong `cpp_include_prefix` or `c_include_prefix` fails when compiling the package's own generated code, as Popili
 wrote its includes with the `Coco.toml` value:
 
 ```
@@ -195,7 +195,7 @@ the same reason. `shortenIncludes = "SameDirectory"` does not work across packag
 
 ## Test code and mocks
 
-popili writes two kinds of test code: code generated from the package's test sources (`testSources` in `Coco.toml`),
+Popili writes two kinds of test code: code generated from the package's test sources (`testSources` in `Coco.toml`),
 and mocks of its components (`generateMocks`). `coco_cc_test_library` and `coco_c_test_library` compile this test code
 apart from the production library:
 
@@ -234,17 +234,17 @@ cc_test(
 
 Mocks are no exception: set `generateMocks = "GMock"` in `Coco.toml` _and_ `cpp_mocks = "GMock"` on `coco_package`
 to get mocks for `coco_cc_test_library`. With only the attribute set, the build fails with
-`output ... was not created`; with only the setting, popili writes mocks that no target uses.
+`output ... was not created`; with only the setting, Popili writes mocks that no target uses.
 
 The test libraries link GoogleTest through `gmock`, which defaults to `@googletest//:gtest`. Add
 `bazel_dep(name = "googletest", version = "...")` to `MODULE.bazel`, or set `gmock` to another target, or to `None` to
 leave GoogleTest out. Set `test_source_roots` for `test_srcs` in the same cases as `source_roots` (see
-[Where generated code goes](packages.md#where-generated-code-goes)). [`e2e/smoke`](../e2e/smoke) is a tested example.
+[Source roots](packages.md#source-roots)). [`e2e/smoke`](../e2e/smoke) is a tested example.
 
 Each `coco_generate` target also creates a `<name>.tst` target with only the generated test code, mocks included, for
 consumers other than the test libraries. `coco_test_outputs_name` from `@rules_coco//coco:defs.bzl` returns its name.
 
-## C# Code Generation
+## C# code generation
 
 To generate C# code:
 
@@ -258,7 +258,9 @@ coco_generate(
 )
 ```
 
-**Note:** C# code generation produces `.cs` files but does not include compilation support. Bazel's C# rules are currently too primitive to provide a good integration. The generated C# files can be consumed by other build systems or IDEs.
+> [!NOTE]
+> C# code generation produces `.cs` files but does not include compilation support. Bazel's C# rules are currently too
+> primitive to provide a good integration. The generated C# files can be consumed by other build systems or IDEs.
 
 With `csharp_mocks` or test sources, the generated C# test code is in the `<name>.tst` target; see
 [Test code and mocks](#test-code-and-mocks).

@@ -3,7 +3,7 @@
 Core rules and macros: packages, code generation, verification, formatting and diagrams.
 
 Also exports `LICENSE_SOURCES`, the licence modes that `--@rules_coco//:license_source` accepts: `action_environment`,
-`action_file`, `local_acquire`, `local_user` and `token`. See [Licensing](../licensing.md#license-modes).
+`action_file`, `local_acquire`, `local_user` and `token`. See [Licensing](../licensing.md#licence-modes).
 
 <a id="CocoCSharpGeneratedInfo"></a>
 

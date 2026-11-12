@@ -83,10 +83,10 @@ def coco_repositories(
     keyword-only.
 
     Args:
-      version: A single Coco version, for workspaces that need only one. Mutually
+      version: A single Popili version, for workspaces that need only one. Mutually
         exclusive with `versions`. Use an alias like 'stable' or an explicit version like
         '1.5.1'. Defaults to "stable" when neither argument is given.
-      versions: The Coco versions to register, in priority order; the first is used when
+      versions: The Popili versions to register, in priority order; the first is used when
         `--@rules_coco//:version` is unset. Mutually exclusive with `version`.
       c: Whether to include C runtime support (for `coco_c_library`).
       cc: Whether to include C++ runtime support (for `coco_cc_library`).
