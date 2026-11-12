@@ -37,35 +37,6 @@ def _coco_fmt_test_impl(ctx, popili):
 _coco_fmt_test = popili_rule(
     implementation = _coco_fmt_test_impl,
     package = True,
-    doc = """Test rule that verifies Coco code formatting.
-
-This rule creates a test target that runs `popili format --verify` on the
-specified coco_package. The test passes if all Coco source files are properly
-formatted according to the formatting settings in the package's Coco.toml file.
-
-Example:
-    ```python
-    coco_package(
-        name = "my_pkg",
-        package = "Coco.toml",
-        srcs = glob(["src/**/*.coco"]),
-    )
-
-    coco_fmt_test(
-        name = "my_pkg_fmt_test",
-        package = ":my_pkg",
-    )
-    ```
-
-To skip this test for specific targets, use standard Bazel tags:
-    ```python
-    coco_fmt_test(
-        name = "generated_fmt_test",
-        package = ":generated_pkg",
-        tags = ["manual"],  # Only run when explicitly requested
-    )
-    ```
-""",
     test = True,
 )
 
@@ -120,17 +91,33 @@ def _coco_fmt_test_macro_impl(name, visibility, package, popili_version = None, 
     )
 
 coco_fmt_test = macro(
-    doc = """Create a Coco format-check test plus a companion formatter binary.
+    doc = """Create a Coco format-check test plus a companion formatter target.
 
 Two targets are created:
 
-- `<name>`: a test (run via `bazel test`) that fails if the package's Coco
-  sources are not correctly formatted (runs `popili format --verify`).
-- `<name>.format`: a binary (run via `bazel run`) that formats the sources in
-  place (runs `popili format`).
+- `<name>`: a test, run with `bazel test`, that runs `popili format --verify`
+  and fails if the package's Coco sources are not formatted according to the
+  settings in its `Coco.toml`.
+- `<name>.format`: an executable target, run with `bazel run`, that formats the
+  sources in place with `popili format`.
 
-To skip the test for specific packages, use standard Bazel tags, e.g.
-`tags = ["manual"]`.""",
+Example:
+
+```starlark
+coco_package(
+    name = "my_pkg",
+    package = "Coco.toml",
+    srcs = glob(["src/**/*.coco"]),
+)
+
+coco_fmt_test(
+    name = "my_pkg_fmt_test",
+    package = ":my_pkg",
+)
+```
+
+`bazel run //path/to:my_pkg_fmt_test.format` then formats the sources. To leave
+the test out of `bazel test //...`, set `tags = ["manual"]`.""",
     inherit_attrs = _coco_fmt_test,
     attrs = {
         "package": attr.label(

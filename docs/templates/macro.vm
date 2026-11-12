@@ -1,0 +1,44 @@
+## Stardoc's markdown_tables/macro.vm, except that the Default column is left out
+## when no attribute has a default other than None: symbolic macro attributes
+## default to None and their docstrings state the effective default instead.
+#set ($showDefault = false)
+#foreach ($attribute in $macroInfo.getAttributeList())
+#if (!$attribute.defaultValue.isEmpty() && $attribute.defaultValue != "None")
+#set ($showDefault = true)
+#end
+#end
+<a id="${macroName}"></a>
+
+#[[##]]# ${macroName}
+
+<pre>
+${util.loadStatement($macroName)}
+
+${util.macroSummary($macroName, $macroInfo)}
+</pre>
+
+#if ($macroInfo.finalizer)
+This macro is a <a href="https://bazel.build/extending/macros#finalizers">rule finalizer</a>.
+
+#end
+${macroInfo.docString}
+
+**ATTRIBUTES**
+
+#if (!$macroInfo.getAttributeList().isEmpty())
+#if ($showDefault)
+
+| Name  | Description | Type | Mandatory | Default |
+| :------------- | :------------- | :------------- | :------------- | :------------- |
+#foreach ($attribute in $macroInfo.getAttributeList())
+| <a id="${macroName}-${attribute.name}"></a>$attribute.name | #if(!$attribute.docString.isEmpty()) ${util.markdownCellFormat($attribute.docString)} #else - #end  | ${util.attributeTypeString($attribute)} | ${util.mandatoryString($attribute)} | #if(!$attribute.defaultValue.isEmpty()) ${util.markdownCodeSpan($attribute.defaultValue)} #end |
+#end
+#else
+
+| Name  | Description | Type | Mandatory |
+| :------------- | :------------- | :------------- | :------------- |
+#foreach ($attribute in $macroInfo.getAttributeList())
+| <a id="${macroName}-${attribute.name}"></a>$attribute.name | #if(!$attribute.docString.isEmpty()) ${util.markdownCellFormat($attribute.docString)} #else - #end  | ${util.attributeTypeString($attribute)} | ${util.mandatoryString($attribute)} |
+#end
+#end
+#end
