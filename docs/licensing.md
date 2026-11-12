@@ -29,10 +29,12 @@ Contact [Cocotec Support](https://cocotec.io/support/) to set this up or discuss
   the toolchain configuration. Popili will be invoked with `--machine-auth-token` pointing to this file.
 
   This mode is suitable for remote execution environments where auth token files are pre-mounted or made available through
-  other mechanisms. **Requires popili 1.5.2 or later.**
+  other mechanisms. **Requires popili 1.5.2 or later.** rules_coco does not check either requirement: without an
+  `auth_token_path`, popili runs with no token and fails to find a license.
 
-- `local_acquire`: A license will be acquired on the local machine as part of the build using `COCOTEC_AUTH_TOKEN`.
-  This is not compatible with remote execution.
+- `local_acquire`: rules_coco acquires a license on the local machine with `COCOTEC_AUTH_TOKEN`. Bazel reads the
+  token from your shell when it fetches the license repository, so export it and pass `--repo_env=COCOTEC_AUTH_TOKEN`;
+  without it popili fails at its first action. Not compatible with remote execution.
 - `local_user`: The user's existing license on this machine will be reused. This is not compatible with remote
   execution. Each popili version gets the license file it reads (`licenses_<n>.lic` in popili's data directory, `n`
   being its licence protocol version); the local toolchain, of unknown version, gets the file of the newest protocol
@@ -78,6 +80,7 @@ This can be configured in three ways (in order of precedence):
 
 The repository-level configuration (MODULE.bazel or WORKSPACE) sets a default that applies to all builds, while the
 command-line flag can be used to override it for specific builds. If neither is specified, the default is `local_user`.
+A bring-your-own `coco_toolchain` ignores this default; see [Custom toolchains](toolchains.md#bring-your-own-toolchain).
 
 > [!WARNING]
 > The `license_token` parameter is available in repository configuration for convenience, but:

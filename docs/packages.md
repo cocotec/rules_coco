@@ -68,9 +68,11 @@ do not clash.
 > rules_coco 0.3 included generated headers by the path of their source file (`#include "pkg/src/Foo.h"`). See the
 > [changelog](../CHANGELOG.md) for how to update your include paths.
 
-To predict these paths, `coco_package` needs the source roots. If all `srcs` (or `test_srcs`) are below one
-directory, that directory is used. Otherwise, for example when a package has several roots, set `source_roots` (or
-`test_source_roots`):
+To predict these paths, `coco_package` needs the source roots. When `source_roots` is unset, `coco_package` uses the
+deepest directory that contains all `srcs`. Set `source_roots` (and `test_source_roots` for `test_srcs`) when that
+directory isn't the one `Coco.toml` lists in `package.sources`. Three common cases: the package has several roots; all
+sources sit in a subdirectory such as `src/sub/` while `Coco.toml` says `sources = ["src"]`; or the sources are outside
+the directory of `Coco.toml`.
 
 ```starlark
 coco_package(

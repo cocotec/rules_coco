@@ -67,8 +67,6 @@ coco_state_diagram(
 )
 ```
 
-**Note:** State diagram generation currently requires packages with a single `.coco` file.
-
 ### Counterexample Diagrams
 
 Generate sequence diagrams for verification failures. You must specify the expected counterexamples as a dict mapping

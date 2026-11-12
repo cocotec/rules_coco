@@ -76,8 +76,8 @@ cc_binary(
 > before popili runs, so each `[generator.cpp]`, `[generator.c]` or `[generator.csharp]` setting that changes output
 > paths has to be repeated on `coco_package`. Examples are file extensions, file name prefixes, `fileNameMangler`,
 > `includePrefix`, `regeneratePackages` and `generateMocks`. For example, `headerFileExtension = ".hpp"` needs
-> `cpp_header_file_extension = ".hpp"`. If a setting is missing, the build fails with `output '...' was not created` or
-> a missing include. See [Output paths](code-generation.md#output-paths) for every setting and its attribute.
+> `cpp_header_file_extension = ".hpp"` (and `runtimeHeaderFileExtension = ".h"` in `Coco.toml`). If a setting is
+> missing, the build fails with `output '...' was not created` or a missing include. See [Output paths](code-generation.md#output-paths) for every setting and its attribute.
 
 ## 4. Build and test
 
@@ -86,4 +86,4 @@ bazel test //path/to/package:all       # runs the verification
 bazel run //path/to/package:main       # builds the generated code and your binary
 ```
 
-[`e2e/smoke`](../e2e/smoke) is a complete, tested version of this example.
+[`e2e/smoke`](../e2e/smoke) is a tested module built the same way, with C++ mocks and a GoogleTest test added.
