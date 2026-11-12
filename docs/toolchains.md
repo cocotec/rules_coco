@@ -25,9 +25,9 @@ of `popili_<os>_<arch>.zip`, `coco-cpp-runtime.zip`, and `coco-c-runtime.zip` re
 build:local_popili --@rules_coco//:version=local
 ```
 
-The local toolchain is registered alongside the versions from `coco.toolchain` (or the default `stable`). Targets use
-those versions unless `--@rules_coco//:version=local` selects the local one, so the same build can switch between
-them.
+The local toolchain is registered alongside the versions from `coco.toolchain` (or the default `stable`), and never
+becomes the default. Targets use those versions unless `--@rules_coco//:version=local` selects the local one, so the
+same build can switch between them.
 
 The local popili runs only on the host. If no registered execution platform is the host, for example under remote
 execution, add `--extra_execution_platforms=@platforms//host`. On Bazel 9, which runs a test on an execution platform
@@ -36,14 +36,13 @@ rules_coco fails with a message naming the missing flag.
 
 `coco.local_toolchain` is allowed only in the root module, and at most once.
 
-Under [`local_user` licensing](licensing.md#license-modes), set `license_protocol_version` when your popili does not read the newest licence
-protocol version, e.g. `license_protocol_version = 6` for popili 1.5.x.
+Under [`local_user` licensing](licensing.md#license-modes), set `license_protocol_version` when your popili does not
+read the newest licence protocol version, e.g. `license_protocol_version = 6` for popili 1.5.x.
 
 For `WORKSPACE` mode use `coco_local_repositories(path=..., cc_runtime_path=..., c_runtime_path=...)`, with
-`license_protocol_version=...` when needed (see above),
-which behaves the same way: the local toolchain is selected by `--@rules_coco//:version=local` and
-never becomes the default, so a build that does not set the flag fails, saying that no default popili
-version is registered.
+`license_protocol_version=...` when needed (see above). It registers only the local toolchain, which is selected by
+`--@rules_coco//:version=local` and never becomes the default. So a build that does not set the flag fails, saying
+that no default popili version is registered.
 
 In `WORKSPACE`, to register a local distribution _alongside_ downloaded releases, pass it to `coco_repositories`
 instead, and switch between them with the version flag:
@@ -99,10 +98,10 @@ A bring-your-own `coco_toolchain` does not see the license settings on `coco.too
 apply only to the toolchains rules_coco creates. Set `license_source` (and `license_token` or `auth_token_path` when
 the mode needs them) on the `coco_toolchain` itself, or use the `--@rules_coco//:license_source` flag.
 
-`popili_version` is the version of the `popili` binary the toolchain points at, such as `"1.5.8"`; an alias such
-as `"stable"` is rejected. It picks the licence file under `local_user` licensing, and every target must ask for
-that version or for none in particular. A target pinned to another version, or built with
-`--@rules_coco//:version` set to another version, fails instead of running this `popili`:
+`popili_version` is the version of the `popili` binary the toolchain points at, such as `"1.5.8"`; an alias such as
+`"stable"` is rejected. Under `local_user` licensing it selects which license file popili gets. Because this toolchain
+serves every target, a target may ask only for this version or for none. A target pinned to another version, or built
+with `--@rules_coco//:version` set to another version, fails instead of running this `popili`:
 
 ```
 @@//a:gen needs popili 1.5.1 (pinned by popili_version), but the bring-your-own coco_toolchain @@//tools:my_popili, which serves every target, is popili 1.5.8. ...

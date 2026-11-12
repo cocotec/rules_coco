@@ -100,11 +100,11 @@ bazel-bin/<package path>/_coco/<generate name>/<includePrefix>/<path below the s
 ```
 
 `<package path>` is the directory of the `BUILD` file declaring the `coco_generate` (below `external/<repo>/` for
-another repository) and `<generate name>` is its `name`. Every library built from the target gets the part up to
-the name as a quote include directory, so a header is included by what follows it: the package's `includePrefix`,
-empty by default, then the path of its source relative to its source root. That is how popili's own generated code
-includes it, so hand-written code includes it the same way and `coco_cc_library` and `coco_c_library` need no
-`includes` for generated headers.
+another repository) and `<generate name>` is its `name`. `coco_cc_library` and `coco_c_library` add
+`bazel-bin/<package path>/_coco/<generate name>` as a quote include directory. A generated header is therefore included
+by the rest of its path: the package's `includePrefix`, empty by default, then the path of its source below the source
+root. popili's generated code includes its headers by that same path, so hand-written code does too, and the libraries
+need no `includes` for generated headers.
 
 With `coco_generate(name = "motor_cpp")` in `hw/motor/BUILD`, `sources = ["src"]` and `includePrefix = "motor"`,
 `hw/motor/src/Foo.coco` becomes `bazel-bin/hw/motor/_coco/motor_cpp/motor/Foo.h`, included as
