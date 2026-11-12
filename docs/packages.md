@@ -115,10 +115,6 @@ With `coco_generate(name = "motor_cpp")` in `hw/motor/BUILD`, `sources = ["src"]
 languages, give each language different file extensions (see [Output Paths](code-generation.md#output-paths)) so that their files
 do not clash.
 
-> [!NOTE]
-> rules_coco 0.3 included generated headers by the path of their source file (`#include "pkg/src/Foo.h"`). See the
-> [changelog](../CHANGELOG.md) for how to update your include paths.
-
 To predict these paths, `coco_package` needs the source roots. When `source_roots` is unset, `coco_package` uses the
 deepest directory that contains all `srcs`. Set `source_roots` (and `test_source_roots` for `test_srcs`) when that
 directory isn't the one `Coco.toml` lists in `package.sources`. Three common cases: the package has several roots; all
