@@ -52,6 +52,11 @@ coco_architecture_diagram(
 )
 ```
 
+Other options: `depth` (how many levels to draw: an integer such as `"2"`, `"auto"` or `"max"`), `hide_ports`,
+`only_roots`, `only_encapsulating` (on by default: implementation and external components are left out),
+`component_names`, and `component_types` (on by default). The [reference](reference/defs.md#coco_architecture_diagram)
+lists every attribute with its default.
+
 ### State Machine Diagrams
 
 Generate state machine diagrams:
@@ -66,6 +71,10 @@ coco_state_diagram(
     separate_edges = False,
 )
 ```
+
+The diagram is written to `<name>.svg`. Without `targets`, that one file shows every state machine. With several
+`targets`, each gets its own file, `<name>_<target>.svg`, with the dots in the target replaced by underscores
+(`my_state_machine_MyComponent_MyMachine.svg`).
 
 ### Counterexample Diagrams
 
@@ -85,6 +94,9 @@ coco_counterexample_diagram(
     deterministic = True,
 )
 ```
+
+`draw_title` (default `True`) draws a border and title on each diagram. `deterministic` (default `True`) makes popili
+produce the same counterexample on every run, so the output is reproducible.
 
 For filtering by specific assertions, use the `counterexample_options()` helper:
 

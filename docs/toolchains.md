@@ -21,15 +21,27 @@ Each path (absolute, or workspace-relative) mirrors the **extracted release arch
 of `popili_<os>_<arch>.zip`, `coco-cpp-runtime.zip`, and `coco-c-runtime.zip` respectively. To use it, run with
 `bazel build --@rules_coco//:version=local //...` (consider a `.bazelrc` `--config`).
 
+The local toolchain is registered alongside the versions from `coco.toolchain` (or the default `stable`). Targets use
+those versions unless `--@rules_coco//:version=local` selects the local one, so the same build can switch between
+them.
+
+The local popili runs only on the host. If no registered execution platform is the host, for example under remote
+execution, add `--extra_execution_platforms=@platforms//host`. On Bazel 9, which runs a test on an execution platform
+matching the test's target platform, `coco_verify_test` and `coco_fmt_test` also need `--platforms=@platforms//host`.
+rules_coco fails with a message naming the missing flag.
+
+`coco.local_toolchain` is allowed only in the root module, and at most once.
+
 Under [`local_user` licensing](licensing.md#license-modes), set `license_protocol_version` when your popili does not read the newest licence
 protocol version, e.g. `license_protocol_version = 6` for popili 1.5.x.
 
-For `WORKSPACE` mode use `coco_local_repositories(path=..., cc_runtime_path=..., c_runtime_path=...)`,
+For `WORKSPACE` mode use `coco_local_repositories(path=..., cc_runtime_path=..., c_runtime_path=...)`, with
+`license_protocol_version=...` when needed (see above),
 which behaves the same way: the local toolchain is selected by `--@rules_coco//:version=local` and
 never becomes the default, so a build that does not set the flag fails, saying that no default popili
 version is registered.
 
-To register a local distribution _alongside_ downloaded releases, pass it to `coco_repositories`
+In `WORKSPACE`, to register a local distribution _alongside_ downloaded releases, pass it to `coco_repositories`
 instead, and switch between them with the version flag:
 
 ```starlark
@@ -38,6 +50,7 @@ coco_repositories(
     versions = ["1.5.1"],
     local_popili = "/path/to/popili-dist",
     local_cc_runtime = "/path/to/cpp-runtime",
+    # local_license_protocol_version = 6,  # as license_protocol_version above
 )
 ```
 
@@ -92,3 +105,19 @@ that version or for none in particular. A target pinned to another version, or b
 ```
 
 See [`e2e/byo_toolchain`](../e2e/byo_toolchain).
+
+## Execution platforms and cross-compilation
+
+Bazel picks popili by execution platform. For every registered version, rules_coco declares one toolchain per platform
+popili supports: Linux (x86_64 and aarch64), macOS (aarch64) and Windows (x86_64). Each toolchain is constrained to
+that execution platform only. So actions such as `coco_generate` run on any of these execution platforms, local or
+remote, whatever the target platform.
+
+The Coco runtimes that `coco_cc_library` and `coco_c_library` link are compiled for the target platform like any other
+`cc_library`, so cross-compiling the generated code needs no extra configuration.
+
+`coco_verify_test` and `coco_fmt_test` run popili when the test runs, using the popili of the execution platform the
+test runs on. On Bazel 9 that platform must also match the test's target platform, so these tests need a target
+platform that popili supports. Otherwise rules_coco fails with a message naming the target platform.
+
+The `.format` target of `coco_fmt_test` uses the popili of the platform `bazel run` executes it on.
