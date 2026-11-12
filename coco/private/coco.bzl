@@ -140,11 +140,9 @@ TOOLCHAIN_ATTRIBUTES = {
 
 POPILI_VERSION_ATTRIBUTES = {
     "popili_version": attr.string(
-        doc = "The registered popili version this target and everything beneath it, including the " +
-              "coco_package it reads, run with: a version such as `\"1.5.1\"` or an alias such as " +
-              "`\"stable\"`. It wins over `--@rules_coco//:version`, unless `--@rules_coco//:force_version` " +
-              "is set, which ignores every pin. Empty (the default) uses the version that flag selects, or " +
-              "the first registered version when the flag is unset too.",
+        doc = "Pin this target, and the `coco_package` it reads, to a registered Popili version, such as " +
+              "`\"1.5.1\"` or `\"stable\"`. Default: `\"\"`, the version the rest of the build uses. See " +
+              "[Pinning targets](../popili-versions.md#pinning-targets).",
     ),
 }
 
@@ -1317,12 +1315,10 @@ def _coco_package_impl(ctx):
     ]
 
 def _include_prefix_doc(language, section):
-    return ("Must match the package's effective `generator.%s.includePrefix`: the value in its Coco.toml, or " % section +
-            "else the one it inherits from its workspace or receives from a dependency with `exportConfig = true`. " +
-            "Generated %s headers are included as `<prefix>/<path below the " % language +
-            "source root>`, the way popili's own generated code includes them: `#include \"Foo.h\"` by default, " +
-            "`#include \"motor/Foo.h\"` for `\"motor\"`. A mismatch fails when compiling this package's generated " +
-            "code, with the header not found under the `Coco.toml` prefix. Default: `\"\"`, popili's default.")
+    return ("Mirrors the package's effective `generator.%s.includePrefix`, including one inherited from its " % section +
+            "workspace or from a dependency with `exportConfig = true`. Generated %s headers are included as " % language +
+            "`<prefix>/<path below the source root>`. Default: `\"\"`. See " +
+            "[Include prefixes](../code-generation.md#include-prefixes).")
 
 # The coco_package attributes that mirror the [generator.<language>] settings in Coco.toml, which
 # coco_generate needs to predict the files popili writes.
@@ -1445,16 +1441,11 @@ _coco_package = rule(
             doc = "The package's `Coco.toml`.",
         ),
         "popili_versions": attr.string_list(
-            doc = "The popili versions this package is compatible with, such as " +
-                  "`[\"1.5.0\", \"1.5.1\"]`. Aliases such as `\"stable\"` are allowed. A target that runs " +
-                  "another popili version on this package fails; under `--@rules_coco//:force_version` " +
-                  "this is a warning instead. The local toolchain satisfies the list only when it " +
-                  "names `\"local\"` and when `--@rules_coco//:version=local` is passed. The " +
-                  "package itself is built with the version selected for it (via the default, " +
-                  "the flag, or a consumer's pin) when the list has it, otherwise with " +
-                  "the **first** listed release that is registered. Empty (the default) inherits " +
-                  "the list of its `workspace`, if any. A list of its own must include every version " +
-                  "the workspace lists: a member may support more versions than its workspace, never fewer.",
+            doc = "The Popili versions this package is compatible with, such as `[\"1.5.0\", \"1.5.1\"]`; " +
+                  "aliases are allowed, and `\"local\"` for the local toolchain. Running Popili on the package at " +
+                  "another version fails, and the list also steers the version the package itself is built with. " +
+                  "Default: `[]`, the list of its `workspace`, if any. See " +
+                  "[Restricting the versions of a package](../popili-versions.md#restricting-the-versions-of-a-package).",
         ),
         "source_roots": attr.string_list(
             doc = "Directories, relative to Coco.toml, that hold the .coco sources. Must match " +
@@ -1544,12 +1535,9 @@ _coco_workspace = rule(
             doc = "The `coco_workspace` that encloses this one, when workspaces are nested.",
         ),
         "popili_versions": attr.string_list(
-            doc = "The popili versions every member package is known to work with, such as " +
-                  "`[\"1.5.0\", \"1.5.1\"]`; aliases such as `\"stable\"` are allowed. Empty (the default) " +
-                  "inherits the `parent`'s list, if any. Member packages without `popili_versions` of their " +
-                  "own inherit the list and are checked against it like a package that lists it. A member or " +
-                  "nested workspace with a list of its own must include every version listed here, otherwise " +
-                  "it fails: a member may support more versions than its workspace, never fewer.",
+            doc = "The Popili versions every member package is compatible with. Members without a list of their " +
+                  "own inherit it; a list of their own must include it. Default: `[]`, the `parent`'s list, if " +
+                  "any. See [Workspaces](../popili-versions.md#workspaces).",
         ),
         "workspace": attr.label(
             mandatory = True,
