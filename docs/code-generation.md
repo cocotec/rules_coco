@@ -6,7 +6,7 @@ how to include generated headers.
 
 ## C++ code generation
 
-To generate C++ code:
+To generate [C++ code](https://cocotec.io/popili/doc/stable/cpp/index.html):
 
 ```starlark
 load("@rules_coco//coco:defs.bzl", "coco_generate")
@@ -18,7 +18,8 @@ coco_generate(
 )
 ```
 
-Compile the generated C++ with `coco_cc_library`, which adds the C++ runtime as a dependency:
+Compile the generated C++ with `coco_cc_library`, which adds the
+[C++ runtime](https://cocotec.io/popili/doc/stable/cpp/runtime.html#cpp-runtime) as a dependency:
 
 ```starlark
 load("@rules_coco//coco:cc.bzl", "coco_cc_library")
@@ -142,27 +143,27 @@ coco_package(
 )
 ```
 
-| Coco.toml Setting                           | `coco_package` Attribute            |
-| ------------------------------------------- | ----------------------------------- |
-| `generator.c.headerFileExtension`           | `c_header_file_extension`           |
-| `generator.c.implementationFileExtension`   | `c_implementation_file_extension`   |
-| `generator.c.headerFilePrefix`              | `c_header_file_prefix`              |
-| `generator.c.implementationFilePrefix`      | `c_implementation_file_prefix`      |
-| `generator.c.fileNameMangler`               | `c_file_name_mangler`               |
-| `generator.c.flatFileHierarchy`             | `c_flat_file_hierarchy`             |
-| `generator.c.includePrefix`                 | `c_include_prefix`                  |
-| `generator.c.regeneratePackages`            | `c_regenerate_packages`             |
-| `generator.cpp.headerFileExtension`         | `cpp_header_file_extension`         |
-| `generator.cpp.implementationFileExtension` | `cpp_implementation_file_extension` |
-| `generator.cpp.headerFilePrefix`            | `cpp_header_file_prefix`            |
-| `generator.cpp.implementationFilePrefix`    | `cpp_implementation_file_prefix`    |
-| `generator.cpp.fileNameMangler`             | `cpp_file_name_mangler`             |
-| `generator.cpp.flatFileHierarchy`           | `cpp_flat_file_hierarchy`           |
-| `generator.cpp.includePrefix`               | `cpp_include_prefix`                |
-| `generator.cpp.regeneratePackages`          | `cpp_regenerate_packages`           |
-| `generator.cpp.generateMocks`               | `cpp_mocks`                         |
-| `generator.csharp.regeneratePackages`       | `csharp_regenerate_packages`        |
-| `generator.csharp.generateMocks`            | `csharp_mocks`                      |
+| Coco.toml Setting                                                                                                                               | `coco_package` Attribute            |
+| ----------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| [`generator.c.headerFileExtension`](https://cocotec.io/popili/doc/1.6/codegen/c/settings.html#generator.c.headerFileExtension)                  | `c_header_file_extension`           |
+| [`generator.c.implementationFileExtension`](https://cocotec.io/popili/doc/1.6/codegen/c/settings.html#generator.c.implementationFileExtension)  | `c_implementation_file_extension`   |
+| [`generator.c.headerFilePrefix`](https://cocotec.io/popili/doc/1.6/codegen/c/settings.html#generator.c.headerFilePrefix)                        | `c_header_file_prefix`              |
+| [`generator.c.implementationFilePrefix`](https://cocotec.io/popili/doc/1.6/codegen/c/settings.html#generator.c.implementationFilePrefix)        | `c_implementation_file_prefix`      |
+| [`generator.c.fileNameMangler`](https://cocotec.io/popili/doc/1.6/codegen/c/settings.html#generator.c.fileNameMangler)                          | `c_file_name_mangler`               |
+| [`generator.c.flatFileHierarchy`](https://cocotec.io/popili/doc/1.6/codegen/c/settings.html#generator.c.flatFileHierarchy)                      | `c_flat_file_hierarchy`             |
+| [`generator.c.includePrefix`](https://cocotec.io/popili/doc/1.6/codegen/c/settings.html#generator.c.includePrefix)                              | `c_include_prefix`                  |
+| [`generator.c.regeneratePackages`](https://cocotec.io/popili/doc/1.6/codegen/c/settings.html#generator.c.regeneratePackages)                    | `c_regenerate_packages`             |
+| [`generator.cpp.headerFileExtension`](https://cocotec.io/popili/doc/stable/cpp/settings.html#generator.cpp.headerFileExtension)                 | `cpp_header_file_extension`         |
+| [`generator.cpp.implementationFileExtension`](https://cocotec.io/popili/doc/stable/cpp/settings.html#generator.cpp.implementationFileExtension) | `cpp_implementation_file_extension` |
+| [`generator.cpp.headerFilePrefix`](https://cocotec.io/popili/doc/1.6/codegen/cpp/settings.html#generator.cpp.headerFilePrefix)                  | `cpp_header_file_prefix`            |
+| [`generator.cpp.implementationFilePrefix`](https://cocotec.io/popili/doc/1.6/codegen/cpp/settings.html#generator.cpp.implementationFilePrefix)  | `cpp_implementation_file_prefix`    |
+| [`generator.cpp.fileNameMangler`](https://cocotec.io/popili/doc/stable/cpp/settings.html#generator.cpp.fileNameMangler)                         | `cpp_file_name_mangler`             |
+| [`generator.cpp.flatFileHierarchy`](https://cocotec.io/popili/doc/stable/cpp/settings.html#generator.cpp.flatFileHierarchy)                     | `cpp_flat_file_hierarchy`           |
+| [`generator.cpp.includePrefix`](https://cocotec.io/popili/doc/stable/cpp/settings.html#generator.cpp.includePrefix)                             | `cpp_include_prefix`                |
+| [`generator.cpp.regeneratePackages`](https://cocotec.io/popili/doc/stable/cpp/settings.html#generator.cpp.regeneratePackages)                   | `cpp_regenerate_packages`           |
+| [`generator.cpp.generateMocks`](https://cocotec.io/popili/doc/stable/cpp/settings.html#generator.cpp.generateMocks)                             | `cpp_mocks`                         |
+| [`generator.csharp.regeneratePackages`](https://cocotec.io/popili/doc/1.6/codegen/csharp/settings.html#generator.csharp.regeneratePackages)     | `csharp_regenerate_packages`        |
+| [`generator.csharp.generateMocks`](https://cocotec.io/popili/doc/1.6/codegen/csharp/settings.html#generator.csharp.generateMocks)               | `csharp_mocks`                      |
 
 Each package in a `*_regenerate_packages` list must be a dependency of the package, directly or through another
 package in `deps`, because Popili only regenerates dependencies. Otherwise the build fails with
@@ -171,9 +172,12 @@ package in `deps`, because Popili only regenerates dependencies. Otherwise the b
 ### Include prefixes
 
 Mirror the package's _effective_ value: the one in its own `Coco.toml`, or else the one it inherits from its workspace's
-`Coco.toml` or receives from a dependency with `exportConfig = true` (see the Popili documentation on `includePrefix`).
-A wrong `cpp_include_prefix` or `c_include_prefix` fails when compiling the package's own generated code, as Popili
-wrote its includes with the `Coco.toml` value:
+`Coco.toml` or receives from a dependency with `exportConfig = true` (see
+[`includePrefix`](https://cocotec.io/popili/doc/stable/cpp/settings.html#generator.cpp.includePrefix),
+[`exportConfig`](https://cocotec.io/popili/doc/stable/language/structure.html#package.exportConfig) and
+[workspaces](https://cocotec.io/popili/doc/stable/language/structure.html#workspace)). A wrong `cpp_include_prefix` or
+`c_include_prefix` fails when compiling the package's own generated code, as Popili wrote its includes with the
+`Coco.toml` value:
 
 ```
 fatal error: 'motor/Foo.h' file not found
@@ -186,18 +190,23 @@ that later depend on it fail instead.
 ### Header name collisions
 
 Two unrelated packages may both have `src/Types.coco`. Hand-written code including `"Types.h"` gets the copy from
-whichever include directory comes first on the compiler's command line. Generated code finds its own package's copy,
-as the including file's directory is searched first, but with `includeGuardStyle = "IncludeGuard"` both copies share
-the guard `TYPES_H`, so a file that reaches both through generated headers silently loses the second. Give one of the
-packages an `includePrefix`. The same holds for a dependency regenerated through `regeneratePackages` under the same
-prefix as the original: link only one copy. A hand-written `Foo.h` beside a `.cc` file shadows a generated one, for
-the same reason. `shortenIncludes = "SameDirectory"` does not work across packages; leave it unset.
+whichever include directory comes first on the compiler's command line. Generated code finds its own package's copy, as
+the including file's directory is searched first, but with
+[`includeGuardStyle = "IncludeGuard"`](https://cocotec.io/popili/doc/stable/cpp/settings.html#generator.cpp.includeGuardStyle)
+both copies share the guard `TYPES_H`, so a file that reaches both through generated headers silently loses the second.
+Give one of the packages an `includePrefix`. The same holds for a dependency regenerated through `regeneratePackages`
+under the same prefix as the original: link only one copy. A hand-written `Foo.h` beside a `.cc` file shadows a
+generated one, for the same reason.
+[`shortenIncludes = "SameDirectory"`](https://cocotec.io/popili/doc/stable/cpp/settings.html#generator.cpp.shortenIncludes)
+does not work across packages; leave it unset.
 
 ## Test code and mocks
 
-Popili writes two kinds of test code: code generated from the package's test sources (`testSources` in `Coco.toml`),
-and mocks of its components (`generateMocks`). `coco_cc_test_library` and `coco_c_test_library` compile this test code
-apart from the production library:
+Popili writes two kinds of test code: code generated from the package's test sources (`testSources` in `Coco.toml`), and
+mocks of its components
+([`generateMocks`](https://cocotec.io/popili/doc/stable/cpp/settings.html#generator.cpp.generateMocks); see
+[mock generation](https://cocotec.io/popili/doc/stable/cpp/testing.html#mock-generation)). `coco_cc_test_library` and
+`coco_c_test_library` compile this test code apart from the production library:
 
 ```starlark
 coco_package(
@@ -246,7 +255,7 @@ consumers other than the test libraries. `coco_test_outputs_name` from `@rules_c
 
 ## C# code generation
 
-To generate C# code:
+To generate [C# code](https://cocotec.io/popili/doc/1.6/codegen/csharp/index.html):
 
 ```starlark
 load("@rules_coco//coco:defs.bzl", "coco_generate")

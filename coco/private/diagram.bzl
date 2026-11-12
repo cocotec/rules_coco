@@ -352,8 +352,8 @@ def coco_counterexample_diagram(
           (e.g., {"alarm.svg": "Alarm"} or {"safety.svg": counterexample_options(decl="Checker", assertion="prop")})
         draw_title: Draw border and title on diagrams (default: True)
         deterministic: Ensure reproducible output (default: True)
-        popili_version: Pin this target, and the `coco_package` it reads, to a registered Popili
-          version, such as `"1.5.1"` or `"stable"`. Default: `""`, the version the rest of the build
+        popili_version: Pin this target, its `package` and that package's `deps` to a registered
+          Popili version, such as `"1.5.1"` or `"stable"`. Default: `""`, the version the rest of the build
           uses. See [Pinning targets](../popili-versions.md#pinning-targets).
         **kwargs: Additional Bazel arguments (e.g., visibility, tags)
     """

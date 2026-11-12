@@ -30,13 +30,15 @@ Still on `WORKSPACE`? See [Setup](setup.md#workspace-deprecated).
 
 ## 2. Make a licence available
 
-By default the rules reuse the Coco licence already activated on your machine, so a local build needs no
+By default the rules reuse the Coco licence already activated on your machine, for example by logging in through the
+[Popili VS Code extension](https://cocotec.io/popili/doc/stable/tools/vscode.html#vs-code), so a local build needs no
 configuration. CI and remote execution need a machine token: see [Licensing](licensing.md).
 
 ## 3. Declare a package, verify it and generate C++
 
-This step assumes a Coco package: a `Coco.toml` with its `.coco` sources in `src/`. [`e2e/smoke`](../e2e/smoke) has a
-minimal one to start from.
+This step assumes a Coco package: a
+[`Coco.toml`](https://cocotec.io/popili/doc/stable/language/structure.html#packages-and-workspaces) with its `.coco`
+sources in `src/`. [`e2e/smoke`](../e2e/smoke) has a minimal one to start from.
 
 Next to your `Coco.toml`, add a `BUILD.bazel` file:
 
@@ -75,9 +77,12 @@ cc_binary(
 ```
 
 > [!IMPORTANT]
-> This example assumes your `Coco.toml` keeps Popili's default generator settings. Each `[generator.cpp]`,
-> `[generator.c]` or `[generator.csharp]` setting that changes output paths, such as `headerFileExtension`, has to be
-> repeated on `coco_package`, or the build fails with `output '...' was not created`. See
+> This example assumes your `Coco.toml` keeps Popili's default generator settings. Each
+> [`[generator.cpp]`](https://cocotec.io/popili/doc/stable/cpp/settings.html#cpp-options),
+> [`[generator.c]`](https://cocotec.io/popili/doc/1.6/codegen/c/settings.html#c-options) or
+> [`[generator.csharp]`](https://cocotec.io/popili/doc/1.6/codegen/csharp/settings.html#csharp-options) setting that
+> changes output paths, such as `headerFileExtension`, has to be repeated on `coco_package`, or the build fails with
+> `output '...' was not created`. See
 > [Output paths](code-generation.md#output-paths).
 
 ## 4. Build and test

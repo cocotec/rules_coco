@@ -15,7 +15,10 @@ coco_fmt_test(
 
 This creates two targets:
 
-- `my_package_fmt_test`: Test that fails if code isn't formatted (`bazel test`)
+- `my_package_fmt_test`: Test that fails if code isn't formatted, with
+  [`popili format`](https://cocotec.io/popili/doc/stable/tools/cli.html#format-subcommand) and the
+  [`[format]`](https://cocotec.io/popili/doc/stable/language/structure.html#format) settings of `Coco.toml`
+  (`bazel test`)
 - `my_package_fmt_test.format`: Binary to format code in-place (`bazel run`)
 
 ## Diagram generation
@@ -27,7 +30,8 @@ state diagrams are named as described below.
 
 ### Architecture diagrams
 
-Generate component architecture diagrams showing the structure and connections of your components:
+Generate component architecture diagrams showing the structure and connections of your components, with
+[`popili graph-component`](https://cocotec.io/popili/doc/stable/tools/cli.html#graph-component-subcommand):
 
 ```starlark
 load("@rules_coco//coco:defs.bzl", "coco_architecture_diagram")
@@ -62,7 +66,8 @@ lists every attribute with its default.
 
 ### State machine diagrams
 
-Generate state machine diagrams:
+Generate state machine diagrams with
+[`popili graph-states`](https://cocotec.io/popili/doc/stable/tools/cli.html#graph-states-subcommand):
 
 ```starlark
 load("@rules_coco//coco:defs.bzl", "coco_state_diagram")
@@ -81,8 +86,10 @@ The diagram is written to `<name>.svg`. Without `targets`, that one file shows e
 
 ### Counterexample diagrams
 
-Generate sequence diagrams for verification failures. You must specify the expected counterexamples as a dict mapping
-output file names to the declaration whose counterexample to draw, such as a component name:
+Generate sequence diagrams for
+[verification](https://cocotec.io/popili/doc/stable/language/verification.html#verification) failures. You must specify
+the expected counterexamples as a dict mapping output file names to the declaration whose counterexample to draw, such
+as a component name:
 
 ```starlark
 load("@rules_coco//coco:defs.bzl", "coco_counterexample_diagram")

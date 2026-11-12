@@ -53,7 +53,7 @@ CocoWorkspaceInfo = provider(
     doc = "A Coco workspace, as `coco_workspace` provides it.",
     fields = {
         "files": "Coco.toml files a member must ship: this workspace's root manifest plus any parent workspaces",
-        "popili_versions": "The popili versions every member package is claimed to work with, aliases resolved, the parent's when this workspace sets none; [] when unconstrained",
+        "popili_versions": "The Popili versions every member package is compatible with, aliases resolved: the `parent`'s when this workspace sets none, `[]` when unconstrained.",
     },
 )
 
@@ -140,8 +140,8 @@ TOOLCHAIN_ATTRIBUTES = {
 
 POPILI_VERSION_ATTRIBUTES = {
     "popili_version": attr.string(
-        doc = "Pin this target, and the `coco_package` it reads, to a registered Popili version, such as " +
-              "`\"1.5.1\"` or `\"stable\"`. Default: `\"\"`, the version the rest of the build uses. See " +
+        doc = "Pin this target, its `package` and that package's `deps` to a registered Popili version, such " +
+              "as `\"1.5.1\"` or `\"stable\"`. Default: `\"\"`, the version the rest of the build uses. See " +
               "[Pinning targets](../popili-versions.md#pinning-targets).",
     ),
 }
@@ -2249,13 +2249,13 @@ def _coco_generate_macro_impl(name, visibility, **kwargs):
 coco_generate = macro(
     doc = """Generate C, C++, or C# code from a Coco package.
 
-The generated C/C++ files are compiled with coco_cc_library or coco_c_library,
-which find them below an include root of this target's own; `library_rule`
-lets those macros call a custom cc_library. The generated files are also
-exposed through DefaultInfo for other consumers.
+Compile generated C and C++ code with `coco_cc_library` or `coco_c_library`.
+Rules of your own can read it from `CocoCcGeneratedInfo` (or
+`CocoCSharpGeneratedInfo`), and the generated files are also in `DefaultInfo`.
 
-The generator settings (file extensions, prefixes, etc.) come from the
-package: they are attributes of coco_package, mirroring its Coco.toml.
+The generator settings, such as file extensions and prefixes, come from the
+package: they are attributes of `coco_package` that mirror its `Coco.toml`; see
+[Output paths](../code-generation.md#output-paths).
 
 Each `coco_generate` also creates a `<name>.tst` target with only the generated
 test code, mocks included; `coco_test_outputs_name` returns its name.""",

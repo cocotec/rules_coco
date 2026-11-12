@@ -99,10 +99,12 @@ yourself only to bring your own popili: wrap it in a `toolchain()` with
         ),
         "popili_version": attr.string(
             doc = (
-                "The version of the `popili` binary, such as \"1.5.8\"; not an alias such as " +
-                "\"stable\". It picks the licence file under `local_user` licensing, and every target " +
-                "this toolchain serves must ask for this version, or for none in particular. The " +
-                "toolchains rules_coco generates set it; a local distribution is 'local'."
+                "The version of the `popili` binary, such as `\"1.5.8\"`; an alias such as `\"stable\"` is " +
+                "rejected. Under `local_user` licensing it selects the licence file. A bring-your-own " +
+                "`toolchain()` without `target_settings` serves every target, so with it a target pinned " +
+                "to another version, or built with `--@rules_coco//:version` set to another version, " +
+                "fails. The toolchains rules_coco generates set it, and each serves only its own " +
+                "version; for a local distribution it is `\"local\"`."
             ),
             mandatory = True,
         ),

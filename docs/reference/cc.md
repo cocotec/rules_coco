@@ -15,7 +15,7 @@ coco_cc_library(<a href="#coco_cc_library-name">name</a>, <a href="#coco_cc_libr
 
 Creates a C++ library from Coco-generated C++ code.
 
-This automatically adds the Coco C++ runtime as a dependency.
+The library depends on the Coco C++ runtime of its Popili version.
 
 
 **PARAMETERS**
@@ -30,7 +30,7 @@ This automatically adds the Coco C++ runtime as a dependency.
 | <a id="coco_cc_library-hdrs"></a>hdrs |  Hand-written C++ headers to add to the library.   |  `[]` |
 | <a id="coco_cc_library-deps"></a>deps |  Other `cc_library` targets the library depends on, such as the library of each package this package depends on.   |  `[]` |
 | <a id="coco_cc_library-public_hdrs"></a>public_hdrs |  The generated headers dependents may include, each named by file name or by a trailing part of its include path, such as `"sensors/ISensor.h"`. An entry that matches no header is an error. Default: `None`, all of them; `[]` makes them all private.   |  `None` |
-| <a id="coco_cc_library-popili_version"></a>popili_version |  The registered Popili version whose runtime the library links, such as `"1.5.1"` or `"stable"`. It also pins the library's `coco_generate` targets that have no pin of their own, but not `deps`. Pin the library like its `coco_generate` targets. Default: `""`, the version the rest of the build uses. See [Pinning targets](../popili-versions.md#pinning-targets).   |  `""` |
+| <a id="coco_cc_library-popili_version"></a>popili_version |  The registered Popili version whose runtime the library links, such as `"1.5.1"` or `"stable"`. The `coco_generate` targets in `generated_package` or `generated_packages` that have no `popili_version` of their own run with this version too, so pin the library like its `coco_generate` targets. `deps` is not affected: it is built as if the library had no pin. Default: `""`, the version the rest of the build uses. See [Pinning targets](../popili-versions.md#pinning-targets).   |  `""` |
 | <a id="coco_cc_library-library_rule"></a>library_rule |  The rule or macro that compiles the library, such as a wrapper of cc_library adding your project's defaults. It is called with cc_library's attributes. None means rules_cc's cc_library.   |  `None` |
 | <a id="coco_cc_library-kwargs"></a>kwargs |  Additional arguments passed to library_rule   |  none |
 
@@ -48,7 +48,7 @@ coco_cc_test_library(<a href="#coco_cc_test_library-name">name</a>, <a href="#co
 
 Creates a C++ test library from Coco-generated C++ test code.
 
-This automatically adds the Coco C++ runtime and GoogleTest as dependencies.
+The library depends on the Coco C++ test runtime of its Popili version, and on `gmock`.
 
 
 **PARAMETERS**
@@ -64,7 +64,7 @@ This automatically adds the Coco C++ runtime and GoogleTest as dependencies.
 | <a id="coco_cc_test_library-deps"></a>deps |  Other `cc_library` targets the library depends on, such as the library of each package this package depends on.   |  `[]` |
 | <a id="coco_cc_test_library-public_hdrs"></a>public_hdrs |  The generated test headers dependents may include, each named by file name or by a trailing part of its include path, such as `"runnable/RunnableMock.h"`. An entry that matches no header is an error. Default: `None`, all of them; `[]` makes them all private.   |  `None` |
 | <a id="coco_cc_test_library-gmock"></a>gmock |  The GoogleTest/GoogleMock library (default: @googletest//:gtest). Set to None to omit.   |  `"@googletest//:gtest"` |
-| <a id="coco_cc_test_library-popili_version"></a>popili_version |  The registered Popili version whose runtime the library links, such as `"1.5.1"` or `"stable"`. It also pins the library's `coco_generate` targets that have no pin of their own, but not `deps` or `gmock`. Pin the library like its `coco_generate` targets. Default: `""`, the version the rest of the build uses. See [Pinning targets](../popili-versions.md#pinning-targets).   |  `""` |
+| <a id="coco_cc_test_library-popili_version"></a>popili_version |  The registered Popili version whose runtime the library links, such as `"1.5.1"` or `"stable"`. The `coco_generate` targets in `generated_package` or `generated_packages` that have no `popili_version` of their own run with this version too, so pin the library like its `coco_generate` targets. `deps` and `gmock` are not affected: they are built as if the library had no pin. Default: `""`, the version the rest of the build uses. See [Pinning targets](../popili-versions.md#pinning-targets).   |  `""` |
 | <a id="coco_cc_test_library-library_rule"></a>library_rule |  The rule or macro that compiles the library, such as a wrapper of cc_library adding your project's defaults. It is called with cc_library's attributes. None means rules_cc's cc_library.   |  `None` |
 | <a id="coco_cc_test_library-kwargs"></a>kwargs |  Additional arguments passed to library_rule   |  none |
 

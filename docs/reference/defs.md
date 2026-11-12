@@ -99,7 +99,7 @@ A Coco workspace, as `coco_workspace` provides it.
 | Name  | Description |
 | :------------- | :------------- |
 | <a id="CocoWorkspaceInfo-files"></a>files |  Coco.toml files a member must ship: this workspace's root manifest plus any parent workspaces    |
-| <a id="CocoWorkspaceInfo-popili_versions"></a>popili_versions |  The popili versions every member package is claimed to work with, aliases resolved, the parent's when this workspace sets none; [] when unconstrained    |
+| <a id="CocoWorkspaceInfo-popili_versions"></a>popili_versions |  The Popili versions every member package is compatible with, aliases resolved: the `parent`'s when this workspace sets none, `[]` when unconstrained.    |
 
 
 <a id="coco_counterexample_diagram"></a>
@@ -130,7 +130,7 @@ are generated). Use coco_verify_test for actual verification testing.
 | <a id="coco_counterexample_diagram-counterexamples"></a>counterexamples |  Dict mapping output filenames to target specifications. Values can be either a string with the target declaration name, or a struct from counterexample_options(decl, assertion) for filtering (e.g., {"alarm.svg": "Alarm"} or {"safety.svg": counterexample_options(decl="Checker", assertion="prop")})   |  none |
 | <a id="coco_counterexample_diagram-draw_title"></a>draw_title |  Draw border and title on diagrams (default: True)   |  `True` |
 | <a id="coco_counterexample_diagram-deterministic"></a>deterministic |  Ensure reproducible output (default: True)   |  `True` |
-| <a id="coco_counterexample_diagram-popili_version"></a>popili_version |  Pin this target, and the `coco_package` it reads, to a registered Popili version, such as `"1.5.1"` or `"stable"`. Default: `""`, the version the rest of the build uses. See [Pinning targets](../popili-versions.md#pinning-targets).   |  `""` |
+| <a id="coco_counterexample_diagram-popili_version"></a>popili_version |  Pin this target, its `package` and that package's `deps` to a registered Popili version, such as `"1.5.1"` or `"stable"`. Default: `""`, the version the rest of the build uses. See [Pinning targets](../popili-versions.md#pinning-targets).   |  `""` |
 | <a id="coco_counterexample_diagram-kwargs"></a>kwargs |  Additional Bazel arguments (e.g., visibility, tags)   |  none |
 
 
@@ -227,7 +227,7 @@ Generates SVG diagrams showing component architecture using
 | <a id="coco_architecture_diagram-only_roots"></a>only_roots |  Draw only root components. Default: `False`.   | Boolean | optional |
 | <a id="coco_architecture_diagram-package"></a>package |  The coco_package target this rule runs popili on.   | <a href="https://bazel.build/concepts/labels">Label</a> | required |
 | <a id="coco_architecture_diagram-package_metadata"></a>package_metadata |  <a href="https://bazel.build/reference/be/common-definitions#common.package_metadata">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a>; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |
-| <a id="coco_architecture_diagram-popili_version"></a>popili_version |  Pin this target, and the `coco_package` it reads, to a registered Popili version, such as `"1.5.1"` or `"stable"`. Default: `""`, the version the rest of the build uses. See [Pinning targets](../popili-versions.md#pinning-targets).   | String | optional |
+| <a id="coco_architecture_diagram-popili_version"></a>popili_version |  Pin this target, its `package` and that package's `deps` to a registered Popili version, such as `"1.5.1"` or `"stable"`. Default: `""`, the version the rest of the build uses. See [Pinning targets](../popili-versions.md#pinning-targets).   | String | optional |
 | <a id="coco_architecture_diagram-port_names"></a>port_names |  Show the instance name of each port. Default: `False`.   | Boolean | optional |
 | <a id="coco_architecture_diagram-port_types"></a>port_types |  Show the type of each port. Default: `True`.   | Boolean | optional |
 | <a id="coco_architecture_diagram-restricted_to"></a>restricted_to |  <a href="https://bazel.build/reference/be/common-definitions#common.restricted_to">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a>; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |
@@ -293,9 +293,9 @@ the test out of `bazel test //...`, set `tags = ["manual"]`.
 | <a id="coco_fmt_test-features"></a>features |  <a href="https://bazel.build/reference/be/common-definitions#common.features">Inherited rule attribute</a>   | List of strings | optional |
 | <a id="coco_fmt_test-flaky"></a>flaky |  <a href="https://bazel.build/reference/be/common-definitions#test.flaky">Inherited rule attribute</a>   | Boolean; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |
 | <a id="coco_fmt_test-local"></a>local |  <a href="https://bazel.build/reference/be/common-definitions#test.local">Inherited rule attribute</a>   | Boolean; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |
-| <a id="coco_fmt_test-package"></a>package |  The coco_package target to check/format.   | <a href="https://bazel.build/concepts/labels">Label</a>; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | required |
+| <a id="coco_fmt_test-package"></a>package |  The `coco_package` whose sources to check and format.   | <a href="https://bazel.build/concepts/labels">Label</a>; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | required |
 | <a id="coco_fmt_test-package_metadata"></a>package_metadata |  <a href="https://bazel.build/reference/be/common-definitions#common.package_metadata">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a>; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |
-| <a id="coco_fmt_test-popili_version"></a>popili_version |  Pin this target, and the `coco_package` it reads, to a registered Popili version, such as `"1.5.1"` or `"stable"`. Default: `""`, the version the rest of the build uses. See [Pinning targets](../popili-versions.md#pinning-targets).   | String | optional |
+| <a id="coco_fmt_test-popili_version"></a>popili_version |  Pin this target, its `package` and that package's `deps` to a registered Popili version, such as `"1.5.1"` or `"stable"`. Default: `""`, the version the rest of the build uses. See [Pinning targets](../popili-versions.md#pinning-targets).   | String | optional |
 | <a id="coco_fmt_test-restricted_to"></a>restricted_to |  <a href="https://bazel.build/reference/be/common-definitions#common.restricted_to">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a>; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |
 | <a id="coco_fmt_test-shard_count"></a>shard_count |  <a href="https://bazel.build/reference/be/common-definitions#test.shard_count">Inherited rule attribute</a>   | Integer | optional |
 | <a id="coco_fmt_test-size"></a>size |  <a href="https://bazel.build/reference/be/common-definitions#test.size">Inherited rule attribute</a>   | String; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |
@@ -321,13 +321,13 @@ coco_generate(*, <a href="#coco_generate-name">name</a>, <a href="#coco_generate
 
 Generate C, C++, or C# code from a Coco package.
 
-The generated C/C++ files are compiled with coco_cc_library or coco_c_library,
-which find them below an include root of this target's own; `library_rule`
-lets those macros call a custom cc_library. The generated files are also
-exposed through DefaultInfo for other consumers.
+Compile generated C and C++ code with `coco_cc_library` or `coco_c_library`.
+Rules of your own can read it from `CocoCcGeneratedInfo` (or
+`CocoCSharpGeneratedInfo`), and the generated files are also in `DefaultInfo`.
 
-The generator settings (file extensions, prefixes, etc.) come from the
-package: they are attributes of coco_package, mirroring its Coco.toml.
+The generator settings, such as file extensions and prefixes, come from the
+package: they are attributes of `coco_package` that mirror its `Coco.toml`; see
+[Output paths](../code-generation.md#output-paths).
 
 Each `coco_generate` also creates a `<name>.tst` target with only the generated
 test code, mocks included; `coco_test_outputs_name` returns its name.
@@ -346,7 +346,7 @@ test code, mocks included; `coco_test_outputs_name` returns its name.
 | <a id="coco_generate-language"></a>language |  The language to generate: `"cpp"`, `"c"` or `"csharp"`. The package's generator attributes for that language (`cpp_*`, `c_*` or `csharp_*`) must mirror its `Coco.toml`; see [Output paths](../code-generation.md#output-paths). Compile C++ and C output with `coco_cc_library` or `coco_c_library`; rules_coco does not compile C#.   | String | required |
 | <a id="coco_generate-package"></a>package |  The `coco_package` to generate code from.   | <a href="https://bazel.build/concepts/labels">Label</a> | required |
 | <a id="coco_generate-package_metadata"></a>package_metadata |  <a href="https://bazel.build/reference/be/common-definitions#common.package_metadata">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a>; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |
-| <a id="coco_generate-popili_version"></a>popili_version |  Pin this target, and the `coco_package` it reads, to a registered Popili version, such as `"1.5.1"` or `"stable"`. Default: `""`, the version the rest of the build uses. See [Pinning targets](../popili-versions.md#pinning-targets).   | String | optional |
+| <a id="coco_generate-popili_version"></a>popili_version |  Pin this target, its `package` and that package's `deps` to a registered Popili version, such as `"1.5.1"` or `"stable"`. Default: `""`, the version the rest of the build uses. See [Pinning targets](../popili-versions.md#pinning-targets).   | String | optional |
 | <a id="coco_generate-restricted_to"></a>restricted_to |  <a href="https://bazel.build/reference/be/common-definitions#common.restricted_to">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a>; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |
 | <a id="coco_generate-tags"></a>tags |  <a href="https://bazel.build/reference/be/common-definitions#common.tags">Inherited rule attribute</a>   | List of strings; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |
 | <a id="coco_generate-target_compatible_with"></a>target_compatible_with |  <a href="https://bazel.build/reference/be/common-definitions#common.target_compatible_with">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a> | optional |
@@ -464,7 +464,7 @@ Generates SVG diagrams showing state machine structure using
 | <a id="coco_state_diagram-features"></a>features |  <a href="https://bazel.build/reference/be/common-definitions#common.features">Inherited rule attribute</a>   | List of strings | optional |
 | <a id="coco_state_diagram-package"></a>package |  The coco_package target this rule runs popili on.   | <a href="https://bazel.build/concepts/labels">Label</a> | required |
 | <a id="coco_state_diagram-package_metadata"></a>package_metadata |  <a href="https://bazel.build/reference/be/common-definitions#common.package_metadata">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a>; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |
-| <a id="coco_state_diagram-popili_version"></a>popili_version |  Pin this target, and the `coco_package` it reads, to a registered Popili version, such as `"1.5.1"` or `"stable"`. Default: `""`, the version the rest of the build uses. See [Pinning targets](../popili-versions.md#pinning-targets).   | String | optional |
+| <a id="coco_state_diagram-popili_version"></a>popili_version |  Pin this target, its `package` and that package's `deps` to a registered Popili version, such as `"1.5.1"` or `"stable"`. Default: `""`, the version the rest of the build uses. See [Pinning targets](../popili-versions.md#pinning-targets).   | String | optional |
 | <a id="coco_state_diagram-restricted_to"></a>restricted_to |  <a href="https://bazel.build/reference/be/common-definitions#common.restricted_to">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a>; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |
 | <a id="coco_state_diagram-separate_edges"></a>separate_edges |  Lay out each state transition as a separate edge. Default: `False`.   | Boolean | optional |
 | <a id="coco_state_diagram-tags"></a>tags |  <a href="https://bazel.build/reference/be/common-definitions#common.tags">Inherited rule attribute</a>   | List of strings; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |
@@ -510,7 +510,7 @@ remote or local verification is used. See [Verification](../verification.md).
 | <a id="coco_verify_test-local"></a>local |  <a href="https://bazel.build/reference/be/common-definitions#test.local">Inherited rule attribute</a>   | Boolean; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |
 | <a id="coco_verify_test-package"></a>package |  The coco_package target this rule runs popili on.   | <a href="https://bazel.build/concepts/labels">Label</a> | required |
 | <a id="coco_verify_test-package_metadata"></a>package_metadata |  <a href="https://bazel.build/reference/be/common-definitions#common.package_metadata">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a>; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |
-| <a id="coco_verify_test-popili_version"></a>popili_version |  Pin this target, and the `coco_package` it reads, to a registered Popili version, such as `"1.5.1"` or `"stable"`. Default: `""`, the version the rest of the build uses. See [Pinning targets](../popili-versions.md#pinning-targets).   | String | optional |
+| <a id="coco_verify_test-popili_version"></a>popili_version |  Pin this target, its `package` and that package's `deps` to a registered Popili version, such as `"1.5.1"` or `"stable"`. Default: `""`, the version the rest of the build uses. See [Pinning targets](../popili-versions.md#pinning-targets).   | String | optional |
 | <a id="coco_verify_test-restricted_to"></a>restricted_to |  <a href="https://bazel.build/reference/be/common-definitions#common.restricted_to">Inherited rule attribute</a>   | <a href="https://bazel.build/concepts/labels">List of labels</a>; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |
 | <a id="coco_verify_test-shard_count"></a>shard_count |  <a href="https://bazel.build/reference/be/common-definitions#test.shard_count">Inherited rule attribute</a>   | Integer | optional |
 | <a id="coco_verify_test-size"></a>size |  <a href="https://bazel.build/reference/be/common-definitions#test.size">Inherited rule attribute</a>   | String; <a href="https://bazel.build/reference/be/common-definitions#configurable-attributes">nonconfigurable</a> | optional |
