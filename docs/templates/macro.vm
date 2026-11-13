@@ -1,9 +1,16 @@
-## Stardoc's markdown_tables/macro.vm, except that the Default column is left out
-## when no attribute has a default other than None: symbolic macro attributes
-## default to None and their docstrings state the effective default instead.
+## Stardoc's markdown_tables/macro.vm, with two changes:
+## - Attributes inherited from the wrapped rule (natively defined, except
+##   visibility, whose docstring is the macro's own) are listed in one line
+##   under the table instead of getting a row each.
+## - The Default column is left out when no attribute has a default other than
+##   None: symbolic macro attributes default to None and their docstrings state
+##   the effective default instead.
+#set ($hasInherited = false)
 #set ($showDefault = false)
 #foreach ($attribute in $macroInfo.getAttributeList())
-#if (!$attribute.defaultValue.isEmpty() && $attribute.defaultValue != "None")
+#if ($attribute.nativelyDefined && $attribute.name != "visibility")
+#set ($hasInherited = true)
+#elseif (!$attribute.defaultValue.isEmpty() && $attribute.defaultValue != "None")
 #set ($showDefault = true)
 #end
 #end
@@ -31,14 +38,24 @@ ${macroInfo.docString}
 | Name  | Description | Type | Mandatory | Default |
 | :------------- | :------------- | :------------- | :------------- | :------------- |
 #foreach ($attribute in $macroInfo.getAttributeList())
+#if (!$attribute.nativelyDefined || $attribute.name == "visibility")
 | <a id="${macroName}-${attribute.name}"></a>$attribute.name | #if(!$attribute.docString.isEmpty()) ${util.markdownCellFormat($attribute.docString)} #else - #end  | ${util.attributeTypeString($attribute)} | ${util.mandatoryString($attribute)} | #if(!$attribute.defaultValue.isEmpty()) ${util.markdownCodeSpan($attribute.defaultValue)} #end |
+#end
 #end
 #else
 
 | Name  | Description | Type | Mandatory |
 | :------------- | :------------- | :------------- | :------------- |
 #foreach ($attribute in $macroInfo.getAttributeList())
+#if (!$attribute.nativelyDefined || $attribute.name == "visibility")
 | <a id="${macroName}-${attribute.name}"></a>$attribute.name | #if(!$attribute.docString.isEmpty()) ${util.markdownCellFormat($attribute.docString)} #else - #end  | ${util.attributeTypeString($attribute)} | ${util.mandatoryString($attribute)} |
 #end
+#end
+#end
+#if ($hasInherited)
+
+Also takes these attributes, inherited from the rule it wraps (see Bazel's [common attributes](https://bazel.build/reference/be/common-definitions)):
+#set ($first = true)
+#foreach ($attribute in $macroInfo.getAttributeList())#if ($attribute.nativelyDefined && $attribute.name != "visibility")#if (!$first), #end#set ($first = false)<a id="${macroName}-${attribute.name}"></a>[`${attribute.name}`](${attribute.docString.replaceAll('^<a href="([^"]*)".*$', '$1')})#end#end.
 #end
 #end
