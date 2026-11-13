@@ -14,8 +14,9 @@ hand: change the docstrings and run `./tools/update_docs.sh` (see [CONTRIBUTING.
 
 The flags are listed in [Build flags](../flags.md).
 
-Rows described as _Inherited rule attribute_ are Bazel's
-[common attributes](https://bazel.build/reference/be/common-definitions#common-attributes) (`tags`, `visibility`, ...).
+A macro also takes the attributes of the rule it wraps, Bazel's
+[common attributes](https://bazel.build/reference/be/common-definitions#common-attributes) (`tags`, `testonly`, ...),
+listed in one line below its table.
 
 For explanations and examples, see the [guides](../README.md).
 
