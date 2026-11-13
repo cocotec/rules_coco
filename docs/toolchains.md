@@ -1,7 +1,7 @@
 # Custom toolchains
 
-By default rules_coco downloads Popili and its runtimes for every registered version. This page covers the
-two alternatives: a Popili distribution on the local filesystem, and a toolchain you build or fetch yourself.
+By default rules_coco downloads Popili and its runtimes for every registered version. This page covers the two
+alternatives: a Popili distribution on the local filesystem, and a toolchain you build or fetch yourself.
 
 ## Using a local toolchain
 
@@ -17,8 +17,8 @@ coco.local_toolchain(
 )
 ```
 
-Each path (absolute, or workspace-relative) mirrors the **extracted release archive layout** — i.e. the contents
-of `popili_<os>_<arch>.zip`, `coco-cpp-runtime.zip`, and `coco-c-runtime.zip` respectively. To use it, run with
+Each path (absolute, or workspace-relative) mirrors the **extracted release archive layout** — i.e. the contents of
+`popili_<os>_<arch>.zip`, `coco-cpp-runtime.zip`, and `coco-c-runtime.zip` respectively. To use it, run with
 `bazel build --@rules_coco//:version=local //...`. To select it with `--config=local_popili`, add to `.bazelrc`:
 
 ```
@@ -94,10 +94,9 @@ toolchain(
 )
 ```
 
-Use this when one `popili`, built in your repository, should run every target. A `toolchain()` without
-`target_settings` or constraints, like the one above, matches every target, so it replaces rules_coco's own
-toolchains and no pin or flag can select another one. Register only one such toolchain, since one registered after
-it would never be selected.
+Use this when one `popili`, built in your repository, should run every target. A `toolchain()` without `target_settings`
+or constraints, like the one above, matches every target, so it replaces rules_coco's own toolchains and no pin or flag
+can select another one. Register only one such toolchain, since one registered after it would never be selected.
 
 A bring-your-own `coco_toolchain` does not see the licence settings on
 [`coco.toolchain`](reference/extensions.md#coco.toolchain) or `coco_repositories`; those apply only to the toolchains
@@ -121,8 +120,8 @@ See [`e2e/byo_toolchain`](../e2e/byo_toolchain).
 ## Execution platforms and cross-compilation
 
 Bazel picks Popili by execution platform. For every registered version, rules_coco declares one toolchain per platform
-Popili supports: Linux (x86_64 and aarch64), macOS (aarch64) and Windows (x86_64). Each toolchain is constrained to
-that execution platform only. So actions such as [`coco_generate`](reference/defs.md#coco_generate) run on any of these
+Popili supports: Linux (x86_64 and aarch64), macOS (aarch64) and Windows (x86_64). Each toolchain is constrained to that
+execution platform only. So actions such as [`coco_generate`](reference/defs.md#coco_generate) run on any of these
 execution platforms, local or remote, whatever the target platform.
 
 The Coco runtimes that [`coco_cc_library`](reference/cc.md#coco_cc_library) and

@@ -1,7 +1,7 @@
 # Getting started
 
-This page takes you from an empty Bazel module to a verified Coco package with generated C++ code. It uses bzlmod;
-see [Setup](setup.md) for `WORKSPACE`.
+This page takes you from an empty Bazel module to a verified Coco package with generated C++ code. It uses bzlmod; see
+[Setup](setup.md) for `WORKSPACE`.
 
 ## 1. Add rules_coco to `MODULE.bazel`
 
@@ -76,6 +76,7 @@ cc_binary(
 )
 ```
 
+<!-- prettier-ignore -->
 > [!IMPORTANT]
 > This example assumes your `Coco.toml` keeps Popili's default generator settings. Each
 > [`[generator.cpp]`](https://cocotec.io/popili/doc/stable/cpp/settings.html#cpp-options),

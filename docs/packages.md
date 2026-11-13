@@ -114,11 +114,11 @@ empty by default, then the path of its source below the source root. Popili's ge
 that same path, so hand-written code does too, and the libraries need no `includes` for generated headers.
 
 With `coco_generate(name = "motor_cpp")` in `hw/motor/BUILD`, `sources = ["src"]` and `includePrefix = "motor"`,
-`hw/motor/src/Foo.coco` becomes `bazel-bin/hw/motor/_coco/motor_cpp/motor/Foo.h`, included as
-`#include "motor/Foo.h"`. Mirror `includePrefix` on the [`coco_package`](reference/defs.md#coco_package) with
+`hw/motor/src/Foo.coco` becomes `bazel-bin/hw/motor/_coco/motor_cpp/motor/Foo.h`, included as `#include "motor/Foo.h"`.
+Mirror `includePrefix` on the [`coco_package`](reference/defs.md#coco_package) with
 [`cpp_include_prefix`](reference/defs.md#coco_package-cpp_include_prefix) (or
-[`c_include_prefix`](reference/defs.md#coco_package-c_include_prefix)), like the other settings
-under [Output paths](code-generation.md#output-paths).
+[`c_include_prefix`](reference/defs.md#coco_package-c_include_prefix)), like the other settings under
+[Output paths](code-generation.md#output-paths).
 
 `outputDirectory` and `testOutputDirectory` in `Coco.toml` are ignored. If one package is generated for several
 languages, give each language different file extensions (see [Output paths](code-generation.md#output-paths)) so that

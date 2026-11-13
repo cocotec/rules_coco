@@ -25,12 +25,12 @@ coco_repositories(
 )
 ```
 
-Besides explicit versions such as `"1.5.1"`, two aliases can be used when registering versions (`coco.toolchain(versions
-= ...)` or `coco_repositories(versions = ...)`), in `popili_version` pins and in `popili_versions` lists: `"stable"`,
-the newest stable release, and `"testing"`, the current pre-release (a beta or release candidate). Each rules_coco
-release fixes what they resolve to (see [`version_aliases.bzl`](../coco/private/version_aliases.bzl)), so upgrading
-rules_coco can move them. List explicit versions to stay on a version. [`--@rules_coco//:version`](flags.md#version)
-takes explicit versions only.
+Besides explicit versions such as `"1.5.1"`, two aliases can be used when registering versions
+(`coco.toolchain(versions = ...)` or `coco_repositories(versions = ...)`), in `popili_version` pins and in
+`popili_versions` lists: `"stable"`, the newest stable release, and `"testing"`, the current pre-release (a beta or
+release candidate). Each rules_coco release fixes what they resolve to (see
+[`version_aliases.bzl`](../coco/private/version_aliases.bzl)), so upgrading rules_coco can move them. List explicit
+versions to stay on a version. [`--@rules_coco//:version`](flags.md#version) takes explicit versions only.
 
 To register every stable release your rules_coco version knows of (1.5.0 onwards, no betas or release candidates), load
 `AVAILABLE_STABLE_VERSIONS` from `@rules_coco//coco:repositories.bzl`. It lists them newest first, so the newest is the
@@ -61,10 +61,9 @@ things to be aware of, though:
 ## Selecting the version for a whole build
 
 Everything without a pin uses the default, or the version [`--@rules_coco//:version`](flags.md#version) selects, for
-example `bazel build --@rules_coco//:version=1.5.1
-//...`. The flag takes an explicit version or `local`. A pin wins over the flag, unless
-[`--@rules_coco//:force_version`](#trying-a-version-everywhere) is set. To set the flag for the whole repository, add it
-to `.bazelrc`:
+example `bazel build --@rules_coco//:version=1.5.1 //...`. The flag takes an explicit version or `local`. A pin wins
+over the flag, unless [`--@rules_coco//:force_version`](#trying-a-version-everywhere) is set. To set the flag for the
+whole repository, add it to `.bazelrc`:
 
 ```
 build --@rules_coco//:version=1.5.1
@@ -153,10 +152,10 @@ is checked. Under [`--@rules_coco//:force_version`](#trying-a-version-everywhere
 The list also steers the version the package itself is built with, on its own (`bazel build //:modern`) or beneath a
 consumer:
 
-- When the list has the version the package would get anyway (the default, the flag or a consumer's pin), it keeps
-  that version.
-- Otherwise it uses the first listed version that is registered, so the order only matters then. `local` is never
-  picked this way, only selected explicitly.
+- When the list has the version the package would get anyway (the default, the flag or a consumer's pin), it keeps that
+  version.
+- Otherwise it uses the first listed version that is registered, so the order only matters then. `local` is never picked
+  this way, only selected explicitly.
 - When no listed version is registered, the package fails, saying which versions to register.
 - Under `--@rules_coco//:force_version` it follows the forced version like everything else.
 

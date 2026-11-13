@@ -3,8 +3,8 @@
 [![CI](https://github.com/cocotec/rules_coco/actions/workflows/continuous-integration.yml/badge.svg?branch=main)](https://github.com/cocotec/rules_coco/actions/workflows/continuous-integration.yml?query=branch%3Amain)
 [![Links](https://github.com/cocotec/rules_coco/actions/workflows/links.yml/badge.svg)](https://github.com/cocotec/rules_coco/actions/workflows/links.yml)
 
-[Bazel](https://github.com/bazelbuild/bazel) rules for the [Coco language](https://cocotec.io/popili/coco/) that can
-use [Popili](https://cocotec.io/popili/) to:
+[Bazel](https://github.com/bazelbuild/bazel) rules for the [Coco language](https://cocotec.io/popili/coco/) that can use
+[Popili](https://cocotec.io/popili/) to:
 
 - Generate code from Coco packages.
 - Run verification on Coco packages as part of Bazel test.

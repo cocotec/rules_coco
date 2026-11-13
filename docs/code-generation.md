@@ -1,8 +1,8 @@
 # Generating code
 
-Code is generated from a [`coco_package`](packages.md) with `coco_generate`, and compiled with the C or C++
-library rules. See [where generated code goes](packages.md#where-generated-code-goes) for the output layout and
-how to include generated headers.
+Code is generated from a [`coco_package`](packages.md) with `coco_generate`, and compiled with the C or C++ library
+rules. See [where generated code goes](packages.md#where-generated-code-goes) for the output layout and how to include
+generated headers.
 
 ## C++ code generation
 
@@ -30,8 +30,8 @@ coco_cc_library(
 )
 ```
 
-If your project wraps `cc_library` in a macro of its own, for example to add default `copts`, pass it as
-`library_rule` and `coco_cc_library` calls it instead of rules_cc's `cc_library`, with the same attributes:
+If your project wraps `cc_library` in a macro of its own, for example to add default `copts`, pass it as `library_rule`
+and `coco_cc_library` calls it instead of rules_cc's `cc_library`, with the same attributes:
 
 ```starlark
 load("@rules_coco//coco:cc.bzl", "coco_cc_library")
@@ -54,8 +54,8 @@ variants) take:
   private. An entry names a header by file name (`"ISensor.h"`) or, when several headers share a name, by a trailing
   part of its include path (`"sensors/ISensor.h"`). An entry that matches no header is an error.
 
-Any other attribute, such as `copts` or `visibility`, is passed on to the rule that compiles the library:
-`library_rule` when set, otherwise rules_cc's `cc_library`.
+Any other attribute, such as `copts` or `visibility`, is passed on to the rule that compiles the library: `library_rule`
+when set, otherwise rules_cc's `cc_library`.
 
 ## C code generation
 
@@ -102,8 +102,8 @@ cc_binary(
 )
 ```
 
-[`coco_c_test_library`](reference/c.md#coco_c_test_library) compiles the generated C test code;
-see [Test code and mocks](#test-code-and-mocks).
+[`coco_c_test_library`](reference/c.md#coco_c_test_library) compiles the generated C test code; see
+[Test code and mocks](#test-code-and-mocks).
 
 ## Output paths
 
@@ -129,6 +129,7 @@ fileNameMangler = "LowerUnderscore"
 includePrefix = "motor"
 ```
 
+<!-- prettier-ignore -->
 > [!IMPORTANT]
 > With a custom `headerFileExtension` in `[generator.cpp]` or `[generator.c]`, `Coco.toml` must also set
 > `runtimeHeaderFileExtension = ".h"` in the same section.
@@ -169,9 +170,9 @@ coco_package(
 | [`generator.csharp.regeneratePackages`](https://cocotec.io/popili/doc/1.6/codegen/csharp/settings.html#generator.csharp.regeneratePackages)     | [`csharp_regenerate_packages`](reference/defs.md#coco_package-csharp_regenerate_packages)               |
 | [`generator.csharp.generateMocks`](https://cocotec.io/popili/doc/1.6/codegen/csharp/settings.html#generator.csharp.generateMocks)               | [`csharp_mocks`](reference/defs.md#coco_package-csharp_mocks)                                           |
 
-Each package in a `*_regenerate_packages` list must be a dependency of the package, directly or through another
-package in [`deps`](reference/defs.md#coco_package-deps), because Popili only regenerates dependencies. Otherwise the
-build fails with `... is not a dependency of ...`.
+Each package in a `*_regenerate_packages` list must be a dependency of the package, directly or through another package
+in [`deps`](reference/defs.md#coco_package-deps), because Popili only regenerates dependencies. Otherwise the build
+fails with `... is not a dependency of ...`.
 
 ### Include prefixes
 
@@ -188,9 +189,9 @@ code, as Popili wrote its includes with the `Coco.toml` value:
 fatal error: 'motor/Foo.h' file not found
 ```
 
-The path in the message names the value to set. Keep the two equal even for a package nothing depends on yet: a
-small package may compile despite a mismatch, as its sources find headers in their own directory, and the packages
-that later depend on it fail instead.
+The path in the message names the value to set. Keep the two equal even for a package nothing depends on yet: a small
+package may compile despite a mismatch, as its sources find headers in their own directory, and the packages that later
+depend on it fail instead.
 
 ### Header name collisions
 
@@ -275,6 +276,7 @@ coco_generate(
 )
 ```
 
+<!-- prettier-ignore -->
 > [!NOTE]
 > C# code generation produces `.cs` files but does not include compilation support. Bazel's C# rules are currently too
 > primitive to provide a good integration. The generated C# files can be consumed by other build systems or IDEs.

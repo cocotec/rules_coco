@@ -5,18 +5,19 @@ Each release lists the exact version and integrity hash to use in place of `VERS
 
 ## bzlmod (recommended)
 
-Add rules_coco to `MODULE.bazel` as in [Getting started](getting-started.md#1-add-rules_coco-to-modulebazel), and
-enable the runtimes you need on [`coco.toolchain`](reference/extensions.md#coco.toolchain): `cc = True` for
+Add rules_coco to `MODULE.bazel` as in [Getting started](getting-started.md#1-add-rules_coco-to-modulebazel), and enable
+the runtimes you need on [`coco.toolchain`](reference/extensions.md#coco.toolchain): `cc = True` for
 [`coco_cc_library`](reference/cc.md#coco_cc_library), `c = True` for [`coco_c_library`](reference/c.md#coco_c_library).
 
-Every module declaring `coco.toolchain` contributes its versions and runtimes. When no module in
-the dependency graph declares one, `stable` is registered with both runtimes.
+Every module declaring `coco.toolchain` contributes its versions and runtimes. When no module in the dependency graph
+declares one, `stable` is registered with both runtimes.
 
 See [Popili versions](popili-versions.md) for registering and pinning several versions, and the
 [module extension reference](reference/extensions.md) for every tag and attribute.
 
 ## `WORKSPACE` (deprecated)
 
+<!-- prettier-ignore -->
 > [!WARNING]
 > The `WORKSPACE` mode is deprecated and needs Bazel 8.3.0 or higher. Please migrate to bzlmod.
 
@@ -54,5 +55,4 @@ See the [repository rules reference](reference/repositories.md) for every `coco_
 ## Keeping rules_coco up to date
 
 rules_coco is fetched with `archive_override`, which Renovate does not update on its own. See
-[Using Renovate](renovate.md) for a configuration that does, including for networks that cannot
-reach GitHub.
+[Using Renovate](renovate.md) for a configuration that does, including for networks that cannot reach GitHub.
