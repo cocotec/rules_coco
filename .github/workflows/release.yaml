@@ -1,92 +1,87 @@
 name: Release
+# Publishes the version in version.bzl when a change to it lands on `main` (minor releases) or on a `release/X.Y`
+# branch (patch releases). The "Prepare Release" workflow opens those changes; see RELEASING.md. Every branch releases
+# with its own copy of this workflow and of tools/, so older release branches keep working as main moves on.
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches:
+      - main
+      - "release/[0-9]+.[0-9]+"
     paths:
       - "version.bzl"
 defaults:
   run:
     shell: bash
+# Each job asks for what it needs: `validation` installs the release tools from PyPI, so it gets neither the token that
+# pushes tags nor the GCP identity.
 permissions:
-  contents: write
-  id-token: write
+  contents: read
 jobs:
   validation:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.outputs.outputs.version }}
+      previous: ${{ steps.outputs.outputs.previous }}
     steps:
       - uses: actions/checkout@v7
-      # TODO: Unfortunately it's not obvious how to restrict `workflow_dispatch` to a particular branch
-      # so this step ensures releases are always done off of `main`.
-      - name: Ensure branch is 'main'
-        run: |
-          git fetch origin &> /dev/null
-          branch="$(git rev-parse --abbrev-ref HEAD)"
-          if [[ "${branch}" != "main" ]]; then
-            echo "The release branch must be main. Got '${branch}'' instead." >&2
-            exit 1
-          else
-            echo "Branch is '${branch}'"
-          fi
-      - name: Ensure release does not already exist
-        run: |
-          git fetch origin &> /dev/null
-          version="$(grep 'VERSION =' ${{ github.workspace }}/version.bzl | sed 's/VERSION = "//' | sed 's/"//')"
-          if [[ -n "$(git tag -l ${version})" ]]; then
-            echo "A release '${version}' already exists." >&2
-            exit 1
-          else
-            echo "Tag '${version}' will be created"
-          fi
+        with:
+          # Commitizen needs the history and tags since the previous release.
+          fetch-depth: 0
+      - uses: ./.github/actions/release-tools
+      # Checks the branch may release this version (minor and major releases from main, patch releases from their
+      # release/X.Y branch), that it has not been released yet, and that a patch release holds no `feat` or breaking
+      # change. `workflow_dispatch` cannot be restricted to branches, so this also guards manual runs; it takes the
+      # full ref because a tag named `main` has the same short name as the branch.
+      - name: Check the release policy
+        run: python3 tools/release_policy.py check-release --ref "$GITHUB_REF"
+      # The release notes start at the previous release on this branch, not at whatever GitHub picks (which may belong
+      # to another series).
+      - name: Find the version and the previous release
+        id: outputs
+        run: python3 tools/release_policy.py release-outputs >> "$GITHUB_OUTPUT"
       - name: Verify version consistency
         run: |
           # Run version consistency test to ensure version.bzl and MODULE.bazel match
           bazel test //test/version:version_consistency_test
   release:
     needs: validation
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      id-token: write
+    env:
+      RELEASE_VERSION: ${{ needs.validation.outputs.version }}
     steps:
       - uses: actions/checkout@v7
-      - name: Detect the current version
-        run: |
-          version="$(grep 'VERSION =' ${{ github.workspace }}/version.bzl | grep -o '[[:digit:].]\+')"
-          echo "RELEASE_VERSION=${version}" >> $GITHUB_ENV
+      # The steps are ordered so that "Re-run failed jobs" can finish a release that failed halfway: the archive goes to
+      # dl.cocotec.io first, which can be repeated, and the tag and GitHub release, which cannot, come last. A re-run
+      # that finds the GitHub release takes its archive instead of building one with other bytes and another checksum.
       - name: Create the rules archive
         run: |
-          # Build an archive of the repo contents.
-          tar -czf ${{ github.workspace }}/.github/rules_coco_${{ env.RELEASE_VERSION }}.tar.gz \
-            -C ${{ github.workspace }} \
-            --exclude=".git" \
-            --exclude=".github" \
-            .
+          archive="$GITHUB_WORKSPACE/.github/rules_coco_${RELEASE_VERSION}.tar.gz"
+          if gh release view "$RELEASE_VERSION" > /dev/null 2>&1; then
+            echo "::notice::Release ${RELEASE_VERSION} exists already; publishing its archive."
+            gh release download "$RELEASE_VERSION" --pattern "rules_coco_${RELEASE_VERSION}.tar.gz" \
+              --dir "$GITHUB_WORKSPACE/.github"
+            echo "RELEASE_EXISTS=true" >> "$GITHUB_ENV"
+          else
+            # Build an archive of the repo contents.
+            tar -czf "$archive" -C "$GITHUB_WORKSPACE" --exclude=".git" --exclude=".github" .
+          fi
 
           # Save the sha256 checksum of the distro archive to the environment
-          sha256_base64="$(shasum --algorithm 256 ${{ github.workspace }}/.github/rules_coco_${{ env.RELEASE_VERSION }}.tar.gz | awk '{ print $1 }' | xxd -r -p | base64)"
-          echo "ARCHIVE_SHA256_BASE64=${sha256_base64}" >> $GITHUB_ENV
+          sha256_base64="$(shasum --algorithm 256 "$archive" | awk '{ print $1 }' | xxd -r -p | base64)"
+          echo "ARCHIVE_SHA256_BASE64=${sha256_base64}" >> "$GITHUB_ENV"
         env:
-          URL_PREFIX: https://github.com/${{ github.repository_owner }}/rules_coco/releases/download/${{ env.RELEASE_VERSION }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       # Upload the artifact in case creating a release fails so all artifacts can then be manually recovered.
       - uses: actions/upload-artifact@v7
         with:
           name: "rules_coco_${{ env.RELEASE_VERSION }}.tar.gz"
           path: ${{ github.workspace }}/.github/rules_coco_${{ env.RELEASE_VERSION }}.tar.gz
           if-no-files-found: error
-      - name: Generate release notes
-        run: |
-          # Generate the release notes
-          sed 's#{version}#${{ env.RELEASE_VERSION }}#g' ${{ github.workspace }}/.github/release_notes.template \
-          | sed 's#{sha256_base64}#${{ env.ARCHIVE_SHA256_BASE64 }}#g' \
-          > ${{ github.workspace }}/.github/release_notes.txt
-      - name: Create release and upload archive
-        run: |
-          gh release create "$RELEASE_VERSION" \
-            "${{ github.workspace }}/.github/rules_coco_${RELEASE_VERSION}.tar.gz" \
-            --title "$RELEASE_VERSION" \
-            --notes-file "${{ github.workspace }}/.github/release_notes.txt" \
-            --generate-notes \
-            --target "${{ github.sha }}"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          overwrite: true
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v3
         with:
@@ -98,6 +93,50 @@ jobs:
           path: "${{ github.workspace }}/.github/rules_coco_${{ env.RELEASE_VERSION }}.tar.gz"
           destination: "cocotec-downloads/rules_coco"
           process_gcloudignore: false
+      - name: Generate release notes
+        if: env.RELEASE_EXISTS != 'true'
+        run: |
+          # Generate the release notes
+          sed 's#{version}#${{ env.RELEASE_VERSION }}#g' ${{ github.workspace }}/.github/release_notes.template \
+          | sed 's#{sha256_base64}#${{ env.ARCHIVE_SHA256_BASE64 }}#g' \
+          > ${{ github.workspace }}/.github/release_notes.txt
+      - name: Create release and upload archive
+        if: env.RELEASE_EXISTS != 'true'
+        run: |
+          # A patch release of an older series must not become the "Latest" release. Asked only now, of the tags that
+          # exist now: another branch may have released since this run started.
+          latest=$(python3 tools/release_policy.py is-latest)
+          gh release create "$RELEASE_VERSION" \
+            "${{ github.workspace }}/.github/rules_coco_${RELEASE_VERSION}.tar.gz" \
+            --title "$RELEASE_VERSION" \
+            --notes-file "${{ github.workspace }}/.github/release_notes.txt" \
+            --generate-notes \
+            --notes-start-tag "$PREVIOUS_RELEASE" \
+            --latest="$latest" \
+            --target "${{ github.sha }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PREVIOUS_RELEASE: ${{ needs.validation.outputs.previous }}
+  # Lists the archives on dl.cocotec.io for Renovate. A job of its own, so that it can be serialised: several branches
+  # release, and of two runs that interleave, the one that listed the bucket first could otherwise publish its list
+  # last and drop the other's release. A run that waits here lists the bucket only once it is its turn, and if a newer
+  # run replaces it while it waits, that one lists this release too.
+  renovate-versions:
+    needs: release
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+    concurrency:
+      group: renovate-versions
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
       - name: Generate renovate_versions.json
         run: |
           python3 ${{ github.workspace }}/tools/generate_renovate_versions.py \
@@ -111,3 +150,26 @@ jobs:
           path: "${{ github.workspace }}/.github/renovate_versions.json"
           destination: "cocotec-downloads/rules_coco"
           process_gcloudignore: false
+  # A minor or major release from main starts the release/X.Y branch its patch releases are made from. Only deploy keys
+  # and maintainers may create release branches (see RELEASING.md), so this job pushes with a deploy key. The key is a
+  # secret of the `release-branch` environment, which only main may use and whose required reviewers approve each run,
+  # so no other job, branch or pull request sees it; and this job runs nothing but a checkout pinned to a commit, so no
+  # other action does either.
+  create-release-branch:
+    if: github.ref == 'refs/heads/main'
+    needs: [validation, release]
+    runs-on: ubuntu-24.04
+    environment: release-branch
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ssh-key: ${{ secrets.RELEASE_BRANCH_DEPLOY_KEY }}
+      - name: Create the release branch
+        run: |
+          branch="release/${VERSION%.*}"
+          git push origin "${GITHUB_SHA}:refs/heads/${branch}"
+          echo "Created \`${branch}\` for the ${VERSION%.*}.x patch releases." >> "$GITHUB_STEP_SUMMARY"
+        env:
+          VERSION: ${{ needs.validation.outputs.version }}

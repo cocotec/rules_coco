@@ -15,6 +15,11 @@
   "pre-commit": {
     "enabled": true
   },
+  "pip-compile": {
+    "managerFilePatterns": [
+      "/^tools/requirements-release\\.txt$/"
+    ]
+  },
   "packageRules": [
     {
       "matchManagers": [
@@ -58,6 +63,24 @@
       ],
       "semanticCommitType": "ci",
       "automerge": true
+    },
+    {
+      "matchManagers": [
+        "pip_requirements"
+      ],
+      "matchFileNames": [
+        "tools/requirements-release.txt"
+      ],
+      "description": "A lock file: the pip-compile manager regenerates it from requirements-release.in",
+      "enabled": false
+    },
+    {
+      "matchPackageNames": [
+        "commitizen",
+        "commitizen-tools/commitizen"
+      ],
+      "description": "Keep the commitizen pre-commit hook and the release tools' commitizen in step",
+      "groupName": "commitizen"
     },
     {
       "matchDepTypes": [

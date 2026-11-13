@@ -1,0 +1,10 @@
+# Tools for the release workflows (see RELEASING.md). Keep commitizen in step
+# with the commitizen hook in .pre-commit-config.yaml. After a change, update
+# the lock file:
+#
+#   uv pip compile --universal --generate-hashes --python-version=3.15 \
+#     --output-file=tools/requirements-release.txt tools/requirements-release.in
+#
+# Renovate does the same (its pip-compile manager reads the command from the
+# header of the lock file, and only understands options written with `=`).
+commitizen==4.19.3

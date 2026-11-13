@@ -1,8 +1,19 @@
 name: Update Digests
+# Records new Popili releases. Opens two pull requests:
+# - one on the newest `release/X.Y` branch (or `branch`) that also bumps the patch version, so approving it releases;
+# - one on `main` with only the digests, which releases nothing.
+# Each runs that branch's own tools/update_digests.py, tools/release.py and tools/release_policy.py, so keep those
+# command lines stable. A branch that still has an open pull request from an earlier run is skipped.
+# See RELEASING.md.
 on:
   workflow_dispatch:
+    inputs:
+      branch:
+        description: "Release branch to release the digests from (default: the newest release/X.Y)"
+        required: false
+        type: string
 permissions:
-  contents: write
+  contents: read
   id-token: write
 
 concurrency:
@@ -11,71 +22,110 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
-
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v3
         with:
-          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          persist-credentials: false
 
-      - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v3
-
-      - name: Generate GitHub App Token
-        id: generate_token
-        shell: bash
-        run: |
-          TOKEN=$(python3 .github/scripts/github_app_token.py)
-          echo "::add-mask::$TOKEN"
-          echo "token=$TOKEN" >> $GITHUB_OUTPUT
-        env:
-          COCOTEC_BOT_APP_ID: ${{ secrets.COCOTEC_BOT_APP_ID }}
-          COCOTEC_BOT_INSTALLATION_ID: ${{ secrets.COCOTEC_BOT_INSTALLATION_ID }}
-          GCP_KMS_PROJECT: ${{ secrets.GCP_KMS_PROJECT }}
-          GCP_KMS_LOCATION: ${{ secrets.GCP_KMS_LOCATION }}
-          GCP_KMS_KEYRING: ${{ secrets.GCP_KMS_KEYRING }}
-          GCP_KMS_KEY: ${{ secrets.GCP_KMS_KEY }}
-          GCP_KMS_KEY_VERSION: ${{ secrets.GCP_KMS_KEY_VERSION }}
-
-      - name: Update Digests
-        run: "python3 tools/update_digests.py"
-
-      - name: Bump Version
-        run: python3 tools/release.py --bump patch
-
-      - name: "Create Pull Request"
-        shell: bash
+      - name: Find the release branch
         run: |
           set -euo pipefail
-          BRANCH="chore/update-digests-${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}"
-
-          git config user.name "cocotec-automation[bot]"
-          git config user.email "244153713+cocotec-automation[bot]@users.noreply.github.com"
-          git checkout -b "$BRANCH"
-          git add coco/private/known_shas.bzl coco/private/version_aliases.bzl version.bzl MODULE.bazel
-          git commit --message 'chore(deps): update popili digests and bump version'
-          git push --set-upstream origin "$BRANCH"
-
-          # printf, not a block scalar or heredoc: those leak YAML indentation and eat the backticks.
-          BODY=$(printf '%s\n' \
-            'Updates Popili digests and bumps the patch version.' \
-            '' \
-            'Approving is enough: it joins the merge queue once `build` is green, and merging releases.')
-
-          URL=$(gh pr create --base main \
-            --title 'chore(deps): update popili digests and bump version' \
-            --body "$BODY")
-
-          # Non-fatal: the pull request exists either way and can be merged by hand.
-          if MERGE_ERROR=$(gh pr merge "$URL" --auto --squash 2>&1); then
-            echo "::notice::Auto-merge enabled; merges once approved and build passes."
-          else
-            echo "::warning::Could not enable auto-merge on ${URL}: ${MERGE_ERROR}"
+          # The branch of the newest release, or `branch` if that is a release branch; fails if either is not there.
+          branch=$(python3 tools/release_policy.py digests-branch ${INPUT_BRANCH:+--branch "$INPUT_BRANCH"})
+          if [[ -z "$branch" ]]; then
+            echo "::warning::No release/X.Y branch yet, so these digests are not released. Release the next minor from main with the Prepare Release workflow; that creates one."
           fi
-
-          echo "Opened ${URL}" >> "$GITHUB_STEP_SUMMARY"
+          echo "RELEASE_BRANCH=$branch" >> "$GITHUB_ENV"
         env:
-          GITHUB_TOKEN: ${{ steps.generate_token.outputs.token }}
+          INPUT_BRANCH: ${{ inputs.branch }}
+
+      - uses: ./.github/actions/automation-token
+        id: token
+        with:
+          workload-identity-provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          app-id: ${{ secrets.COCOTEC_BOT_APP_ID }}
+          installation-id: ${{ secrets.COCOTEC_BOT_INSTALLATION_ID }}
+          kms-project: ${{ secrets.GCP_KMS_PROJECT }}
+          kms-location: ${{ secrets.GCP_KMS_LOCATION }}
+          kms-keyring: ${{ secrets.GCP_KMS_KEYRING }}
+          kms-key: ${{ secrets.GCP_KMS_KEY }}
+          kms-key-version: ${{ secrets.GCP_KMS_KEY_VERSION }}
+
+      - name: Check out the release branch
+        if: env.RELEASE_BRANCH != ''
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_BRANCH }}
+          path: target-release
+          # The release policy needs the release tags.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check out main
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          path: target-main
+          persist-credentials: false
+
+      - name: Create Pull Requests
+        run: |
+          set -euo pipefail
+
+          # open_pr DIR BASE RELEASE: updates the digests in DIR, a checkout of BASE, and opens a pull request for
+          # them. With RELEASE=release it also bumps the patch version, so merging releases.
+          open_pr() {
+            local dir=$1 base=$2 release=$3
+
+            local existing
+            existing=$(gh pr list --repo "$GITHUB_REPOSITORY" --base "$base" --state open --json number,headRefName \
+              --jq 'map(select(.headRefName | startswith("chore/update-digests-")))[0].number // empty')
+            if [[ -n "$existing" ]]; then
+              echo "::notice::#${existing} already updates the digests on ${base}. Close it first if it is out of date."
+              return
+            fi
+
+            pushd "$dir" > /dev/null
+
+            python3 tools/update_digests.py
+            if git diff --quiet; then
+              echo "::notice::${base} already has the newest digests."
+              popd > /dev/null
+              return
+            fi
+
+            local title body
+            if [[ "$release" == release ]]; then
+              # Not on top of a version that is still to be released: that one would be skipped.
+              python3 tools/release_policy.py check-version-released
+              python3 tools/release.py --bump patch
+              local version
+              version=$(python3 tools/release_policy.py current-version)
+              title="chore(deps): update popili digests and release ${version}"
+              # printf, not a block scalar or heredoc: those leak YAML indentation and eat the backticks.
+              body=$(printf '%s\n' \
+                "Updates Popili digests and bumps the patch version to ${version}." \
+                '' \
+                'Approving is enough: it joins the merge queue once the checks are green, and merging releases.')
+            else
+              title="chore(deps): update popili digests"
+              body=$(printf '%s\n' \
+                'Updates Popili digests; the release comes from the release branch, this keeps `main` in step.' \
+                '' \
+                'Approving is enough: it joins the merge queue once the checks are green.')
+            fi
+
+            git add coco/private/known_shas.bzl coco/private/version_aliases.bzl version.bzl MODULE.bazel CHANGELOG.md
+            "$GITHUB_WORKSPACE/tools/open_pull_request.sh" "$base" \
+              "chore/update-digests-${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}-${base//\//-}" "$title" "$body"
+            popd > /dev/null
+          }
+
+          if [[ -n "$RELEASE_BRANCH" ]]; then
+            open_pr target-release "$RELEASE_BRANCH" release
+          fi
+          open_pr target-main main no-release
+        env:
+          GITHUB_TOKEN: ${{ steps.token.outputs.token }}

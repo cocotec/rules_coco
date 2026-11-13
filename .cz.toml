@@ -1,0 +1,8 @@
+# Commitizen decides how big the next release is from the conventional commits
+# since the previous release tag. tools/release_policy.py calls it; see
+# RELEASING.md. tools/release.py writes the version, not commitizen.
+[tool.commitizen]
+name = "cz_conventional_commits"
+version_provider = "scm"
+tag_format = "$version"
+major_version_zero = true

@@ -1,0 +1,103 @@
+name: Prepare Release
+# Opens the pull request that releases rules_coco. Run it on `main` for the next minor release, or on a `release/X.Y`
+# branch for its next patch release. Approving the pull request releases.
+# See RELEASING.md.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release this version instead of the one the commits call for (see RELEASING.md)"
+        required: false
+        type: string
+permissions:
+  contents: read
+
+concurrency:
+  group: prepare-release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  # Picks the version with the release tools. Those come from PyPI, so this job holds no credentials; the job that
+  # does runs only this repository's own scripts.
+  plan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.plan.outputs.version }}
+      note: ${{ steps.plan.outputs.note }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Commitizen needs the history and tags since the previous release.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: ./.github/actions/release-tools
+
+      - name: Pick the version
+        id: plan
+        run: |
+          set -euo pipefail
+          version=$(python3 tools/release_policy.py next-version --ref "$GITHUB_REF" ${INPUT_VERSION:+--version "$INPUT_VERSION"})
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [[ -n "$INPUT_VERSION" ]]; then
+            # Ends in the `Release-As` footer that makes the release policy accept the version.
+            note=$(python3 tools/release_policy.py release-as-note --ref "$GITHUB_REF" --version "$version")
+            delimiter="note-${RANDOM}${RANDOM}${RANDOM}"
+            printf '%s\n' "note<<${delimiter}" "$note" "$delimiter" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+
+  open:
+    needs: plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      VERSION: ${{ needs.plan.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Bump the version
+        run: python3 tools/release.py --version "$VERSION"
+
+      - uses: ./.github/actions/automation-token
+        id: token
+        with:
+          workload-identity-provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          app-id: ${{ secrets.COCOTEC_BOT_APP_ID }}
+          installation-id: ${{ secrets.COCOTEC_BOT_INSTALLATION_ID }}
+          kms-project: ${{ secrets.GCP_KMS_PROJECT }}
+          kms-location: ${{ secrets.GCP_KMS_LOCATION }}
+          kms-keyring: ${{ secrets.GCP_KMS_KEYRING }}
+          kms-key: ${{ secrets.GCP_KMS_KEY }}
+          kms-key-version: ${{ secrets.GCP_KMS_KEY_VERSION }}
+
+      - name: Create Pull Request
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF_NAME" == main ]]; then
+            NOTE="Merging releases ${VERSION} and creates \`release/${VERSION%.*}\` for its patch releases."
+          else
+            NOTE="Merging releases ${VERSION}."
+          fi
+          # printf, not a block scalar or heredoc: those leak YAML indentation and eat the backticks.
+          BODY=$(printf '%s\n' \
+            "Bumps the version to ${VERSION} and moves \`[Unreleased]\` in CHANGELOG.md to it." \
+            '' \
+            "Approving is enough: it joins the merge queue once the checks are green. ${NOTE}")
+          if [[ -n "$NOTE_RELEASE_AS" ]]; then
+            BODY+=$'\n\n'"$NOTE_RELEASE_AS"
+          fi
+
+          git add version.bzl MODULE.bazel CHANGELOG.md
+          tools/open_pull_request.sh "$GITHUB_REF_NAME" "chore/release-${VERSION}-${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}" \
+            "chore(release): ${VERSION}" "$BODY"
+        env:
+          GITHUB_TOKEN: ${{ steps.token.outputs.token }}
+          NOTE_RELEASE_AS: ${{ needs.plan.outputs.note }}
