@@ -70,6 +70,7 @@ load("@rules_coco//coco:repositories.bzl", "coco_repositories")
 coco_repositories(
     c = True,
     cc = True,
+    cc_test_runtime_gmock = "@googletest//:gtest",
     versions = [
         "stable",
         "testing",

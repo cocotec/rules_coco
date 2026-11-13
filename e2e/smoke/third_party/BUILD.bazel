@@ -1,0 +1,9 @@
+# The README's select() shim for coco.cc_test_runtime: MODULE.bazel is evaluated before select()
+# fires, so the choice of GoogleMock lives in an alias.
+alias(
+    name = "gmock",
+    actual = select({
+        "//conditions:default": "@googletest//:gtest",
+    }),
+    visibility = ["//visibility:public"],
+)

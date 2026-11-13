@@ -38,14 +38,38 @@ coco_cc_runtime_extra_deps(
     name = "extra_deps",
     deps = {deps},
 )
+{test_runtime}"""
 
+# What coco_cc_test_library links: the runtime, gmock and the runtime's helpers for driving gmock
+# mocks, coco/gmock_helpers.h (absent from older runtimes).
+_CC_TEST_RUNTIME_BUILD_TEMPLATE = """
 cc_library(
-    name = "testing",
+    name = "test_runtime",
     hdrs = glob(["coco/gmock_helpers.h"], allow_empty = True),
-    deps = [":runtime"],
+    deps = [":runtime", ":gmock"],
     visibility = ["//visibility:public"],
 )
+
+# Like the extra deps, so that a test linking gmock itself links one copy.
+coco_cc_runtime_extra_deps(
+    name = "gmock",
+    deps = [{gmock}],
+)
 """
+
+def _cc_runtime_build(ctx):
+    test_runtime = ""
+    if ctx.attr.gmock:
+        test_runtime = _CC_TEST_RUNTIME_BUILD_TEMPLATE.format(gmock = json.encode(ctx.attr.gmock))
+    return _CC_RUNTIME_BUILD_TEMPLATE.format(
+        deps = json.encode(ctx.attr.extra_deps),
+        test_runtime = test_runtime,
+    )
+
+_GMOCK_ATTR = attr.string(
+    doc = "Canonical label string of the GoogleMock library; empty for no `:test_runtime` target.",
+    default = "",
+)
 
 _C_RUNTIME_BUILD = """
 load("@rules_cc//cc:defs.bzl", "cc_library")
@@ -164,9 +188,7 @@ def _coco_cc_runtime_repository_impl(ctx):
     ctx.download_and_extract(url = download.url, sha256 = download.sha256)
 
     ctx.file("WORKSPACE", """workspace(name = "{}")""".format(ctx.name))
-    ctx.file("BUILD.bazel", _CC_RUNTIME_BUILD_TEMPLATE.format(
-        deps = json.encode(ctx.attr.extra_deps),
-    ))
+    ctx.file("BUILD.bazel", _cc_runtime_build(ctx))
 
 _coco_cc_runtime_repository = repository_rule(
     implementation = _coco_cc_runtime_repository_impl,
@@ -175,6 +197,7 @@ _coco_cc_runtime_repository = repository_rule(
             doc = "Canonical label strings appended to the runtime's deps; typically Boost libraries for old compilers.",
             default = [],
         ),
+        "gmock": _GMOCK_ATTR,
         "version": attr.string(
             doc = "The version of coco/popili to download C++ runtime for",
             mandatory = True,
@@ -224,9 +247,7 @@ def _coco_cc_local_runtime_repository_impl(ctx):
     ctx.symlink(runtime_dir, "coco")
 
     ctx.file("WORKSPACE", """workspace(name = "{}")""".format(ctx.name))
-    ctx.file("BUILD.bazel", _CC_RUNTIME_BUILD_TEMPLATE.format(
-        deps = json.encode(ctx.attr.extra_deps),
-    ))
+    ctx.file("BUILD.bazel", _cc_runtime_build(ctx))
 
 _coco_cc_local_runtime_repository = repository_rule(
     implementation = _coco_cc_local_runtime_repository_impl,
@@ -237,6 +258,7 @@ _coco_cc_local_runtime_repository = repository_rule(
             doc = "Canonical label strings appended to the runtime's deps; typically Boost libraries for old compilers.",
             default = [],
         ),
+        "gmock": _GMOCK_ATTR,
         "path": attr.string(
             doc = "Local filesystem path to a directory containing the C++ runtime `coco/` subtree.",
             mandatory = True,

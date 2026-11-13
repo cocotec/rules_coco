@@ -23,7 +23,7 @@ and `WORKSPACE` mode.
   (`library_pinned_elsewhere`, `library_unpinned`), as does a library over generators at two
   versions (`library_mixed_generators`), unless forced, which puts library and generator at one
   version (`library_*_forced_*`).
-- A pinned `coco_cc_test_library` keeps its default `gmock` in the test's configuration, so
+- A pinned `coco_cc_test_library` keeps the `coco.cc_test_runtime` gmock in the test's configuration, so
   `legacy_mock_test`, which also depends on `@googletest//:gtest_main`, links one googletest.
 - `coco_verify_test` and `coco_fmt_test` name the popili of the execution platform the test runs
   on (`test_platform_test.bzl`), checked with a foreign target platform and the host as the first

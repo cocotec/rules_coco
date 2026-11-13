@@ -60,10 +60,18 @@ CocoCcGeneratedInfo = provider(
     fields = {
         "headers": "Generated header files as a depset",
         "include_root": "The directory the generated files' include paths are relative to, as an exec path",
+        "mocks": "Whether the test outputs include generated mocks, which need GoogleMock",
         "popili_version": "The version of the popili that generated the code, as its toolchain declares it",
         "sources": "Generated implementation files as a depset",
         "test_headers": "Generated test/mock header files as a depset",
         "test_sources": "Generated test/mock implementation files as a depset",
+    },
+)
+
+CocoCcTestRuntimeInfo = provider(
+    doc = "Internal: what //coco:cc_test_runtime forwards, for coco_cc_test_library's _coco_cc_pin.",
+    fields = {
+        "gmock": "Whether the toolchain has a `cc_test_runtime`, so GoogleMock and coco/gmock_helpers.h are linked",
     },
 )
 
@@ -1933,6 +1941,7 @@ def _coco_package_generate_impl(ctx):
         lang_provider = CocoCcGeneratedInfo(
             headers = depset(headers),
             include_root = include_root,
+            mocks = config.mocks,
             popili_version = toolchain.popili_version,
             sources = depset(sources),
             test_headers = depset(test_headers),
@@ -2057,6 +2066,15 @@ def _library_packages(ctx):
         fail("%s: specify generated_package or generated_packages" % ctx.label.same_package_label(ctx.attr.library))
     return ctx.attr.packages
 
+def _missing_gmock_message(library, generator, toolchain):
+    """The failure of a test library compiling mocks when the toolchain has no GoogleMock."""
+    return (
+        "%s compiles the mocks of %s, which need GoogleMock, but the Coco toolchain %s has none. " % (library, generator, toolchain) +
+        "Name the library with coco.cc_test_runtime(gmock = \"@googletest//:gtest\") in MODULE.bazel, " +
+        "or coco_repositories(cc_test_runtime_gmock = ...) in WORKSPACE; a bring-your-own " +
+        "coco_toolchain sets cc_test_runtime."
+    )
+
 def _coco_cc_pin_impl(ctx):
     """Checks a library's generated code against the runtime of the library's popili version.
 
@@ -2064,14 +2082,20 @@ def _coco_cc_pin_impl(ctx):
     unless they have one of their own, and the runtime it forwards is the pinned version's.
     """
     toolchain = _coco_toolchain(ctx)
+    library = ctx.label.same_package_label(ctx.attr.library)
     conflict = _library_version_conflict(
-        ctx.label.same_package_label(ctx.attr.library),
+        library,
         toolchain.popili_version,
         _version_source_of(ctx),
         [(package.label, package[CocoCcGeneratedInfo].popili_version) for package in _library_packages(ctx)],
     )
     if conflict:
         fail(conflict)
+    runtime = ctx.attr.runtime
+    if CocoCcTestRuntimeInfo in runtime and not runtime[CocoCcTestRuntimeInfo].gmock:
+        for package in _library_packages(ctx):
+            if package[CocoCcGeneratedInfo].mocks:
+                fail(_missing_gmock_message(library, package.label, toolchain.label))
     return [
         ctx.attr.runtime[CcInfo],
         # With the runfiles of the runtime's extra deps, as when it was in the library's deps.
@@ -2099,7 +2123,7 @@ _coco_cc_pin = rule(
         "runtime": attr.label(
             providers = [CcInfo],
             mandatory = True,
-            doc = "The Coco runtime the library links: //coco:cc_runtime or //coco:c_runtime.",
+            doc = "The Coco runtime the library links: //coco:cc_runtime, //coco:cc_test_runtime or //coco:c_runtime.",
         ),
     }.items()),
     cfg = popili_version_pin,
@@ -2152,21 +2176,16 @@ def _coco_cc_gen_impl(ctx):
         quote_includes = depset(include_roots),
     )
 
-    # gmock comes in here rather than in the library's deps, so that it may be a select() that
-    # can also select None.
-    extra = [ctx.attr.gmock] if ctx.attr.gmock else []
     return [
         DefaultInfo(
             files = depset(sources + private_hdrs),
-            runfiles = ctx.attr.pinned[DefaultInfo].default_runfiles.merge_all(
-                [dep[DefaultInfo].default_runfiles for dep in extra],
-            ),
+            runfiles = ctx.attr.pinned[DefaultInfo].default_runfiles,
         ),
-        # Direct, as when the runtime and gmock were in the library's own deps, for layering_check.
+        # Direct, as when the runtime was in the library's own deps, for layering_check.
         cc_common.merge_cc_infos(direct_cc_infos = [
             CcInfo(compilation_context = compilation_context),
             ctx.attr.pinned[CcInfo],
-        ] + [dep[CcInfo] for dep in extra]),
+        ]),
     ]
 
 # The default of _coco_cc_gen's public_hdrs, for a library whose public_hdrs is None or a select()
@@ -2182,10 +2201,6 @@ _coco_cc_gen = rule(
             # As for packages.
             cfg = popili_version_pin,
             doc = "The coco_generate target the library builds from, when it is just one.",
-        ),
-        "gmock": attr.label(
-            providers = [CcInfo],
-            doc = "The GoogleTest/GoogleMock library of a test library, in the library's configuration.",
         ),
         "library": attr.string(
             mandatory = True,

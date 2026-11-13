@@ -17,6 +17,7 @@
 load(
     "//coco/private:cc_runtime_deps.bzl",
     "collect_cc_runtime_extra_deps",
+    "collect_cc_test_runtime_gmock",
 )
 load(
     "//coco/private:toolchain_hub.bzl",
@@ -72,6 +73,19 @@ def _toolchain_tag_impl(ctx):
     if err:
         fail(err)
 
+    # Canonical, as for cc_runtime_deps: the runtime repos have no mapping for the label.
+    cc_test_runtime_gmock, err = collect_cc_test_runtime_gmock([
+        struct(
+            module_name = mod.name,
+            is_root = mod.is_root,
+            gmock = str(tag.gmock),
+        )
+        for mod in ctx.modules
+        for tag in mod.tags.cc_test_runtime
+    ])
+    if err:
+        fail(err)
+
     local = None
     if local_tag:
         local = struct(
@@ -86,6 +100,7 @@ def _toolchain_tag_impl(ctx):
         c = config.c,
         cc = config.cc,
         cc_runtime_extra_deps_by_version = cc_runtime_extra_deps_by_version,
+        cc_test_runtime_gmock = cc_test_runtime_gmock,
         license_source = config.license_source,
         license_token = config.license_token,
         auth_token_path = config.auth_token_path,
@@ -149,6 +164,24 @@ _cc_runtime_deps_tag = tag_class(
     },
 )
 
+_cc_test_runtime_tag = tag_class(
+    doc = (
+        "Configure the GoogleMock library coco_cc_test_library links besides the C++ runtime, for " +
+        "every registered version; required when a coco_cc_test_library compiles generated mocks. " +
+        "Root-module only, at most once. See the rules_coco README for choosing the library per " +
+        "build with select()."
+    ),
+    attrs = {
+        "gmock": attr.label(
+            doc = (
+                "The GoogleMock library, such as `@googletest//:gtest`. Generated mocks and the " +
+                "runtime's coco/gmock_helpers.h are compiled against it."
+            ),
+            mandatory = True,
+        ),
+    },
+)
+
 _local_toolchain_tag = tag_class(
     doc = (
         "Register a Coco toolchain from a popili distribution on the local filesystem, " +
@@ -180,6 +213,7 @@ coco = module_extension(
     implementation = _toolchain_tag_impl,
     tag_classes = {
         "cc_runtime_deps": _cc_runtime_deps_tag,
+        "cc_test_runtime": _cc_test_runtime_tag,
         "local_toolchain": _local_toolchain_tag,
         "toolchain": _toolchain_tag,
     },

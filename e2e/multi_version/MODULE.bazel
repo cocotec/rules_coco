@@ -29,6 +29,9 @@ coco.toolchain(
     ],
 )
 
+# For both versions; the pinned legacy_cc_tst links it in the test's configuration (see BUILD.bazel).
+coco.cc_test_runtime(gmock = "@googletest//:gtest")
+
 # A stand-in for Boost: the runtimes of both versions link it, and so does a target directly.
 coco.cc_runtime_deps(
     version = "1.5.0",
