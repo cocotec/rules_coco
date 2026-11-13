@@ -31,32 +31,25 @@ def coco_cc_library(
         **kwargs):
     """Creates a C++ library from Coco-generated C++ code.
 
-    This automatically adds the Coco C++ runtime as a dependency.
-
-    Generated headers are made available to downstream targets via CcInfo.
-    The `public_hdrs` parameter controls which generated headers are public:
-
-    - None (default): all generated headers are public
-    - ["ISensor.h", "Types.h"]: only listed headers are public, rest are private
-    - []: no generated headers are public (all private)
-
-    An entry matches a header by file name, or by a trailing part of its include path, such as
-    "sensors/ISensor.h", when several headers share a name. An entry that matches no header is
-    an error.
+    The library depends on the Coco C++ runtime of its Popili version.
 
     Args:
-        name: The name of the library
+        name: The name of the library target.
         generated_package: A coco_generate target (mutually exclusive with generated_packages)
         generated_packages: Multiple coco_generate targets to merge into one library
-        srcs: Additional C++ source files
-        hdrs: Additional C++ header files
-        deps: Additional dependencies
-        public_hdrs: List of generated header names to make public, or None for all
-        popili_version: The registered popili version whose runtime the library links, such as
-            `"1.5.1"` or an alias such as `"stable"`. It also applies to the coco_generate targets
-            the library builds from, but not to `deps`. A generator pinned to another version is
-            an error, so pin a generator and its library alike. Empty (the default)
-            uses the version `--@rules_coco//:version` selects, or the first registered version.
+        srcs: Hand-written C++ sources to add to the library.
+        hdrs: Hand-written C++ headers to add to the library.
+        deps: Other `cc_library` targets the library depends on, such as the library of each package this
+            package depends on.
+        public_hdrs: The generated headers dependents may include, each named by file name or by a
+            trailing part of its include path, such as `"sensors/ISensor.h"`. An entry that matches no
+            header is an error. Default: `None`, all of them; `[]` makes them all private.
+        popili_version: The registered Popili version whose runtime the library links, such as
+            `"1.5.1"` or `"stable"`. The `coco_generate` targets in `generated_package` or
+            `generated_packages` that have no `popili_version` of their own run with this version too,
+            so pin the library like its `coco_generate` targets. `deps` is not affected: it is built
+            as if the library had no pin. Default: `""`, the version the rest of the build uses. See
+            [Pinning targets](../popili-versions.md#pinning-targets).
         library_rule: The rule or macro that compiles the library, such as a wrapper of
             cc_library adding your project's defaults. It is called with cc_library's
             attributes. None means rules_cc's cc_library.
@@ -90,34 +83,24 @@ def coco_cc_test_library(
         **kwargs):
     """Creates a C++ test library from Coco-generated C++ test code.
 
-    This automatically adds the Coco C++ runtime and GoogleTest as dependencies.
-
-    Generated test headers are made available to downstream targets via CcInfo.
-    The `public_hdrs` parameter controls which generated test headers are public:
-
-    - None (default): all generated test headers are public
-    - ["RunnableMock.h"]: only listed headers are public, rest are private
-    - []: no generated test headers are public (all private)
-
-    An entry matches a header by file name, or by a trailing part of its include path, such as
-    "runnable/RunnableMock.h", when several headers share a name. An entry that matches no
-    header is an error.
+    The library depends on the Coco C++ test runtime of its Popili version, and on `gmock`.
 
     Args:
-        name: The name of the test library
-        generated_package: A coco_generate target with mocks enabled (mutually exclusive with generated_packages)
+        name: The name of the test library target.
+        generated_package: A `coco_generate` target whose package sets `cpp_mocks` (mutually exclusive with
+            `generated_packages`)
         generated_packages: Multiple coco_generate targets to merge into one library
-        srcs: Additional C++ source files
-        hdrs: Additional C++ header files
-        deps: Additional dependencies
-        public_hdrs: List of generated test header names to make public, or None for all
+        srcs: Hand-written C++ sources to add to the library.
+        hdrs: Hand-written C++ headers to add to the library.
+        deps: Other `cc_library` targets the library depends on, such as the library of each package this
+            package depends on.
+        public_hdrs: The generated test headers dependents may include, each named by file name or by
+            a trailing part of its include path, such as `"runnable/RunnableMock.h"`. An entry that
+            matches no header is an error. Default: `None`, all of them; `[]` makes them all private.
         gmock: The GoogleTest/GoogleMock library (default: @googletest//:gtest).
                Set to None to omit.
-        popili_version: The registered popili version whose runtime the library links, such as
-            `"1.5.1"` or an alias such as `"stable"`. It also applies to the coco_generate targets
-            the library builds from, but not to `deps` or `gmock`. A generator pinned to another
-            version is an error, so pin a generator and its library alike. Empty (the default)
-            uses the version `--@rules_coco//:version` selects, or the first registered version.
+        popili_version: As for [`coco_cc_library`](#coco_cc_library-popili_version); `gmock` is not
+            affected either.
         library_rule: The rule or macro that compiles the library, such as a wrapper of
             cc_library adding your project's defaults. It is called with cc_library's
             attributes. None means rules_cc's cc_library.

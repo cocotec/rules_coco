@@ -1,25 +1,25 @@
-# rules_coco API Documentation
+# rules_coco documentation
 
-This directory contains auto-generated API documentation for rules_coco, created using [Stardoc](https://github.com/bazelbuild/stardoc).
+## Guides
 
-## Available Documentation
+- [Getting started](getting-started.md): a first package, from install to verified, generated and built C++.
+- [Setup](setup.md): bzlmod and `WORKSPACE` installation.
+- [Licensing](licensing.md): licence modes for local builds, CI and remote execution.
+- [Defining packages](packages.md): [`coco_package`](reference/defs.md#coco_package), dependencies, typechecking, where
+  generated code goes.
+- [Generating code](code-generation.md): C++, C and C# generation, mirroring `Coco.toml` output settings.
+- [Verification](verification.md): [`coco_verify_test`](reference/defs.md#coco_verify_test) and the verification
+  backend.
+- [Formatting and diagrams](formatting-and-diagrams.md): [`coco_fmt_test`](reference/defs.md#coco_fmt_test),
+  architecture, state and counterexample diagrams.
+- [Popili versions](popili-versions.md): registering several versions, pinning targets, version flags.
+- [Custom toolchains](toolchains.md): a local Popili distribution, or a toolchain of your own.
+- [Older C++ compilers](old-compilers.md): supplying Boost for GCC 4.x.
+- [Using Renovate](renovate.md): automatic rules_coco updates, also behind a firewall.
 
-All API documentation is auto-generated from the source .bzl files:
+## Reference
 
-- [defs.md](defs.md) - Main public API (coco_package, coco_generate, coco_verify_test, etc.)
-- [c.md](c.md) - C integration rules (coco_c_library, coco_c_test_library, etc.)
-- [cc.md](cc.md) - C++ integration rules (coco_cc_library, coco_cc_test_library, etc.)
-- [repositories.md](repositories.md) - Repository setup rules (coco_repositories, etc.)
+- [Build flags](flags.md): every `--@rules_coco//` flag and the licence config settings.
 
-## Regenerating Documentation
-
-To regenerate the documentation after making changes to `.bzl` files:
-
-```bash
-# Generate and copy documentation
-./tools/update_docs.sh
-```
-
-## CI Checks
-
-The CI pipeline checks that documentation is up-to-date. If you modify any `.bzl` files that have stardoc documentation, make sure to regenerate and commit the updated documentation.
+The [API reference](reference/README.md) is generated from the `.bzl` sources with Stardoc and lists every rule, macro
+and attribute.

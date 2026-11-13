@@ -18,6 +18,7 @@ load(
     "//coco/private:cc_runtime_deps.bzl",
     "collect_cc_runtime_extra_deps",
 )
+load("//coco/private:licence_docs.bzl", "AUTH_TOKEN_PATH_DOC", "LICENSE_SOURCE_DOC", "LICENSE_TOKEN_DOC")
 load(
     "//coco/private:toolchain_hub.bzl",
     "declare_coco_toolchains",
@@ -105,45 +106,60 @@ _toolchain_tag = tag_class(
     ),
     attrs = {
         "auth_token_path": attr.string(
-            doc = "Optional path to auth token file for all toolchains when license_source is 'action_file'. The file must be available in the execution environment.",
+            doc = AUTH_TOKEN_PATH_DOC,
             default = "",
         ),
         "c": attr.bool(
             default = False,
-            doc = "Whether to include C runtime support",
+            doc = (
+                "Register the C runtime, needed by `coco_c_library` and `coco_c_test_library`. A runtime is " +
+                "registered when any module's tag asks for it. Default: `False`; when no module declares " +
+                "`coco.toolchain`, both runtimes are registered."
+            ),
         ),
         "cc": attr.bool(
             default = False,
-            doc = "Whether to include C++ runtime support",
+            doc = (
+                "Register the C++ runtime, needed by `coco_cc_library` and `coco_cc_test_library`. A runtime " +
+                "is registered when any module's tag asks for it. Default: `False`; when no module declares " +
+                "`coco.toolchain`, both runtimes are registered."
+            ),
         ),
         "license_source": attr.string(
-            doc = "Optional default license source mode for all toolchains (e.g., 'local_user', 'local_acquire', 'token', 'action_environment', 'action_file'). Can be overridden via --@rules_coco//:license_source flag.",
+            doc = (
+                "Default licence mode for every toolchain rules_coco generates: " + LICENSE_SOURCE_DOC +
+                " When several modules set it, the first wins."
+            ),
             default = "",
         ),
         "license_token": attr.string(
-            doc = "Optional default license token for all toolchains when license_source is 'token'.",
+            doc = LICENSE_TOKEN_DOC,
             default = "",
         ),
         "versions": attr.string_list(
             default = ["stable"],
-            doc = "List of Coco/Popili versions to register (e.g., ['1.5.1', '1.5.0']). Use version aliases like 'stable' or explicit versions like '1.5.1'. The first version is the one used when --@rules_coco//:version is unset.",
+            doc = (
+                "Popili versions to register, such as `[\"1.5.1\", \"1.5.0\"]`: explicit versions or aliases " +
+                "like `\"stable\"`. The versions of every module's tags are combined in module order, root " +
+                "module first, and the first of them is the default, used when `--@rules_coco//:version` is unset."
+            ),
         ),
     },
 )
 
 _cc_runtime_deps_tag = tag_class(
     doc = (
-        "Inject extra cc_library deps into the Coco C++ runtime for a specific " +
-        "Coco/Popili version. Root-module only. See the rules_coco README for " +
+        "Inject extra `cc_library` deps into the Coco C++ runtime for a specific " +
+        "Popili version. Root-module only. See [Older C++ compilers](../old-compilers.md) for " +
         "when this is needed (typically Boost libraries when building against old libstdc++)."
     ),
     attrs = {
         "deps": attr.label_list(
-            doc = "List of cc_library targets to append to the runtime's deps.",
+            doc = "List of `cc_library` targets to append to the runtime's deps.",
             mandatory = True,
         ),
         "version": attr.string(
-            doc = "Coco/Popili version these deps apply to. May be an explicit version (e.g. '1.5.1'), an alias (e.g. 'stable'), or 'local' for the coco.local_toolchain runtime.",
+            doc = "Popili version these deps apply to. May be an explicit version (e.g. `\"1.5.1\"`), an alias (e.g. `\"stable\"`), or `\"local\"` for the `coco.local_toolchain` runtime.",
             mandatory = True,
         ),
     },
@@ -153,24 +169,24 @@ _local_toolchain_tag = tag_class(
     doc = (
         "Register a Coco toolchain from a popili distribution on the local filesystem, " +
         "instead of fetching a published release. Root-module only, at most once. Used " +
-        "only under --@rules_coco//:version=local. Paths mirror the extracted release " +
-        "archive layout; see the rules_coco README."
+        "only under `--@rules_coco//:version=local`. Paths mirror the extracted release " +
+        "archive layout; see [Custom toolchains](../toolchains.md)."
     ),
     attrs = {
         "c_runtime": attr.string(
-            doc = "Optional path to a dir holding the C runtime 'coco_c/' subtree. Absolute or workspace-relative.",
+            doc = "Optional path to a dir holding the C runtime `coco_c/` subtree. Absolute or workspace-relative.",
             default = "",
         ),
         "cc_runtime": attr.string(
-            doc = "Optional path to a dir holding the C++ runtime 'coco/' subtree. Absolute or workspace-relative.",
+            doc = "Optional path to a dir holding the C++ runtime `coco/` subtree. Absolute or workspace-relative.",
             default = "",
         ),
         "license_protocol_version": attr.int(
-            doc = "Optional licence protocol version the local popili reads. See `coco_toolchain`.",
+            doc = "Optional licence protocol version the local popili reads. See [`coco_toolchain`](toolchain.md#coco_toolchain-license_protocol_version).",
             default = 0,
         ),
         "popili": attr.string(
-            doc = "Path to a dir holding the 'popili' and 'cocotec-licensing-server' binaries. Absolute or workspace-relative.",
+            doc = "Path to a dir holding the `popili` and `cocotec-licensing-server` binaries. Absolute or workspace-relative.",
             mandatory = True,
         ),
     },

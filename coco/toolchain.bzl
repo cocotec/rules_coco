@@ -14,6 +14,7 @@
 
 """Coco toolchain implementation."""
 
+load("//coco/private:licence_docs.bzl", "AUTH_TOKEN_PATH_DOC", "LICENSE_SOURCE_DOC", "LICENSE_TOKEN_DOC")
 load("//coco/private:version_resolution.bzl", "LOCAL_VERSION", "version_tuple")
 
 def _coco_toolchain_impl(ctx):
@@ -42,9 +43,16 @@ def _coco_toolchain_impl(ctx):
 
 coco_toolchain = rule(
     _coco_toolchain_impl,
+    doc = """Declares a popili toolchain: the `popili` and `cocotec-licensing-server` binaries, the Coco runtimes and the
+licence settings the Coco rules run with.
+
+rules_coco generates one for every version that `coco.toolchain` or `coco_repositories` registers. Declare one
+yourself only to bring your own popili: wrap it in a `toolchain()` with
+`toolchain_type = "@rules_coco//coco:toolchain_type"` and register it. See
+[Custom toolchains](../toolchains.md#bring-your-own-toolchain).""",
     attrs = {
         "auth_token_path": attr.string(
-            doc = "The path to auth token file to use when license_source is 'action_file'. The file must be available in the execution environment. Optional.",
+            doc = AUTH_TOKEN_PATH_DOC,
             default = "",
         ),
         "c_runtime": attr.label(
@@ -54,13 +62,13 @@ coco_toolchain = rule(
         "cc_runtime": attr.label(
             doc = (
                 "The C++ runtime library for Coco. Optional - only needed when using coco_cc_library. " +
-                "To inject extra deps into this target (e.g. Boost libraries for old libstdc++), " +
-                "use the coco.cc_runtime_deps tag in MODULE.bazel."
+                "Give it any extra deps it needs, such as Boost libraries for an old libstdc++, in its own " +
+                "`deps`: the `coco.cc_runtime_deps` tag only reaches the runtimes rules_coco generates."
             ),
             default = None,
         ),
         "coco": attr.label(
-            doc = "The location of the `coco` binary. Can be a direct source or a filegroup containing one item.",
+            doc = "The `popili` binary. Can be a file or a filegroup containing one file.",
             allow_single_file = True,
             mandatory = True,
         ),
@@ -79,19 +87,21 @@ coco_toolchain = rule(
             default = 0,
         ),
         "license_source": attr.string(
-            doc = "The license source mode for this toolchain. Can be 'local_user', 'local_acquire', 'token', 'action_environment', or 'action_file'. If not specified, defaults to 'local_user'. Can be overridden via --@rules_coco//:license_source flag.",
+            doc = "The licence mode for this toolchain: " + LICENSE_SOURCE_DOC,
             default = "",
         ),
         "license_token": attr.string(
-            doc = "The license token to use when license_source is 'token'. Optional.",
+            doc = LICENSE_TOKEN_DOC,
             default = "",
         ),
         "popili_version": attr.string(
             doc = (
-                "The version of the `popili` binary, such as \"1.5.8\"; not an alias such as " +
-                "\"stable\". It picks the licence file under `local_user` licensing, and every target " +
-                "this toolchain serves must ask for this version, or for none in particular. The " +
-                "toolchains rules_coco generates set it; a local distribution is 'local'."
+                "The version of the `popili` binary, such as `\"1.5.8\"`; an alias such as `\"stable\"` is " +
+                "rejected. Under `local_user` licensing it selects the licence file. A bring-your-own " +
+                "`toolchain()` without `target_settings` serves every target, so with it a target pinned " +
+                "to another version, or built with `--@rules_coco//:version` set to another version, " +
+                "fails. The toolchains rules_coco generates set it, and each serves only its own " +
+                "version; for a local distribution it is `\"local\"`."
             ),
             mandatory = True,
         ),

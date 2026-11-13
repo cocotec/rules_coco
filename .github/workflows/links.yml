@@ -1,0 +1,20 @@
+# Checks every link in the Markdown files, external ones included. Links between the
+# repository's own files are also checked offline by pre-commit on every change; external
+# links break independently of our changes, so they are checked on a schedule rather than
+# blocking pull requests.
+name: Links
+on:
+  schedule:
+    - cron: "0 6 * * 1" # Mondays 06:00 UTC
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  links:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check links in Markdown files
+        uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
+        with:
+          args: --no-progress './**/*.md'

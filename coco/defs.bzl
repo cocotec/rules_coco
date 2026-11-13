@@ -12,7 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Public API for Coco package rules and code generation."""
+"""Core rules and macros: packages, code generation, verification, formatting and diagrams.
+
+Also exports `LICENSE_SOURCES`, the licence modes that `--@rules_coco//:license_source` accepts: `action_environment`,
+`action_file`, `local_acquire`, `local_user` and `token`. See [Licensing](../licensing.md#licence-modes).
+"""
 
 load(
     "//coco/private:coco.bzl",

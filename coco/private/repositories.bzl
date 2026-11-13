@@ -83,24 +83,23 @@ def coco_repositories(
     keyword-only.
 
     Args:
-      version: A single Coco version, for workspaces that need only one. Mutually
+      version: A single Popili version, for workspaces that need only one. Mutually
         exclusive with `versions`. Use an alias like 'stable' or an explicit version like
         '1.5.1'. Defaults to "stable" when neither argument is given.
-      versions: The Coco versions to register, in priority order; the first is used when
+      versions: The Popili versions to register, in priority order; the first is used when
         `--@rules_coco//:version` is unset. Mutually exclusive with `version`.
       c: Whether to include C runtime support (for `coco_c_library`).
       cc: Whether to include C++ runtime support (for `coco_cc_library`).
-      license_source: Optional default license source mode for all toolchains (e.g.
-        'local_user', 'local_acquire', 'token', 'action_environment', 'action_file').
-        Can be overridden via the `--@rules_coco//:license_source` flag.
-      license_token: Optional default license token for all toolchains when
-        `license_source` is 'token'.
-      auth_token_path: Optional path to an auth token file for all toolchains when
-        `license_source` is 'action_file'. The file must be available in the execution
-        environment.
+      license_source: Default licence mode for every toolchain: `"local_user"`,
+        `"local_acquire"`, `"token"`, `"action_environment"` or `"action_file"`; see
+        [Licensing](../licensing.md#licence-modes). Empty means `"local_user"`. The
+        `--@rules_coco//:license_source` flag overrides it.
+      license_token: The licence token for `"token"` mode.
+      auth_token_path: Path to the auth token file for `"action_file"` mode. The file must
+        exist wherever actions run.
       cc_runtime_extra_deps: cc_library labels appended to the Coco C++ runtime's deps.
-        Use this to supply Boost (or equivalent) libraries on old compilers; see the
-        rules_coco README. A list applies to every registered version, including
+        Use this to supply Boost (or equivalent) libraries on old compilers; see
+        [Older C++ compilers](../old-compilers.md). A list applies to every registered version, including
         `local_popili`; a dict maps a version (or alias, or "local") to the labels for
         that version alone. Labels are written
         verbatim into a generated repository, so they must be repository-absolute.
@@ -113,7 +112,7 @@ def coco_repositories(
       local_c_runtime: Optional path to a directory holding the local C runtime `coco_c/`
         subtree. Required to build `coco_c_library` against `local_popili`.
       local_license_protocol_version: Optional licence protocol version `local_popili`
-        reads. See `coco_toolchain`.
+        reads. See [`coco_toolchain`](toolchain.md#coco_toolchain-license_protocol_version).
     """
     if native.existing_rule(DEFAULT_HUB_NAME) != None:
         fail(
@@ -208,11 +207,11 @@ def coco_local_repositories(
         Required to build `coco_cc_library` against the local toolchain.
       c_runtime_path: Optional directory containing the local C runtime `coco_c/` subtree.
         Required to build `coco_c_library` against the local toolchain.
-      license_source: Optional default license source mode. See `coco_repositories`.
-      license_token: Optional default license token.
-      auth_token_path: Optional auth token file path.
+      license_source: As for `coco_repositories`.
+      license_token: As for `coco_repositories`.
+      auth_token_path: As for `coco_repositories`.
       license_protocol_version: Optional licence protocol version the local popili reads.
-        See `coco_toolchain`.
+        See [`coco_toolchain`](toolchain.md#coco_toolchain-license_protocol_version).
     """
     coco_repositories(
         versions = [],

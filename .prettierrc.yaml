@@ -1,0 +1,7 @@
+# Markdown is wrapped at 120 columns. Prettier would join a GitHub alert's marker (`> [!NOTE]`) with the text after
+# it, which GitHub then no longer renders as an alert, so put `<!-- prettier-ignore -->` before every alert.
+overrides:
+  - files: "*.md"
+    options:
+      printWidth: 120
+      proseWrap: always
