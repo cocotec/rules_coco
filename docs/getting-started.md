@@ -81,8 +81,8 @@ cc_binary(
 > [`[generator.cpp]`](https://cocotec.io/popili/doc/stable/cpp/settings.html#cpp-options),
 > [`[generator.c]`](https://cocotec.io/popili/doc/1.6/codegen/c/settings.html#c-options) or
 > [`[generator.csharp]`](https://cocotec.io/popili/doc/1.6/codegen/csharp/settings.html#csharp-options) setting that
-> changes output paths, such as `headerFileExtension`, has to be repeated on `coco_package`, or the build fails with
-> `output '...' was not created`. See
+> changes output paths, such as `headerFileExtension`, has to be repeated on
+> [`coco_package`](reference/defs.md#coco_package), or the build fails with `output '...' was not created`. See
 > [Output paths](code-generation.md#output-paths).
 
 ## 4. Build and test

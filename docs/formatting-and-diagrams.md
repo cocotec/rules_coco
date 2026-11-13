@@ -2,7 +2,7 @@
 
 ## Formatting
 
-Format checking can be integrated into your test suite using `coco_fmt_test`:
+Format checking can be integrated into your test suite using [`coco_fmt_test`](reference/defs.md#coco_fmt_test):
 
 ```starlark
 load("@rules_coco//coco:defs.bzl", "coco_fmt_test")
@@ -59,10 +59,13 @@ coco_architecture_diagram(
 )
 ```
 
-Other options: `depth` (how many levels to draw: an integer such as `"2"`, `"auto"` or `"max"`), `hide_ports`,
-`only_roots`, `only_encapsulating` (on by default: implementation and external components are left out),
-`component_names`, and `component_types` (on by default). The [reference](reference/defs.md#coco_architecture_diagram)
-lists every attribute with its default.
+Other options: [`depth`](reference/defs.md#coco_architecture_diagram-depth) (how many levels to draw: an integer such as
+`"2"`, `"auto"` or `"max"`), [`hide_ports`](reference/defs.md#coco_architecture_diagram-hide_ports),
+[`only_roots`](reference/defs.md#coco_architecture_diagram-only_roots),
+[`only_encapsulating`](reference/defs.md#coco_architecture_diagram-only_encapsulating) (on by default: implementation
+and external components are left out), [`component_names`](reference/defs.md#coco_architecture_diagram-component_names),
+and [`component_types`](reference/defs.md#coco_architecture_diagram-component_types) (on by default). The
+[reference](reference/defs.md#coco_architecture_diagram) lists every attribute with its default.
 
 ### State machine diagrams
 
@@ -80,9 +83,9 @@ coco_state_diagram(
 )
 ```
 
-The diagram is written to `<name>.svg`. Without `targets`, that one file shows every state machine. With several
-`targets`, each gets its own file, `<name>_<target>.svg`, with the dots in the target replaced by underscores
-(`my_state_machine_MyComponent_MyMachine.svg`).
+The diagram is written to `<name>.svg`. Without [`targets`](reference/defs.md#coco_state_diagram-targets), that one file
+shows every state machine. With several `targets`, each gets its own file, `<name>_<target>.svg`, with the dots in the
+target replaced by underscores (`my_state_machine_MyComponent_MyMachine.svg`).
 
 ### Counterexample diagrams
 
@@ -105,11 +108,13 @@ coco_counterexample_diagram(
 )
 ```
 
-`draw_title` (default `True`) draws a border and title on each diagram. `deterministic` (default `True`) makes Popili
-produce the same counterexample on every run, so the output is reproducible.
+[`draw_title`](reference/defs.md#coco_counterexample_diagram-draw_title) (default `True`) draws a border and title on
+each diagram. [`deterministic`](reference/defs.md#coco_counterexample_diagram-deterministic) (default `True`) makes
+Popili produce the same counterexample on every run, so the output is reproducible.
 
-For filtering by specific assertions, use the `counterexample_options()` helper. `assertion` is the name of a check as
-Popili reports it in the verification results, such as `"Well-formedness"`. rules_coco passes it to
+For filtering by specific assertions, use the [`counterexample_options()`](reference/defs.md#counterexample_options)
+helper. [`assertion`](reference/defs.md#counterexample_options-assertion) is the name of a check as Popili reports it in
+the verification results, such as `"Well-formedness"`. rules_coco passes it to
 `popili verify --counterexample-assertion`.
 
 ```starlark

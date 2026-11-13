@@ -6,7 +6,8 @@ Each release lists the exact version and integrity hash to use in place of `VERS
 ## bzlmod (recommended)
 
 Add rules_coco to `MODULE.bazel` as in [Getting started](getting-started.md#1-add-rules_coco-to-modulebazel), and
-enable the runtimes you need on `coco.toolchain`: `cc = True` for `coco_cc_library`, `c = True` for `coco_c_library`.
+enable the runtimes you need on [`coco.toolchain`](reference/extensions.md#coco.toolchain): `cc = True` for
+[`coco_cc_library`](reference/cc.md#coco_cc_library), `c = True` for [`coco_c_library`](reference/c.md#coco_c_library).
 
 Every module declaring `coco.toolchain` contributes its versions and runtimes. When no module in
 the dependency graph declares one, `stable` is registered with both runtimes.
@@ -42,8 +43,8 @@ coco_repositories(
 )
 ```
 
-For a single version, `coco_repositories(version = "1.5.1", ...)` is a shorthand for `versions = ["1.5.1"]`. The two
-are mutually exclusive, and with neither, `stable` is registered.
+For a single version, [`coco_repositories(version = "1.5.1", ...)`](reference/repositories.md#coco_repositories) is a
+shorthand for `versions = ["1.5.1"]`. The two are mutually exclusive, and with neither, `stable` is registered.
 
 In `WORKSPACE` mode the `http_archive` must be named `rules_coco`, because the repositories rules_coco generates refer
 to `@rules_coco` by absolute label.
