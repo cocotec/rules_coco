@@ -63,8 +63,8 @@ config_setting(name = "old_libstdcxx", constraint_values = [":pre_gcc5"])
 
 ## Keep `rules_boost` out of modern-compiler builds
 
-The shim above still makes every build fetch `rules_boost`, because `@boost//:integer` is named in a `select()`
-branch Bazel must load. A `label_flag` defers the reference until `.bazelrc` sets it:
+The shim above still makes every build fetch `rules_boost`, because `@boost//:integer` is named in a `select()` branch
+Bazel must load. A `label_flag` defers the reference until `.bazelrc` sets it:
 
 ```starlark
 # third_party/boost_shim/BUILD.bazel
@@ -115,8 +115,8 @@ coco_repositories(
 )
 ```
 
-Naming a version that was not registered is an error. Unlike the bzlmod tag, these labels are not
-resolved against your workspace before being written into the generated runtime repository, so
-they must be repository-absolute (`@my_workspace//...`, not `//...`).
+Naming a version that was not registered is an error. Unlike the bzlmod tag, these labels are not resolved against your
+workspace before being written into the generated runtime repository, so they must be repository-absolute
+(`@my_workspace//...`, not `//...`).
 
 All three patterns above work here unchanged; only the spelling of the labels differs.

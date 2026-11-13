@@ -67,6 +67,7 @@ If you prefer GitHub releases as the datasource, use this configuration instead:
 }
 ```
 
+<!-- prettier-ignore -->
 > [!IMPORTANT]
 > Renovate's `github-releases` datasource only knows the commit SHA of a release tag, not a hash of the release
 > archive, so this configuration only updates the `urls`. Don't capture `integrity` with it: Renovate would replace the
@@ -79,6 +80,7 @@ If you prefer GitHub releases as the datasource, use this configuration instead:
 Make sure your `MODULE.bazel` lists the `dl.cocotec.io` URL, as the snippet in
 [Getting started](getting-started.md#1-add-rules_coco-to-modulebazel) does.
 
+<!-- prettier-ignore -->
 > [!IMPORTANT]
 > The configurations above only recognise an `archive_override` laid out like that snippet:
 >
@@ -90,7 +92,8 @@ Make sure your `MODULE.bazel` lists the `dl.cocotec.io` URL, as the snippet in
 
 ## Version manifest format
 
-The version manifest at `https://dl.cocotec.io/rules_coco/renovate_versions.json` follows Renovate's [custom datasource format](https://docs.renovatebot.com/modules/datasource/custom/):
+The version manifest at `https://dl.cocotec.io/rules_coco/renovate_versions.json` follows Renovate's
+[custom datasource format](https://docs.renovatebot.com/modules/datasource/custom/):
 
 ```json
 {

@@ -1,8 +1,9 @@
 # Generating code
 
-Code is generated from a [`coco_package`](packages.md) with `coco_generate`, and compiled with the normal bazel
-rules for the target language (e.g. `rules_cc` for C/C++). See [where generated code goes](packages.md#where-generated-code-goes) for the output layout and
-how to include generated headers.
+Code is generated from a [`coco_package`](packages.md) with `coco_generate`, and compiled with the normal bazel rules
+for the target language (e.g. `rules_cc` for C/C++). See
+[where generated code goes](packages.md#where-generated-code-goes) for the output layout and how to include generated
+headers.
 
 ## C++ code generation
 
@@ -30,8 +31,8 @@ coco_cc_library(
 )
 ```
 
-If your project wraps `cc_library` in a macro of its own, for example to add default `copts`, pass it as
-`library_rule` and `coco_cc_library` calls it instead of rules_cc's `cc_library`, with the same attributes:
+If your project wraps `cc_library` in a macro of its own, for example to add default `copts`, pass it as `library_rule`
+and `coco_cc_library` calls it instead of rules_cc's `cc_library`, with the same attributes:
 
 ```starlark
 load("@rules_coco//coco:cc.bzl", "coco_cc_library")
@@ -54,8 +55,8 @@ variants) take:
   private. An entry names a header by file name (`"ISensor.h"`) or, when several headers share a name, by a trailing
   part of its include path (`"sensors/ISensor.h"`). An entry that matches no header is an error.
 
-Any other attribute, such as `copts` or `visibility`, is passed on to the rule that compiles the library:
-`library_rule` when set, otherwise rules_cc's `cc_library`.
+Any other attribute, such as `copts` or `visibility`, is passed on to the rule that compiles the library: `library_rule`
+when set, otherwise rules_cc's `cc_library`.
 
 ## C code generation
 
@@ -102,8 +103,8 @@ cc_binary(
 )
 ```
 
-[`coco_c_test_library`](reference/c.md#coco_c_test_library) compiles the generated C test code;
-see [Test code and mocks](#test-code-and-mocks).
+[`coco_c_test_library`](reference/c.md#coco_c_test_library) compiles the generated C test code; see
+[Test code and mocks](#test-code-and-mocks).
 
 ## Output paths
 
@@ -129,6 +130,7 @@ fileNameMangler = "LowerUnderscore"
 includePrefix = "motor"
 ```
 
+<!-- prettier-ignore -->
 > [!IMPORTANT]
 > With a custom `headerFileExtension` in `[generator.cpp]` or `[generator.c]`, `Coco.toml` must also set
 > `runtimeHeaderFileExtension = ".h"` in the same section.
@@ -169,9 +171,9 @@ coco_package(
 | [`generator.csharp.regeneratePackages`](https://cocotec.io/popili/doc/1.6/codegen/csharp/settings.html#generator.csharp.regeneratePackages)     | [`csharp_regenerate_packages`](reference/defs.md#coco_package-csharp_regenerate_packages)               |
 | [`generator.csharp.generateMocks`](https://cocotec.io/popili/doc/1.6/codegen/csharp/settings.html#generator.csharp.generateMocks)               | [`csharp_mocks`](reference/defs.md#coco_package-csharp_mocks)                                           |
 
-Each package in a `*_regenerate_packages` list must be a dependency of the package, directly or through another
-package in [`deps`](reference/defs.md#coco_package-deps), because Popili only regenerates dependencies. Otherwise the
-build fails with `... is not a dependency of ...`.
+Each package in a `*_regenerate_packages` list must be a dependency of the package, directly or through another package
+in [`deps`](reference/defs.md#coco_package-deps), because Popili only regenerates dependencies. Otherwise the build
+fails with `... is not a dependency of ...`.
 
 ### Include prefixes
 
@@ -188,9 +190,9 @@ code, as Popili wrote its includes with the `Coco.toml` value:
 fatal error: 'motor/Foo.h' file not found
 ```
 
-The path in the message names the value to set. Keep the two equal even for a package nothing depends on yet: a
-small package may compile despite a mismatch, as its sources find headers in their own directory, and the packages
-that later depend on it fail instead.
+The path in the message names the value to set. Keep the two equal even for a package nothing depends on yet: a small
+package may compile despite a mismatch, as its sources find headers in their own directory, and the packages that later
+depend on it fail instead.
 
 ### Header name collisions
 
@@ -251,9 +253,8 @@ Mocks are no exception: set `generateMocks = "GMock"` in `Coco.toml` _and_ `cpp_
 [`coco_package`](reference/defs.md#coco_package) to get mocks for `coco_cc_test_library`. With only the attribute set,
 the build fails with `output ... was not created`; with only the setting, Popili writes mocks that no target uses.
 
-Set [`test_source_roots`](reference/defs.md#coco_package-test_source_roots) for `test_srcs` in the
-same cases as `source_roots` (see [Source roots](packages.md#source-roots)). [`e2e/smoke`](../e2e/smoke) is a tested
-example.
+Set [`test_source_roots`](reference/defs.md#coco_package-test_source_roots) for `test_srcs` in the same cases as
+`source_roots` (see [Source roots](packages.md#source-roots)). [`e2e/smoke`](../e2e/smoke) is a tested example.
 
 Each [`coco_generate`](reference/defs.md#coco_generate) target also creates a `<name>.tst` target with only the
 generated test code, mocks included, for consumers other than the test libraries.
@@ -261,30 +262,29 @@ generated test code, mocks included, for consumers other than the test libraries
 
 ### GoogleMock
 
-Besides the C++ runtime, [`coco_cc_test_library`](reference/cc.md#coco_cc_test_library) links GoogleMock and the runtime's `coco/gmock_helpers.h`
-(`coco::SingleThreadedGMockHelper` and `coco::MultiThreadedGMockHelper`, for mocks that act
-asynchronously). The runtime and the header come from the same Popili version as the generated
-code. Which GoogleMock is set once, in `MODULE.bazel`, for every registered Popili version, for example the one
-from `bazel_dep(name = "googletest", version = "...")`:
+Besides the C++ runtime, [`coco_cc_test_library`](reference/cc.md#coco_cc_test_library) links GoogleMock and the
+runtime's `coco/gmock_helpers.h` (`coco::SingleThreadedGMockHelper` and `coco::MultiThreadedGMockHelper`, for mocks that
+act asynchronously). The runtime and the header come from the same Popili version as the generated code. Which
+GoogleMock is set once, in `MODULE.bazel`, for every registered Popili version, for example the one from
+`bazel_dep(name = "googletest", version = "...")`:
 
 ```starlark
 coco.cc_test_runtime(gmock = "@googletest//:gtest")
 ```
 
 See [`coco.cc_test_runtime`](reference/extensions.md#coco.cc_test_runtime). In `WORKSPACE`, pass it as
-[`cc_test_runtime_gmock`](reference/repositories.md#coco_repositories-cc_test_runtime_gmock) to `coco_repositories`. Without it, a
-`coco_cc_test_library` whose packages generate mocks fails to build, saying so; one over test
-source roots alone links the plain runtime and needs no GoogleMock. `coco_c_test_library` links no GoogleMock; add
-it to `deps` if your tests need it.
+[`cc_test_runtime_gmock`](reference/repositories.md#coco_repositories-cc_test_runtime_gmock) to `coco_repositories`.
+Without it, a `coco_cc_test_library` whose packages generate mocks fails to build, saying so; one over test source roots
+alone links the plain runtime and needs no GoogleMock. `coco_c_test_library` links no GoogleMock; add it to `deps` if
+your tests need it.
 
-A `popili_version` on `coco_cc_test_library` applies to the C++ runtime and
-`coco/gmock_helpers.h`, but not to the GoogleMock library. That library is built in the same
-configuration as the `coco_cc_test_library` itself and the `cc_test` that depends on it. So a
-`cc_test` that depends on both the `coco_cc_test_library` and `@googletest//:gtest_main` links one
-copy of googletest, not one per Popili version.
+A `popili_version` on `coco_cc_test_library` applies to the C++ runtime and `coco/gmock_helpers.h`, but not to the
+GoogleMock library. That library is built in the same configuration as the `coco_cc_test_library` itself and the
+`cc_test` that depends on it. So a `cc_test` that depends on both the `coco_cc_test_library` and
+`@googletest//:gtest_main` links one copy of googletest, not one per Popili version.
 
-`MODULE.bazel` is evaluated before `select()` fires, so to pick a different GoogleMock per platform
-or compiler, point the tag at an alias you own:
+`MODULE.bazel` is evaluated before `select()` fires, so to pick a different GoogleMock per platform or compiler, point
+the tag at an alias you own:
 
 ```starlark
 # MODULE.bazel
@@ -303,9 +303,9 @@ alias(
 )
 ```
 
-As the alias is built in the configuration of the `coco_cc_test_library` and not in that of its
-`popili_version`, a `select()` in it never sees a `popili_version` pin; at most it sees
-`--@rules_coco//:version`. So it cannot choose a GoogleMock by Popili version.
+As the alias is built in the configuration of the `coco_cc_test_library` and not in that of its `popili_version`, a
+`select()` in it never sees a `popili_version` pin; at most it sees `--@rules_coco//:version`. So it cannot choose a
+GoogleMock by Popili version.
 
 ## C# code generation
 
@@ -321,6 +321,7 @@ coco_generate(
 )
 ```
 
+<!-- prettier-ignore -->
 > [!NOTE]
 > C# code generation produces `.cs` files but does not include compilation support. Bazel's C# rules are currently too
 > primitive to provide a good integration. The generated C# files can be consumed by other build systems or IDEs.

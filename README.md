@@ -1,7 +1,7 @@
 # rules_coco
 
-[Bazel](https://github.com/bazelbuild/bazel) rules for the [Coco language](https://cocotec.io/popili/coco/) that can
-use [Popili](https://cocotec.io/popili/) to:
+[Bazel](https://github.com/bazelbuild/bazel) rules for the [Coco language](https://cocotec.io/popili/coco/) that can use
+[Popili](https://cocotec.io/popili/) to:
 
 - Generate code from Coco packages.
 - Run verification on Coco packages as part of Bazel test.

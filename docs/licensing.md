@@ -1,8 +1,8 @@
 # Licensing
 
-To use the rules, the host where the build actions executes will need to have a licence. If the build runs locally,
-then this means that local host requires a licence. If remote execution is being used, then the remote executor will
-need a licence.
+To use the rules, the host where the build actions executes will need to have a licence. If the build runs locally, then
+this means that local host requires a licence. If remote execution is being used, then the remote executor will need a
+licence.
 
 In CI you need a [machine token](https://cocotec.io/popili/doc/1.6/tools/cli.html#machine-token): a Cocotec token that
 identifies a machine or CI job rather than a person, passed to Popili as
@@ -95,9 +95,10 @@ This can be configured in three ways (in order of precedence):
 
 The repository-level configuration (`MODULE.bazel` or `WORKSPACE`) sets a default that applies to all builds, while the
 command-line flag can be used to override it for specific builds. If neither is specified, the default is `local_user`.
-A bring-your-own [`coco_toolchain`](reference/toolchain.md#coco_toolchain) ignores this default;
-see [Custom toolchains](toolchains.md#bring-your-own-toolchain).
+A bring-your-own [`coco_toolchain`](reference/toolchain.md#coco_toolchain) ignores this default; see
+[Custom toolchains](toolchains.md#bring-your-own-toolchain).
 
+<!-- prettier-ignore -->
 > [!WARNING]
 > The `license_token` parameter is available in repository configuration for convenience, but:
 >
