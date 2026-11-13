@@ -19,13 +19,13 @@ Contact [Cocotec Support](https://cocotec.io/support/) to set this up or discuss
 [on-premise licence server](https://cocotec.io/popili/doc/1.6/tools/on_premise/license_server/index.html#license-server)
 and the [network access](https://cocotec.io/popili/doc/1.6/tools/connectivity.html#connectivity) licensing needs.
 
-| Mode                   | Credentials                                                                                               | Remote execution |
-| ---------------------- | --------------------------------------------------------------------------------------------------------- | ---------------- |
-| `local_user` (default) | the licence already activated on the machine running Bazel                                                | no               |
-| `local_acquire`        | a token in `COCOTEC_AUTH_TOKEN` on the machine running Bazel, passed with `--repo_env=COCOTEC_AUTH_TOKEN` | no               |
-| `action_environment`   | whatever Popili finds in each action's environment, such as an injected `COCOTEC_AUTH_TOKEN`              | yes              |
-| `action_file`          | a token file at `--@rules_coco//:auth_token_path` on every machine that runs actions                      | yes              |
-| `token`                | a token passed with `--@rules_coco//:license_token`, for workload identity federation                     | yes              |
+| Mode                   | Credentials                                                                                                      | Remote execution |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------- | ---------------- |
+| `local_user` (default) | the licence already activated on the machine running Bazel                                                       | no               |
+| `local_acquire`        | a token in `COCOTEC_AUTH_TOKEN` on the machine running Bazel, passed with `--repo_env=COCOTEC_AUTH_TOKEN`        | no               |
+| `action_environment`   | whatever Popili finds in each action's environment, such as an injected `COCOTEC_AUTH_TOKEN`                     | yes              |
+| `action_file`          | a token file at [`--@rules_coco//:auth_token_path`](flags.md#auth_token_path) on every machine that runs actions | yes              |
+| `token`                | a token passed with [`--@rules_coco//:license_token`](flags.md#license_token), for workload identity federation  | yes              |
 
 ## Licence modes
 
@@ -38,8 +38,9 @@ and the [network access](https://cocotec.io/popili/doc/1.6/tools/connectivity.ht
   the licence token most secure.
 
 - `action_file`: An auth token file path is provided that is guaranteed to be available in the execution environment of
-  each action (e.g., mounted on remote runners). The path must be specified via `--@rules_coco//:auth_token_path` or
-  with `auth_token_path` on `coco.toolchain` or `coco_repositories`. Popili will be invoked with
+  each action (e.g., mounted on remote runners). The path must be specified via
+  [`--@rules_coco//:auth_token_path`](flags.md#auth_token_path) or with `auth_token_path` on `coco.toolchain` or
+  `coco_repositories`. Popili will be invoked with
   [`--machine-auth-token`](https://cocotec.io/popili/doc/stable/tools/cli.html#cmdoption-coco-machine-auth-token)
   pointing to this file.
 
@@ -56,14 +57,14 @@ and the [network access](https://cocotec.io/popili/doc/1.6/tools/connectivity.ht
   default `~/.local/share/popili`) on Linux. `POPILI_DATA` overrides it. Not compatible with remote execution. A
   [local toolchain](toolchains.md#using-a-local-toolchain) may need `license_protocol_version`.
 - `token`: The explicitly provided token should be used as `COCOTEC_AUTH_TOKEN`. In this case,
-  `--@rules_coco//:license_token` must be set as well. This works with remote execution but it is only recommended when
-  using workload identity federation as `COCOTEC_AUTH_TOKEN` is not a secret in that case.
+  [`--@rules_coco//:license_token`](flags.md#license_token) must be set as well. This works with remote execution but it
+  is only recommended when using workload identity federation as `COCOTEC_AUTH_TOKEN` is not a secret in that case.
 
 ## Selecting a mode
 
 This can be configured in three ways (in order of precedence):
 
-1. **Via command-line flag** (highest precedence):
+1. **Via [command-line flag](flags.md)** (highest precedence):
 
    ```bash
    bazel build --@rules_coco//:license_source=local_acquire //...
@@ -94,12 +95,14 @@ This can be configured in three ways (in order of precedence):
 
 The repository-level configuration (`MODULE.bazel` or `WORKSPACE`) sets a default that applies to all builds, while the
 command-line flag can be used to override it for specific builds. If neither is specified, the default is `local_user`.
-A bring-your-own `coco_toolchain` ignores this default; see [Custom toolchains](toolchains.md#bring-your-own-toolchain).
+A bring-your-own [`coco_toolchain`](reference/toolchain.md#coco_toolchain) ignores this default;
+see [Custom toolchains](toolchains.md#bring-your-own-toolchain).
 
 > [!WARNING]
 > The `license_token` parameter is available in repository configuration for convenience, but:
 >
 > - The `license_token` parameter should **only** be used in repository configuration when using workload identity
 >   federation, where the token is not a secret.
-> - For secret tokens, use the command-line flag instead: `--@rules_coco//:license_token=<token>`, or better yet ensure
->   that your bazel execution environment injects `COCOTEC_AUTH_TOKEN` directly into actions.
+> - For secret tokens, use the command-line flag instead:
+>   [`--@rules_coco//:license_token=<token>`](flags.md#license_token), or better yet ensure that your bazel execution
+>   environment injects `COCOTEC_AUTH_TOKEN` directly into actions.

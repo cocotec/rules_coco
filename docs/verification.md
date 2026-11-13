@@ -1,6 +1,6 @@
 # Verification
 
-`coco_verify_test` creates a test target that runs
+[`coco_verify_test`](reference/defs.md#coco_verify_test) creates a test target that runs
 [verification](https://cocotec.io/popili/doc/stable/language/verification.html#verification) on a package when
 `bazel test` is executed.
 
@@ -15,7 +15,7 @@ coco_verify_test(
 
 ## Verification backend
 
-`--@rules_coco//:verification_backend` sets Popili's
+[`--@rules_coco//:verification_backend`](flags.md#verification_backend) sets Popili's
 [`--backend`](https://cocotec.io/popili/doc/stable/tools/cli.html#cmdoption-coco-backend):
 
 - `local`: verify inside the test action.

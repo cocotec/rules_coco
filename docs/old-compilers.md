@@ -21,7 +21,8 @@ coco.cc_runtime_deps(
 )
 ```
 
-`coco.cc_runtime_deps` is allowed only in the root module, so a library module cannot add Boost for its consumers.
+[`coco.cc_runtime_deps`](reference/extensions.md#coco.cc_runtime_deps) is allowed only in the root module, so a library
+module cannot add Boost for its consumers.
 
 ## Some builds use GCC 4.x, some don't
 
@@ -82,7 +83,7 @@ build:old_compiler --//third_party/boost_shim=@boost//:integer
 
 In a real build, point the flag at an aggregate covering both `@boost//:integer` and `@boost//:type_traits`.
 
-A `coco.local_toolchain` runtime is addressed as version `"local"`:
+A [`coco.local_toolchain`](reference/extensions.md#coco.local_toolchain) runtime is addressed as version `"local"`:
 
 ```starlark
 coco.cc_runtime_deps(version = "local", deps = ["//third_party/boost_shim"])
@@ -100,7 +101,8 @@ coco_repositories(
 )
 ```
 
-A dict targets one version at a time, mirroring bzlmod's per-version `coco.cc_runtime_deps` tag:
+A dict targets one version at a time, mirroring bzlmod's per-version
+[`coco.cc_runtime_deps`](reference/extensions.md#coco.cc_runtime_deps) tag:
 
 ```starlark
 coco_repositories(
