@@ -160,6 +160,11 @@ bzl_library(
 )
 
 bzl_library(
+    name = "licence_docs_bzl",
+    srcs = ["licence_docs.bzl"],
+)
+
+bzl_library(
     name = "licensing_bzl",
     srcs = ["licensing.bzl"],
     deps = [":coco_bzl"],
@@ -208,6 +213,7 @@ bzl_library(
         ":diagram_bzl",
         ":format_bzl",
         ":known_shas_bzl",
+        ":licence_docs_bzl",
         ":license_versions_bzl",
         ":licensing_bzl",
         ":platforms_bzl",

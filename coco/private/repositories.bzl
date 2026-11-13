@@ -208,9 +208,8 @@ def coco_local_repositories(
       c_runtime_path: Optional directory containing the local C runtime `coco_c/` subtree.
         Required to build `coco_c_library` against the local toolchain.
       license_source: As for `coco_repositories`.
-      license_token: The licence token for `"token"` mode.
-      auth_token_path: Path to the auth token file for `"action_file"` mode. The file must
-        exist wherever actions run.
+      license_token: As for `coco_repositories`.
+      auth_token_path: As for `coco_repositories`.
       license_protocol_version: Optional licence protocol version the local popili reads.
         See [`coco_toolchain`](toolchain.md#coco_toolchain-license_protocol_version).
     """

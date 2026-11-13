@@ -18,6 +18,7 @@ load(
     "//coco/private:cc_runtime_deps.bzl",
     "collect_cc_runtime_extra_deps",
 )
+load("//coco/private:licence_docs.bzl", "AUTH_TOKEN_PATH_DOC", "LICENSE_SOURCE_DOC", "LICENSE_TOKEN_DOC")
 load(
     "//coco/private:toolchain_hub.bzl",
     "declare_coco_toolchains",
@@ -105,7 +106,7 @@ _toolchain_tag = tag_class(
     ),
     attrs = {
         "auth_token_path": attr.string(
-            doc = "Path to the auth token file for `\"action_file\"` mode. The file must exist wherever actions run.",
+            doc = AUTH_TOKEN_PATH_DOC,
             default = "",
         ),
         "c": attr.bool(
@@ -126,14 +127,13 @@ _toolchain_tag = tag_class(
         ),
         "license_source": attr.string(
             doc = (
-                "Default licence mode for every toolchain rules_coco generates: `\"local_user\"`, `\"local_acquire\"`, `\"token\"`, `\"action_environment\"` or `\"action_file\"`; see " +
-                "[Licensing](../licensing.md#licence-modes). Empty means `\"local_user\"`. The " +
-                "`--@rules_coco//:license_source` flag overrides it. When several modules set it, the first wins."
+                "Default licence mode for every toolchain rules_coco generates: " + LICENSE_SOURCE_DOC +
+                " When several modules set it, the first wins."
             ),
             default = "",
         ),
         "license_token": attr.string(
-            doc = "The licence token for `\"token\"` mode.",
+            doc = LICENSE_TOKEN_DOC,
             default = "",
         ),
         "versions": attr.string_list(

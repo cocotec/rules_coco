@@ -14,6 +14,7 @@
 
 """Coco toolchain implementation."""
 
+load("//coco/private:licence_docs.bzl", "AUTH_TOKEN_PATH_DOC", "LICENSE_SOURCE_DOC", "LICENSE_TOKEN_DOC")
 load("//coco/private:version_resolution.bzl", "LOCAL_VERSION", "version_tuple")
 
 def _coco_toolchain_impl(ctx):
@@ -51,7 +52,7 @@ yourself only to bring your own popili: wrap it in a `toolchain()` with
 [Custom toolchains](../toolchains.md#bring-your-own-toolchain).""",
     attrs = {
         "auth_token_path": attr.string(
-            doc = "Path to the auth token file for `\"action_file\"` mode. The file must exist wherever actions run.",
+            doc = AUTH_TOKEN_PATH_DOC,
             default = "",
         ),
         "c_runtime": attr.label(
@@ -86,15 +87,11 @@ yourself only to bring your own popili: wrap it in a `toolchain()` with
             default = 0,
         ),
         "license_source": attr.string(
-            doc = (
-                "The licence mode for this toolchain: `\"local_user\"`, `\"local_acquire\"`, `\"token\"`, `\"action_environment\"` or `\"action_file\"`; see " +
-                "[Licensing](../licensing.md#licence-modes). Empty means `\"local_user\"`. The " +
-                "`--@rules_coco//:license_source` flag overrides it."
-            ),
+            doc = "The licence mode for this toolchain: " + LICENSE_SOURCE_DOC,
             default = "",
         ),
         "license_token": attr.string(
-            doc = "The licence token for `\"token\"` mode.",
+            doc = LICENSE_TOKEN_DOC,
             default = "",
         ),
         "popili_version": attr.string(

@@ -99,12 +99,8 @@ def coco_cc_test_library(
             matches no header is an error. Default: `None`, all of them; `[]` makes them all private.
         gmock: The GoogleTest/GoogleMock library (default: @googletest//:gtest).
                Set to None to omit.
-        popili_version: The registered Popili version whose runtime the library links, such as
-            `"1.5.1"` or `"stable"`. The `coco_generate` targets in `generated_package` or
-            `generated_packages` that have no `popili_version` of their own run with this version too,
-            so pin the library like its `coco_generate` targets. `deps` and `gmock` are not affected:
-            they are built as if the library had no pin. Default: `""`, the version the rest of the build uses. See
-            [Pinning targets](../popili-versions.md#pinning-targets).
+        popili_version: As for [`coco_cc_library`](#coco_cc_library-popili_version); `gmock` is not
+            affected either.
         library_rule: The rule or macro that compiles the library, such as a wrapper of
             cc_library adding your project's defaults. It is called with cc_library's
             attributes. None means rules_cc's cc_library.
