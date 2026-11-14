@@ -71,13 +71,22 @@ coco_toolchain = rule(
             default = None,
         ),
         "coco": attr.label(
-            doc = "The location of the `coco` binary. Can be a direct source or a filegroup containing one item.",
+            doc = (
+                "The location of the `coco` binary. Can be a direct source or a filegroup containing one item, or a " +
+                "binary built from source, which is built for the execution platform that runs it."
+            ),
             allow_single_file = True,
+            cfg = "exec",
             mandatory = True,
         ),
         "cocotec_licensing_server": attr.label(
-            doc = "The location of the `cocotec-licensing-server` binary. Can be a direct source or a filegroup containing one item.",
+            doc = (
+                "The location of the `cocotec-licensing-server` binary. Can be a direct source or a filegroup " +
+                "containing one item, or a binary built from source, which is built for the execution platform that " +
+                "runs it."
+            ),
             allow_single_file = True,
+            cfg = "exec",
             mandatory = True,
         ),
         "license_protocol_version": attr.int(
