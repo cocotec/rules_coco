@@ -9,194 +9,94 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Added
 
-- `AVAILABLE_STABLE_VERSIONS`, exported from `@rules_coco//coco:repositories.bzl`, lists every stable Popili version
-  rules_coco knows of (1.5.0 onwards, no betas or release candidates), newest first, so that
-  `coco_repositories(versions = AVAILABLE_STABLE_VERSIONS)` registers them all.
-- WORKSPACE mode now supports multiple Popili versions, like bzlmod already did.
-  `coco_repositories(versions = ["1.5.1", "1.5.0"])` registers a toolchain per version, selected with
-  `--@rules_coco//:version=1.5.0` or per target with `popili_version`. The first entry is used when the flag is unset.
-- `coco_repositories` gained `local_popili`, `local_cc_runtime` and `local_c_runtime`, so a Popili distribution on the
-  local filesystem can be registered alongside downloaded releases and selected with `--@rules_coco//:version=local`.
-  This is the WORKSPACE equivalent of combining `coco.toolchain` with `coco.local_toolchain`.
-- `cc_runtime_extra_deps` now accepts a dict mapping a version to its labels, in addition to a flat list applied to
-  every registered version.
-- `coco_package` attributes `source_roots` and `test_source_roots`, mirroring `package.sources` and
-  `package.testSources` in `Coco.toml`. They are inferred from `srcs`/`test_srcs` when omitted; set them when a package
-  has several source roots or all sources sit in a subdirectory of the root.
-- `coco_cc_library`, `coco_c_library` and their test-library variants accept `library_rule`, the rule or macro that
-  compiles the library, for projects that wrap `cc_library` in a macro of their own. The default is rules_cc's
-  `cc_library`.
-- `coco_package` attributes `cpp_include_prefix` and `c_include_prefix`, mirroring `generator.cpp.includePrefix` /
-  `generator.c.includePrefix` in `Coco.toml` like the other generator settings. Set them to the package's effective
-  value, including one inherited from a workspace or received through `exportConfig`; the default `""` is popili's
-  default too.
-- `coco_toolchain` gained a required `popili_version` attribute, a concrete version such as `"1.5.8"` (not an alias),
-  exposed as the `popili_version` field of the toolchain. The toolchains rules_coco generates set it to their Popili
-  version (`local` for a local distribution).
-- `coco_toolchain`, `coco.local_toolchain` and `coco_local_repositories` gained an optional `license_protocol_version`:
-  the licence protocol version the toolchain's Popili reads, which picks its licence file under `local_user`. Set it
-  when that differs from the newest protocol version rules_coco knows of.
-- `coco_generate`, `coco_verify_test`, `coco_fmt_test` (and its `<name>.format` companion), `coco_architecture_diagram`,
-  `coco_state_diagram` and `coco_counterexample_diagram` gained `popili_version`, which selects the registered toolchain
-  of that version (aliases such as `stable` allowed) for the target and everything beneath it, including the
-  `coco_package` it reads. A pin wins over `--@rules_coco//:version`, which sets the version for everything unpinned.
-- `coco_cc_library`, `coco_cc_test_library`, `coco_c_library` and `coco_c_test_library` gained `popili_version`, which
-  selects the runtime the library links and applies to the `coco_generate` targets it builds from, but not to its
-  `deps`. The runtime's extra deps (from `cc_runtime_deps`) are built where unpinned targets are, so they are built once
-  however many versions are pinned, and a binary that also links them directly gets one copy.
-- `--@rules_coco//:force_version` makes `--@rules_coco//:version` (or the default when it is unset) apply to every
-  target, ignoring every `popili_version` pin, to try a Popili version on a whole repository without editing BUILD
-  files.
-- a `coco_package` can now list `popili_versions` it is compatible with. A target that runs another version on the
-  package, or on one of its transitive deps that has a list, fails. `--@rules_coco//:force_version` turns that into a
-  warning. The local toolchain is accepted only by a list that names `local`. When the version a package would get is
-  not in its list, it is typechecked with the first listed release that is registered instead, never `local`; when none
-  is, it fails saying so.
-- `CocoPackageInfo` is exported from `@rules_coco//coco:defs.bzl`, like `CocoWorkspaceInfo`.
-- `CocoCcGeneratedInfo` and `CocoCSharpGeneratedInfo`, the providers `coco_generate` returns for C/C++ and C#, are
-  exported from `@rules_coco//coco:defs.bzl`, for rules of your own that compile or package the generated code.
-- `coco_workspace` gained `popili_versions` too: the versions every member works with. Members without a list of their
-  own inherit it, through nested workspaces' `parent` as well, and are checked against it. A member or nested workspace
-  with its own list must include every version the workspace lists; it may support more, never fewer.
+- **Per-target Popili versions:** the rules that run Popili, and `coco_cc_library` and `coco_c_library`, now accept
+  `popili_version`, which wins over `--@rules_coco//:version`. `--@rules_coco//:force_version` overrides every pin. See
+  [Pinning targets](docs/popili-versions.md#pinning-targets).
+- **Package version constraints:** `coco_package` and `coco_workspace` now accept `popili_versions`, the Popili versions
+  a package supports. See
+  [Restricting the versions of a package](docs/popili-versions.md#restricting-the-versions-of-a-package).
+- **Multiple versions in WORKSPACE mode:** `coco_repositories(versions = [...])` now registers every listed version, as
+  bzlmod already did. Previously the list was silently ignored and `stable` was used, so check that your default version
+  has not moved. `local_popili`, `local_cc_runtime` and `local_c_runtime` register a local distribution alongside them.
+  See [Registering versions](docs/popili-versions.md#registering-versions).
+- `AVAILABLE_STABLE_VERSIONS` lists every stable Popili version rules_coco knows of. See
+  [Registering versions](docs/popili-versions.md#registering-versions).
+- `coco_package` now accepts `source_roots` and `test_source_roots`. See [Source roots](docs/packages.md#source-roots).
+- The C and C++ library macros now accept `library_rule`, to compile with your own wrapper of `cc_library`. See
+  [C++ code generation](docs/code-generation.md#c-code-generation).
+- `cc_runtime_extra_deps` now accepts a dict from version to labels. See
+  [Using an older C++ compiler](docs/old-compilers.md#workspace-mode).
+- Local toolchains now accept `license_protocol_version`. See
+  [Using a local toolchain](docs/toolchains.md#using-a-local-toolchain).
+- `CocoPackageInfo`, `CocoCcGeneratedInfo` and `CocoCSharpGeneratedInfo` are now exported from
+  `@rules_coco//coco:defs.bzl`. See the [API reference](docs/reference/defs.md).
 
 ### Changed
 
-- The documentation moved out of the README into guides under [`docs/`](docs/README.md); the README links to them,
-  starting with a new getting-started guide. The generated API reference moved from `docs/*.md` to
+- **Breaking:** generated headers are now included the way Popili's own generated code includes them. See
+  [Where generated code goes](docs/packages.md#where-generated-code-goes).
+- **Breaking:** the `Coco.toml` generator attributes (`c_*`, `cpp_*` and `csharp_*`) moved from `coco_generate` to
+  `coco_package`, which also gains `cpp_include_prefix` and `c_include_prefix`. `coco_generate`'s `mocks` is replaced by
+  `cpp_mocks` and `csharp_mocks`. See [Output paths](docs/code-generation.md#output-paths).
+- **Breaking:** `coco_cc_test_library` now takes GoogleMock from `coco.cc_test_runtime` (or `cc_test_runtime_gmock` in
+  WORKSPACE mode) and links the runtime's `coco/gmock_helpers.h`. See [GoogleMock](docs/code-generation.md#googlemock).
+- **Breaking:** rules_coco's default toolchain is now only registered when no module declares `coco.toolchain`. If yours
+  declares one, add `c = True` / `cc = True` for the runtimes you use. See [Setup](docs/setup.md#bzlmod-recommended).
+- **Breaking:** `coco_toolchain` now requires `popili_version`. A bring-your-own toolchain fails a target that asks for
+  another version. See [Bring your own toolchain](docs/toolchains.md#bring-your-own-toolchain).
+- **Breaking:** in WORKSPACE mode, the local toolchain of `coco_local_repositories` must now be selected with
+  `--@rules_coco//:version=local`, as with bzlmod. See
+  [Using a local toolchain](docs/toolchains.md#using-a-local-toolchain).
+- **Breaking:** `coco_repositories` and `coco_local_repositories` now reject unknown arguments, and `coco_repositories`
+  fails when called twice.
+- **Breaking:** WORKSPACE mode's generated toolchain repositories are now named as in bzlmod and registered with
+  `@coco_toolchains//:all`.
+- The documentation moved from the README into [guides](docs/README.md); the API reference moved to
   [`docs/reference/`](docs/reference/README.md).
-- **Breaking:** `coco_generate`'s `mocks` attribute is replaced by the `coco_package` attributes `cpp_mocks` and
-  `csharp_mocks`, which mirror `generator.cpp.generateMocks` and `generator.csharp.generateMocks` like the other
-  generator attributes. Replace `mocks = True` on the `coco_generate` with `cpp_mocks = "GMock"` (or
-  `"GMockNumberMacros"`) on its `coco_package`, matching `Coco.toml`; for a C# `coco_generate`, with
-  `csharp_mocks = "NSubstitute"`.
-- **Breaking:** `coco_cc_test_library` takes its GoogleMock library from the `coco.cc_test_runtime(gmock = ...)` tag in
-  `MODULE.bazel`, or `cc_test_runtime_gmock` of `coco_repositories` in `WORKSPACE`, the same one for every popili
-  version. A library whose packages generate mocks fails to build without it; one over test source roots alone links the
-  plain runtime. A bring-your-own `coco_toolchain` sets `cc_test_runtime`.
-- **Breaking:** the `coco_generate` attributes that mirror `Coco.toml` generator settings (`c_*`, `cpp_*` and
-  `csharp_*`, such as `cpp_header_file_extension` and `cpp_regenerate_packages`) moved to `coco_package`, which passes
-  them to every `coco_generate` of the package. Move them from your `coco_generate` targets to their `coco_package`.
-  `coco_generate` keeps only `package`, `language` and `popili_version`. Regenerated packages must be among the
-  package's deps.
-- **Breaking:** rules_coco's default toolchain (`stable` with the C and C++ runtimes) is now used only when no module
-  declares `coco.toolchain`. If yours declares one, you get only what it lists, so add `c = True` / `cc = True` for the
-  runtimes you use. Modules that don't declare `coco.toolchain` are unaffected and still get `stable` with both
-  runtimes.
-- **Breaking:** the local toolchain registered by `coco_local_repositories()` in WORKSPACE mode is now selected by
-  `--@rules_coco//:version=local` and is no longer active by default, matching the bzlmod `coco.local_toolchain` tag.
-  Builds that do not set the flag fail with a message explaining how to select it. Add
-  `common --@rules_coco//:version=local` to your `.bazelrc`.
-- **Breaking:** the generated per-platform repositories are now version-mangled, matching bzlmod:
-  `io_cocotec_coco_<os>_<arch>` became `io_cocotec_coco_<os>_<arch>__<version>`, and the local one became
-  `io_cocotec_coco_local` (previously `coco_local`). The `io_cocotec_coco_<os>_<arch>_toolchains` proxy repositories are
-  gone; every `toolchain()` is now declared in the `@coco_toolchains` hub and registered with a single
-  `@coco_toolchains//:all`. These names are implementation details, only reachable via `--extra_toolchains` or
-  `--override_repository`.
-- **Breaking:** `coco_repositories` and `coco_local_repositories` take explicit named parameters instead of `**kwargs`,
-  so an unrecognised argument is now an error rather than being silently ignored. Arguments that were previously only
-  accepted by keyword remain keyword-only, so only `version` (and `path`, `cc_runtime_path` and `c_runtime_path` for
-  `coco_local_repositories`) may be passed positionally.
-- `coco_repositories` now fails with a clear message if called more than once, instead of producing duplicate-repository
-  warnings and a silently wrong configuration.
-- `"local"` and `"default"` are rejected as version strings; they name the hub's own `config_setting`s.
-- The generated `toolchain()` declarations no longer set `target_compatible_with`. Popili runs on the exec platform and
-  the runtime it provides is source, so the toolchain now resolves for any target platform, including when
-  cross-compiling with `--platforms`. Before, bzlmod required the target platform to match the host; WORKSPACE mode
-  never had the constraint.
-- **Breaking:** `coco_generate` now writes all generated code, test code and mocks included, below a directory of its
-  own, `bazel-bin/<package path>/_coco/<generate name>/`, and generated headers are included the way popili's own
-  generated code includes them: by module path below the source root, behind the package's `includePrefix` if it has
-  one. `pkg/src/Foo.coco` is included as `#include "Foo.h"` rather than `#include "pkg/src/Foo.h"`, wherever the package
-  lives, and as `#include "motor/Foo.h"` if its `Coco.toml` sets `includePrefix = "motor"`. rules_coco no longer passes
-  `--include-prefix` to popili. To migrate:
-
-  - in hand-written code, include generated headers as `"Foo.h"` instead of `"pkg/src/Foo.h"`, or as
-    `"<includePrefix>/Foo.h"` when the package's `Coco.toml` sets one. To keep `#include "pkg/src/Foo.h"`, set
-    `include_prefix` and `includePrefix` to `"pkg/src"`;
-  - set `include_prefix` on every `coco_generate` whose package has a non-empty effective `includePrefix`;
-  - remove `includes` entries that only made generated headers reachable. `includes` no longer applies below the
-    generated files' include root, so a nested one such as `includes = ["pkg/sub"]` becomes part of the include,
-    `#include "sub/Bar.h"`;
-  - drop the package directory and source root from `public_hdrs` path suffixes (`"src/IApi.h"` becomes `"IApi.h"` or
-    `"sub/IApi.h"`). A suffix with a directory now matches whole components of the header's include path, so
-    `"api/IApi.h"` no longer matches `xapi/IApi.h`. An entry that matches none of the library's generated headers is now
-    an error listing their include paths, so a stale suffix no longer silently makes a header private;
-  - replace a plain `cc_library` compiling a `coco_generate`'s sources by `coco_cc_library` or `coco_c_library`, passing
-    a wrapper of `cc_library` as `library_rule` if you use one;
-  - update paths to generated C# files, now
-    `bazel-bin/<package path>/_coco/<generate name>/<path below the source root>.cs`;
-  - on Windows, run `bazel clean` once, so that files left at the old paths cannot be included by mistake.
-
-  Two `coco_generate` targets over one `coco_package` no longer conflict, and generated paths are shorter, which helps
-  against Windows path length limits.
-
-- Improved diagnostics when no Popili toolchain matches: instead of Bazel's generic `No matching toolchains found`
-  error, the build now says which Popili version was requested, which versions are registered, and how to fix it.
-- A bring-your-own `coco_toolchain`, registered as documented, serves every target, so a target pinned with
-  `popili_version`, or built with `--@rules_coco//:version` set, to another version than its `popili_version` now fails,
-  naming both versions.
+- A missing Popili toolchain is now reported with the requested and registered versions, instead of Bazel's generic
+  error.
+- `coco.toolchain` and `coco_repositories` now reject `"local"` and `"default"` in `versions`. Register a local
+  distribution with `coco.local_toolchain` or `local_popili` instead.
 
 ### Removed
 
-- **Breaking:** the `gmock` attribute of `coco_cc_test_library` and `coco_c_test_library`. The C test library no longer
-  adds GoogleMock; add it to `deps` if your tests need it.
-- **Breaking:** `@rules_coco//coco:current_popili_version` and the `$(POPILI)` and `$(POPILI_STARTUP_ARGS)` make
-  variables it provided are removed.
-- **Breaking:** `with_popili_version` is removed. Set `popili_version` on the targets that run Popili instead
-  (`coco_generate`, `coco_verify_test`, `coco_fmt_test`, the diagram rules), and on a `coco_cc_library` or
-  `coco_c_library` for the runtime it links; the `coco_package` beneath a pinned target follows its version.
-- The macOS Intel (`osx`/`x86_64`) toolchain is no longer supported, as Popili dropped Intel macOS with 1.5.0.
+- **Breaking:** `with_popili_version` has been removed. Use `popili_version` instead.
+- **Breaking:** the `gmock` attribute of `coco_cc_test_library` and `coco_c_test_library` has been removed.
+  `coco_c_test_library` no longer adds GoogleMock; add it to `deps` if your tests need it.
+- **Breaking:** `@rules_coco//coco:current_popili_version` and its `$(POPILI)` and `$(POPILI_STARTUP_ARGS)` make
+  variables have been removed.
+- Intel macOS is no longer supported, as Popili dropped it in 1.5.0.
 
 ### Fixed
 
-- `coco_cc_library`, `coco_c_library` and their test-library variants accept a `select()` for `generated_package`, and
-  for `public_hdrs` a `select()` that selects `None` keeps all generated headers public. A `select()` for
-  `generated_packages` no longer counts as set when checking that only one of it and `generated_package` is given.
-- Build actions now run popili with `HOME=/nonexistent` on POSIX. This prevents crashes on remote executors with some
-  older popili versions.
-- `coco_cc_test_library` links the C++ runtime's `coco/gmock_helpers.h` (`coco::SingleThreadedGMockHelper`,
-  `coco::MultiThreadedGMockHelper`), which no target provided, from the same popili version as the generated code.
-- `local_user` licensing passes each popili version the licence file it reads, instead of the first one found, which
-  popili 1.6 rejects.
-- `coco_cc_library` and `coco_c_library` no longer fail to find generated headers when their `coco_generate` is built in
-  another configuration than the library, for example under a different `popili_version` pin, nor pick up a copy of them
-  built in the library's own configuration (an undeclared inclusion, on Windows).
-- `local_user` now finds the license in the correct directory (`XDG_DATA_HOME` or `%LOCALAPPDATA%`), and respects the
-  `POPILI_DATA` override.
-- The local toolchain (`coco.local_toolchain` in bzlmod, `coco_local_repositories` in WORKSPACE) is now constrained to
-  the host's OS and CPU.
-- `coco_repositories(versions = [...])` was accepted but silently ignored in WORKSPACE mode, so a workspace following
-  the [Popili versions](docs/popili-versions.md) guide got `stable` instead of the versions it asked for. It is now
-  honoured — check that your default version has not moved.
-- The `.bat`/`.sh` wrapper and typecheck scripts followed the target platform instead of the exec platform the popili
-  binary was resolved for. Cross-compiling with `--platforms` for Windows from a Linux or macOS host emitted a `.bat`
-  for a POSIX executor, and vice versa. The flavour is now derived from the resolved toolchain's binary: `popili.exe`
-  means Windows.
-- `coco_generate`, the C/C++ library macros and `coco_fmt_test` now work with `tags = ["manual"]` and `testonly`.
-- `coco_generate` no longer derives the source root from the shortest source path, which depended on file order and
-  failed for a source file next to `Coco.toml` with others in subdirectories, for sibling subdirectories, and for
-  several source roots.
-- Generated test code and mocks of a package with `test_srcs` are written next to the regular generated code, so their
-  `#include`s resolve and mocks are declared where popili writes them.
-- The `.coco` files in `test_srcs` are now inputs of the popili actions, so a package with `testSources` no longer fails
-  with `could not open the directory ...` under Bazel's sandbox.
-- On Bazel 9, `coco_verify_test` and `coco_fmt_test` could run a popili built for a different execution platform than
-  the test's.
-- The `.format` binary of `coco_fmt_test` names the popili of the platform `bazel run` executes it on instead of the
-  first execution platform with a popili: on Bazel 9 an execution platform matching the target platform is preferred, on
-  Bazel 8 the rule is constrained to the host.
-- Popili releases newer than your rules_coco can now be used with the C and C++ rules. Their downloads are not
+- Fixes an issue where Popili toolchains only resolved under bzlmod when the target platform matched the host, which
+  prevented cross-compiling with `--platforms`.
+- Fixes an issue where `local_user` licensing looked for the licence in the wrong directory and passed every Popili
+  version the same licence file, which Popili 1.6 rejects. `POPILI_DATA` is now respected.
+- Fixes crashes on remote executors with some older Popili versions, by running build actions with `HOME=/nonexistent`.
+- Fixes an issue where a package with `test_srcs` failed under Bazel's sandbox with `could not open the directory`.
+- Fixes an issue where the source root was derived from the shortest source path, which failed for some layouts.
+- Fixes an issue where predicted output file names did not match Popili's for some `fileNameMangler` settings.
+- Fixes an issue where `coco_verify_test`, `coco_fmt_test` and its `.format` binary could run a Popili built for another
+  platform.
+- Fixes an issue where cross-compiling between Windows and POSIX generated the wrong wrapper script flavour.
+- Fixes an issue where environment values in wrapper scripts were not quoted. POSIX wrappers now run with `/bin/sh`.
+- Fixes an issue where the local toolchain was not constrained to the host's OS and CPU.
+- Fixes an issue where the C and C++ library macros rejected some `select()`s.
+- Fixes an issue where `coco_generate`, the C and C++ library macros and `coco_fmt_test` failed with `tags = ["manual"]`
+  or `testonly`.
+- Fixes an issue where the runtimes of Popili releases newer than rules_coco could not be used. Their downloads are not
   checksum-verified.
 
-## [0.3.0] - 2026/05/31
+## [0.3.0] - 2026-05-31
 
 ### Added
 
 - Coco workspaces are now supported via the new `coco_workspace` rule and `workspace` attribute on `coco_package`.
 - `coco.local_toolchain` allows you to point `rules_coco` at a `popili` on the local filesystem instead of a downloaded
-  release. See the README section "Using a local toolchain".
-- Documented how you can use `rules_coco` with your own `popili` toolchain obtained from other bazel rules. See the
-  README section "Bring your own toolchain".
+  release. See [Using a local toolchain](docs/toolchains.md#using-a-local-toolchain).
+- Documented how you can use `rules_coco` with your own `popili` toolchain obtained from other bazel rules. See
+  [Bring your own toolchain](docs/toolchains.md#bring-your-own-toolchain).
 
 ### Changed
 
@@ -212,16 +112,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
   that depends on a `coco_package` in another Bazel repository verifies correctly, fixing errors such as
   `invalid import path; external/<repo> is not a directory`.
 
-## [0.2.0] - 2026/04/20
+## [0.2.0] - 2026-04-20
 
 ### Added
 
 - `coco.cc_runtime_deps` module-extension tag and `cc_runtime_extra_deps` keyword argument on `coco_repositories()` for
   injecting extra `cc_library` targets into the Coco C++ runtime. This can be used to wire up Boost libraries when
-  building against libstdc++ older than GCC 5. See the README section "Using an older C++ compiler (Boost libraries)"
-  for usage patterns. (#138)
+  building against libstdc++ older than GCC 5. See [Using an older C++ compiler](docs/old-compilers.md) for usage
+  patterns. (#138)
 
-## [0.1.1] - 2025/11/14
+## [0.1.1] - 2025-11-14
 
 Initial public release of Bazel rules for Popili.
 
