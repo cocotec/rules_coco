@@ -16,8 +16,9 @@
 # emit must follow the popili binary rather than the target platform.
 
 load("@bazel_skylib//rules:write_file.bzl", "write_file")
-load("@rules_coco//coco:defs.bzl", "coco_fmt_test", "coco_generate", "coco_package")
+load("@rules_coco//coco:defs.bzl", "coco_fmt_test", "coco_generate", "coco_package", "coco_verify_test")
 load("@rules_coco//coco:toolchain.bzl", "coco_toolchain")
+load(":exec_tools_test.bzl", "exec_tools_tests")
 load(":script_flavour_test.bzl", "script_flavour_tests")
 
 [
@@ -92,4 +93,16 @@ script_flavour_tests(
     generate = ":base_cpp",
     package = ":base",
     wrapper = ":base_fmt_test.format",
+)
+
+coco_verify_test(
+    name = "base_verify_test",
+    package = ":base",
+    tags = ["manual"],
+)
+
+exec_tools_tests(
+    name = "exec_tools",
+    package = ":base",
+    test = ":base_verify_test",
 )
