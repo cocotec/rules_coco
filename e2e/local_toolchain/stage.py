@@ -29,4 +29,5 @@ coco.local_toolchain(
     license_protocol_version = {protocol},
     popili = "staged/popili",
 )
+coco.cc_test_runtime(gmock = "@googletest//:gtest")
 """)

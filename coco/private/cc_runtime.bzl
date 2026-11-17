@@ -16,7 +16,7 @@
 
 load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
 load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
-load("//coco/private:coco.bzl", "COCO_TOOLCHAIN_TYPE", "TOOLCHAIN_ATTRIBUTES", "coco_toolchain_or_fail", "popili_version_unpin")
+load("//coco/private:coco.bzl", "COCO_TOOLCHAIN_TYPE", "CocoCcTestRuntimeInfo", "TOOLCHAIN_ATTRIBUTES", "coco_toolchain_or_fail", "popili_version_unpin")
 
 def _coco_cc_runtime_impl(ctx):
     """Helper rule that provides the C++ runtime from the toolchain."""
@@ -35,6 +35,29 @@ coco_cc_runtime = rule(
 
     This rule is not part of the public API and should not be used directly.
     Use `coco_cc_library` or `coco_cc_test_library` instead.
+    """,
+)
+
+def _coco_cc_test_runtime_impl(ctx):
+    toolchain = coco_toolchain_or_fail(ctx)
+    runtime = toolchain.cc_test_runtime or toolchain.cc_runtime
+    if not runtime:
+        fail("C++ runtime not available. Did you enable cc=True in coco.toolchain()?")
+    return [
+        runtime[CcInfo],
+        runtime[DefaultInfo],
+        CocoCcTestRuntimeInfo(gmock = bool(toolchain.cc_test_runtime)),
+    ]
+
+coco_cc_test_runtime = rule(
+    implementation = _coco_cc_test_runtime_impl,
+    attrs = TOOLCHAIN_ATTRIBUTES,
+    toolchains = [COCO_TOOLCHAIN_TYPE],
+    doc = """Internal: what coco_cc_test_library links.
+
+    The toolchain's `cc_test_runtime`: the C++ runtime, GoogleMock and the runtime's
+    coco/gmock_helpers.h. Without one, the plain `cc_runtime`, which suffices for generated test
+    code that is not mocks; the library's _coco_cc_pin fails when its packages generate mocks.
     """,
 )
 

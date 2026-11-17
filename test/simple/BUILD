@@ -64,7 +64,6 @@ coco_cc_library(
 coco_cc_test_library(
     name = "base_cc_tst",
     generated_package = ":base_cpp",
-    gmock = select({"//conditions:default": "@googletest//:gtest"}),
     popili_version = "stable",
     deps = [":base_cc"],
 )

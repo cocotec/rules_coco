@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Helper for aggregating coco.cc_runtime_deps tags across modules."""
+"""Helpers for aggregating the C++ runtimes' deps: coco.cc_runtime_deps and coco.cc_test_runtime."""
 
 load(":version_resolution.bzl", "resolve_version_alias")
 
@@ -85,5 +85,23 @@ def _normalize_cc_runtime_extra_deps(spec, registered_versions, resolve_version 
 
     return _merge_deps_by_version(entries, registered_versions, "cc_runtime_extra_deps", resolve_version)
 
+def _collect_cc_test_runtime_gmock(tag_entries):
+    """Validates the coco.cc_test_runtime tags: the GoogleMock every C++ runtime's test runtime links.
+
+    Root-module only, like coco.cc_runtime_deps, and at most once: GoogleMock does not depend on
+    the popili version, and a build linking two copies of it fails. Returns (gmock, error); gmock
+    is the canonical label string, "" for none.
+    """
+    for entry in tag_entries:
+        if not entry.is_root:
+            return "", (
+                "Module %r called coco.cc_test_runtime, but only the root module " % entry.module_name +
+                "may use that tag: which GoogleMock a build links is the root module's choice."
+            )
+    if len(tag_entries) > 1:
+        return "", "coco.cc_test_runtime may be specified at most once."
+    return (tag_entries[0].gmock if tag_entries else ""), None
+
 collect_cc_runtime_extra_deps = _collect_cc_runtime_extra_deps
+collect_cc_test_runtime_gmock = _collect_cc_test_runtime_gmock
 normalize_cc_runtime_extra_deps = _normalize_cc_runtime_extra_deps

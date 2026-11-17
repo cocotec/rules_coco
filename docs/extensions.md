@@ -9,6 +9,7 @@ Bazel module extensions for rules_coco.
 <pre>
 coco = use_extension("@rules_coco//coco:extensions.bzl", "coco")
 coco.cc_runtime_deps(<a href="#coco.cc_runtime_deps-deps">deps</a>, <a href="#coco.cc_runtime_deps-version">version</a>)
+coco.cc_test_runtime(<a href="#coco.cc_test_runtime-gmock">gmock</a>)
 coco.local_toolchain(<a href="#coco.local_toolchain-c_runtime">c_runtime</a>, <a href="#coco.local_toolchain-cc_runtime">cc_runtime</a>, <a href="#coco.local_toolchain-license_protocol_version">license_protocol_version</a>, <a href="#coco.local_toolchain-popili">popili</a>)
 coco.toolchain(<a href="#coco.toolchain-auth_token_path">auth_token_path</a>, <a href="#coco.toolchain-c">c</a>, <a href="#coco.toolchain-cc">cc</a>, <a href="#coco.toolchain-license_source">license_source</a>, <a href="#coco.toolchain-license_token">license_token</a>, <a href="#coco.toolchain-versions">versions</a>)
 </pre>
@@ -28,6 +29,18 @@ Inject extra cc_library deps into the Coco C++ runtime for a specific Coco/Popil
 | :------------- | :------------- | :------------- | :------------- | :------------- |
 | <a id="coco.cc_runtime_deps-deps"></a>deps |  List of cc_library targets to append to the runtime's deps.   | <a href="https://bazel.build/concepts/labels">List of labels</a> | required |  |
 | <a id="coco.cc_runtime_deps-version"></a>version |  Coco/Popili version these deps apply to. May be an explicit version (e.g. '1.5.1'), an alias (e.g. 'stable'), or 'local' for the coco.local_toolchain runtime.   | String | required |  |
+
+<a id="coco.cc_test_runtime"></a>
+
+### cc_test_runtime
+
+Configure the GoogleMock library coco_cc_test_library links besides the C++ runtime, for every registered version; required when a coco_cc_test_library compiles generated mocks. Root-module only, at most once. See the rules_coco README for choosing the library per build with select().
+
+**Attributes**
+
+| Name  | Description | Type | Mandatory | Default |
+| :------------- | :------------- | :------------- | :------------- | :------------- |
+| <a id="coco.cc_test_runtime-gmock"></a>gmock |  The GoogleMock library, such as `@googletest//:gtest`. Generated mocks and the runtime's coco/gmock_helpers.h are compiled against it.   | <a href="https://bazel.build/concepts/labels">Label</a> | required |  |
 
 <a id="coco.local_toolchain"></a>
 

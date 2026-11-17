@@ -14,7 +14,7 @@
 
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("//coco/private:c_runtime.bzl", "coco_c_runtime")
-load("//coco/private:cc_runtime.bzl", "coco_cc_runtime")
+load("//coco/private:cc_runtime.bzl", "coco_cc_runtime", "coco_cc_test_runtime")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -23,6 +23,8 @@ toolchain_type(name = "toolchain_type")
 coco_c_runtime(name = "c_runtime")
 
 coco_cc_runtime(name = "cc_runtime")
+
+coco_cc_test_runtime(name = "cc_test_runtime")
 
 # Export key public Starlark files
 exports_files([

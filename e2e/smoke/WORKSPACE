@@ -15,6 +15,7 @@ load("@rules_coco//coco:repositories.bzl", "coco_repositories")
 # Register coco toolchain with default stable version
 coco_repositories(
     cc = True,
+    cc_test_runtime_gmock = "@//third_party:gmock",
 )
 
 # Load GoogleTest for C++ unit tests

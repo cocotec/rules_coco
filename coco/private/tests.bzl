@@ -22,7 +22,7 @@ load(
     "PATH_CASES",
     "PATH_CASE_DEFAULTS",
 )
-load(":cc_runtime_deps.bzl", "collect_cc_runtime_extra_deps", "normalize_cc_runtime_extra_deps")
+load(":cc_runtime_deps.bzl", "collect_cc_runtime_extra_deps", "collect_cc_test_runtime_gmock", "normalize_cc_runtime_extra_deps")
 load(":coco.bzl", "FILE_NAME_MANGLER_STYLES", "bat_set", "common_version", "compute_output_paths", "effective_version", "inherited_versions_conflict", "library_version_conflict", "library_version_mismatch_message", "mangle_name", "missing_popili_message", "module_path_for", "own_package_versions_message", "package_transition_settings", "package_versions_conflict", "pin_transition_settings", "popili_rule_reserved_attribute", "toolchain_version_mismatch_message", "unpin_transition_settings", "version_source")
 load(":common_repositories.bzl", "AVAILABLE_STABLE_VERSIONS", "coco_download", "download_prefix", "find_local_license_paths", "is_license_file_name")
 load(":known_shas.bzl", "FILE_KEY_TO_SHA")
@@ -194,6 +194,27 @@ cc_runtime_deps_local_version_test = unittest.make(_cc_runtime_deps_local_versio
 cc_runtime_deps_non_root_rejected_test = unittest.make(_cc_runtime_deps_non_root_rejected_test)
 cc_runtime_deps_non_root_rejected_even_when_root_also_present_test = unittest.make(_cc_runtime_deps_non_root_rejected_even_when_root_also_present_test)
 cc_runtime_deps_unknown_version_test = unittest.make(_cc_runtime_deps_unknown_version_test)
+
+# Tests for collect_cc_test_runtime_gmock
+
+def _gmock_entry(gmock, is_root = True):
+    return struct(module_name = "root" if is_root else "dep", is_root = is_root, gmock = gmock)
+
+def _cc_test_runtime_tag_test(ctx):
+    """One root tag gives its gmock, none gives ""; a non-root tag or two tags are errors."""
+    env = unittest.begin(ctx)
+    asserts.equals(env, ("@g//:a", None), collect_cc_test_runtime_gmock([_gmock_entry("@g//:a")]))
+    asserts.equals(env, ("", None), collect_cc_test_runtime_gmock([]))
+    for entries, expected in [
+        ([_gmock_entry("@g//:a", is_root = False)], "only the root module"),
+        ([_gmock_entry("@g//:a"), _gmock_entry("@g//:b")], "at most once"),
+    ]:
+        result, err = collect_cc_test_runtime_gmock(entries)
+        asserts.equals(env, "", result)
+        asserts.true(env, expected in (err or ""), "expected %r in %r" % (expected, err))
+    return unittest.end(env)
+
+cc_test_runtime_tag_test = unittest.make(_cc_test_runtime_tag_test)
 
 # Corpus-driven tests for name mangling
 #
@@ -2511,6 +2532,9 @@ def coco_test_suite(name):
         cc_runtime_deps_non_root_rejected_test,
         cc_runtime_deps_non_root_rejected_even_when_root_also_present_test,
         cc_runtime_deps_unknown_version_test,
+
+        # collect_cc_test_runtime_gmock tests
+        cc_test_runtime_tag_test,
 
         # find_local_license_paths tests
         local_license_suffixed_linux_test,

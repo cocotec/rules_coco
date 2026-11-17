@@ -64,3 +64,4 @@ coco_dev.toolchain(
         "1.5.7",
     ],
 )
+coco_dev.cc_test_runtime(gmock = "@googletest//:gtest")

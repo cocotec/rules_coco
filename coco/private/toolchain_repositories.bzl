@@ -27,13 +27,14 @@ load(
 load(":platforms.bzl", "archive_platform", "platform_binary_ext")
 load(":version_resolution.bzl", "LOCAL_VERSION")
 
-def BUILD_for_coco_toolchain(name, popili_version, cc_runtime_label = None, c_runtime_label = None, license_source = None, license_token = None, auth_token_path = None, license_protocol_version = None):
+def BUILD_for_coco_toolchain(name, popili_version, cc_runtime_label = None, cc_test_runtime_label = None, c_runtime_label = None, license_source = None, license_token = None, auth_token_path = None, license_protocol_version = None):
     """Emits a toolchain declaration to match an existing compiler and stdlib.
 
     Args:
       name: The name of the toolchain declaration
       popili_version: The popili version the toolchain is, e.g. "1.5.7" or "local"
       cc_runtime_label: Optional label to the C++ runtime library (can be a Label object or string)
+      cc_test_runtime_label: Optional label to the C++ test runtime library (can be a Label object or string)
       c_runtime_label: Optional label to the C runtime library (can be a Label object or string)
       license_source: Optional license source mode (e.g., "local_user", "local_acquire", "token", "action_environment", "action_file")
       license_token: Optional license token string
@@ -49,6 +50,10 @@ def BUILD_for_coco_toolchain(name, popili_version, cc_runtime_label = None, c_ru
     cc_runtime_attr = ""
     if cc_runtime_label:
         cc_runtime_attr = '\n    cc_runtime = "{}",'.format(str(cc_runtime_label))
+
+    cc_test_runtime_attr = ""
+    if cc_test_runtime_label:
+        cc_test_runtime_attr = '\n    cc_test_runtime = "{}",'.format(str(cc_test_runtime_label))
 
     c_runtime_attr = ""
     if c_runtime_label:
@@ -76,12 +81,13 @@ def BUILD_for_coco_toolchain(name, popili_version, cc_runtime_label = None, c_ru
 coco_toolchain(
     name = "{toolchain_name}_impl",
     coco = "//:coco",
-    cocotec_licensing_server = "//:cocotec_licensing_server",{cc_runtime_attr}{c_runtime_attr}{license_source_attr}{license_token_attr}{auth_token_path_attr}{popili_version_attr}{license_protocol_version_attr}
+    cocotec_licensing_server = "//:cocotec_licensing_server",{cc_runtime_attr}{cc_test_runtime_attr}{c_runtime_attr}{license_source_attr}{license_token_attr}{auth_token_path_attr}{popili_version_attr}{license_protocol_version_attr}
     visibility = ["//visibility:public"],
 )
 """.format(
         toolchain_name = name,
         cc_runtime_attr = cc_runtime_attr,
+        cc_test_runtime_attr = cc_test_runtime_attr,
         c_runtime_attr = c_runtime_attr,
         license_source_attr = license_source_attr,
         license_token_attr = license_token_attr,
@@ -146,6 +152,7 @@ def _coco_toolchain_repository_impl(ctx):
         BUILD_for_coco_toolchain(
             name = "toolchain",
             cc_runtime_label = ctx.attr.cc_runtime_label,
+            cc_test_runtime_label = ctx.attr.cc_test_runtime_label,
             c_runtime_label = ctx.attr.c_runtime_label,
             license_source = ctx.attr.license_source,
             license_token = ctx.attr.license_token,
@@ -167,6 +174,10 @@ coco_toolchain_repository = repository_rule(
         ),
         "cc_runtime_label": attr.label(
             doc = "Optional label to the C++ runtime library",
+            default = None,
+        ),
+        "cc_test_runtime_label": attr.label(
+            doc = "Optional label to the C++ test runtime library",
             default = None,
         ),
         "license_source": attr.string(
@@ -204,6 +215,7 @@ def _coco_local_toolchain_repository_impl(ctx):
         BUILD_for_coco_toolchain(
             name = "toolchain",
             cc_runtime_label = ctx.attr.cc_runtime_label,
+            cc_test_runtime_label = ctx.attr.cc_test_runtime_label,
             c_runtime_label = ctx.attr.c_runtime_label,
             license_source = ctx.attr.license_source,
             license_token = ctx.attr.license_token,
@@ -225,6 +237,10 @@ coco_local_toolchain_repository = repository_rule(
         ),
         "cc_runtime_label": attr.label(
             doc = "Optional label to the C++ runtime library",
+            default = None,
+        ),
+        "cc_test_runtime_label": attr.label(
+            doc = "Optional label to the C++ test runtime library",
             default = None,
         ),
         "license_protocol_version": attr.int(

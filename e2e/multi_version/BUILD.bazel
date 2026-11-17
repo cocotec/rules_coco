@@ -99,8 +99,8 @@ cc_test(
     deps = [":legacy_cc"],
 )
 
-# The default gmock stays in the test's configuration while the runtime follows the pin, so a test
-# that also links gtest_main directly gets one googletest; Linux rejects googletest built twice.
+# coco.cc_test_runtime's gmock stays in the test's configuration while the runtime follows the pin, so a
+# test that also links gtest_main directly gets one googletest; Linux rejects googletest built twice.
 coco_cc_test_library(
     name = "legacy_cc_tst",
     generated_package = ":legacy_cpp",

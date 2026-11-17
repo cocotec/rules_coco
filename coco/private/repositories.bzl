@@ -70,6 +70,7 @@ def coco_repositories(
         license_token = "",
         auth_token_path = "",
         cc_runtime_extra_deps = [],
+        cc_test_runtime_gmock = None,
         local_popili = None,
         local_cc_runtime = None,
         local_c_runtime = None,
@@ -105,6 +106,11 @@ def coco_repositories(
         that version alone. Labels are written
         verbatim into a generated repository, so they must be repository-absolute.
         None is the same as an empty list.
+      cc_test_runtime_gmock: The GoogleMock library, such as "@googletest//:gtest", that
+        `coco_cc_test_library` links with the C++ runtime and its `coco/gmock_helpers.h`, for
+        every registered version including `local_popili`; required when a
+        `coco_cc_test_library` compiles generated mocks. Written verbatim into a generated
+        repository, so it must be repository-absolute.
       local_popili: Optional path to a directory holding the `popili` and
         `cocotec-licensing-server` binaries, registered as an additional toolchain
         selected by `--@rules_coco//:version=local`.
@@ -158,6 +164,9 @@ def coco_repositories(
     if error:
         fail(error)
 
+    if cc_test_runtime_gmock != None and type(cc_test_runtime_gmock) != type(""):
+        fail("cc_test_runtime_gmock must be a label string such as \"@googletest//:gtest\". Got: %s" % type(cc_test_runtime_gmock))
+
     local = None
     if local_popili:
         local = struct(
@@ -172,6 +181,7 @@ def coco_repositories(
         c = c,
         cc = cc,
         cc_runtime_extra_deps_by_version = extra_deps_by_version,
+        cc_test_runtime_gmock = cc_test_runtime_gmock or "",
         license_source = license_source,
         license_token = license_token,
         auth_token_path = auth_token_path,
@@ -189,7 +199,8 @@ def coco_local_repositories(
         license_source = "",
         license_token = "",
         auth_token_path = "",
-        license_protocol_version = 0):
+        license_protocol_version = 0,
+        cc_test_runtime_gmock = None):
     """Sets up Coco toolchain repositories from a local popili path (WORKSPACE mode).
 
     Use this to point the rules at a popili distribution already present on the local
@@ -213,6 +224,8 @@ def coco_local_repositories(
       auth_token_path: Optional auth token file path.
       license_protocol_version: Optional licence protocol version the local popili reads.
         See `coco_toolchain`.
+      cc_test_runtime_gmock: The GoogleMock library `coco_cc_test_library` links. See
+        `coco_repositories`.
     """
     coco_repositories(
         versions = [],
@@ -220,6 +233,7 @@ def coco_local_repositories(
         local_cc_runtime = cc_runtime_path,
         local_c_runtime = c_runtime_path,
         local_license_protocol_version = license_protocol_version,
+        cc_test_runtime_gmock = cc_test_runtime_gmock,
         license_source = license_source,
         license_token = license_token,
         auth_token_path = auth_token_path,

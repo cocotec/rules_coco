@@ -21,6 +21,7 @@ coco_repositories(
         "1.5.0": ["@rules_coco_multi_version_test//:runtime_extra_dep"],
         "1.5.1": ["@rules_coco_multi_version_test//:runtime_extra_dep"],
     },
+    cc_test_runtime_gmock = "@googletest//:gtest",
     versions = [
         "1.5.0",
         "1.5.1",
