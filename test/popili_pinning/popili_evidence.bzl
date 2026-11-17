@@ -22,6 +22,14 @@ load("@bazel_skylib//lib:unittest.bzl", "asserts")
 load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load("@rules_coco//coco/private:version_resolution.bzl", "version_to_repo_suffix")  # buildifier: disable=bzl-visibility
 
+def _written(target, path):
+    """The text `target` writes to `path`, or None if it writes no such file."""
+    for action in target.actions:
+        for output in action.outputs.to_list():
+            if output.path == path:
+                return action.content
+    return None
+
 def popili_evidence(target):
     """Text naming the repository of the popili a target resolved.
 
@@ -29,15 +37,16 @@ def popili_evidence(target):
         target: The target under test.
 
     Returns:
-        The popili a run action executes (rules_coco's generate and diagram actions, or a
-        `popili_rule`'s `run` under its default mnemonic), the headers of the runtime a library's `._gen` target
-        forwards, or the text of a test's or binary's wrapper script or of a package's typecheck
-        script.
+        The command line of a run action that executes popili (rules_coco's generate and diagram actions, or a
+        `popili_rule`'s `run` under its default mnemonic), with the text of any script the target writes for it,
+        the headers of the runtime a library's `._gen` target forwards, or the text of a test's or binary's
+        wrapper script or of a package's typecheck script.
     """
     typecheck_script = None
     for action in target.actions:
         if action.mnemonic in ("CocoGenerate", "CocoDiagram", "Popili"):
-            return action.argv[0]
+            # Run quietly, popili is an argument of the shell that runs it, or on Windows named by a script.
+            return " ".join([_written(target, argument) or argument for argument in action.argv])
         if action.mnemonic == "CocoTypecheck":
             typecheck_script = action.argv[0]
 

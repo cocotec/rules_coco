@@ -1049,6 +1049,13 @@ def _bat_set(name, value):
         fail("Cannot pass %s to a Windows wrapper script: the value contains a double quote or line break" % name)
     return "SET \"%s=%s\"" % (name, value.replace("%", "%%"))
 
+def _windows_path(path):
+    """Returns `path` as a cmd.exe script names it.
+
+    Its slashes become backslashes, and `%`, which cmd.exe expands even inside double quotes, becomes `%%`.
+    """
+    return path.replace("/", "\\").replace("%", "%%")
+
 def _create_coco_wrapper_script(ctx, package, arguments, marker = None):
     """Creates a platform-specific wrapper script for running Coco commands.
 
@@ -1067,7 +1074,7 @@ def _create_coco_wrapper_script(ctx, package, arguments, marker = None):
     coco_path = _runtime_path(_coco_toolchain(ctx).coco, is_test)
     is_windows = _is_windows(ctx)
     if is_windows:
-        coco_path = coco_path.replace("/", "\\")
+        coco_path = _windows_path(coco_path)
 
     # Build the full command
     full_arguments = [coco_path] + _coco_startup_args(ctx, package, is_test) + arguments
@@ -1081,7 +1088,7 @@ def _create_coco_wrapper_script(ctx, package, arguments, marker = None):
         for k, v in env.items():
             wrapper_lines.append(_bat_set(k, v))
         wrapper_lines.append("%s || exit /b 1" % command)
-        wrapper_lines.append("type nul > \"%s\"" % marker.path.replace("/", "\\"))
+        wrapper_lines.append("type nul > \"%s\"" % _windows_path(marker.path))
     elif marker:
         wrapper_script = ctx.actions.declare_file(ctx.label.name + "_typecheck.sh")
         wrapper_lines = ["#!/bin/sh", "set -e"]
@@ -2282,6 +2289,65 @@ def _popili_rule_reserved_attribute(attrs, package):
             return name
     return None
 
+# Runs popili, given after its log as the arguments, keeping what it prints in the log, which it prints only if popili
+# fails.
+_RUN_QUIETLY_POSIX = r"""
+log="$1"
+shift
+"$@" > "$log" 2>&1 && exit 0
+status=$?
+cat "$log" >&2
+exit "$status"
+"""
+
+def _windows_argument(argument):
+    """Quotes `argument` for a Windows command line, which is how popili reads a response file on Windows.
+
+    A backslash is literal except before a double quote, so those before one, and before the closing quote, are doubled.
+    """
+    if argument and not [c for c in argument.elems() if c in " \t\n\""]:
+        return argument
+    quoted = "\""
+    backslashes = 0
+    for c in argument.elems():
+        if c == "\\":
+            backslashes += 1
+        elif c == "\"":
+            quoted += "\\" * (2 * backslashes + 1) + "\""
+            backslashes = 0
+        else:
+            quoted += "\\" * backslashes + c
+            backslashes = 0
+    return quoted + "\\" * (2 * backslashes) + "\""
+
+def _run_quietly(ctx, popili, arguments, log, action):
+    """Registers `action`: popili with `arguments`, what it prints kept in `log` and printed only if it fails."""
+    if popili.extension != "exe":
+        ctx.actions.run_shell(command = _RUN_QUIETLY_POSIX, arguments = [log.path, popili.path] + arguments, **action)
+        return
+
+    # cmd.exe would parse popili's arguments again, so they go in a response file, which popili reads itself, and the
+    # script names only paths.
+    stem = log.basename[:-len(".log")]
+    params = ctx.actions.declare_file(stem + ".params", sibling = log)
+    ctx.actions.write(params, "\n".join([_windows_argument(argument) for argument in arguments]) + "\n")
+    script = ctx.actions.declare_file(stem + ".bat", sibling = log)
+    log_path = _windows_path(log.path)
+    ctx.actions.write(
+        output = script,
+        content = "\r\n".join([
+            "@echo off",
+            "\"%s\" @\"%s\" > \"%s\" 2>&1" % (_windows_path(popili.path), _windows_path(params.path), log_path),
+            "set status=%ERRORLEVEL%",
+            "if %%status%% neq 0 type \"%s\" 1>&2" % log_path,
+            "exit /b %status%",
+        ]) + "\r\n",
+        is_executable = True,
+    )
+    action["inputs"] = depset([params], transitive = [action["inputs"]])
+    action["tools"] = action["tools"] + [script]
+    ctx.actions.run(executable = script, **action)
+
 def _popili_handle(ctx, toolchain, package, from_runfiles):
     """The `popili` argument of a popili_rule implementation: what the rule may use of the toolchain.
 
@@ -2297,9 +2363,8 @@ def _popili_handle(ctx, toolchain, package, from_runfiles):
         rule or `script` and `runfiles` for a test or executable.
     """
 
-    def run(arguments, outputs, inputs = [], mnemonic = "Popili", progress_message = None):
-        ctx.actions.run(
-            executable = toolchain.coco,
+    def run(arguments, outputs, inputs = [], mnemonic = "Popili", progress_message = None, quiet_on_success = False):
+        action = dict(
             tools = [toolchain.coco],
             env = _coco_env(ctx, for_action = True),
             mnemonic = mnemonic,
@@ -2309,8 +2374,14 @@ def _popili_handle(ctx, toolchain, package, from_runfiles):
                 transitive = [_coco_runfiles(ctx, package, False)] + ([inputs] if type(inputs) == "depset" else []),
             ),
             outputs = outputs,
-            arguments = _coco_startup_args(ctx, package, False) + arguments,
         )
+        popili_arguments = _coco_startup_args(ctx, package, False) + arguments
+        if quiet_on_success:
+            log = ctx.actions.declare_file(outputs[0].basename + ".popili.log", sibling = outputs[0])
+            action["outputs"] = outputs + [log]
+            _run_quietly(ctx, toolchain.coco, popili_arguments, log, action)
+        else:
+            ctx.actions.run(executable = toolchain.coco, arguments = popili_arguments, **action)
 
     def script(arguments):
         return _create_coco_wrapper_script(ctx, package, arguments)
@@ -2340,10 +2411,12 @@ def popili_rule(implementation, attrs = {}, package = False, test = False, execu
     - `executable`: the popili binary, a `File`. Running it takes the licence and preferences
       arguments, so use `run` or `script` rather than the file itself.
     - `package`: with `package = True`, the `CocoPackageInfo` of the `package` attribute.
-    - `run(arguments, outputs, inputs = [], mnemonic = "Popili", progress_message = None)`
-      (rules only): registers an action running popili with `arguments` after the startup
-      arguments, the licence and preferences files, the package's files when there is one, and
-      `inputs` (a list or depset) as inputs.
+    - `run(arguments, outputs, inputs = [], mnemonic = "Popili", progress_message = None,
+      quiet_on_success = False)` (rules only): registers an action running popili with `arguments`
+      after the startup arguments, the licence and preferences files, the package's files when
+      there is one, and `inputs` (a list or depset) as inputs. With `quiet_on_success`, for an
+      action whose output reports what it was meant to find, what popili prints is kept in a log
+      beside the first output (`<output>.popili.log`) and shown only if popili fails.
     - `script(arguments)` and `runfiles` (tests and executables only): the wrapper script running
       popili with `arguments` from the runfiles, and the depset of files it needs there.
       Return `DefaultInfo(executable = popili.script(...), runfiles = ctx.runfiles(transitive_files = popili.runfiles))`.
