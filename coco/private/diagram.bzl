@@ -213,6 +213,7 @@ def _coco_counterexample_diagram_impl(ctx, popili):
     arguments = [
         "verify",
         "--exit-code=fatal-only",
+        "--quiet",
     ]
     if ctx.attr.draw_title:
         arguments.append("--counterexamples-draw-title")
@@ -250,6 +251,7 @@ def _coco_counterexample_diagram_impl(ctx, popili):
         outputs = outputs,
         mnemonic = "CocoDiagram",
         progress_message = "Generating counterexample diagrams for %s" % popili.package.name,
+        quiet_on_success = True,
     )
 
     return [DefaultInfo(files = depset(outputs))]

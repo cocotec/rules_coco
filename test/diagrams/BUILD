@@ -21,6 +21,7 @@ load(
     "coco_state_diagram",
     "counterexample_options",
 )
+load(":quiet_test.bzl", "quiet_test")
 
 coco_package(
     name = "diagrams",
@@ -98,4 +99,10 @@ coco_state_diagram(
     package = ":diagrams",
     separate_edges = True,
     targets = ["PAlarm.M"],
+)
+
+quiet_test(
+    name = "expected_counterexamples_quiet_test",
+    size = "small",
+    target_under_test = ":expected_counterexamples",
 )
