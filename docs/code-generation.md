@@ -245,13 +245,18 @@ coco_cc_test_library(
 cc_test(
     name = "example_test",
     srcs = ["example_test.cc"],
-    deps = [":example_cc_tst"],
+    deps = [
+        ":example_cc_tst",
+        "@googletest//:gtest_main",  # unless example_test.cc defines main()
+    ],
 )
 ```
 
-Mocks are no exception: set `generateMocks = "GMock"` in `Coco.toml` _and_ `cpp_mocks = "GMock"` on
-[`coco_package`](reference/defs.md#coco_package) to get mocks for `coco_cc_test_library`. With only the attribute set,
-the build fails with `output ... was not created`; with only the setting, Popili writes mocks that no target uses.
+Mocks follow the same rule as the other generator settings (see [Output paths](#output-paths)): set
+`generateMocks = "GMock"` in `Coco.toml` _and_ `cpp_mocks = "GMock"` on [`coco_package`](reference/defs.md#coco_package)
+to get mocks for `coco_cc_test_library`. With only the attribute set, the build fails with `output ... was not created`;
+with only the setting, Popili writes mocks that no target uses. Compiling the mocks also needs a GoogleMock library,
+named once for the whole build: see [GoogleMock](#googlemock).
 
 Set [`test_source_roots`](reference/defs.md#coco_package-test_source_roots) for `test_srcs` in the same cases as
 `source_roots` (see [Source roots](packages.md#source-roots)). [`e2e/smoke`](../e2e/smoke) is a tested example.
@@ -265,15 +270,23 @@ generated test code, mocks included, for consumers other than the test libraries
 Besides the C++ runtime, [`coco_cc_test_library`](reference/cc.md#coco_cc_test_library) links GoogleMock and the
 runtime's `coco/gmock_helpers.h` (`coco::SingleThreadedGMockHelper` and `coco::MultiThreadedGMockHelper`, for mocks that
 act asynchronously). The runtime and the header come from the same Popili version as the generated code. Which
-GoogleMock is set once, in `MODULE.bazel`, for every registered Popili version, for example the one from
-`bazel_dep(name = "googletest", version = "...")`:
+GoogleMock is set once, in the root module's `MODULE.bazel`, for every registered Popili version, for example the one
+from `bazel_dep(name = "googletest", version = "...")`:
 
 ```starlark
 coco.cc_test_runtime(gmock = "@googletest//:gtest")
 ```
 
-See [`coco.cc_test_runtime`](reference/extensions.md#coco.cc_test_runtime). In `WORKSPACE`, pass it as
-[`cc_test_runtime_gmock`](reference/repositories.md#coco_repositories-cc_test_runtime_gmock) to `coco_repositories`.
+In any other module the tag fails the build. So a module that other modules depend on, and whose own tests compile
+mocks, declares it as a dev dependency, which Bazel ignores when the module is not the root:
+
+```starlark
+coco_dev = use_extension("@rules_coco//coco:extensions.bzl", "coco", dev_dependency = True)
+coco_dev.cc_test_runtime(gmock = "@googletest//:gtest")
+```
+
+See [`coco.cc_test_runtime`](reference/extensions.md#coco.cc_test_runtime). In `WORKSPACE`, pass the GoogleMock library
+as [`cc_test_runtime_gmock`](reference/repositories.md#coco_repositories-cc_test_runtime_gmock) to `coco_repositories`.
 Without it, a `coco_cc_test_library` whose packages generate mocks fails to build, saying so; one over test source roots
 alone links the plain runtime and needs no GoogleMock. `coco_c_test_library` links no GoogleMock; add it to `deps` if
 your tests need it.
