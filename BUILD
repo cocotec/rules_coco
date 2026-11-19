@@ -15,6 +15,8 @@
 load("@bazel_skylib//rules:common_settings.bzl", "bool_flag", "string_flag")
 load("@rules_coco//coco:defs.bzl", "LICENSE_SOURCES")
 
+# The flags are documented in docs/flags.md.
+
 string_flag(
     name = "license_source",
     build_setting_default = "",
@@ -46,16 +48,12 @@ string_flag(
     visibility = ["//visibility:public"],
 )
 
-# Build flag for selecting the coco toolchain version
-# Empty string means use the first registered version (default)
-# Set explicitly to select a specific version when multiple are registered
 string_flag(
     name = "version",
     build_setting_default = "",
     visibility = ["//visibility:public"],
 )
 
-# Makes :version (or the default) apply to every target, ignoring popili_version pins.
 bool_flag(
     name = "force_version",
     build_setting_default = False,

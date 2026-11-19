@@ -25,6 +25,12 @@ jobs:
     needs: [pre-commit]
     steps:
       - uses: actions/checkout@v7
+      # Offline: links between the repository's own files and their anchors only; the weekly Links
+      # workflow checks external links.
+      - name: Check links between the repository's Markdown files
+        uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
+        with:
+          args: --no-progress --offline './**/*.md'
       - uses: bazel-contrib/setup-bazel@f34d6a05eae3c24acab7fa54587492daeaeffdab # 0.19.2
         with:
           repository-cache: true
@@ -34,13 +40,12 @@ jobs:
           USE_BAZEL_VERSION: "8.4.2"
       - name: Check docs are up-to-date
         run: |
-          # Generate docs to bazel-bin
-          # Compare with committed docs
-          for file in bazel-bin/docs/*.md; do
+          # Compare the generated reference with the committed one
+          for file in bazel-bin/docs/reference/*.md; do
             basename=$(basename "$file")
-            if ! diff -q "$file" "docs/$basename"; then
-              echo "Error: docs/$basename is out of date"
-              echo "Run: bazel build //docs:docs && cp bazel-bin/docs/*.md docs/"
+            if ! diff -q "$file" "docs/reference/$basename"; then
+              echo "Error: docs/reference/$basename is out of date"
+              echo "Run: ./tools/update_docs.sh (with USE_BAZEL_VERSION=8.4.2)"
               exit 1
             fi
           done

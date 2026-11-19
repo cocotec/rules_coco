@@ -2,7 +2,7 @@
 bazel-*
 
 # Generated documentation
-docs/
+docs/reference/
 
 # Lock files
 *.lock

@@ -23,5 +23,5 @@ bazel_dep(name = "googletest", version = "1.17.0.bcr.2")
 coco = use_extension("@rules_coco//coco:extensions.bzl", "coco")
 coco.toolchain(cc = True)
 
-# Through a select() shim (//third_party:gmock), as the README describes.
+# Through a select() shim (//third_party:gmock), as docs/code-generation.md#googlemock describes.
 coco.cc_test_runtime(gmock = "//third_party:gmock")

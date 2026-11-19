@@ -82,10 +82,20 @@ bzl_library(
 )
 
 bzl_library(
+    name = "toolchain",
+    srcs = ["toolchain.bzl"],
+    deps = [
+        "//coco/private:licence_docs_bzl",
+        "//coco/private:version_resolution_bzl",
+    ],
+)
+
+bzl_library(
     name = "extensions",
     srcs = ["extensions.bzl"],
     deps = [
         "//coco/private:cc_runtime_deps_bzl",
+        "//coco/private:licence_docs_bzl",
         "//coco/private:toolchain_hub_bzl",
     ],
 )
@@ -101,6 +111,7 @@ bzl_library(
         ":defs",
         ":extensions",
         ":repositories",
+        ":toolchain",
         "//coco/private:bzl_lib",
     ],
 )

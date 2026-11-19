@@ -3,23 +3,12 @@
 This guide explains how to use [Renovate](https://docs.renovatebot.com/) to automatically update your rules_coco
 dependency, especially for users who cannot access GitHub.
 
-## Background
+rules_coco is fetched with `archive_override`, which Renovate's Bazel support does not update, so it needs the custom
+configuration below. Because some users cannot reach github.com, rules_coco also publishes its release tarballs to
+`https://dl.cocotec.io/rules_coco/` and a version manifest to `https://dl.cocotec.io/rules_coco/renovate_versions.json`,
+which the recommended configuration uses.
 
-Renovate is a tool that automatically creates pull requests to update dependencies in your repositories. While
-rules_coco releases are published to GitHub, some users operate behind corporate firewalls that block access to
-github.com.
-
-To support these users, rules_coco also publishes:
-- Release tarballs to: `https://dl.cocotec.io/rules_coco/`
-- A version manifest to: `https://dl.cocotec.io/rules_coco/renovate_versions.json`
-
-## Why Custom Configuration is Needed
-
-rules_coco uses `archive_override` in `MODULE.bazel` to fetch releases directly from URLs. While Renovate has built-in
-support for Bazel's `MODULE.bazel` files, it does **not** automatically detect or update `archive_override`
-declarations.
-
-## Recommended Configuration
+## Recommended configuration
 
 This configuration updates both the version and the `integrity` hash. It uses the version manifest on `dl.cocotec.io`,
 so it works with or without GitHub access:
@@ -50,11 +39,12 @@ so it works with or without GitHub access:
 ```
 
 This configuration:
+
 - Monitors your `MODULE.bazel` file for the rules_coco `archive_override`.
 - Uses the version manifest instead of GitHub, which also provides the `integrity` hash of each release.
 - Updates every URL in the `urls` list, as well as `integrity`, in the same pull request.
 
-## Configuration Using GitHub Releases
+## Configuration using GitHub releases
 
 If you prefer GitHub releases as the datasource, use this configuration instead:
 
@@ -77,39 +67,33 @@ If you prefer GitHub releases as the datasource, use this configuration instead:
 }
 ```
 
-**Important:** Renovate's `github-releases` datasource only knows the commit SHA of a release tag, not a hash of the
-release archive, so this configuration only updates the `urls`. Don't capture `integrity` with it: Renovate would
-replace the hash with the commit SHA. Bazel reports a checksum mismatch on the resulting pull request until you replace `integrity`
-with the value from the [release notes](https://github.com/cocotec/rules_coco/releases). Use the
-[recommended configuration](#recommended-configuration) to have `integrity` updated automatically.
+<!-- prettier-ignore -->
+> [!IMPORTANT]
+> Renovate's `github-releases` datasource only knows the commit SHA of a release tag, not a hash of the release
+> archive, so this configuration only updates the `urls`. Don't capture `integrity` with it: Renovate would replace the
+> hash with the commit SHA. Bazel reports a checksum mismatch on the resulting pull request until you replace
+> `integrity` with the value from the [release notes](https://github.com/cocotec/rules_coco/releases). Use the
+> [recommended configuration](#recommended-configuration) to have `integrity` updated automatically.
 
-## Example MODULE.bazel
+## Required `archive_override` layout
 
-Make sure your `MODULE.bazel` includes the dl.cocotec.io URL:
+Make sure your `MODULE.bazel` lists the `dl.cocotec.io` URL, as the snippet in
+[Getting started](getting-started.md#1-add-rules_coco-to-modulebazel) does.
 
-```starlark
-bazel_dep(name = "rules_coco")
+<!-- prettier-ignore -->
+> [!IMPORTANT]
+> The configurations above only recognise an `archive_override` laid out like that snippet:
+>
+> - `module_name` must be the first argument.
+> - `urls` must include the URL for the configuration you use (`dl.cocotec.io` or `github.com`).
+> - For the recommended configuration, `integrity` must come after `urls`.
+>
+> Renovate silently ignores an `archive_override` it does not recognise, so it will never propose an update for it.
 
-archive_override(
-    module_name = "rules_coco",
-    urls = [
-        "https://github.com/cocotec/rules_coco/releases/download/0.1.3/rules_coco_0.1.3.tar.gz",
-        "https://dl.cocotec.io/rules_coco/rules_coco_0.1.3.tar.gz",
-    ],
-    integrity = "sha256-...",
-)
-```
+## Version manifest format
 
-**Important:** The configurations above only recognise an `archive_override` laid out like this example:
-- `module_name` must be the first argument.
-- `urls` must include the URL for the configuration you use (`dl.cocotec.io` or `github.com`).
-- For the recommended configuration, `integrity` must come after `urls`.
-
-Renovate silently ignores an `archive_override` it does not recognise, so it will never propose an update for it.
-
-## Version Manifest Format
-
-The version manifest at `https://dl.cocotec.io/rules_coco/renovate_versions.json` follows Renovate's [custom datasource format](https://docs.renovatebot.com/modules/datasource/custom/):
+The version manifest at `https://dl.cocotec.io/rules_coco/renovate_versions.json` follows Renovate's
+[custom datasource format](https://docs.renovatebot.com/modules/datasource/custom/):
 
 ```json
 {
