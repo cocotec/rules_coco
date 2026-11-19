@@ -173,7 +173,7 @@ def validate_and_update_changelog(new_version: str, bump_type: str, dry_run: boo
             f"for patch releases)."
         )
 
-    today = datetime.date.today().strftime("%Y/%m/%d")
+    today = datetime.date.today().isoformat()
     new_heading = f"## [{new_version}] - {today}"
     new_content = content.replace(
         UNRELEASED_HEADING,
