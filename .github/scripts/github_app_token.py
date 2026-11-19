@@ -57,13 +57,22 @@ def create_jwt(app_id: str, project: str, location: str, keyring: str,
     return f"{message}.{b64url(sign_with_kms(message, project, location, keyring, key, version))}"
 
 
-def get_installation_token(jwt: str, installation_id: str) -> str:
+def get_installation_token(jwt: str, installation_id: str, repository: str) -> str:
+    body = json.dumps({
+        'repositories': [repository],
+        'permissions': {
+            'contents': 'write',
+            'pull_requests': 'write'
+        },
+    }).encode()
     req = urllib.request.Request(
         f"https://api.github.com/app/installations/{installation_id}/access_tokens",
         method="POST",
+        data=body,
         headers={
             "Accept": "application/vnd.github+json",
-            "Authorization": f"Bearer {jwt}"
+            "Authorization": f"Bearer {jwt}",
+            "Content-Type": "application/json",
         },
     )
     with urllib.request.urlopen(req) as resp:
@@ -86,7 +95,8 @@ def main():
         key=env('GCP_KMS_KEY'),
         version=env('GCP_KMS_KEY_VERSION'),
     )
-    print(get_installation_token(jwt, env('COCOTEC_BOT_INSTALLATION_ID')))
+    repository = env('GITHUB_REPOSITORY').split('/', 1)[1]
+    print(get_installation_token(jwt, env('COCOTEC_BOT_INSTALLATION_ID'), repository))
 
 
 if __name__ == '__main__':
