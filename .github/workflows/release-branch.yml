@@ -1,0 +1,18 @@
+name: Release Branch
+on:
+  push:
+    branches:
+      - "release/[0-9]+.[0-9]+"
+    paths:
+      - "version.bzl"
+permissions:
+  actions: write
+jobs:
+  release:
+    if: ${{ !github.event.created }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Start the release
+        run: gh workflow run release.yaml --repo "$GITHUB_REPOSITORY" --ref main -f branch="$GITHUB_REF_NAME"
+        env:
+          GH_TOKEN: ${{ github.token }}

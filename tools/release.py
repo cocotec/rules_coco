@@ -34,14 +34,18 @@ Usage:
 
     # Preview changes without writing
     python tools/release.py --version 1.2.3 --dry-run
+
+    # Once X.Y.0 is released, create release/X.Y for its patch releases
+    python tools/release.py --create-release-branch
 """
 
 import argparse
 import datetime
 import re
+import subprocess
 import sys
 from pathlib import Path
-from typing import Tuple
+from typing import Dict, Tuple
 
 # Paths relative to repository root
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -213,6 +217,47 @@ def update_module_bazel(old_version: str, new_version: str, dry_run: bool) -> bo
     return True
 
 
+REMOTE_TAG_PATTERN = re.compile(
+    r'^([0-9a-f]{40})\trefs/tags/([0-9]+\.[0-9]+\.[0-9]+)(\^\{\})?$'
+)
+
+
+def git(*args: str) -> str:
+    result = subprocess.run(["git", *args], capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(f"git {' '.join(args)} failed:\n{result.stderr.strip()}")
+    return result.stdout
+
+
+def create_release_branch(remote: str, dry_run: bool) -> int:
+    """Create release/X.Y on the remote at the newest release, if it has no branch yet."""
+    releases: Dict[str, str] = {}
+    for line in git("ls-remote", "--tags", remote).splitlines():
+        match = REMOTE_TAG_PATTERN.match(line)
+        if match and (match[3] or match[2] not in releases):
+            releases[match[2]] = match[1]
+    if not releases:
+        raise RuntimeError(f"No releases on {remote}")
+
+    newest = max(releases, key=parse_version)
+    major, minor, _ = parse_version(newest)
+    branch = f"release/{major}.{minor}"
+    commit = releases[newest]
+
+    if git("ls-remote", "--heads", remote, f"refs/heads/{branch}").strip():
+        print(f"✓ {branch} already exists on {remote}")
+        return 0
+
+    if dry_run:
+        print(f"Would create {branch} on {remote} at {newest} ({commit})")
+        return 0
+
+    git("fetch", "--quiet", remote, commit)
+    git("push", "--quiet", remote, f"{commit}:refs/heads/{branch}")
+    print(f"✓ Created {branch} on {remote} at {newest} ({commit})")
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Manage version updates for rules_coco",
@@ -231,7 +276,17 @@ def main():
         choices=["major", "minor", "patch"],
         help="Auto-increment version (major, minor, or patch)"
     )
+    version_group.add_argument(
+        "--create-release-branch",
+        action="store_true",
+        help="Create release/X.Y at the newest release, for its patch releases"
+    )
 
+    parser.add_argument(
+        "--remote",
+        default="origin",
+        help="Remote to create the release branch on (default: origin)"
+    )
     parser.add_argument(
         "--dry-run",
         action="store_true",
@@ -241,6 +296,9 @@ def main():
     args = parser.parse_args()
 
     try:
+        if args.create_release_branch:
+            return create_release_branch(args.remote, args.dry_run)
+
         # Read current version
         current_version = read_current_version()
         print(f"Current version: {current_version}")
@@ -285,6 +343,8 @@ def main():
             print(f"  1. Review changes: git diff")
             print(f"  2. Commit changes: git commit -am 'build: bump version to {new_version}'")
             print(f"  3. Push changes: git push")
+            if bump_type != "patch":
+                print(f"  4. Once {new_version} is released: python tools/release.py --create-release-branch")
 
         return 0
 
