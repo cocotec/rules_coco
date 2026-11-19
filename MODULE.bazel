@@ -16,7 +16,7 @@
 
 module(
     name = "rules_coco",
-    version = "0.3.4",
+    version = "0.3.5",
     compatibility_level = 1,
 )
 
