@@ -1,6 +1,11 @@
 name: Release
 on:
   workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to release: main, or release/X.Y"
+        required: true
+        default: main
   push:
     branches: [main]
     paths:
@@ -10,37 +15,59 @@ defaults:
     shell: bash
 permissions:
   contents: read
+concurrency:
+  group: release
+  cancel-in-progress: false
 jobs:
   validation:
     runs-on: ubuntu-latest
+    outputs:
+      commit: ${{ steps.check.outputs.commit }}
+      version: ${{ steps.check.outputs.version }}
+      previous: ${{ steps.check.outputs.previous }}
+      latest: ${{ steps.check.outputs.latest }}
     steps:
       - uses: actions/checkout@v7
-      # TODO: Unfortunately it's not obvious how to restrict `workflow_dispatch` to a particular branch
-      # so this step ensures releases are always done off of `main`.
-      - name: Ensure branch is 'main'
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check the release
+        id: check
         run: |
-          git fetch origin &> /dev/null
-          branch="$(git rev-parse --abbrev-ref HEAD)"
-          if [[ "${branch}" != "main" ]]; then
-            echo "The release branch must be main. Got '${branch}'' instead." >&2
+          set -euo pipefail
+          if [[ "$GITHUB_REF" != refs/heads/main ]]; then
+            echo "Run the Release workflow from main; choose the branch to release with its input." >&2
             exit 1
-          else
-            echo "Branch is '${branch}'"
           fi
-      - name: Ensure release does not already exist
-        run: |
-          git fetch origin &> /dev/null
-          version="$(grep 'VERSION =' ${{ github.workspace }}/version.bzl | sed 's/VERSION = "//' | sed 's/"//')"
-          if [[ -n "$(git tag -l ${version})" ]]; then
-            echo "A release '${version}' already exists." >&2
-            exit 1
-          else
-            echo "Tag '${version}' will be created"
+          args=(release --branch "$BRANCH")
+          if [[ "$GITHUB_EVENT_NAME" == push ]]; then
+            args+=(--commit "$GITHUB_SHA")
           fi
-      - name: Verify version consistency
+          python3 tools/check_release.py "${args[@]}" >> "$GITHUB_OUTPUT"
+        env:
+          BRANCH: ${{ inputs.branch || 'main' }}
+      - name: Summarize the release
         run: |
-          # Run version consistency test to ensure version.bzl and MODULE.bazel match
-          bazel test //test/version:version_consistency_test
+          {
+            echo "## Release $VERSION"
+            echo
+            echo "- Branch: \`$BRANCH\`"
+            echo "- Commit: [\`$COMMIT\`]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commit/$COMMIT)"
+            if [[ -n "$PREVIOUS" ]]; then
+              echo "- Changes since $PREVIOUS: [$PREVIOUS...$VERSION]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/compare/$PREVIOUS...$COMMIT)"
+            fi
+            if [[ "$BRANCH" == main ]]; then
+              echo
+              echo "Once released, an admin creates \`release/${VERSION%.*}\` for its patch releases:"
+              echo
+              echo "    python tools/release.py --create-release-branch"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+        env:
+          BRANCH: ${{ inputs.branch || 'main' }}
+          COMMIT: ${{ steps.check.outputs.commit }}
+          VERSION: ${{ steps.check.outputs.version }}
+          PREVIOUS: ${{ steps.check.outputs.previous }}
   release:
     needs: validation
     runs-on: ubuntu-latest
@@ -48,50 +75,52 @@ jobs:
     permissions:
       contents: write
       id-token: write
+    env:
+      RELEASE_VERSION: ${{ needs.validation.outputs.version }}
+      RELEASE_COMMIT: ${{ needs.validation.outputs.commit }}
+      ARCHIVE: ${{ github.workspace }}/.github/rules_coco_${{ needs.validation.outputs.version }}.tar.gz
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - name: Detect the current version
-        run: |
-          version="$(grep 'VERSION =' ${{ github.workspace }}/version.bzl | grep -o '[[:digit:].]\+')"
-          echo "RELEASE_VERSION=${version}" >> $GITHUB_ENV
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.validation.outputs.commit }}
+          path: target
+          persist-credentials: false
       - name: Create the rules archive
         run: |
-          # Build an archive of the repo contents.
-          tar -czf ${{ github.workspace }}/.github/rules_coco_${{ env.RELEASE_VERSION }}.tar.gz \
-            -C ${{ github.workspace }} \
-            --exclude=".git" \
-            --exclude=".github" \
-            .
-
-          # Save the sha256 checksum of the distro archive to the environment
-          sha256_base64="$(shasum --algorithm 256 ${{ github.workspace }}/.github/rules_coco_${{ env.RELEASE_VERSION }}.tar.gz | awk '{ print $1 }' | xxd -r -p | base64)"
-          echo "ARCHIVE_SHA256_BASE64=${sha256_base64}" >> $GITHUB_ENV
-        env:
-          URL_PREFIX: https://github.com/${{ github.repository_owner }}/rules_coco/releases/download/${{ env.RELEASE_VERSION }}
+          tar -czf "$ARCHIVE" -C "$GITHUB_WORKSPACE/target" --exclude=".git" --exclude=".github" .
+          sha256_base64="$(shasum --algorithm 256 "$ARCHIVE" | awk '{ print $1 }' | xxd -r -p | base64)"
+          echo "ARCHIVE_SHA256_BASE64=${sha256_base64}" >> "$GITHUB_ENV"
       # Upload the artifact in case creating a release fails so all artifacts can then be manually recovered.
       - uses: actions/upload-artifact@v7
         with:
           name: "rules_coco_${{ env.RELEASE_VERSION }}.tar.gz"
-          path: ${{ github.workspace }}/.github/rules_coco_${{ env.RELEASE_VERSION }}.tar.gz
+          path: ${{ env.ARCHIVE }}
           if-no-files-found: error
       - name: Generate release notes
         run: |
-          # Generate the release notes
-          sed 's#{version}#${{ env.RELEASE_VERSION }}#g' ${{ github.workspace }}/.github/release_notes.template \
-          | sed 's#{sha256_base64}#${{ env.ARCHIVE_SHA256_BASE64 }}#g' \
-          > ${{ github.workspace }}/.github/release_notes.txt
+          sed "s#{version}#${RELEASE_VERSION}#g" .github/release_notes.template \
+          | sed "s#{sha256_base64}#${ARCHIVE_SHA256_BASE64}#g" \
+          > .github/release_notes.txt
       - name: Create release and upload archive
         run: |
-          gh release create "$RELEASE_VERSION" \
-            "${{ github.workspace }}/.github/rules_coco_${RELEASE_VERSION}.tar.gz" \
+          args=()
+          if [[ -n "$PREVIOUS" ]]; then
+            args+=(--notes-start-tag "$PREVIOUS")
+          fi
+          gh release create "$RELEASE_VERSION" "$ARCHIVE" \
             --title "$RELEASE_VERSION" \
-            --notes-file "${{ github.workspace }}/.github/release_notes.txt" \
+            --notes-file .github/release_notes.txt \
             --generate-notes \
-            --target "${{ github.sha }}"
+            --latest="$LATEST" \
+            --target "$RELEASE_COMMIT" \
+            "${args[@]}"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PREVIOUS: ${{ needs.validation.outputs.previous }}
+          LATEST: ${{ needs.validation.outputs.latest }}
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v3
         with:
@@ -100,15 +129,15 @@ jobs:
       - name: "Upload to dl.cocotec.io"
         uses: google-github-actions/upload-cloud-storage@v3
         with:
-          path: "${{ github.workspace }}/.github/rules_coco_${{ env.RELEASE_VERSION }}.tar.gz"
+          path: ${{ env.ARCHIVE }}
           destination: "cocotec-downloads/rules_coco"
           process_gcloudignore: false
       - name: Generate renovate_versions.json
         run: |
-          python3 ${{ github.workspace }}/tools/generate_renovate_versions.py \
+          python3 tools/generate_renovate_versions.py \
             --bucket cocotec-downloads \
             --prefix rules_coco \
-            --out ${{ github.workspace }}/.github/renovate_versions.json \
+            --out .github/renovate_versions.json \
             --pretty
       - name: "Upload renovate_versions.json to dl.cocotec.io"
         uses: google-github-actions/upload-cloud-storage@v3

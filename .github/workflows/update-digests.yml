@@ -16,6 +16,15 @@ jobs:
     environment: automation
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Find the release branch
+        id: branch
+        shell: bash
+        run: |
+          release=$(python3 tools/check_release.py digests-branch)
+          echo "release=$release" >> "$GITHUB_OUTPUT"
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v3
@@ -41,42 +50,74 @@ jobs:
           GCP_KMS_KEY: ${{ secrets.GCP_KMS_KEY }}
           GCP_KMS_KEY_VERSION: ${{ secrets.GCP_KMS_KEY_VERSION }}
 
-      - name: Update Digests
-        run: "python3 tools/update_digests.py"
-
-      - name: Bump Version
-        run: python3 tools/release.py --bump patch
-
-      - name: "Create Pull Request"
+      - name: Create Pull Requests
         shell: bash
         run: |
           set -euo pipefail
-          BRANCH="chore/update-digests-${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}"
+          git config --global user.name "cocotec-automation[bot]"
+          git config --global user.email "244153713+cocotec-automation[bot]@users.noreply.github.com"
 
-          git config user.name "cocotec-automation[bot]"
-          git config user.email "244153713+cocotec-automation[bot]@users.noreply.github.com"
-          git checkout -b "$BRANCH"
-          git add coco/private/known_shas.bzl coco/private/version_aliases.bzl version.bzl MODULE.bazel
-          git commit --message 'chore(deps): update popili digests and bump version'
-          git push --set-upstream origin "$BRANCH"
+          open_pr() {
+            local base=$1 bump=$2
+            local open
+            open=$(gh pr list --base "$base" --state open --json headRefName \
+              --jq 'map(select(.headRefName | startswith("chore/update-digests-"))) | length')
+            if [[ "$open" != 0 ]]; then
+              echo "::notice::$base already has an open pull request updating the digests."
+              return
+            fi
 
-          # printf, not a block scalar or heredoc: those leak YAML indentation and eat the backticks.
-          BODY=$(printf '%s\n' \
-            'Updates Popili digests and bumps the patch version.' \
-            '' \
-            'Approving is enough: it joins the merge queue once `build` is green, and merging releases.')
+            git checkout --quiet --detach "origin/$base"
+            python3 tools/update_digests.py
+            if git diff --quiet; then
+              echo "::notice::$base already has the newest digests."
+              return
+            fi
 
-          URL=$(gh pr create --base main \
-            --title 'chore(deps): update popili digests and bump version' \
-            --body "$BODY")
+            local title body
+            if [[ "$bump" == bump ]]; then
+              python3 tools/release.py --bump patch
+              local version
+              version=$(sed -n 's/^VERSION = "\(.*\)"$/\1/p' version.bzl)
+              title="chore(deps): update popili digests and release ${version}"
+              # printf, not a block scalar or heredoc: those leak YAML indentation and eat the backticks.
+              body=$(printf '%s\n' \
+                "Updates Popili digests and bumps the version to ${version}." \
+                '' \
+                "Approving is enough: it merges once \`build\` is green, and merging releases ${version}.")
+            else
+              title="chore(deps): update popili digests"
+              body=$(printf '%s\n' \
+                "Updates Popili digests. They are released from \`${RELEASE_BRANCH}\`." \
+                '' \
+                'Approving is enough: it joins the merge queue once `build` is green.')
+            fi
 
-          # Non-fatal: the pull request exists either way and can be merged by hand.
-          if MERGE_ERROR=$(gh pr merge "$URL" --auto --squash 2>&1); then
-            echo "::notice::Auto-merge enabled; merges once approved and build passes."
+            local branch="chore/update-digests-${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}-${base//\//-}"
+            git add coco/private/known_shas.bzl coco/private/version_aliases.bzl version.bzl MODULE.bazel CHANGELOG.md
+            git commit --quiet --message "$title"
+            git push origin "HEAD:refs/heads/$branch"
+
+            local url
+            url=$(gh pr create --base "$base" --head "$branch" --title "$title" --body "$body")
+
+            # Non-fatal: the pull request exists either way and can be merged by hand.
+            if MERGE_ERROR=$(gh pr merge "$url" --auto --squash 2>&1); then
+              echo "::notice::Auto-merge enabled on ${url}; merges once approved and build passes."
+            else
+              echo "::warning::Could not enable auto-merge on ${url}: ${MERGE_ERROR}"
+            fi
+
+            echo "Opened ${url}" >> "$GITHUB_STEP_SUMMARY"
+          }
+
+          version=$(git show "origin/$RELEASE_BRANCH:version.bzl" | sed -n 's/^VERSION = "\(.*\)"$/\1/p')
+          if [[ -z "$(git tag --list "$version")" ]]; then
+            echo "::warning::$RELEASE_BRANCH holds $version, which is not released yet, so its digests are not updated."
           else
-            echo "::warning::Could not enable auto-merge on ${URL}: ${MERGE_ERROR}"
+            open_pr "$RELEASE_BRANCH" bump
           fi
-
-          echo "Opened ${URL}" >> "$GITHUB_STEP_SUMMARY"
+          open_pr main no-bump
         env:
           GITHUB_TOKEN: ${{ steps.generate_token.outputs.token }}
+          RELEASE_BRANCH: ${{ steps.branch.outputs.release }}
