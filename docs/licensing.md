@@ -60,6 +60,11 @@ and the [network access](https://cocotec.io/popili/doc/1.6/tools/connectivity.ht
   [`--@rules_coco//:license_token`](flags.md#license_token) must be set as well. This works with remote execution but it
   is only recommended when using workload identity federation as `COCOTEC_AUTH_TOKEN` is not a secret in that case.
 
+`local_user` and `local_acquire` read a licence on the machine running Bazel, so Popili's actions and tests always run
+on the host, even with remote execution enabled: rules_coco tags them `no-remote-exec`. They are therefore not
+compatible with settings such as `--spawn_strategy=remote`. An execution platform with this machine's OS and CPU must be
+registered; Bazel registers the host by default unless `--host_platform` replaces it.
+
 ## Selecting a mode
 
 This can be configured in three ways (in order of precedence):

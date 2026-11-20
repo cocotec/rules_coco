@@ -20,6 +20,7 @@ load(
     "collect_cc_test_runtime_gmock",
 )
 load("//coco/private:licence_docs.bzl", "AUTH_TOKEN_PATH_DOC", "LICENSE_SOURCE_DOC", "LICENSE_TOKEN_DOC")
+load("//coco/private:license_sources.bzl", "LICENSE_SOURCES")
 load(
     "//coco/private:toolchain_hub.bzl",
     "declare_coco_toolchains",
@@ -146,6 +147,7 @@ _toolchain_tag = tag_class(
                 " When several modules set it, the first wins."
             ),
             default = "",
+            values = LICENSE_SOURCES + [""],
         ),
         "license_token": attr.string(
             doc = LICENSE_TOKEN_DOC,

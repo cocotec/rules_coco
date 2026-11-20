@@ -7,6 +7,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- Under the `local_user` and `local_acquire` licence modes, Popili's actions and tests now always run on the host, even
+  with remote execution enabled. See [Licence modes](docs/licensing.md#licence-modes).
+
 ## [0.4.0] - 2026-11-19
 
 ### Added

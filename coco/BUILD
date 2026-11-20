@@ -52,7 +52,7 @@ bzl_library(
         "//coco/private:coco_bzl",
         "//coco/private:diagram_bzl",
         "//coco/private:format_bzl",
-        "//coco/private:licensing_bzl",
+        "//coco/private:license_sources_bzl",
     ],
 )
 
@@ -86,6 +86,7 @@ bzl_library(
     srcs = ["toolchain.bzl"],
     deps = [
         "//coco/private:licence_docs_bzl",
+        "//coco/private:license_sources_bzl",
         "//coco/private:version_resolution_bzl",
     ],
 )
@@ -96,6 +97,7 @@ bzl_library(
     deps = [
         "//coco/private:cc_runtime_deps_bzl",
         "//coco/private:licence_docs_bzl",
+        "//coco/private:license_sources_bzl",
         "//coco/private:toolchain_hub_bzl",
     ],
 )
