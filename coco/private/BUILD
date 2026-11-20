@@ -118,6 +118,7 @@ bzl_library(
     srcs = ["common_repositories.bzl"],
     deps = [
         ":known_shas_bzl",
+        ":platforms_bzl",
         ":version_resolution_bzl",
     ],
 )
@@ -171,12 +172,6 @@ bzl_library(
 bzl_library(
     name = "licence_docs_bzl",
     srcs = ["licence_docs.bzl"],
-)
-
-bzl_library(
-    name = "licensing_bzl",
-    srcs = ["licensing.bzl"],
-    deps = [":coco_bzl"],
 )
 
 bzl_library(
@@ -238,7 +233,6 @@ bzl_library(
         ":known_shas_bzl",
         ":licence_docs_bzl",
         ":license_versions_bzl",
-        ":licensing_bzl",
         ":platforms_bzl",
         ":repositories_bzl",
         ":source_roots_bzl",

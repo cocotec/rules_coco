@@ -29,7 +29,7 @@ load(":common_repositories.bzl", "AVAILABLE_STABLE_VERSIONS", "coco_download", "
 load(":host.bzl", "matches_host")
 load(":known_shas.bzl", "FILE_KEY_TO_SHA")
 load(":license_versions.bzl", "LICENSE_PROTOCOL_VERSIONS")
-load(":platforms.bzl", "COCO_TOOLCHAIN_PLATFORMS", "archive_platform", "platform_binary_ext")
+load(":platforms.bzl", "COCO_TOOLCHAIN_PLATFORMS", "archive_platform", "platform_binary_ext", "repository_host_platform")
 load(":source_roots.bzl", "infer_source_root", "leaves_directory", "normalize_root", "relative_path", "resolve_source_roots", "source_root_for")
 load(
     ":toolchain_hub.bzl",
@@ -1249,7 +1249,22 @@ def _stable_versions_test(ctx):
 
     return unittest.end(env)
 
+def _repository_host_platform_test(ctx):
+    """A repository rule's host maps to its popili platform, or to None where popili is not published."""
+    env = unittest.begin(ctx)
+
+    asserts.equals(env, ("osx", "aarch64"), repository_host_platform("Mac OS X", "aarch64"))
+    asserts.equals(env, ("linux", "x86_64"), repository_host_platform("linux", "amd64"))
+    asserts.equals(env, ("linux", "aarch64"), repository_host_platform("linux", "aarch64"))
+    asserts.equals(env, ("windows", "x86_64"), repository_host_platform("windows 11", "amd64"))
+    asserts.equals(env, None, repository_host_platform("mac os x", "x86_64"))
+    asserts.equals(env, None, repository_host_platform("freebsd", "amd64"))
+    asserts.equals(env, None, repository_host_platform("linux", "riscv64"))
+
+    return unittest.end(env)
+
 stable_versions_test = unittest.make(_stable_versions_test)
+repository_host_platform_test = unittest.make(_repository_host_platform_test)
 download_prefix_test = unittest.make(_download_prefix_test)
 archive_platform_test = unittest.make(_archive_platform_test)
 matches_host_test = unittest.make(_matches_host_test)
@@ -2155,6 +2170,16 @@ def _hub_license_gating_test(ctx):
     asserts.true(env, '"@rules_coco//config/license_source:unset"' in remote_capable(build), "unset is remote-capable when action_file is the default")
     asserts.true(env, 'license_source = "action_file",' in build, "the registry's default licence mode")
 
+    # license_local_acquire matches local_acquire, by the flag or as the hub's default.
+    def local_acquire(build):
+        select = build[build.index('name = "license_local_acquire"'):]
+        return select[:select.index("})")]
+
+    asserts.true(env, '"@rules_coco//config/license_source:local_acquire"' in local_acquire(build), "local_acquire by the flag")
+    asserts.false(env, "license_source:unset" in local_acquire(build), "unset is not local_acquire when action_file is the default")
+    build = render_toolchain_hub_build(toolchain_hub_entries(["1.5.7"], license_source = "local_acquire"))
+    asserts.true(env, '"@rules_coco//config/license_source:unset"' in local_acquire(build), "unset is local_acquire when it is the default")
+
     return unittest.end(env)
 
 hub_license_gating_test = unittest.make(_hub_license_gating_test)
@@ -2318,7 +2343,20 @@ def _toolchain_build_license_protocol_version_test(ctx):
 
     return unittest.end(env)
 
+def _toolchain_build_local_acquire_licenses_test(ctx):
+    """A coco_toolchain points at its acquired licence only under local_acquire, so it is only fetched then."""
+    env = unittest.begin(ctx)
+
+    build = BUILD_for_coco_toolchain("toolchain", popili_version = "1.5.7", local_acquire_licenses = "@fetch_6//:licenses", hub_name = "hub")
+    asserts.true(env, '"@hub//:license_local_acquire": "@fetch_6//:licenses",' in build, "acquired licence missing: %s" % build)
+    asserts.true(env, '"//conditions:default": None,' in build, "unconditional licence: %s" % build)
+    build = BUILD_for_coco_toolchain("toolchain", popili_version = "1.5.7")
+    asserts.true(env, "local_acquire_licenses" not in build, "no acquired licence expected: %s" % build)
+
+    return unittest.end(env)
+
 toolchain_build_version_test = unittest.make(_toolchain_build_version_test)
+toolchain_build_local_acquire_licenses_test = unittest.make(_toolchain_build_local_acquire_licenses_test)
 toolchain_build_license_protocol_version_test = unittest.make(_toolchain_build_license_protocol_version_test)
 
 # Tests for normalize_cc_runtime_extra_deps
@@ -2670,6 +2708,7 @@ def coco_test_suite(name):
         download_prefix_test,
         archive_platform_test,
         matches_host_test,
+        repository_host_platform_test,
 
         # resolve_versions tests
         resolve_versions_alias_test,
@@ -2737,6 +2776,7 @@ def coco_test_suite(name):
         # BUILD_for_coco_toolchain tests
         toolchain_build_version_test,
         toolchain_build_license_protocol_version_test,
+        toolchain_build_local_acquire_licenses_test,
 
         # normalize_cc_runtime_extra_deps tests
         normalize_extra_deps_list_applies_to_all_test,

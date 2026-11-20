@@ -18,6 +18,7 @@
 load("@bazel_skylib//rules:write_file.bzl", "write_file")
 load("@rules_coco//coco:defs.bzl", "coco_fmt_test", "coco_generate", "coco_package", "coco_verify_test")
 load("@rules_coco//coco:toolchain.bzl", "coco_toolchain")
+load("@rules_coco//coco/private:license_paths.bzl", "license_paths")  # buildifier: disable=bzl-visibility
 load(":exec_tools_test.bzl", "exec_tools_tests")
 load(":script_flavour_test.bzl", "script_flavour_tests")
 
@@ -35,6 +36,12 @@ load(":script_flavour_test.bzl", "script_flavour_tests")
     ]
 ]
 
+# A licence for local_acquire, which these analysis-only tests never read.
+license_paths(
+    name = "fake_licenses",
+    paths = {"licenses_6.lic": "/nonexistent/licenses_6.lic"},
+)
+
 # Fake Coco toolchains around empty binaries: only the file names matter to the tests, and without
 # C/C++ runtimes nothing needs a C++ toolchain for the foreign target platform.
 [
@@ -43,14 +50,10 @@ load(":script_flavour_test.bzl", "script_flavour_tests")
             name = "fake_%s_popili" % kind,
             out = "fake_%s/popili%s" % (kind, ext),
         ),
-        write_file(
-            name = "fake_%s_licensing_server" % kind,
-            out = "fake_%s/cocotec-licensing-server%s" % (kind, ext),
-        ),
         coco_toolchain(
             name = "fake_%s_toolchain_impl" % kind,
             coco = ":fake_%s_popili" % kind,
-            cocotec_licensing_server = ":fake_%s_licensing_server" % kind,
+            local_acquire_licenses = ":fake_licenses",
             popili_version = "1.5.0",
         ),
         toolchain(

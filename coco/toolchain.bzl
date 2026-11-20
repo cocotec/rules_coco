@@ -15,6 +15,7 @@
 """Coco toolchain implementation."""
 
 load("//coco/private:licence_docs.bzl", "AUTH_TOKEN_PATH_DOC", "LICENSE_SOURCE_DOC", "LICENSE_TOKEN_DOC")
+load("//coco/private:license_paths.bzl", "LicensePathsInfo")
 load("//coco/private:license_sources.bzl", "LICENSE_SOURCES")
 load("//coco/private:version_resolution.bzl", "LOCAL_VERSION", "version_tuple")
 
@@ -40,13 +41,14 @@ def _coco_toolchain_impl(ctx):
         auth_token_path = ctx.attr.auth_token_path,
         popili_version = ctx.attr.popili_version,
         license_protocol_version = ctx.attr.license_protocol_version,
+        local_acquire_licenses = ctx.attr.local_acquire_licenses[LicensePathsInfo] if ctx.attr.local_acquire_licenses else None,
     )
     return toolchain
 
 coco_toolchain = rule(
     _coco_toolchain_impl,
-    doc = """Declares a popili toolchain: the `popili` and `cocotec-licensing-server` binaries, the Coco runtimes and the
-licence settings the Coco rules run with.
+    doc = """Declares a popili toolchain: the `popili` binary, the Coco runtimes and the licence settings the Coco
+rules run with.
 
 rules_coco generates one for every version that `coco.toolchain` or `coco_repositories` registers. Declare one
 yourself only to bring your own popili: wrap it in a `toolchain()` with
@@ -90,18 +92,16 @@ yourself only to bring your own popili: wrap it in a `toolchain()` with
         ),
         "cocotec_licensing_server": attr.label(
             doc = (
-                "The location of the `cocotec-licensing-server` binary. Can be a direct source or a filegroup " +
-                "containing one item, or a binary built from source, which is built for the execution platform that " +
-                "runs it."
+                "Deprecated and unused: `local_acquire` acquires its licence when Bazel fetches repositories, " +
+                "with the server `coco_license_repository` names (see `local_acquire_licenses`). Will be removed."
             ),
             allow_single_file = True,
             cfg = "exec",
-            mandatory = True,
         ),
         "license_protocol_version": attr.int(
             doc = (
                 "The licence protocol version the `popili` binary reads, `n` in `licenses_<n>.lic`, " +
-                "which picks its licence file under `local_user` licensing. Optional: 0 derives it from " +
+                "which picks its licence file under the local licence modes. Optional: 0 derives it from " +
                 "`popili_version`, or takes the newest protocol version rules_coco knows of when that is " +
                 "unknown. Set it when the popili reads a different protocol version than that."
             ),
@@ -116,10 +116,20 @@ yourself only to bring your own popili: wrap it in a `toolchain()` with
             doc = LICENSE_TOKEN_DOC,
             default = "",
         ),
+        "local_acquire_licenses": attr.label(
+            doc = (
+                "The licences acquired for `local_acquire` licensing; popili gets the one of its licence " +
+                "protocol version by path. Required under `local_acquire`, where analysis fails without " +
+                "it. The toolchains rules_coco generates set it; a bring-your-own toolchain points it at a " +
+                "`coco_license_repository`."
+            ),
+            providers = [LicensePathsInfo],
+            default = None,
+        ),
         "popili_version": attr.string(
             doc = (
                 "The version of the `popili` binary, such as `\"1.5.8\"`; an alias such as `\"stable\"` is " +
-                "rejected. Under `local_user` licensing it selects the licence file. A bring-your-own " +
+                "rejected. Under the local licence modes it selects the licence file. A bring-your-own " +
                 "`toolchain()` without `target_settings` serves every target, so with it a target pinned " +
                 "to another version, or built with `--@rules_coco//:version` set to another version, " +
                 "fails. The toolchains rules_coco generates set it, and each serves only its own " +

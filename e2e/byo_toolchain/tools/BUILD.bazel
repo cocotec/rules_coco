@@ -10,8 +10,13 @@ load("//popili_dist:bin/version.bzl", "POPILI_VERSION")
 coco_toolchain(
     name = "byo_popili",
     coco = "//popili_dist:popili",
-    cocotec_licensing_server = "//popili_dist:licensing_server",
-    # The staged version (see stage.py), which picks the licence file under local_user licensing.
+    # The licence @byo_licence acquires with the staged server (see MODULE.bazel), only under
+    # local_acquire licensing: this toolchain has no default mode of its own, so only the flag selects it.
+    local_acquire_licenses = select({
+        "@rules_coco//config/license_source:local_acquire": "@byo_licence//:licenses",
+        "//conditions:default": None,
+    }),
+    # The staged version (see stage.py), which picks the licence file under the local licence modes.
     popili_version = POPILI_VERSION,
     visibility = ["//visibility:public"],
 )
@@ -27,7 +32,6 @@ toolchain(
 coco_toolchain(
     name = "alias_popili",
     coco = "//popili_dist:popili",
-    cocotec_licensing_server = "//popili_dist:licensing_server",
     popili_version = "stable",
     tags = ["manual"],
     visibility = ["//visibility:public"],

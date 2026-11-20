@@ -7,13 +7,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### Added
+
+- A bring-your-own toolchain can now list its own licence server to be used with the `local_acquire` licence mode. See
+  [Bring your own toolchain](docs/toolchains.md#bring-your-own-toolchain).
+
 ### Changed
 
-- Under `local_user`, Popili now gets the licence file by its absolute path instead of as an action input. Popili
-  rewrites that file as it renews the licence, which used to rerun every Popili action and test. See
-  [Licence modes](docs/licensing.md#licence-modes).
+- Under `local_user` and `local_acquire`, Popili now gets the licence file by its absolute path instead of as an action
+  input, so a renewed or newly acquired licence no longer reruns every Popili action and test. Under `local_acquire`,
+  the licence is now acquired when Bazel fetches repositories. See [Licence modes](docs/licensing.md#licence-modes).
 - Under the `local_user` and `local_acquire` licence modes, Popili's actions and tests now always run on the host, even
   with remote execution enabled. See [Licence modes](docs/licensing.md#licence-modes).
+- **Breaking:** under `local_acquire`, a bring-your-own `coco_toolchain` must set its new `local_acquire_licenses`, for
+  example to a `coco_license_repository`, for Popili to get the acquired licence. `fetch_license` has been removed. See
+  [Bring your own toolchain](docs/toolchains.md#bring-your-own-toolchain).
+
+### Deprecated
+
+- `coco_toolchain`'s `cocotec_licensing_server` is ignored and no longer required: nothing runs the server from a build
+  any more.
 
 ### Fixed
 
