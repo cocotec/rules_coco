@@ -86,6 +86,7 @@ bzl_library(
     srcs = ["toolchain.bzl"],
     deps = [
         "//coco/private:licence_docs_bzl",
+        "//coco/private:license_paths_bzl",
         "//coco/private:license_sources_bzl",
         "//coco/private:version_resolution_bzl",
     ],

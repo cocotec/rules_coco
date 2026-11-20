@@ -69,3 +69,40 @@ def platform_binary_ext(os):
     if os == "windows":
         return ".exe"
     return ""
+
+# Repository rules only: they can't see constraints, and common_repositories.bzl can't load
+# HOST_CONSTRAINTS in WORKSPACE mode. Elsewhere, use host.bzl's host_popili_platform.
+def repository_host_os(os_name):
+    """Returns the OS of COCO_TOOLCHAIN_PLATFORMS a repository rule's host runs.
+
+    Args:
+      os_name: The host's `repository_ctx.os.name`, e.g. "mac os x", "linux" or "windows 11".
+
+    Returns:
+      "osx", "windows" or "linux", or None for another OS.
+    """
+    os_name = os_name.lower()
+    if "mac" in os_name or "darwin" in os_name:
+        return "osx"
+    if "windows" in os_name:
+        return "windows"
+    if "linux" in os_name:
+        return "linux"
+    return None
+
+def repository_host_platform(os_name, os_arch):
+    """Returns which of COCO_TOOLCHAIN_PLATFORMS a repository rule's host is.
+
+    Args:
+      os_name: The host's `repository_ctx.os.name`, e.g. "mac os x", "linux" or "windows 11".
+      os_arch: The host's `repository_ctx.os.arch`, e.g. "aarch64", "amd64" or "x86_64".
+
+    Returns:
+      An (os, arch) pair of COCO_TOOLCHAIN_PLATFORMS, or None when popili is not published for
+      the host.
+    """
+    os = repository_host_os(os_name)
+    arch = {"aarch64": "aarch64", "amd64": "x86_64", "arm64": "aarch64", "x86_64": "x86_64"}.get(os_arch.lower())
+    if (os, arch) not in COCO_TOOLCHAIN_PLATFORMS:
+        return None
+    return (os, arch)

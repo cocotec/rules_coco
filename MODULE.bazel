@@ -43,7 +43,6 @@ use_repo(
     coco,
     "coco_toolchains",
     "io_cocotec_coco_preferences",
-    "io_cocotec_licensing_fetch",
     "io_cocotec_licensing_local",
 )
 

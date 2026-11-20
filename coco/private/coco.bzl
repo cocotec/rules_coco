@@ -90,9 +90,8 @@ CocoCSharpGeneratedInfo = provider(
 
 LICENSE_ATTRIBUTES = {
     "_auth_token_path": attr.label(default = Label("//:auth_token_path")),
-    "_license_file_fetch": attr.label(default = Label("@io_cocotec_licensing_fetch//:licenses")),
     "_license_token": attr.label(default = Label("//:license_token")),
-    # The path of every licenses_<n>.lic found locally; see _local_user_license_path.
+    # The path of every licenses_<n>.lic found locally; see _local_license_path.
     "_local_licenses": attr.label(default = Label("@io_cocotec_licensing_local//:licenses"), providers = [LicensePathsInfo]),
 }
 
@@ -916,16 +915,11 @@ def _coco_startup_args(ctx, package, is_test):
         if auth_token_path:
             arguments.append("--machine-auth-token")
             arguments.append(auth_token_path)
-    elif license_source == "local_user":
+    elif license_source in LOCAL_LICENSE_SOURCES:
         # By path, not as an input: see license_paths.bzl.
-        license_path = _local_user_license_path(ctx)
+        license_path = _local_license_path(ctx, license_source)
         if license_path:
             arguments += ["--override-licenses", license_path]
-    else:
-        license_file = _get_license_file_from_toolchain(ctx)
-        if license_file:
-            arguments.append("--override-licenses")
-            arguments.append(_runtime_path(license_file, is_test))
     if package:
         info = _package_info(package)
         arguments += [
@@ -988,31 +982,28 @@ def _get_auth_token_path(ctx):
         return toolchain_auth_token_path
     return ""
 
-def _get_license_file_from_toolchain(ctx):
-    """Get the appropriate license file based on license_source.
+def _local_license_path(ctx, license_source):
+    """The absolute path of the licence `license_source`, a local licence mode, gives popili, or None.
 
-    Reads license_source from the toolchain (repository default) with optional
-    CLI override via --@rules_coco//:license_source flag.
-    """
-
-    # Even with the flag set, so a missing toolchain fails here rather than as an empty fetch.
-    _coco_toolchain(ctx)
-    license_source = _license_source(ctx, _coco_toolchain(ctx))
-    if license_source == "local_acquire":
-        files = ctx.attr._license_file_fetch[DefaultInfo].files.to_list()
-        return files[0] if files else None
-    return None
-
-def _local_user_license_path(ctx):
-    """The absolute path of the user's licence for the licence protocol version of the toolchain's popili.
-
-    The toolchain's `license_protocol_version` when set, else the one its `popili_version`
-    reads. The local toolchain, whose version is unknown, gets the file of the newest protocol
-    version. None when there is no such file.
+    The licence of the toolchain's `license_protocol_version` when set, else of the one its
+    `popili_version` reads; the local toolchain, whose version is unknown, gets the newest protocol
+    version's. Under `local_acquire`, analysis fails when the toolchain has no such licence: popili
+    runs with `HOME=/nonexistent`, so it would not find one in its own data directory either.
     """
     toolchain = _coco_toolchain(ctx)
-    name = "licenses_%d.lic" % (toolchain.license_protocol_version or license_protocol_version(toolchain.popili_version))
-    return ctx.attr._local_licenses[LicensePathsInfo].paths.get(name)
+    protocol_version = toolchain.license_protocol_version or license_protocol_version(toolchain.popili_version)
+    name = "licenses_%d.lic" % protocol_version
+    if license_source == "local_user":
+        return ctx.attr._local_licenses[LicensePathsInfo].paths.get(name)
+    licenses = toolchain.local_acquire_licenses
+    if not licenses:
+        fail(("%s uses local_acquire licensing, but its coco_toolchain %s sets no local_acquire_licenses. Point " +
+              "it at a coco_license_repository, see \"Bring your own toolchain\" in rules_coco's " +
+              "docs/toolchains.md.") %
+             (ctx.label, toolchain.label))
+    if name not in licenses.paths:
+        fail(licenses.error or "%s's local_acquire_licenses have no licence for protocol version %d" % (toolchain.label, protocol_version))
+    return licenses.paths[name]
 
 # The `HOME` that build actions on a POSIX exec platform run popili with. Bazel starts actions with
 # an empty environment, and popili before 1.5.2 crashes when `$HOME` is unset and the user is not
@@ -1047,9 +1038,6 @@ def _coco_runfiles(ctx, package, is_test):
     transitive = []
     if is_test:
         direct.append(_coco_toolchain(ctx).coco)
-    license_file = _get_license_file_from_toolchain(ctx)
-    if license_file:
-        direct.append(license_file)
     if package:
         info = _package_info(package)
         direct.append(info.package_file)
@@ -2527,7 +2515,7 @@ def popili_rule(implementation, attrs = {}, package = False, test = False, execu
     - `package`: with `package = True`, the `CocoPackageInfo` of the `package` attribute.
     - `run(arguments, outputs, inputs = [], mnemonic = "Popili", progress_message = None,
       quiet_on_success = False)` (rules only): registers an action running popili with `arguments`
-      after the startup arguments, the licence and preferences files, the package's files when
+      after the startup arguments, the preferences file, the package's files when
       there is one, and `inputs` (a list or depset) as inputs. With `quiet_on_success`, for an
       action whose output reports what it was meant to find, what popili prints is kept in a log
       beside the first output (`<output>.popili.log`) and shown only if popili fails.

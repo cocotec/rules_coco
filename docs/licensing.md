@@ -49,9 +49,23 @@ and the [network access](https://cocotec.io/popili/doc/1.6/tools/connectivity.ht
   `auth_token_path`, Popili runs with no token and fails to find a licence.
 
 - `local_acquire`: rules_coco acquires a licence on the local machine with `COCOTEC_AUTH_TOKEN` (see
-  [`popili license acquire`](https://cocotec.io/popili/doc/1.6/tools/cli.html#license-acquire-subcommand)). Bazel reads
-  the token from your shell when it fetches the licence repository, so export it and pass
-  `--repo_env=COCOTEC_AUTH_TOKEN`; without it Popili fails at its first action. Not compatible with remote execution.
+  [`popili license acquire`](https://cocotec.io/popili/doc/1.6/tools/cli.html#license-acquire-subcommand)) when Bazel
+  fetches repositories. Bazel reads the token from your shell, so export it and pass `--repo_env=COCOTEC_AUTH_TOKEN`.
+  Not compatible with remote execution.
+
+  The licence is acquired once per Popili version the build uses, with that version's own `cocotec-licensing-server`. It
+  is acquired again when `COCOTEC_AUTH_TOKEN` changes or the Bazel server restarts, and not renewed in between: when it
+  expires, run `bazel shutdown` (or `bazel fetch --force`, which refetches every repository) for a fresh one.
+  `bazel query 'deps(...)'`, as IDE syncs run, acquires the licences of every Popili version it reaches. Without a
+  token, `bazel fetch` and `bazel vendor` still work and the build fails at analysis; a failed acquisition (offline, a
+  rejected token) fails the fetch, which Bazel retries on its next command, and cached results are untouched.
+
+  Popili gets the licence by its absolute path below Bazel's output base, not as an action input, so a new licence does
+  not rerun Popili, and results are cached by that path: CI runners with the same setup share them, separate workspaces
+  or machines do not. Bazel's default sandboxes expose that path read-only; hermetic or Docker sandboxes hide it, so
+  they cannot use this mode. `action_file` keeps the licence out of the cache key too, acquiring one per Popili action
+  instead.
+
 - `local_user`: rules_coco reuses the licence already activated on this machine, from Popili's data directory:
   `~/Library/Application Support/Popili` on macOS, `%LOCALAPPDATA%\Popili` on Windows, or `$XDG_DATA_HOME/popili` (by
   default `~/.local/share/popili`) on Linux. `POPILI_DATA` overrides it. Not compatible with remote execution. A

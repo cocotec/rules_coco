@@ -37,7 +37,7 @@ message naming the missing flag.
 
 `coco.local_toolchain` is allowed only in the root module, and at most once.
 
-Under [`local_user` licensing](licensing.md#licence-modes), set
+Under the [local licence modes](licensing.md#licence-modes), set
 [`license_protocol_version`](reference/extensions.md#coco.local_toolchain-license_protocol_version) when your Popili
 does not read the newest licence protocol version, e.g. `license_protocol_version = 6` for Popili 1.5.x.
 
@@ -82,10 +82,14 @@ load("@rules_coco//coco:toolchain.bzl", "coco_toolchain")
 coco_toolchain(
     name = "my_popili",
     coco = "//path/to:popili",
-    cocotec_licensing_server = "//path/to:cocotec-licensing-server",
     # cc_runtime = "//path/to:cpp_runtime",  # optional cc_library, for coco_cc_library
     # cc_test_runtime = "//path/to:cpp_test_runtime",  # optional: cc_runtime + gmock + coco/gmock_helpers.h, for coco_cc_test_library
     popili_version = "1.5.8",  # required: the version of that popili, not an alias
+    # For local_acquire licensing: the licence @my_licence acquires (see below), only under that mode.
+    local_acquire_licenses = select({
+        "@rules_coco//config/license_source:local_acquire": "@my_licence//:licenses",
+        "//conditions:default": None,
+    }),
 )
 
 toolchain(
@@ -109,14 +113,34 @@ rules_coco creates. Set [`license_source`](reference/toolchain.md#coco_toolchain
 `coco_toolchain` itself, or use the [`--@rules_coco//:license_source`](flags.md#license_source) flag.
 
 [`popili_version`](reference/toolchain.md#coco_toolchain-popili_version) is the version of the `popili` binary the
-toolchain points at, such as `"1.5.8"`; an alias such as `"stable"` is rejected. Under `local_user` licensing it selects
-which licence file Popili gets. Because this toolchain serves every target, a target may ask only for this version or
-for none. A target pinned to another version, or built with `--@rules_coco//:version` set to another version, fails
-instead of running this `popili`:
+toolchain points at, such as `"1.5.8"`; an alias such as `"stable"` is rejected. Under the local licence modes it
+selects which licence file Popili gets. Because this toolchain serves every target, a target may ask only for this
+version or for none. A target pinned to another version, or built with `--@rules_coco//:version` set to another version,
+fails instead of running this `popili`:
 
 ```
 @@//a:gen needs popili 1.5.1 (pinned by popili_version), but the bring-your-own coco_toolchain @@//tools:my_popili, which serves every target, is popili 1.5.8. ...
 ```
+
+[`local_acquire_licenses`](reference/toolchain.md#coco_toolchain-local_acquire_licenses) gets the licence under
+`local_acquire`, acquired when Bazel fetches repositories by a
+[`coco_license_repository`](reference/repositories.md#coco_license_repository) declared in `MODULE.bazel`, with your own
+`cocotec-licensing-server`:
+
+```starlark
+coco_license_repository = use_repo_rule("@rules_coco//coco:repositories.bzl", "coco_license_repository")
+
+coco_license_repository(
+    name = "my_licence",
+    popili = "path/to/popili/bin",  # a directory holding cocotec-licensing-server, absolute or workspace-relative
+    protocol_version = 6,  # the licence protocol version your popili reads: 6 for popili 1.5.x, 9 from 1.6.0-beta.3
+)
+```
+
+The `select()` acquires only under `local_acquire`. If the toolchain's own `license_source` is `local_acquire`, also add
+`"@rules_coco//config/license_source:unset": "@my_licence//:licenses"`.
+
+`cocotec_licensing_server` is deprecated and ignored: the licence repository names the server.
 
 See [`e2e/byo_toolchain`](../e2e/byo_toolchain).
 

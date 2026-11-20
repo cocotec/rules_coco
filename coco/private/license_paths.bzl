@@ -15,23 +15,26 @@
 """The licence files of the local licence modes, by path rather than as build inputs."""
 
 LicensePathsInfo = provider(
-    doc = "Licence files on this machine: the user's (`local_user`).",
+    doc = "Licence files on this machine: the user's (`local_user`) or acquired ones (`local_acquire`).",
     fields = {
+        "error": "Why a licence is missing, for popili's analysis to fail with; empty when none is.",
         "paths": "A dict from file name (`licenses_<n>.lic`) to its absolute path.",
     },
 )
 
 def _license_paths_impl(ctx):
-    return [LicensePathsInfo(paths = ctx.attr.paths)]
+    return [LicensePathsInfo(paths = ctx.attr.paths, error = ctx.attr.error)]
 
 license_paths = rule(
     doc = """Names licence files without making them inputs.
 
 popili reads the licence at its path, so the file's contents stay out of the action key: popili's
-licensing daemon rewrites the user's licence as it renews, which would otherwise rerun every popili
-action. That is only sound because the local licence modes keep popili off remote executors.""",
+licensing daemon rewrites the user's licence as it renews, and every acquisition writes a new
+licence, either of which would otherwise rerun every popili action. That is only sound because the
+local licence modes keep popili off remote executors.""",
     implementation = _license_paths_impl,
     attrs = {
+        "error": attr.string(doc = "Why a licence is missing, for popili's analysis to fail with."),
         "paths": attr.string_dict(doc = "File name to absolute path."),
     },
     provides = [LicensePathsInfo],
