@@ -23,6 +23,7 @@ load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
 load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load(":common_attrs.bzl", "companion_attrs")
 load(":host.bzl", "host_popili_platform")
+load(":license_paths.bzl", "LicensePathsInfo")
 load(":license_sources.bzl", "DEFAULT_LICENSE_SOURCE", "LOCAL_LICENSE_SOURCES")
 load(":source_roots.bzl", "leaves_directory", "relative_path", "resolve_source_roots", "source_root_for")
 load(":version_registry.bzl", "CocoVersionRegistryInfo")
@@ -90,9 +91,9 @@ CocoCSharpGeneratedInfo = provider(
 LICENSE_ATTRIBUTES = {
     "_auth_token_path": attr.label(default = Label("//:auth_token_path")),
     "_license_file_fetch": attr.label(default = Label("@io_cocotec_licensing_fetch//:licenses")),
-    # Every licenses_<n>.lic found locally; see _local_user_license_file.
-    "_license_files_local": attr.label(default = Label("@io_cocotec_licensing_local//:licenses")),
     "_license_token": attr.label(default = Label("//:license_token")),
+    # The path of every licenses_<n>.lic found locally; see _local_user_license_path.
+    "_local_licenses": attr.label(default = Label("@io_cocotec_licensing_local//:licenses"), providers = [LicensePathsInfo]),
 }
 
 COCO_TOOLCHAIN_TYPE_LABEL = TOOLCHAIN_TYPE
@@ -915,8 +916,12 @@ def _coco_startup_args(ctx, package, is_test):
         if auth_token_path:
             arguments.append("--machine-auth-token")
             arguments.append(auth_token_path)
+    elif license_source == "local_user":
+        # By path, not as an input: see license_paths.bzl.
+        license_path = _local_user_license_path(ctx)
+        if license_path:
+            arguments += ["--override-licenses", license_path]
     else:
-        # Handle license file for other modes
         license_file = _get_license_file_from_toolchain(ctx)
         if license_file:
             arguments.append("--override-licenses")
@@ -996,25 +1001,18 @@ def _get_license_file_from_toolchain(ctx):
     if license_source == "local_acquire":
         files = ctx.attr._license_file_fetch[DefaultInfo].files.to_list()
         return files[0] if files else None
-    if license_source == "local_user":
-        return _local_user_license_file(ctx)
     return None
 
-def _local_user_license_file(ctx):
-    """The user's licence file for the licence protocol version of the toolchain's popili.
+def _local_user_license_path(ctx):
+    """The absolute path of the user's licence for the licence protocol version of the toolchain's popili.
 
     The toolchain's `license_protocol_version` when set, else the one its `popili_version`
     reads. The local toolchain, whose version is unknown, gets the file of the newest protocol
-    version.
+    version. None when there is no such file.
     """
     toolchain = _coco_toolchain(ctx)
     name = "licenses_%d.lic" % (toolchain.license_protocol_version or license_protocol_version(toolchain.popili_version))
-    files = [
-        file
-        for file in ctx.attr._license_files_local[DefaultInfo].files.to_list()
-        if file.basename == name
-    ]
-    return files[0] if files else None
+    return ctx.attr._local_licenses[LicensePathsInfo].paths.get(name)
 
 # The `HOME` that build actions on a POSIX exec platform run popili with. Bazel starts actions with
 # an empty environment, and popili before 1.5.2 crashes when `$HOME` is unset and the user is not
@@ -1095,22 +1093,46 @@ def _is_windows(ctx):
     """
     return _coco_toolchain(ctx).coco.extension == "exe"
 
-def _bat_set(name, value):
-    """Returns a cmd.exe `SET` line that assigns `value` to `name` verbatim.
+def _bat_escape(text, what):
+    """Returns `text` for a cmd.exe script, which expands `%` even inside double quotes, with `%` doubled.
 
-    Inside `SET "name=value"` cmd.exe only expands `%`, which `%%` escapes. A `"` or line break
-    cannot be represented, so such values fail analysis instead of producing a broken script.
+    A `"` or line break cannot be represented, so such text fails analysis instead of producing a
+    broken script; `what` names it in the error.
     """
-    if "\"" in value or "\n" in value or "\r" in value:
-        fail("Cannot pass %s to a Windows wrapper script: the value contains a double quote or line break" % name)
-    return "SET \"%s=%s\"" % (name, value.replace("%", "%%"))
+    if "\"" in text or "\n" in text or "\r" in text:
+        fail("Cannot pass %s to a Windows wrapper script: it contains a double quote or line break" % what)
+    return text.replace("%", "%%")
+
+def _bat_set(name, value):
+    """Returns a cmd.exe `SET` line that assigns `value` to `name` verbatim."""
+    return "SET \"%s=%s\"" % (name, _bat_escape(value, name))
 
 def _windows_path(path):
-    """Returns `path` as a cmd.exe script names it.
+    """Returns `path` as a cmd.exe script names it, with backslashes."""
+    return _bat_escape(path.replace("/", "\\"), path)
 
-    Its slashes become backslashes, and `%`, which cmd.exe expands even inside double quotes, becomes `%%`.
+_SH_SAFE = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_@%+=:,./-"
+
+def _script_literal(argument, is_windows):
+    """`argument` as one literal word of a wrapper script's command line.
+
+    For paths that come from the environment, such as the local_user licence under macOS's
+    "Application Support", or under a POPILI_DATA holding a `'`, `$` or `&`. In sh a word in single
+    quotes is literal. In a batch file `%` is doubled, and a word in double quotes keeps `&`, `|`,
+    `<`, `>`, `^` and parentheses literal; a double quote or line break cannot be represented, so
+    it fails analysis.
     """
-    return path.replace("/", "\\").replace("%", "%%")
+    if not is_windows:
+        if argument and all([c in _SH_SAFE for c in argument.elems()]):
+            return argument
+        return shell.quote(argument)
+    argument = _bat_escape(argument, argument)
+    if not any([c in argument for c in [" ", "\t", "&", "|", "<", ">", "^", "(", ")"]]):
+        return argument
+
+    # Backslashes before the closing quote would escape it for popili's argument parser.
+    stripped = argument.rstrip("\\")
+    return "\"%s%s\"" % (stripped, "\\" * 2 * (len(argument) - len(stripped)))
 
 def _create_coco_wrapper_script(ctx, package, arguments, marker = None):
     """Creates a platform-specific wrapper script for running Coco commands.
@@ -1130,11 +1152,15 @@ def _create_coco_wrapper_script(ctx, package, arguments, marker = None):
     coco_path = _runtime_path(_coco_toolchain(ctx).coco, is_test)
     is_windows = _is_windows(ctx)
     if is_windows:
-        coco_path = _windows_path(coco_path)
+        # Not _windows_path: _script_literal escapes `%` below.
+        coco_path = coco_path.replace("/", "\\")
 
-    # Build the full command
-    full_arguments = [coco_path] + _coco_startup_args(ctx, package, is_test) + arguments
-    command = " ".join(full_arguments)
+    # popili and its startup arguments are literal; the caller's arguments are script text, which
+    # may expand variables, such as $XML_OUTPUT_FILE.
+    command = " ".join([
+        _script_literal(argument, is_windows)
+        for argument in [coco_path] + _coco_startup_args(ctx, package, is_test)
+    ] + arguments)
     env = _coco_env(ctx, for_action = not is_test)
 
     # Create platform-specific wrapper script
@@ -2506,7 +2532,8 @@ def popili_rule(implementation, attrs = {}, package = False, test = False, execu
       action whose output reports what it was meant to find, what popili prints is kept in a log
       beside the first output (`<output>.popili.log`) and shown only if popili fails.
     - `script(arguments)` and `runfiles` (tests and executables only): the wrapper script running
-      popili with `arguments` from the runfiles, and the depset of files it needs there.
+      popili with `arguments` from the runfiles, and the depset of files it needs there. The
+      arguments are written into the script as they are, so `$VAR` (`%VAR%` on Windows) expands.
       Return `DefaultInfo(executable = popili.script(...), runfiles = ctx.runfiles(transitive_files = popili.runfiles))`.
 
     Under the `local_user` and `local_acquire` licence modes, `run`'s actions and the rule's tests are
@@ -2582,7 +2609,7 @@ def _coco_package_verify(ctx, popili):
     arguments = [
         "verify",
         "--results-junit",
-        "%%XML_OUTPUT_FILE%%" if _is_windows(ctx) else "$XML_OUTPUT_FILE",
+        "%XML_OUTPUT_FILE%" if _is_windows(ctx) else "$XML_OUTPUT_FILE",
     ]
 
     backend = ctx.attr._verification_backend[BuildSettingInfo].value
@@ -2627,6 +2654,7 @@ coco_cc_pin = _coco_cc_pin
 
 # Exported for testing
 bat_set = _bat_set
+script_literal = _script_literal
 mangle_name = _mangle_name
 popili_rule_reserved_attribute = _popili_rule_reserved_attribute
 missing_popili_message = _missing_popili_message

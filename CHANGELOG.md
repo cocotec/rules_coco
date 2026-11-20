@@ -9,8 +9,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Changed
 
+- Under `local_user`, Popili now gets the licence file by its absolute path instead of as an action input. Popili
+  rewrites that file as it renews the licence, which used to rerun every Popili action and test. See
+  [Licence modes](docs/licensing.md#licence-modes).
 - Under the `local_user` and `local_acquire` licence modes, Popili's actions and tests now always run on the host, even
   with remote execution enabled. See [Licence modes](docs/licensing.md#licence-modes).
+
+### Fixed
+
+- Fixes an issue where `coco_verify_test` on Windows did not write its JUnit results to the file Bazel reads.
 
 ## [0.4.0] - 2026-11-19
 

@@ -55,7 +55,9 @@ and the [network access](https://cocotec.io/popili/doc/1.6/tools/connectivity.ht
 - `local_user`: rules_coco reuses the licence already activated on this machine, from Popili's data directory:
   `~/Library/Application Support/Popili` on macOS, `%LOCALAPPDATA%\Popili` on Windows, or `$XDG_DATA_HOME/popili` (by
   default `~/.local/share/popili`) on Linux. `POPILI_DATA` overrides it. Not compatible with remote execution. A
-  [local toolchain](toolchains.md#using-a-local-toolchain) may need `license_protocol_version`.
+  [local toolchain](toolchains.md#using-a-local-toolchain) may need `license_protocol_version`. Popili gets the licence
+  file by its absolute path rather than as an action input, so Popili refreshing it does not rerun your build. That
+  relies on the sandbox exposing Popili's data directory read-only, as Bazel's default sandboxes do.
 - `token`: The explicitly provided token should be used as `COCOTEC_AUTH_TOKEN`. In this case,
   [`--@rules_coco//:license_token`](flags.md#license_token) must be set as well. This works with remote execution but it
   is only recommended when using workload identity federation as `COCOTEC_AUTH_TOKEN` is not a secret in that case.
