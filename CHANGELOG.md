@@ -31,6 +31,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Fixed
 
 - Fixes an issue where `coco_verify_test` on Windows did not write its JUnit results to the file Bazel reads.
+- Fixes an issue where `local_acquire` ignored a token given as a file. `COCOTEC_AUTH_TOKEN_FILE` now wins over
+  `COCOTEC_AUTH_TOKEN`, and only the file's path is passed on. See [Licence modes](docs/licensing.md#licence-modes).
 
 ## [0.4.0] - 2026-11-19
 

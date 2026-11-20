@@ -26,7 +26,8 @@ LICENSE_SOURCES = [
     # Requires popili 1.5.2 or later.
     "action_file",
 
-    # A license will be acquired on the local machine when Bazel fetches repositories, using COCOTEC_AUTH_TOKEN.
+    # A license will be acquired on the local machine when Bazel fetches repositories, using the machine token in
+    # the repository environment: the absolute path in COCOTEC_AUTH_TOKEN_FILE, else the value of COCOTEC_AUTH_TOKEN.
     #
     # This is not compatible with remote execution.
     "local_acquire",

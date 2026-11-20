@@ -25,7 +25,7 @@ load(
 )
 load(":cc_runtime_deps.bzl", "collect_cc_runtime_extra_deps", "collect_cc_test_runtime_gmock", "normalize_cc_runtime_extra_deps")
 load(":coco.bzl", "FILE_NAME_MANGLER_STYLES", "bat_set", "common_version", "compute_output_paths", "effective_version", "inherited_versions_conflict", "library_version_conflict", "library_version_mismatch_message", "license_execution_requirements", "mangle_name", "missing_popili_message", "module_path_for", "own_package_versions_message", "package_transition_settings", "package_versions_conflict", "pin_transition_settings", "popili_rule_reserved_attribute", "script_literal", "toolchain_version_mismatch_message", "unpin_transition_settings", "version_source")
-load(":common_repositories.bzl", "AVAILABLE_STABLE_VERSIONS", "coco_download", "download_prefix", "find_local_license_paths", "is_license_file_name")
+load(":common_repositories.bzl", "AVAILABLE_STABLE_VERSIONS", "auth_token_source", "coco_download", "download_prefix", "find_local_license_paths", "is_license_file_name")
 load(":host.bzl", "matches_host")
 load(":known_shas.bzl", "FILE_KEY_TO_SHA")
 load(":license_versions.bzl", "LICENSE_PROTOCOL_VERSIONS")
@@ -686,6 +686,25 @@ def _local_license_absent_test(ctx):
 
     return unittest.end(env)
 
+def _auth_token_source_test(ctx):
+    """local_acquire takes COCOTEC_AUTH_TOKEN_FILE's path over COCOTEC_AUTH_TOKEN's value."""
+    env = unittest.begin(ctx)
+
+    asserts.equals(env, struct(file = "/t"), auth_token_source({"COCOTEC_AUTH_TOKEN_FILE": "/t"}))
+    asserts.equals(env, struct(value = "v"), auth_token_source({"COCOTEC_AUTH_TOKEN": "v"}))
+    asserts.equals(env, struct(file = "/t"), auth_token_source({"COCOTEC_AUTH_TOKEN": "v", "COCOTEC_AUTH_TOKEN_FILE": "/t"}))
+    asserts.equals(env, struct(value = "v"), auth_token_source({"COCOTEC_AUTH_TOKEN": "v", "COCOTEC_AUTH_TOKEN_FILE": ""}))
+    asserts.equals(env, None, auth_token_source({}))
+    asserts.equals(env, None, auth_token_source({"COCOTEC_AUTH_TOKEN": "", "COCOTEC_AUTH_TOKEN_FILE": ""}))
+
+    # The file's path must be absolute, on POSIX or Windows, including a network share.
+    for path in ["C:\\t", "\\\\server\\share\\t"]:
+        asserts.equals(env, struct(file = path), auth_token_source({"COCOTEC_AUTH_TOKEN_FILE": path}))
+    for path in ["secrets/token", "~/token"]:
+        asserts.true(env, hasattr(auth_token_source({"COCOTEC_AUTH_TOKEN_FILE": path}), "error"), path)
+
+    return unittest.end(env)
+
 def _local_license_unset_home_test(ctx):
     """An unset $HOME must probe nothing, not a path anchored at literal "None".
 
@@ -816,6 +835,7 @@ local_license_legacy_fallback_test = unittest.make(_local_license_legacy_fallbac
 local_license_prefers_popili_over_legacy_test = unittest.make(_local_license_prefers_popili_over_legacy_test)
 local_license_absent_test = unittest.make(_local_license_absent_test)
 local_license_unset_home_test = unittest.make(_local_license_unset_home_test)
+auth_token_source_test = unittest.make(_auth_token_source_test)
 local_license_empty_home_test = unittest.make(_local_license_empty_home_test)
 local_license_unset_appdata_windows_test = unittest.make(_local_license_unset_appdata_windows_test)
 local_license_unset_appdata_ignored_off_windows_test = unittest.make(_local_license_unset_appdata_ignored_off_windows_test)
@@ -2665,6 +2685,7 @@ def coco_test_suite(name):
         local_license_prefers_popili_over_legacy_test,
         local_license_absent_test,
         local_license_unset_home_test,
+        auth_token_source_test,
         local_license_empty_home_test,
         local_license_unset_appdata_windows_test,
         local_license_unset_appdata_ignored_off_windows_test,
